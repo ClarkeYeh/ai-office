@@ -1,9 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
-import { hasLeaks, maskText } from './redaction.ts';
+import { fixtureRedactor } from './redaction.ts';
 
-function scan(directory: string): number {
+function scan(
+  directory: string,
+  redactor: ReturnType<typeof fixtureRedactor>,
+): number {
+  const { maskText, hasLeaks } = redactor;
   let failures = 0;
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -12,7 +16,7 @@ function scan(directory: string): number {
       entry.name.replace(/\.(?:json|md)$/, '')
     )
       failures++;
-    if (entry.isDirectory()) failures += scan(path);
+    if (entry.isDirectory()) failures += scan(path, redactor);
     else if (!entry.isFile())
       failures++; // Never follow symlinks outside fixtures.
     else {
@@ -43,7 +47,7 @@ function scan(directory: string): number {
 
 try {
   if (process.argv.length > 3) throw new Error('Invalid arguments');
-  const failures = scan(process.argv[2] ?? 'fixtures');
+  const failures = scan(process.argv[2] ?? 'fixtures', fixtureRedactor());
   if (failures) throw new Error('Unsafe fixtures');
   process.stdout.write('Fixture scan passed.\n');
 } catch {
