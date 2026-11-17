@@ -203,7 +203,10 @@ export class StubWorld {
   readonly runtime = {
     openSession: (req: unknown) => this.call('openSession', [req], 'session-1'),
     prepareWorkspace: (req: unknown) =>
-      this.call('prepareWorkspace', [req], 'ws-1'),
+      this.call('prepareWorkspace', [req], {
+        workspace: 'ws-1',
+        path: '/worktrees/worker',
+      }),
     disposeWorkspace: (ws: unknown) =>
       this.call('disposeWorkspace', [ws], undefined),
     inspectWorkspace: (ws: unknown) =>
@@ -225,13 +228,21 @@ export class StubWorld {
     deleteBranch: (...args: unknown[]) =>
       this.call('deleteBranch', args, undefined),
     createIssue: (repo: { owner: string; name: string }, ...rest: unknown[]) =>
-      this.call('createIssue', [repo, ...rest], { repo, number: 7 }),
+      this.call('createIssue', [repo, ...rest], {
+        repo,
+        number: 7,
+        url: 'https://scm.example/issues/7',
+      }),
     updateIssue: (...args: unknown[]) =>
       this.call('updateIssue', args, undefined),
     comment: (...args: unknown[]) => this.call('comment', args, undefined),
     setLabels: (...args: unknown[]) => this.call('setLabels', args, undefined),
     openPR: (repo: { owner: string; name: string }, ...rest: unknown[]) =>
-      this.call('openPR', [repo, ...rest], { repo, number: 8 }),
+      this.call('openPR', [repo, ...rest], {
+        repo,
+        number: 8,
+        url: 'https://scm.example/pull/8',
+      }),
     updatePR: (...args: unknown[]) => this.call('updatePR', args, undefined),
     mergePR: (...args: unknown[]) =>
       this.call('mergePR', args, { mergeCommitSha: 'abcdef1' }),
