@@ -1,0 +1,31 @@
+{
+  "name": "ai-office",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "lint": "eslint . && prettier --check .",
+    "typecheck": "tsc -b",
+    "format": "prettier --write .",
+    "contracts:gen": "echo TODO: contracts:gen && exit 0",
+    "contracts:check": "echo TODO: contracts:check && exit 0",
+    "depcruise": "echo TODO: depcruise && exit 0",
+    "depcruise:selftest": "echo TODO: depcruise:selftest && exit 0",
+    "check:bundle": "echo TODO: check:bundle && exit 0",
+    "fixtures:scan": "echo TODO: fixtures:scan && exit 0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^4.1.12"
+  }
+}
