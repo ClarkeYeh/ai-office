@@ -16,6 +16,26 @@
     "submission": {
       "$ref": "./AgentSubmission.schema.json"
     },
+    "agentSession": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "provider",
+        "id"
+      ]
+    },
     "artifactId": {
       "type": "string",
       "minLength": 1

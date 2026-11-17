@@ -1255,3 +1255,32 @@ test('prepareWorkspace retains the optional existing-branch checkout flag', () =
     }).success,
   ).toBe(false);
 });
+
+test('submission.accepted optionally preserves the provider session for usage lookup', () => {
+  const payload = payloadExamples['submission.accepted'].valid;
+  expect(SubmissionAcceptedPayloadSchema.parse(payload)).toEqual(payload);
+  for (const provider of ['claude', 'codex']) {
+    const withSession = {
+      ...(payload as object),
+      agentSession: { provider, id: 'session-1' },
+    };
+    expect(
+      EVENT_PAYLOAD_SCHEMAS['submission.accepted'].parse(withSession),
+    ).toEqual(withSession);
+  }
+  for (const agentSession of [
+    null,
+    {},
+    { provider: 'other', id: 'session-1' },
+    { provider: 'claude' },
+    { provider: 'codex', id: '' },
+    { provider: 'codex', id: 123 },
+  ]) {
+    expect(
+      SubmissionAcceptedPayloadSchema.safeParse({
+        ...(payload as object),
+        agentSession,
+      }).success,
+    ).toBe(false);
+  }
+});
