@@ -10,20 +10,7 @@
           "minLength": 1
         },
         "category": {
-          "type": "string",
-          "enum": [
-            "transient",
-            "rate_limited",
-            "auth",
-            "identity",
-            "hijacked",
-            "contract_mismatch",
-            "permanent",
-            "bug",
-            "conflict",
-            "validation",
-            "guard"
-          ]
+          "$ref": "./ErrorCategory.schema.json"
         },
         "message": {
           "type": "string"

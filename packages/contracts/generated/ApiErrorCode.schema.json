@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string",
+  "enum": [
+    "validation_failed",
+    "unauthorized",
+    "bootstrap_code_invalid",
+    "forbidden_origin",
+    "forbidden_host",
+    "not_found",
+    "version_conflict",
+    "gate_content_changed",
+    "gate_not_open",
+    "workflow_slot_busy",
+    "workflow_not_terminal",
+    "seat_not_alive",
+    "idempotency_key_reused",
+    "template_invalid",
+    "runtime_unverified_ack_required",
+    "internal_error"
+  ]
+}

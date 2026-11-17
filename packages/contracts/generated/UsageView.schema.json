@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "total": {
+      "$ref": "./TokenUsage.schema.json"
+    },
+    "byStage": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "./TokenUsage.schema.json"
+      }
+    },
+    "byAgent": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "./AgentKind.schema.json"
+      },
+      "additionalProperties": {
+        "$ref": "./TokenUsage.schema.json"
+      }
+    },
+    "bySeat": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "./SeatId.schema.json"
+      },
+      "additionalProperties": {
+        "$ref": "./TokenUsage.schema.json"
+      }
+    }
+  },
+  "required": [
+    "total",
+    "byStage",
+    "byAgent",
+    "bySeat"
+  ]
+}

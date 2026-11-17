@@ -19,12 +19,24 @@
       "type": "string"
     },
     "edits": {
-      "$ref": "./ReadModel.schema.json"
+      "$ref": "./GateEdits.schema.json"
+    },
+    "additionalTokens": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "agent": {
+      "$ref": "./AgentKind.schema.json"
     },
     "expectedVersion": {
       "type": "integer",
-      "minimum": 0,
+      "exclusiveMinimum": 0,
       "maximum": 9007199254740991
+    },
+    "githubBodyHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "githubUpdatedAt": {
       "type": "string",
