@@ -1,0 +1,16 @@
+import type { ReactContext } from '../context.js';
+import type { Effect } from '../effects.js';
+import type { StageGateBuilder } from '../protocols/stage-close.js';
+
+/**
+ * One stage partition (plan §5.1: meeting/planning T13, implement/oncall T14,
+ * integrate/final-pr T15). `react` sees every event and filters for itself;
+ * gated stages also supply the stage gate opened after pre-gate clearing.
+ */
+export interface StageModule {
+  react: (ctx: ReactContext) => Effect[];
+  stageGate?: StageGateBuilder;
+}
+
+/** A cross-stage policy (T16): budget, exception-gate handling, cancel. */
+export type Policy = (ctx: ReactContext) => Effect[];
