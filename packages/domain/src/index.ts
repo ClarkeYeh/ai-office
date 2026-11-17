@@ -10,3 +10,4 @@ export {
 } from './evolve.js';
 export type { EvolveResult, EvolveWarning } from './evolve.js';
 export * from './state/index.js';
+export * from './spec-builder/index.js';

@@ -1,6 +1,4 @@
 import { describe, expect, test } from 'vitest';
-import type { DomainCommand } from '../commands.js';
-import { decide } from './index.js';
 import { integrationBranchName, slugify } from './workflow.js';
 import {
   ATTEMPT_TRANSITIONS,
@@ -181,70 +179,6 @@ describe('integration branch naming', () => {
       code: 'invalid_integration_branch',
     });
   });
-});
-
-describe('dispatcher', () => {
-  const notYet: DomainCommand[] = [
-    {
-      type: 'OpenGate',
-      meta: meta(),
-      noLiveAttempts: true,
-      gate: {
-        kind: 'exception',
-        exceptionKind: 'anomaly',
-        gateId: 'g',
-        stageId: 'meeting',
-        title: 't',
-        options: [],
-        content: { type: 'exception', summary: 's' },
-      },
-    },
-    {
-      type: 'DecideGate',
-      meta: meta(),
-      gateId: 'g',
-      decision: 'approve',
-      by: 'user',
-      expectedVersion: 1,
-    },
-    {
-      type: 'UpdateGateContent',
-      meta: meta(),
-      update: { gateId: 'g', source: 'user' },
-    },
-    { type: 'CloseGate', meta: meta(), gateId: 'g', reason: 'superseded' },
-    {
-      type: 'AcceptSubmission',
-      meta: meta(),
-      submissionId: 's',
-      attemptId: 'a',
-      submission: { kind: 'agenda', payload: { topics: [] } },
-    },
-    { type: 'RejectSubmission', meta: meta(), rejection: { reason: 'schema' } },
-    {
-      type: 'ProposeWorkItems',
-      meta: meta(),
-      stageId: 'breakdown',
-      submissionId: 's',
-      items: [],
-    },
-    { type: 'ApproveWorkItems', meta: meta(), gateId: 'g', items: [] },
-  ];
-
-  test.each(notYet.map((command) => [command.type, command] as const))(
-    '%s is routed to its (not yet implemented) partition',
-    (_type, command) => {
-      expect(decide(initialState(), command)).toEqual({
-        ok: false,
-        error: {
-          category: 'bug',
-          code: 'not_implemented',
-          message: `${command.type} is not implemented yet`,
-          details: { commandType: command.type },
-        },
-      });
-    },
-  );
 });
 
 describe('state selectors', () => {
