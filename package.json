@@ -14,9 +14,9 @@
     "format": "prettier --write .",
     "contracts:gen": "pnpm --filter @ai-office/contracts build && node packages/contracts/scripts/generate.mjs",
     "contracts:check": "pnpm --filter @ai-office/contracts build && node packages/contracts/scripts/generate.mjs --check",
-    "depcruise": "echo TODO: depcruise && exit 0",
-    "depcruise:selftest": "echo TODO: depcruise:selftest && exit 0",
-    "check:bundle": "echo TODO: check:bundle && exit 0",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs .",
+    "depcruise:selftest": "node scripts/depcruise-selftest/index.mjs",
+    "check:bundle": "node scripts/check-web-bundle/index.mjs",
     "fixtures:scan": "node scripts/fixtures/scan.ts",
     "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json"
   },
@@ -28,6 +28,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0",
     "vitest": "^4.1.12",
-    "@types/node": "^24.10.0"
+    "@types/node": "^24.10.0",
+    "dependency-cruiser": "^18.8.0"
   }
 }
