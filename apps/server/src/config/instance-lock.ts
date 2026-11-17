@@ -20,10 +20,21 @@ export type { RuntimeInfo } from '@ai-office/contracts/agent-submission';
 const LockInfoSchema = RuntimeInfoSchema.omit({ port: true }).strict();
 
 export class InstanceLockedError extends Error {
-  constructor(readonly pid: number) {
-    super(`AI Office is already running (pid ${pid})`);
+  constructor(
+    readonly pid: number,
+    readonly startedAt?: string,
+  ) {
+    super(
+      `AI Office is already running (pid ${pid}${startedAt === undefined ? '' : `, started ${startedAt}`}); if that process is gone, restart with --break-lock`,
+    );
   }
 }
+export interface AcquireOptions {
+  /** §16 risk 11: the user confirmed the recorded pid is not AI Office. */
+  breakLock?: boolean;
+}
+/** Locks held by this process: a pid match alone cannot tell them from stale ones. */
+const held = new Set<string>();
 export interface InstanceLock {
   readonly pid: number;
   readonly startedAt: string;
@@ -42,27 +53,42 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function readLockInfo(path: string): Omit<RuntimeInfo, 'port'> {
-  const text = readFileSync(path, 'utf8');
-  let value: unknown;
+function parseLockInfo(text: string): Omit<RuntimeInfo, 'port'> | null {
   try {
-    value = JSON.parse(text);
+    const result = LockInfoSchema.safeParse(JSON.parse(text));
+    return result.success ? result.data : null;
   } catch {
-    throw new Error(
-      'Invalid instance lock; inspect data/.lock before retrying',
-    );
+    return null;
   }
-  const result = LockInfoSchema.safeParse(value);
-  if (!result.success)
-    throw new Error(
-      'Invalid instance lock; inspect data/.lock before retrying',
-    );
-  return result.data;
 }
 
-export function acquireInstanceLock(dataDir: string): InstanceLock {
+/** The holder creates the file before writing it: retry briefly before failing closed. */
+function readLockInfo(path: string): Omit<RuntimeInfo, 'port'> {
+  for (let attempt = 0; ; attempt++) {
+    const info = parseLockInfo(readFileSync(path, 'utf8'));
+    if (info !== null) return info;
+    if (attempt >= 10)
+      throw new Error(
+        'Invalid instance lock contents; if no AI Office process is running, restart with --break-lock',
+      );
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  }
+}
+
+export function acquireInstanceLock(
+  dataDir: string,
+  options: AcquireOptions = {},
+): InstanceLock {
   mkdirSync(`${dataDir}/data`, { recursive: true, mode: 0o700 });
   const path = `${dataDir}/data/.lock`;
+  if (held.has(path)) {
+    const existing = parseLockInfo(readFileSync(path, 'utf8'));
+    throw new InstanceLockedError(process.pid, existing?.startedAt);
+  }
+  if (options.breakLock) {
+    rmSync(path, { force: true });
+    rmSync(`${path}.reclaim`, { force: true });
+  }
   const info = { pid: process.pid, startedAt: new Date().toISOString() };
   let fd: number;
   try {
@@ -84,7 +110,10 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
       try {
         const existing = readLockInfo(path);
         // PID reuse can conservatively reject startup; accepted residual risk (Q13).
-        if (isAlive(existing.pid)) throw new InstanceLockedError(existing.pid);
+        // Our own pid is never a live holder here (held locks were rejected above):
+        // a container restart reuses pid 1 for the next process.
+        if (existing.pid !== process.pid && isAlive(existing.pid))
+          throw new InstanceLockedError(existing.pid, existing.startedAt);
         unlinkSync(path);
       } catch (readError) {
         if (!hasCode(readError, 'ENOENT')) throw readError;
@@ -104,6 +133,7 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
   }
   const identity = fstatSync(fd);
   closeSync(fd);
+  held.add(path);
   let released = false;
   function ownsLock(): boolean {
     if (released) return false;
@@ -139,7 +169,25 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
       return runtime;
     },
     release() {
-      if (ownsLock()) unlinkSync(path);
+      if (ownsLock()) {
+        // runtime.json without a live holder would point the CLI at a dead port.
+        const runtimePath = `${dataDir}/runtime.json`;
+        try {
+          const runtime = RuntimeInfoSchema.safeParse(
+            JSON.parse(readFileSync(runtimePath, 'utf8')),
+          );
+          if (
+            runtime.success &&
+            runtime.data.pid === info.pid &&
+            runtime.data.startedAt === info.startedAt
+          )
+            rmSync(runtimePath, { force: true });
+        } catch {
+          /* Missing or foreign runtime.json is left alone. */
+        }
+        unlinkSync(path);
+      }
+      if (!released) held.delete(path);
       released = true;
     },
   };

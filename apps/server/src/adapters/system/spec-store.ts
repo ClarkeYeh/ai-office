@@ -15,6 +15,22 @@ import type { SpecStore } from '../../ports/stores.js';
 
 const hash = (content: string | Buffer) =>
   createHash('sha256').update(content).digest('hex');
+/**
+ * Domain attempt IDs contain `/` and `:` (`<wf>/meeting/1/attempt/lead`).
+ * Plain IDs keep their name; others become `_<base64url>`, which plain names
+ * never start with, so the mapping stays injective and inside the directory.
+ */
+const fileName = (attemptId: string): string => {
+  if (
+    attemptId === '' ||
+    attemptId.length > 180 ||
+    attemptId.split(/[/\\]/).includes('..')
+  )
+    throw new TypeError('Invalid attempt ID');
+  return /^[A-Za-z0-9-][A-Za-z0-9_-]*$/.test(attemptId)
+    ? `${attemptId}.md`
+    : `_${Buffer.from(attemptId, 'utf8').toString('base64url')}.md`;
+};
 export class FsSpecStore implements SpecStore {
   private readonly directory: string;
   constructor(dataDir: string) {
@@ -22,9 +38,7 @@ export class FsSpecStore implements SpecStore {
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
   }
   write(attemptId: string, content: string): { path: string; sha256: string } {
-    if (!/^[A-Za-z0-9_-]+$/.test(attemptId))
-      throw new TypeError('Invalid attempt ID');
-    const path = join(this.directory, `${attemptId}.md`);
+    const path = join(this.directory, fileName(attemptId));
     const sha256 = hash(content);
     let fd: number;
     try {
@@ -50,9 +64,7 @@ export class FsSpecStore implements SpecStore {
     return { path, sha256 };
   }
   removeUnissued(attemptId: string): void {
-    if (!/^[A-Za-z0-9_-]+$/.test(attemptId))
-      throw new TypeError('Invalid attempt ID');
-    this.remove(join(this.directory, attemptId + '.md'));
+    this.remove(join(this.directory, fileName(attemptId)));
   }
   read(path: string, sha256: string): string | null {
     this.checkPath(path);

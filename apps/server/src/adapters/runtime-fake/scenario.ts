@@ -9,6 +9,8 @@ export type ScenarioContext = {
   session: SessionRef;
   workspace: WorkspaceRef;
   request: SpawnRequest;
+  /** The spec file the agent read at spawn, when `readSpec` is injected. */
+  spec?: string;
   message?: { subject: string; body: string };
   turn: number;
 };
@@ -40,8 +42,8 @@ export type RoleBehavior = {
   ignoreStop?: boolean;
 };
 export type RuntimeScenario = {
-  /** Defaults to request.title; a selector can read the application's prompt/role convention. */
-  role?: (request: SpawnRequest) => string;
+  /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */
+  role?: (request: SpawnRequest, spec?: string) => string;
   roles: Readonly<Record<string, RoleBehavior>>;
 };
 export type FakeSubmission = {
@@ -54,8 +56,11 @@ export type FakeSubmission = {
 export type FakePush = {
   agent: AgentRef;
   workspace: WorkspaceRef;
+  /** The workspace's branch when prepared by the fake; else the scenario's. */
   branch: string;
   headSha: string;
+  /** Commit the workspace was created from, for creating a new remote branch. */
+  base?: string;
 };
 export type Submitter = (request: FakeSubmission) => void | Promise<void>;
 export type PushHandler = (request: FakePush) => void | Promise<void>;

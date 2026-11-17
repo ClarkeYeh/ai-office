@@ -44,6 +44,8 @@ export interface ObservationLoopDeps {
   >;
   runtimeIntervalMs?: number;
   usageIntervalMs?: number;
+  /** Overrides the §6.4 SCM cadence (15 s, 30 s with an open final-PR gate); fakes only. */
+  scmIntervalMs?: number;
 }
 type Job = { runner: ObservationWorkflow } & (
   { kind: 'runtime'; session: SessionRef } | { kind: 'scm' | 'usage' }
@@ -65,6 +67,7 @@ export class ObservationLoop {
     for (const interval of [
       deps.runtimeIntervalMs ?? 2000,
       deps.usageIntervalMs ?? 3000,
+      deps.scmIntervalMs ?? 15_000,
     ])
       if (!Number.isFinite(interval) || interval <= 0)
         throw new Error('Invalid observation interval');
@@ -158,6 +161,7 @@ export class ObservationLoop {
     }
   }
   scmInterval(runner: ObservationWorkflow): number {
+    if (this.deps.scmIntervalMs !== undefined) return this.deps.scmIntervalMs;
     return Object.values(runner.state.gates).some(
       (g) => g.status === 'open' && g.content.type === 'final-pr',
     )

@@ -1,26 +1,54 @@
 # Fake runtime
 
-`createFakeRuntime({ clock, scenario, submitter, onPush, localRepos })` implements
-`RuntimePort` without processes, files, logging, or imports from other adapters.
-Use `mainlineScenario` from `./mainline.js` for the progressive-merge §0.1
-agent behavior example. Planning proposes a feature and a dependent item. The
-`merge-queue` role is spawned with `keepOpen: true`; each send body is JSON
-`{ pr, expectedHeadSha, rework?: boolean }`. A rework review submits reasons;
-the harness pushes another commit to the same worker branch/PR before sending
-it for review again. The same reviewer can merge the dependent PR next.
-`integrator` only submits the final integration report. Sample worker branch,
-SHA and report PR numbers in `mainline-actions.ts` are illustrative values to
-map to the application's SCM fixture. The application still drives human gates,
-role dispatch, readiness, and meeting rounds. `progressive-merge.test.ts`
-exercises these adapter interactions; the full workflow event golden is T34.
+`createFakeRuntime({ clock, scenario, submitter, onPush, localRepos, readSpec,
+remoteHead, submitRetryMs })` implements `RuntimePort` without processes, files,
+logging, or imports from other adapters. Cross-fake behavior is injected as
+callbacks, so a composition root wires each with one line.
 
-A scenario maps spawn titles to roles by default; supply `scenario.role(request)`
-to select a role using the composition root's prompt/title convention. Each role
-has `spawn`, `send`, and `answer` scripts, either arrays or context functions.
-`afterMs` is measured from that trigger; equal timestamps retain array order.
-Context includes the spawn request, workspace, agent, turn (starting at 1), and
-incoming message. Use distinct command IDs for distinct turns. `ignoreStop`
-models a live worker that refuses to end at a gate.
+Use `mainlineScenario` from `./mainline.js` for the progressive-merge §0.1
+agent behavior, answering the engine's actual turns:
+
+- The facilitator submits the agenda at spawn. It submits a statement for the
+  round named in a round message (JSON `{ round }`, or a prose reminder
+  "round N"), and the conclusion when the message asks for one.
+- Participants only report done at spawn, then speak for the requested round.
+- Planning proposes a feature and a dependent item. Workers push and finish.
+- The `merge-queue` role (spawned `keepOpen: true`) reads the engine's review
+  body `{ pr, headSha, ... }` and submits `merge-request` with
+  `expectedHeadSha: headSha`. `rework: true` (test stimulus) submits a
+  rework request instead.
+- `integrator` submits the final integration report.
+
+Roles come from the spec the agent read (`# AI Office spec: <purpose>`) when
+`readSpec` is injected, else from the spawn title. Sample SHAs and report PR
+numbers in `mainline-actions.ts` are illustrative. The application still drives
+human gates, dispatch, readiness and meeting rounds.
+
+A scenario maps spawn titles to roles by default. Supply `scenario.role(request,
+spec?)` to select a role from the prompt or spec. Each role has `spawn`, `send`
+and `answer` scripts, either arrays or context functions. `afterMs` is measured
+from that trigger; equal timestamps retain array order. Context includes the
+spawn request, the spec text (when read), workspace, agent, turn (starting at
+1), and the incoming message. Use distinct command IDs for distinct turns.
+`ignoreStop` models a live worker that refuses to end at a gate.
+
+## Injected agent and Git behavior
+
+- `readSpec(path, sha256)`: how an agent reads the spec named in its prompt
+  (`Read the AI Office spec at <path> (sha256 <hex>)`). The seat token is taken
+  from the prompt or the spec text. Without it, only the prompt is searched.
+- `remoteHead(ref)`: what `git fetch` sees. Before `prepareWorkspace` with a
+  `fetchBranch`, the fake mirrors that branch's head and a pinned base commit
+  (if the remote has it) into its remote model. This is the same model that
+  `setRemoteBranch` controls in tests.
+- `onPush({ branch, base, ... })`: a push targets the branch the agent's
+  workspace was prepared with, carrying the base commit for a new remote
+  branch. The scenario's branch is used only for workspaces the fake did not
+  prepare.
+- `submitRetryMs`: a submitter failure with a transient `PortError` (backend
+  down or restarting) reschedules the same submission after this delay, like
+  `ai-office submit` exiting 2 and the agent retrying. Without it, failures are
+  consumed (see below).
 
 Advance the injected `Clock` and await `runtime.runDue()`; `observe()` also pumps
 before creating a new delivery, and `send()` pumps before starting a follow-up
@@ -38,7 +66,7 @@ and the single unique `aio_seat_...` token parsed from the spawn prompt. It can
 call an application use case or POST to the agent gateway. No credential is
 copied to runtime events. Submission and push callbacks are awaited, and their
 errors propagate from the pump; failed steps are consumed (no silent automatic
-retry). Inject retries explicitly in the scenario when needed. Push simulation
+retry) unless `submitRetryMs` is set for transient submit failures. Push simulation
 requires `onPush`, so a composition root can update an SCM fake without adapter
 imports. Neither callback makes a network request unless the caller supplies one.
 

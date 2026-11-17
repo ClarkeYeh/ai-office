@@ -50,6 +50,12 @@ export type FakeScmOptions = {
   mergeDelayMs?: number;
   /** Inject a virtual delay for timeout tests; the default uses setTimeout. */
   delay?: (ms: number) => Promise<void>;
+  /**
+   * Simulates the repository owner merging PRs into the default branch (the
+   * final PR is merged by a human, §7.6) this long after they are opened.
+   * Polling observes the merge like any external one.
+   */
+  autoMergeIntoDefaultBranchAfterMs?: number;
 };
 const key = (repo: RepoScmRef) => JSON.stringify([repo.owner, repo.name]);
 const marker = (commandId: string) => `<!-- ai-office:cmd=${commandId} -->`;
@@ -209,9 +215,12 @@ export class FakeScm implements ScmPort {
     return seen;
   }
   async compareBranch(ref: RepoScmRef, base: string, head: string) {
+    // Like GitHub's compare API, either side may be a branch or a commit SHA.
     const repo = this.repo(ref),
-      baseSha = repo.branches.get(base),
-      headSha = repo.branches.get(head);
+      resolve = (name: string) =>
+        repo.branches.get(name) ?? (repo.parents.has(name) ? name : undefined),
+      baseSha = resolve(base),
+      headSha = resolve(head);
     if (!baseSha || !headSha) return null;
     const baseAncestors = this.ancestors(repo, baseSha);
     return {
@@ -221,10 +230,18 @@ export class FakeScm implements ScmPort {
       headSha,
     };
   }
-  /** Simulate an external push, including a push to the default branch. */
-  pushBranch(ref: RepoScmRef, branch: string): string {
+  /**
+   * Simulate an external push, including a push to the default branch. A new
+   * branch needs `from` (a branch or commit), as `git push` of a fresh branch.
+   */
+  pushBranch(ref: RepoScmRef, branch: string, from?: string): string {
     const repo = this.repo(ref),
-      parent = repo.branches.get(branch);
+      parent =
+        repo.branches.get(branch) ??
+        (from === undefined
+          ? undefined
+          : (repo.branches.get(from) ??
+            (repo.parents.has(from) ? from : undefined)));
     if (!parent)
       throw new PortError('permanent', 'branch_not_found', 'Unknown branch');
     const sha = this.sha();
@@ -348,6 +365,7 @@ export class FakeScm implements ScmPort {
     );
     this.prState(obj);
     this.setChecks(obj.ref, 'none');
+    this.scheduleOwnerMerge(obj);
     this.afterMutation('openPR');
     return { ...structuredClone(obj.ref), url: this.htmlUrl(obj.ref, 'pull') };
   }
@@ -388,6 +406,22 @@ export class FakeScm implements ScmPort {
     const obj = this.object(ref, 'pr');
     obj.mergeable = value;
     this.prState(obj);
+  }
+  private scheduleOwnerMerge(obj: ObjectState) {
+    const after = this.options.autoMergeIntoDefaultBranchAfterMs;
+    const repo = this.repo(obj.ref.repo);
+    if (after === undefined || obj.base !== repo.info.defaultBranch) return;
+    const wait =
+      this.options.delay ??
+      ((ms: number) =>
+        new Promise<void>((resolve) => setTimeout(resolve, ms).unref()));
+    void wait(after).then(() => {
+      try {
+        if (obj.state === 'open') this.merge(obj, repo.info.viewerLogin);
+      } catch {
+        /* Branches changed meanwhile: the owner does not merge. */
+      }
+    });
   }
   setMergeDelay(ms: number) {
     if (!Number.isFinite(ms) || ms < 0) throw new RangeError('Invalid delay');
