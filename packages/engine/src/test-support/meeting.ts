@@ -1,3 +1,4 @@
+import { createReact, DEFAULT_MODULES } from '../react.js';
 import type { AgentSubmission } from '@ai-office/domain';
 import { cooperativeWorld, Simulator } from './simulator.js';
 import type { Observation, World } from './simulator.js';
@@ -134,7 +135,13 @@ export const scenario =
     return base;
   };
 export const runMeeting = (options: Scenario = {}, auto = false) => {
-  const sim = new Simulator({ world: scenario(options) });
+  const sim = new Simulator({
+    world: scenario(options),
+    react: createReact({
+      ...DEFAULT_MODULES,
+      stages: { ...DEFAULT_MODULES.stages, implement: { react: () => [] } },
+    }),
+  });
   const start = startWorkflow();
   if (auto) start.gateToggles = { conclusion: false, 'task-split': false };
   sim.dispatch(start);
