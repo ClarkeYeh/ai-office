@@ -85,6 +85,27 @@ describe('meeting stage protocol', () => {
       );
     },
   );
+  it('completes the meeting when a release fails permanently and the agent has exited', () => {
+    const sim = runMeeting({ releaseFails: 'pm' });
+    expect(sim.rejections).toEqual([]);
+    expect(sim.eventsOf('command.failed').map((e) => e.payload.kind)).toEqual([
+      'runtime.release',
+    ]);
+    expect(sim.state.stages.meeting?.status).toBe('awaiting_gate');
+    expect(sim.eventsOf('gate.opened').at(-1)?.payload.kind).toBe('stage');
+    expect(sim.liveAgents()).toBe(0);
+  });
+  it('opens the §8.1 anomaly gate when a release fails and the agent stays alive', () => {
+    const sim = runMeeting({ releaseFails: 'pm', stuck: true });
+    expect(sim.state.stages.meeting?.status).toBe('awaiting_gate');
+    sim.advance(60_000).advance(30_000);
+    expect(sim.rejections).toEqual([]);
+    expect(sim.eventsOf('gate.opened').at(-1)?.payload).toMatchObject({
+      kind: 'exception',
+      exceptionKind: 'anomaly',
+    });
+    expect(sim.state.workflow?.pausedReasons).toContain('anomaly');
+  });
   it('rejects a dirty worktree with filenames only', () => {
     const sim = runMeeting({ dirty: true });
     checked(sim);
