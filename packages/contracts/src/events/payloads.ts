@@ -360,6 +360,10 @@ export const SubmissionAcceptedPayloadSchema = z
     attemptId: id,
     kind: SubmissionKindSchema,
     submission: AgentSubmissionSchema,
+    /** Provider session from X-AIO-Agent-Session, used for usage lookup. */
+    agentSession: z
+      .object({ provider: z.enum(['claude', 'codex']), id })
+      .optional(),
     artifactId: id.optional(),
   })
   .refine((value) => value.kind === value.submission.kind, {

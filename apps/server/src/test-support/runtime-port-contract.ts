@@ -10,6 +10,10 @@ export type RuntimeContractFixture = {
   prepareRequest: Parameters<RuntimePort['prepareWorkspace']>[0] & {
     baseSha: string;
   };
+  /** Existing remote worker branch, pinned to its comparison head, with a -r1 name. */
+  reworkRequest: Parameters<RuntimePort['prepareWorkspace']>[0] & {
+    checkoutExisting: true;
+  };
   spawnRequest: Parameters<RuntimePort['spawnAgent']>[0];
   advance(ms: number): void | Promise<void>;
   stimulus(
@@ -46,6 +50,22 @@ export function runtimePortContract(
         f.runtime.prepareWorkspace({
           ...f.prepareRequest,
           baseSha: 'f'.repeat(40),
+        }),
+      ).rejects.toMatchObject({ category: 'bug', code: 'request_mismatch' });
+    });
+    it('checks out an existing worker branch in a fresh workspace and replays it stably', async () => {
+      const first = await f.runtime.prepareWorkspace(f.prepareRequest);
+      const rework = await f.runtime.prepareWorkspace(f.reworkRequest);
+      expect(rework.workspace).not.toBe(first.workspace);
+      expect(rework.path).not.toBe(first.path);
+      expect(rework.baseSha).toBe(f.reworkRequest.baseBranch);
+      expect(
+        await f.runtime.prepareWorkspace(structuredClone(f.reworkRequest)),
+      ).toEqual(rework);
+      await expect(
+        f.runtime.prepareWorkspace({
+          ...f.reworkRequest,
+          checkoutExisting: undefined,
         }),
       ).rejects.toMatchObject({ category: 'bug', code: 'request_mismatch' });
     });

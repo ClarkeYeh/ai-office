@@ -36,6 +36,7 @@ runtimePortContract(async () => {
   const f = await fixture();
   const baseSha = 'a'.repeat(40);
   f.runtime.setRemoteBranch(f.repo, 'ai-office/integration', baseSha);
+  f.runtime.setRemoteBranch(f.repo, 'ai-office/worker', 'b'.repeat(40));
   return {
     ...f,
     prepareRequest: {
@@ -47,6 +48,16 @@ runtimePortContract(async () => {
       name: 'worker',
       branch: 'ai-office/worker',
       correlation: { workflowId: 'wf', commandId: 'prepare' },
+    },
+    reworkRequest: {
+      session: f.session,
+      repo: f.repo,
+      baseBranch: 'b'.repeat(40),
+      fetchBranch: 'ai-office/worker',
+      branch: 'ai-office/worker',
+      name: 'worker-r1',
+      checkoutExisting: true,
+      correlation: { workflowId: 'wf', commandId: 'prepare-rework' },
     },
     advance: (ms) => f.clock.advance(ms),
     identity: (a) => f.runtime.identity(a),

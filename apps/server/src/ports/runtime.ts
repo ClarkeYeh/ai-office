@@ -51,6 +51,8 @@ export interface RuntimePort {
     /** Fetch origin/<fetchBranch> before creating the workspace at baseSha. */
     fetchBranch?: string | undefined;
     baseSha?: string | undefined;
+    /** Fetch branch and check out its pinned head in a fresh, caller-named -r<n> worktree. */
+    checkoutExisting?: true | undefined;
     name: string;
     branch: string;
     correlation: Correlation;

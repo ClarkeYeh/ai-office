@@ -39,6 +39,7 @@ export const decideMeeting = (
           : state.commands[command.commandId]?.result;
       if (
         result?.kind !== 'scm.createIssue' ||
+        result.result === null ||
         !('issue' in result.result) ||
         result.result.issue !== artifact.number ||
         result.result.url !== artifact.url ||

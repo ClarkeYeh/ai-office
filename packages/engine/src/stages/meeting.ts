@@ -358,6 +358,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
   const workspaceResult = commands[id('workspace')]?.result;
   if (
     workspaceResult?.kind !== 'runtime.prepareWorkspace' ||
+    workspaceResult.result === null ||
     !('workspace' in workspaceResult.result)
   )
     return effects;
@@ -702,6 +703,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
   const inspected = commands[id('inspect')]?.result;
   if (
     inspected?.kind !== 'runtime.inspectWorkspace' ||
+    inspected.result === null ||
     !('clean' in inspected.result)
   )
     return effects;

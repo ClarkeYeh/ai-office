@@ -46,6 +46,10 @@
             "repo": {
               "$ref": "./RepoRuntimeRef.schema.json"
             },
+            "checkoutExisting": {
+              "type": "boolean",
+              "const": true
+            },
             "baseBranch": {
               "type": "string",
               "minLength": 1
@@ -331,6 +335,40 @@
           "required": [
             "repo",
             "labels"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.compareBranch"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "$ref": "./RepoScmRef.schema.json"
+            },
+            "base": {
+              "type": "string",
+              "minLength": 1
+            },
+            "head": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "repo",
+            "base",
+            "head"
           ]
         }
       },

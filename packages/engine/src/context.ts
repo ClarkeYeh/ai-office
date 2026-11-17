@@ -34,6 +34,7 @@ export const sessionRef = (state: WorkflowState): string | undefined => {
     if (
       record.result?.kind === 'runtime.openSession' &&
       result !== undefined &&
+      result !== null &&
       'session' in result
     )
       return result.session;
