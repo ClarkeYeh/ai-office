@@ -17,7 +17,8 @@
     "depcruise": "echo TODO: depcruise && exit 0",
     "depcruise:selftest": "echo TODO: depcruise:selftest && exit 0",
     "check:bundle": "echo TODO: check:bundle && exit 0",
-    "fixtures:scan": "echo TODO: fixtures:scan && exit 0"
+    "fixtures:scan": "node scripts/fixtures/scan.ts",
+    "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -26,6 +27,7 @@
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "@types/node": "^24.10.0"
   }
 }
