@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "stageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "$ref": "./AgentKind.schema.json"
+    },
+    "purpose": {
+      "$ref": "./AttemptPurpose.schema.json"
+    },
+    "oncall": {
+      "type": "boolean"
+    },
+    "itemKey": {
+      "$ref": "./WorkItemKey.schema.json"
+    },
+    "retryOf": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "$ref": "./AttemptState.schema.json"
+    },
+    "degraded": {
+      "type": "boolean"
+    },
+    "degradedReason": {
+      "type": "string",
+      "enum": [
+        "no_transcript_source",
+        "source_changed",
+        "transcript_clipped"
+      ]
+    },
+    "waitingSince": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "endedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "exitReason": {
+      "type": "string"
+    },
+    "released": {
+      "type": "boolean"
+    },
+    "usage": {
+      "$ref": "./TokenUsage.schema.json"
+    }
+  },
+  "required": [
+    "attemptId",
+    "attempt",
+    "stageId",
+    "role",
+    "agent",
+    "purpose",
+    "oncall",
+    "state",
+    "degraded",
+    "startedAt",
+    "released",
+    "usage"
+  ]
+}

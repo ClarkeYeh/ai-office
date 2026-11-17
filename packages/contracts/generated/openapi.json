@@ -64,7 +64,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReadModel"
+                  "$ref": "#/components/schemas/HealthView"
                 }
               }
             }
@@ -97,18 +97,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "repos": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ReadModel"
-                      }
-                    }
-                  },
-                  "required": [
-                    "repos"
-                  ]
+                  "$ref": "#/components/schemas/ReposResponse"
                 }
               }
             }
@@ -139,7 +128,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReadModel"
+                  "$ref": "#/components/schemas/RepoView"
                 }
               }
             }
@@ -160,16 +149,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "localPath": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": [
-                  "localPath"
-                ]
+                "$ref": "#/components/schemas/RegisterRepoRequest"
               }
             }
           }
@@ -201,7 +181,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReadModel"
+                  "$ref": "#/components/schemas/RepoView"
                 }
               }
             }
@@ -310,18 +290,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "workflows": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ReadModel"
-                      }
-                    }
-                  },
-                  "required": [
-                    "workflows"
-                  ]
+                  "$ref": "#/components/schemas/WorkflowsResponse"
                 }
               }
             }
@@ -352,16 +321,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "workflowId": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "workflowId"
-                  ]
+                  "$ref": "#/components/schemas/StartWorkflowResponse"
                 }
               }
             }
@@ -520,15 +480,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accepted": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "accepted"
-                  ]
+                  "$ref": "#/components/schemas/AcceptedResponse"
                 }
               }
             }
@@ -571,15 +523,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accepted": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "accepted"
-                  ]
+                  "$ref": "#/components/schemas/AcceptedResponse"
                 }
               }
             }
@@ -622,18 +566,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "gates": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ReadModel"
-                      }
-                    }
-                  },
-                  "required": [
-                    "gates"
-                  ]
+                  "$ref": "#/components/schemas/GatesResponse"
                 }
               }
             }
@@ -676,7 +609,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReadModel"
+                  "$ref": "#/components/schemas/GateView"
                 }
               }
             }
@@ -728,15 +661,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accepted": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "accepted"
-                  ]
+                  "$ref": "#/components/schemas/AcceptedResponse"
                 }
               }
             }
@@ -789,18 +714,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "questions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ReadModel"
-                      }
-                    }
-                  },
-                  "required": [
-                    "questions"
-                  ]
+                  "$ref": "#/components/schemas/QuestionsResponse"
                 }
               }
             }
@@ -852,15 +766,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accepted": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "accepted"
-                  ]
+                  "$ref": "#/components/schemas/AcceptedResponse"
                 }
               }
             }
@@ -913,7 +819,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReadModel"
+                  "$ref": "#/components/schemas/SeatView"
                 }
               }
             }
@@ -956,15 +862,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "accepted": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "accepted"
-                  ]
+                  "$ref": "#/components/schemas/AcceptedResponse"
                 }
               }
             }
@@ -1148,6 +1046,17 @@
       }
     },
     "schemas": {
+      "AcceptedResponse": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accepted"
+        ]
+      },
       "ActivityMeta": {
         "type": "object",
         "properties": {
@@ -1199,6 +1108,70 @@
           "inputLen",
           "outputLen",
           "inputHash"
+        ]
+      },
+      "ActivityView": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tool": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "read",
+              "edit",
+              "shell",
+              "git",
+              "network",
+              "orca",
+              "other"
+            ]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputLen": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "outputLen": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputHash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "messageId",
+          "category",
+          "inputLen",
+          "outputLen",
+          "inputHash",
+          "attemptId",
+          "at"
         ]
       },
       "Agenda": {
@@ -1459,6 +1432,71 @@
           "reconcile-gave-up"
         ]
       },
+      "AnomalyView": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AnomalyKind"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "warning"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "author": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,64}$"
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dispatch": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commandId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "seq": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "gateId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "kind",
+          "severity",
+          "summary",
+          "seq",
+          "at"
+        ]
+      },
       "AnswerQuestion": {
         "type": "object",
         "properties": {
@@ -1489,6 +1527,27 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "ApiErrorCode": {
+        "type": "string",
+        "enum": [
+          "validation_failed",
+          "unauthorized",
+          "bootstrap_code_invalid",
+          "forbidden_origin",
+          "forbidden_host",
+          "not_found",
+          "version_conflict",
+          "gate_content_changed",
+          "gate_not_open",
+          "workflow_slot_busy",
+          "workflow_not_terminal",
+          "seat_not_alive",
+          "idempotency_key_reused",
+          "template_invalid",
+          "runtime_unverified_ack_required",
+          "internal_error"
         ]
       },
       "AppliedBudgets": {
@@ -1882,6 +1941,59 @@
           "pr"
         ]
       },
+      "ArtifactRef": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ArtifactKind"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "stageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "submissionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemKey": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "purpose": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "kind",
+          "at"
+        ]
+      },
       "AttemptPurpose": {
         "type": "string",
         "enum": [
@@ -1904,6 +2016,96 @@
           "error",
           "exited",
           "lost"
+        ]
+      },
+      "AttemptView": {
+        "type": "object",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attempt": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "stageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AgentKind"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/AttemptPurpose"
+          },
+          "oncall": {
+            "type": "boolean"
+          },
+          "itemKey": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "retryOf": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "$ref": "#/components/schemas/AttemptState"
+          },
+          "degraded": {
+            "type": "boolean"
+          },
+          "degradedReason": {
+            "type": "string",
+            "enum": [
+              "no_transcript_source",
+              "source_changed",
+              "transcript_clipped"
+            ]
+          },
+          "waitingSince": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "exitReason": {
+            "type": "string"
+          },
+          "released": {
+            "type": "boolean"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "required": [
+          "attemptId",
+          "attempt",
+          "stageId",
+          "role",
+          "agent",
+          "purpose",
+          "oncall",
+          "state",
+          "degraded",
+          "startedAt",
+          "released",
+          "usage"
         ]
       },
       "Budget": {
@@ -1940,6 +2142,65 @@
         },
         "required": [
           "tokens"
+        ]
+      },
+      "BudgetBar": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "stage",
+              "item"
+            ]
+          },
+          "stageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemKey": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "tokens",
+              "turns",
+              "wallclock"
+            ]
+          },
+          "used": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "budget": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "hardLimit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "exceeded",
+              "hard_limit"
+            ]
+          }
+        },
+        "required": [
+          "scope",
+          "metric",
+          "used",
+          "budget",
+          "hardLimit",
+          "level"
         ]
       },
       "BudgetOverrides": {
@@ -2730,6 +2991,45 @@
           "decisions",
           "techDecisions",
           "openQuestions"
+        ]
+      },
+      "ConclusionGateView": {
+        "type": "object",
+        "properties": {
+          "original": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Conclusion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "renderedHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "githubBodyHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "githubUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "changedOnGithub": {
+            "type": "boolean"
+          },
+          "githubBody": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "original",
+          "renderedHash",
+          "changedOnGithub"
         ]
       },
       "DecisionRequest": {
@@ -8458,20 +8758,7 @@
                 "minLength": 1
               },
               "category": {
-                "type": "string",
-                "enum": [
-                  "transient",
-                  "rate_limited",
-                  "auth",
-                  "identity",
-                  "hijacked",
-                  "contract_mismatch",
-                  "permanent",
-                  "bug",
-                  "conflict",
-                  "validation",
-                  "guard"
-                ]
+                "$ref": "#/components/schemas/ErrorCategory"
               },
               "message": {
                 "type": "string"
@@ -8491,6 +8778,49 @@
         },
         "required": [
           "error"
+        ]
+      },
+      "ErrorView": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ErrorCategory"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string"
+          },
+          "commandId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "at",
+          "category",
+          "code",
+          "message"
         ]
       },
       "EventEnvelope": {
@@ -9642,12 +9972,24 @@
             "type": "string"
           },
           "edits": {
-            "$ref": "#/components/schemas/ReadModel"
+            "$ref": "#/components/schemas/GateEdits"
+          },
+          "additionalTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AgentKind"
           },
           "expectedVersion": {
             "type": "integer",
-            "minimum": 0,
+            "exclusiveMinimum": 0,
             "maximum": 9007199254740991
+          },
+          "githubBodyHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
           },
           "githubUpdatedAt": {
             "type": "string",
@@ -9838,6 +10180,185 @@
           "label"
         ]
       },
+      "GatesResponse": {
+        "type": "object",
+        "properties": {
+          "gates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateView"
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "GateStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "approved",
+          "revised",
+          "rejected",
+          "closed"
+        ]
+      },
+      "GateView": {
+        "type": "object",
+        "properties": {
+          "gateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workflowId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "stage",
+              "exception"
+            ]
+          },
+          "templateGateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stageKind": {
+            "type": "string",
+            "enum": [
+              "meeting",
+              "planning",
+              "final-pr"
+            ]
+          },
+          "optional": {
+            "type": "boolean"
+          },
+          "exceptionKind": {
+            "$ref": "#/components/schemas/ExceptionKind"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/GateStatus"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateOption"
+            }
+          },
+          "content": {
+            "$ref": "#/components/schemas/GateContent"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "conclusion": {
+            "$ref": "#/components/schemas/ConclusionGateView"
+          },
+          "workItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItemDraft"
+            }
+          },
+          "editable": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "title",
+                "body",
+                "acceptance",
+                "role",
+                "agent",
+                "deps"
+              ]
+            }
+          },
+          "pr": {
+            "$ref": "#/components/schemas/PrSummary"
+          },
+          "questionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "type": "object",
+            "properties": {
+              "decision": {
+                "$ref": "#/components/schemas/GateDecision"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "auto"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "optionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "comment": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "decision",
+              "by",
+              "at"
+            ]
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "closeReason": {
+            "type": "string",
+            "enum": [
+              "merged",
+              "cancelled",
+              "superseded"
+            ]
+          }
+        },
+        "required": [
+          "gateId",
+          "workflowId",
+          "stageId",
+          "kind",
+          "title",
+          "status",
+          "version",
+          "options",
+          "content",
+          "openedAt"
+        ]
+      },
       "HealthChangedPayload": {
         "type": "object",
         "properties": {
@@ -9876,6 +10397,279 @@
         "required": [
           "component",
           "status"
+        ]
+      },
+      "HealthView": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "degraded",
+              "unhealthy"
+            ]
+          },
+          "runtime": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "unhealthy"
+                ]
+              },
+              "breaker": {
+                "type": "string",
+                "enum": [
+                  "closed",
+                  "open",
+                  "half_open"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "orca",
+                  "fake"
+                ]
+              },
+              "version": {
+                "type": "string"
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "shim": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "missing",
+                      "rebuilding"
+                    ]
+                  },
+                  "location": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "runOwned": {
+                "type": "boolean"
+              },
+              "cliCallsPerMinute": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "status",
+              "mode",
+              "verified"
+            ]
+          },
+          "scm": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "unhealthy"
+                ]
+              },
+              "breaker": {
+                "type": "string",
+                "enum": [
+                  "closed",
+                  "open",
+                  "half_open"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "login": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rateLimit": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "remaining": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "resetAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "limit",
+                  "remaining",
+                  "resetAt"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "store": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "unhealthy"
+                ]
+              },
+              "breaker": {
+                "type": "string",
+                "enum": [
+                  "closed",
+                  "open",
+                  "half_open"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "unhealthy"
+                ]
+              },
+              "breaker": {
+                "type": "string",
+                "enum": [
+                  "closed",
+                  "open",
+                  "half_open"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              },
+              "checkedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "agent": {
+                      "$ref": "#/components/schemas/AgentKind"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "available": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "agent",
+                    "source",
+                    "available"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "status",
+              "sources"
+            ]
+          },
+          "adapters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "adapter": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "calls": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "failures": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "lastErrorCategory": {
+                  "$ref": "#/components/schemas/ErrorCategory"
+                }
+              },
+              "required": [
+                "adapter",
+                "calls",
+                "failures"
+              ]
+            }
+          }
+        },
+        "required": [
+          "status",
+          "runtime",
+          "scm",
+          "store",
+          "usage",
+          "adapters"
         ]
       },
       "IdempotencyHeaders": {
@@ -10091,6 +10885,75 @@
           "role",
           "artifactId",
           "statement"
+        ]
+      },
+      "MeetingView": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "maxRounds": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "concluded": {
+            "type": "boolean"
+          },
+          "statements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "round": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "role": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "attemptId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "artifactId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "position": {
+                  "type": "string"
+                },
+                "readyToConclude": {
+                  "type": "boolean"
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "round",
+                "role",
+                "attemptId",
+                "artifactId",
+                "position",
+                "readyToConclude",
+                "at"
+              ]
+            }
+          }
+        },
+        "required": [
+          "round",
+          "maxRounds",
+          "concluded",
+          "statements"
         ]
       },
       "MergeFailureReason": {
@@ -10366,6 +11229,33 @@
           "reason"
         ]
       },
+      "OncallView": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "queue": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "current": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "active",
+          "queue"
+        ]
+      },
       "PauseReason": {
         "type": "string",
         "enum": [
@@ -10493,12 +11383,241 @@
           "mergeable"
         ]
       },
-      "ReadModel": {
+      "PrSummary": {
         "type": "object",
-        "propertyNames": {
-          "type": "string"
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "merged"
+            ]
+          },
+          "base": {
+            "type": "string",
+            "minLength": 1
+          },
+          "head": {
+            "type": "string",
+            "minLength": 1
+          },
+          "headSha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,64}$"
+          },
+          "mergeable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "checks": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "success",
+              "failure",
+              "none"
+            ]
+          },
+          "mergedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mergeCommitSha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,64}$"
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "worker",
+              "final"
+            ]
+          },
+          "itemKey": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
         },
-        "additionalProperties": {}
+        "required": [
+          "state",
+          "base",
+          "head",
+          "headSha",
+          "mergeable",
+          "number",
+          "purpose",
+          "updatedAt"
+        ]
+      },
+      "QuestionsResponse": {
+        "type": "object",
+        "properties": {
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionView"
+            }
+          }
+        },
+        "required": [
+          "questions"
+        ]
+      },
+      "QuestionStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "forwarded",
+          "answered",
+          "escalated"
+        ]
+      },
+      "QuestionView": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workflowId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "seatId": {
+            "$ref": "#/components/schemas/SeatId"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemKey": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/QuestionStatus"
+          },
+          "askedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "forwardedTo": {
+            "type": "string",
+            "enum": [
+              "facilitator",
+              "on-call"
+            ]
+          },
+          "escalation": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "timeout",
+                  "decision-request",
+                  "oncall-failed",
+                  "no-responder"
+                ]
+              },
+              "gateId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/GateOption"
+                }
+              }
+            },
+            "required": [
+              "reason",
+              "gateId",
+              "at",
+              "options"
+            ]
+          },
+          "answer": {
+            "type": "object",
+            "properties": {
+              "by": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "user"
+                ]
+              },
+              "body": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "optionId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "by",
+              "body",
+              "at"
+            ]
+          }
+        },
+        "required": [
+          "questionId",
+          "workflowId",
+          "attemptId",
+          "seatId",
+          "role",
+          "body",
+          "status",
+          "askedAt"
+        ]
+      },
+      "RegisterRepoRequest": {
+        "type": "object",
+        "properties": {
+          "localPath": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "localPath"
+        ]
       },
       "RepoRuntimeRef": {
         "type": "object",
@@ -10590,6 +11709,20 @@
           "defaultBranchProtected"
         ]
       },
+      "ReposResponse": {
+        "type": "object",
+        "properties": {
+          "repos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RepoView"
+            }
+          }
+        },
+        "required": [
+          "repos"
+        ]
+      },
       "RepoUpdatedPayload": {
         "type": "object",
         "properties": {
@@ -10651,6 +11784,89 @@
         "required": [
           "repoId",
           "status"
+        ]
+      },
+      "RepoView": {
+        "type": "object",
+        "properties": {
+          "repoId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "localPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "orcaRepoId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "github": {
+            "$ref": "#/components/schemas/RepoScmRef"
+          },
+          "defaultBranch": {
+            "type": "string",
+            "minLength": 1
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private"
+            ]
+          },
+          "ownerLogin": {
+            "type": "string",
+            "minLength": 1
+          },
+          "defaultBranchProtected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string",
+                "const": "unknown"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "registered",
+              "invalid"
+            ]
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "registeredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "repoId",
+          "localPath",
+          "orcaRepoId",
+          "github",
+          "defaultBranch",
+          "visibility",
+          "ownerLogin",
+          "defaultBranchProtected",
+          "status",
+          "issues",
+          "registeredAt",
+          "updatedAt"
         ]
       },
       "Role": {
@@ -11044,6 +12260,132 @@
           "state"
         ]
       },
+      "SeatView": {
+        "type": "object",
+        "properties": {
+          "seatId": {
+            "$ref": "#/components/schemas/SeatId"
+          },
+          "workflowId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemKey": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttemptState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "degraded": {
+            "type": "boolean"
+          },
+          "currentAttemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "currentWorkItem": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "recentActivity": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityView"
+            }
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttemptView"
+            }
+          },
+          "policyHits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rule": {
+                  "type": "string",
+                  "enum": [
+                    "orca-dispatch",
+                    "orca-run-use",
+                    "orca-worker-stop",
+                    "orca-agent-launch",
+                    "gh-merge",
+                    "gh-comment",
+                    "push-default-branch",
+                    "gh-label"
+                  ]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "high",
+                    "medium"
+                  ]
+                },
+                "messageId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "attemptId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "rule",
+                "severity",
+                "messageId",
+                "attemptId"
+              ]
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorView"
+            }
+          }
+        },
+        "required": [
+          "seatId",
+          "workflowId",
+          "role",
+          "agent",
+          "state",
+          "degraded",
+          "recentActivity",
+          "attempts",
+          "policyHits",
+          "usage",
+          "errors"
+        ]
+      },
       "Stage": {
         "oneOf": [
           {
@@ -11435,6 +12777,58 @@
           "by"
         ]
       },
+      "StageRunView": {
+        "type": "object",
+        "properties": {
+          "attempt": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "mode": {
+            "$ref": "#/components/schemas/StageMode"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ]
+          },
+          "failReason": {
+            "type": "string",
+            "enum": [
+              "timeout",
+              "violation",
+              "budget_hard_limit",
+              "agent_failed",
+              "cancelled",
+              "other"
+            ]
+          },
+          "feedback": {
+            "type": "string"
+          },
+          "agentOverride": {
+            "$ref": "#/components/schemas/AgentKind"
+          }
+        },
+        "required": [
+          "attempt",
+          "mode",
+          "startedAt"
+        ]
+      },
       "StageStartedPayload": {
         "type": "object",
         "properties": {
@@ -11465,6 +12859,57 @@
           "kind",
           "attempt",
           "mode"
+        ]
+      },
+      "StageStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "running",
+          "awaiting_gate",
+          "done",
+          "failed"
+        ]
+      },
+      "StageView": {
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/StageKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StageStatus"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StageRunView"
+            }
+          },
+          "gateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "meeting": {
+            "$ref": "#/components/schemas/MeetingView"
+          },
+          "oncall": {
+            "$ref": "#/components/schemas/OncallView"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "required": [
+          "stageId",
+          "kind",
+          "status",
+          "runs",
+          "usage"
         ]
       },
       "StartWorkflowRequest": {
@@ -11506,6 +12951,18 @@
           "templateId",
           "repoId",
           "requirement"
+        ]
+      },
+      "StartWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "workflowId"
         ]
       },
       "Statement": {
@@ -12106,6 +13563,55 @@
           "payload"
         ]
       },
+      "TokenUsage": {
+        "type": "object",
+        "properties": {
+          "inputUncached": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "output": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "cacheRead": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "cacheWrite": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reasoning": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "budgetTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "turns": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "inputUncached",
+          "output",
+          "cacheRead",
+          "cacheWrite",
+          "reasoning",
+          "budgetTokens",
+          "turns"
+        ]
+      },
       "UsageTokensPayload": {
         "type": "object",
         "properties": {
@@ -12169,6 +13675,48 @@
         "required": [
           "attemptId",
           "turns"
+        ]
+      },
+      "UsageView": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "$ref": "#/components/schemas/TokenUsage"
+          },
+          "byStage": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TokenUsage"
+            }
+          },
+          "byAgent": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/components/schemas/AgentKind"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TokenUsage"
+            }
+          },
+          "bySeat": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/components/schemas/SeatId"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TokenUsage"
+            }
+          }
+        },
+        "required": [
+          "total",
+          "byStage",
+          "byAgent",
+          "bySeat"
         ]
       },
       "WorkflowCancelledPayload": {
@@ -12272,6 +13820,207 @@
           "reason"
         ]
       },
+      "WorkflowReadModel": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shortId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "template": {
+            "$ref": "#/components/schemas/WorkflowTemplate"
+          },
+          "repo": {
+            "$ref": "#/components/schemas/RepoSnapshot"
+          },
+          "requirement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "integrationBranch": {
+            "type": "string",
+            "minLength": 1
+          },
+          "roleOverrides": {
+            "$ref": "#/components/schemas/RoleOverrides"
+          },
+          "gateToggles": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "budgets": {
+            "$ref": "#/components/schemas/AppliedBudgets"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/WorkflowLimits"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "pausedReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PauseReason"
+            }
+          },
+          "cancelRequested": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "outcome": {
+            "type": "object",
+            "properties": {
+              "finalPr": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "mergeCommitSha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{7,64}$"
+              },
+              "failReason": {
+                "type": "string",
+                "enum": [
+                  "max_reruns_exceeded",
+                  "stage_failed",
+                  "other"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          },
+          "currentStageId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StageView"
+            }
+          },
+          "gates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateView"
+            }
+          },
+          "seats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeatView"
+            }
+          },
+          "workItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItemView"
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionView"
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRef"
+            }
+          },
+          "prs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrSummary"
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageView"
+          },
+          "budgetBars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetBar"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorView"
+            }
+          },
+          "anomalies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnomalyView"
+            }
+          },
+          "lastSeq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "workflowId",
+          "shortId",
+          "template",
+          "repo",
+          "requirement",
+          "integrationBranch",
+          "roleOverrides",
+          "gateToggles",
+          "budgets",
+          "limits",
+          "status",
+          "pausedReasons",
+          "cancelRequested",
+          "startedAt",
+          "currentStageId",
+          "stages",
+          "gates",
+          "seats",
+          "workItems",
+          "questions",
+          "artifacts",
+          "prs",
+          "usage",
+          "budgetBars",
+          "errors",
+          "anomalies",
+          "lastSeq"
+        ]
+      },
       "WorkflowResumedPayload": {
         "type": "object",
         "properties": {
@@ -12287,7 +14036,7 @@
         "type": "object",
         "properties": {
           "readModel": {
-            "$ref": "#/components/schemas/ReadModel"
+            "$ref": "#/components/schemas/WorkflowReadModel"
           },
           "asOfSeq": {
             "type": "integer",
@@ -12298,6 +14047,20 @@
         "required": [
           "readModel",
           "asOfSeq"
+        ]
+      },
+      "WorkflowsResponse": {
+        "type": "object",
+        "properties": {
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowSummary"
+            }
+          }
+        },
+        "required": [
+          "workflows"
         ]
       },
       "WorkflowStartedPayload": {
@@ -12356,6 +14119,144 @@
           "budgets",
           "limits",
           "acknowledgedUnverifiedRuntime"
+        ]
+      },
+      "WorkflowStatus": {
+        "type": "string",
+        "enum": [
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "WorkflowSummary": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shortId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "templateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "templateName": {
+            "type": "string"
+          },
+          "repoId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repoFullName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requirement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "pausedReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PauseReason"
+            }
+          },
+          "currentStageId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentStageKind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StageKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "stagesDone": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "stagesTotal": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "stagesDone",
+              "stagesTotal"
+            ]
+          },
+          "openGates": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "escalatedQuestions": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "budgetTokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "workflowBudgetTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "workflowId",
+          "shortId",
+          "templateId",
+          "templateName",
+          "repoId",
+          "repoFullName",
+          "requirement",
+          "status",
+          "pausedReasons",
+          "currentStageId",
+          "currentStageKind",
+          "progress",
+          "openGates",
+          "escalatedQuestions",
+          "budgetTokens",
+          "startedAt"
         ]
       },
       "WorkflowTemplate": {
@@ -12637,6 +14538,102 @@
         "required": [
           "itemKey",
           "status"
+        ]
+      },
+      "WorkItemView": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/WorkItemKey"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "acceptance": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AgentKind"
+          },
+          "deps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItemKey"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkItemStatus"
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "currentAttemptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "seatId": {
+            "$ref": "#/components/schemas/SeatId"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "workspaceName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "issue": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "number"
+            ]
+          },
+          "pr": {
+            "$ref": "#/components/schemas/PrSummary"
+          },
+          "headSha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{7,64}$"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "body",
+          "acceptance",
+          "role",
+          "deps",
+          "status",
+          "attempts",
+          "usage"
         ]
       },
       "WorkspaceReq": {

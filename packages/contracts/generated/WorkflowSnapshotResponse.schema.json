@@ -3,7 +3,7 @@
   "type": "object",
   "properties": {
     "readModel": {
-      "$ref": "./ReadModel.schema.json"
+      "$ref": "./WorkflowReadModel.schema.json"
     },
     "asOfSeq": {
       "type": "integer",
