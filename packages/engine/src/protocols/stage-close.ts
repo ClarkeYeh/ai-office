@@ -1,5 +1,5 @@
 import type { EventPayload } from '@ai-office/contracts/events';
-import { liveAttempts } from '@ai-office/domain';
+import { possiblyLiveAttempts } from '@ai-office/domain';
 import type { EXCEPTION_OPTIONS } from '@ai-office/domain';
 import type { OpenGate, WorkflowState } from '@ai-office/domain';
 import { releaseAttempt, stopAttempt } from '../agents.js';
@@ -17,6 +17,9 @@ import { cancelTimer, firedTimer, pendingTimers, schedule } from '../timers.js';
  *   3. still alive → open an `anomaly` exception gate and pause the workflow.
  * Whenever the last attempt ends during a wait, the stage gate opens at once.
  * The close is "in progress" exactly while a `gate-precheck` timer is pending.
+ * "Alive" here is `possiblyLiveAttempts`: a `lost` attempt is not proven
+ * stopped (N9), so it is stopped/released too and keeps the gate closed until
+ * it is confirmed `exited` or released.
  */
 export const PRECHECK_WAIT_MS = 60_000;
 export const PRECHECK_RESTOP_MS = 30_000;
@@ -64,7 +67,7 @@ const stopAll = (
   phase: 'wait' | 'restop',
   tag: string,
 ): Effect[] =>
-  liveAttempts(ctx.state).flatMap((attempt) => [
+  possiblyLiveAttempts(ctx.state).flatMap((attempt) => [
     ...stopAttempt(ctx, attempt, 'close', phase, tag),
     ...(phase === 'wait'
       ? releaseAttempt(ctx, attempt, false, 'close', phase, tag)
@@ -80,7 +83,7 @@ export const beginStageClose = (
   stageId: string,
   stageGate: StageGateBuilder,
 ): Effect[] => {
-  if (liveAttempts(ctx.state).length === 0)
+  if (possiblyLiveAttempts(ctx.state).length === 0)
     return openStageGate(ctx, stageId, stageGate);
   const tag = closeTag(ctx, stageId);
   return [
@@ -104,7 +107,9 @@ const isCloseAnomalyGate = (workflowId: string, gateId: string): boolean =>
 
 const openAnomaly = (ctx: ReactContext, stageId: string): Effect[] => {
   const gateId = closeAnomalyGateId(ctx, stageId);
-  const alive = liveAttempts(ctx.state).map((attempt) => attempt.attemptId);
+  const alive = possiblyLiveAttempts(ctx.state).map(
+    (attempt) => attempt.attemptId,
+  );
   const summary = `Agents still alive before the stage gate: ${alive.join(', ')}`;
   return [
     internal({
@@ -151,11 +156,13 @@ export const reactStageClose = (
   const fired = firedTimer(ctx, 'gate-precheck');
   if (fired !== undefined) {
     const { stageId, phase } = fired.payload;
-    if (liveAttempts(ctx.state).length === 0)
+    if (possiblyLiveAttempts(ctx.state).length === 0)
       return openStageGate(ctx, stageId, stageGate);
     if (phase === 'restop') return openAnomaly(ctx, stageId);
     const tag = closeTag(ctx, stageId);
-    const alive = liveAttempts(ctx.state).map((attempt) => attempt.attemptId);
+    const alive = possiblyLiveAttempts(ctx.state).map(
+      (attempt) => attempt.attemptId,
+    );
     return [
       ...stopAll(ctx, 'restop', tag),
       internal({
@@ -178,7 +185,7 @@ export const reactStageClose = (
   if (ctx.event.type === 'gate.decided')
     return reactAnomalyDecision(ctx, ctx.event.payload, stageGate);
   if (!ATTEMPT_END_EVENTS.has(ctx.event.type)) return [];
-  if (liveAttempts(ctx.state).length > 0) return [];
+  if (possiblyLiveAttempts(ctx.state).length > 0) return [];
   return pendingTimers(ctx.state, 'gate-precheck').flatMap((timer) => [
     cancelTimer(timer.id, 'agents_ended'),
     ...openStageGate(ctx, timer.payload.stageId, stageGate),

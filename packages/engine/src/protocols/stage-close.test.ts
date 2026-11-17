@@ -224,6 +224,70 @@ describe('pre-gate clearing (§8.1)', () => {
     expect(sim.rejections).toEqual([]);
   });
 
+  describe('a lost attempt is not proven stopped (N9)', () => {
+    /** lead-1 is reported lost right after its spawn succeeds. */
+    const losing =
+      (confirm: boolean): World =>
+      (issued, sim) => {
+        const reply = cooperativeWorld(issued, sim);
+        if (issued.attemptId !== 'lead-1') return reply;
+        if (issued.command.kind === 'runtime.spawnAgent')
+          return {
+            ok: true,
+            result: { agent: 'agent:lead-1' },
+            observe: [
+              {
+                type: 'ObserveAttemptStatus',
+                attemptId: 'lead-1',
+                state: 'lost',
+              },
+            ],
+          };
+        return issued.commandId.includes('/close/') && !confirm
+          ? undefined
+          : reply;
+      };
+
+    test('it is stopped and released, and the gate opens once it is confirmed exited', () => {
+      const sim = run(losing(true));
+      expect(
+        sim.issued
+          .filter(
+            (c) => c.attemptId === 'lead-1' && isClose(c.commandId, 'wait'),
+          )
+          .map((c) => c.command.kind),
+      ).toEqual(['runtime.stop', 'runtime.release']);
+      expect(sim.state.attempts['lead-1']?.state).toBe('exited');
+      expect(sim.state.gates[CONCLUSION]?.status).toBe('open');
+      expect(sim.rejections).toEqual([]);
+    });
+
+    test('still unconfirmed after the waits → anomaly gate and paused, no stage gate', () => {
+      const sim = run(losing(false));
+      expect(sim.state.attempts['lead-1']?.state).toBe('lost');
+      expect(sim.liveAgents()).toBe(1);
+      expect(openGates(sim)).toEqual([]);
+      sim.advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);
+      expect(
+        sim.issued
+          .filter(
+            (c) => c.attemptId === 'lead-1' && isClose(c.commandId, 'restop'),
+          )
+          .map((c) => c.command.kind),
+      ).toEqual(['runtime.stop']);
+      const [gate] = openGates(sim);
+      expect(gate).toMatchObject({
+        gate: {
+          exceptionKind: 'anomaly',
+          content: { summary: expect.stringContaining('lead-1') },
+        },
+      });
+      expect(sim.state.workflow?.pausedReasons).toEqual(['anomaly']);
+      expect(sim.state.gates[CONCLUSION]).toBeUndefined();
+      expect(sim.rejections).toEqual([]);
+    });
+  });
+
   test('timer and command ids are stable for the same event sequence', () => {
     const ignoring = worldIgnoring((id) => id.includes('/close/'));
     const a = run(ignoring).advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);

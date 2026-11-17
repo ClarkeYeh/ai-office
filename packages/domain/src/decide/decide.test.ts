@@ -7,8 +7,10 @@ import {
   budgetAlertKey,
   initialState,
   isAttemptAlive,
+  isAttemptPossiblyAlive,
   latestAttempt,
   liveAttempts,
+  possiblyLiveAttempts,
   seatState,
   stageByKind,
 } from '../state/index.js';
@@ -281,12 +283,18 @@ describe('state selectors', () => {
     ]);
     harness.given(observe('att-1', 'lost'));
     expect(liveAttempts(harness.state)).toEqual([]);
+    // §8.1 / N9: lost is not proven stopped.
+    expect(possiblyLiveAttempts(harness.state).map((a) => a.attemptId)).toEqual(
+      ['att-1'],
+    );
     const attempt = harness.state.attempts['att-1'];
     if (attempt === undefined) throw new Error('missing');
     expect(isAttemptAlive({ ...attempt, state: 'idle', released: true })).toBe(
       false,
     );
     expect(isAttemptAlive({ ...attempt, state: 'exited' })).toBe(false);
+    expect(isAttemptPossiblyAlive({ ...attempt, released: true })).toBe(false);
+    expect(isAttemptPossiblyAlive({ ...attempt, state: 'exited' })).toBe(false);
   });
 
   test('attempt transitions never leave exited', () => {

@@ -1,5 +1,5 @@
 import type { EventPayload } from '@ai-office/contracts/events';
-import { isAttemptAlive, liveAttempts } from '@ai-office/domain';
+import { isAttemptAlive, possiblyLiveAttempts } from '@ai-office/domain';
 import type { OpenGate, WorkflowState } from '@ai-office/domain';
 import { stopAttempt } from '../agents.js';
 import { commandId, metaFor } from '../context.js';
@@ -133,7 +133,7 @@ export const escalateNudge = (
     internal({
       type: 'OpenGate',
       meta: metaFor(ctx),
-      noLiveAttempts: liveAttempts(ctx.state).length === 0,
+      noLiveAttempts: possiblyLiveAttempts(ctx.state).length === 0,
       gate: {
         kind: 'exception',
         gateId: nudgeGateId(ctx.workflowId, attemptId, reason),

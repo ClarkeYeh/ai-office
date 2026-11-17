@@ -14,7 +14,7 @@ import {
   decide,
   evolveWithWarning,
   initialState,
-  liveAttempts,
+  possiblyLiveAttempts,
 } from '@ai-office/domain';
 import type {
   CommandMeta,
@@ -202,8 +202,9 @@ export class Simulator {
     return this;
   }
 
+  /** Agents not proven stopped (lost counts), as the §8.1 invariant requires. */
   liveAgents(): number {
-    return liveAttempts(this.state).length;
+    return possiblyLiveAttempts(this.state).length;
   }
 
   eventsOf<T extends EventType>(type: T): Extract<DomainEvent, { type: T }>[] {

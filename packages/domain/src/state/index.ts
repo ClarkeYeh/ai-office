@@ -69,12 +69,28 @@ export const canTransitionAttempt = (
   to: AttemptState,
 ): boolean => ATTEMPT_TRANSITIONS[from].includes(to);
 
-/** §8.1: an attempt counts as alive until it is exited, lost, or released. */
+/**
+ * Known to be running: not exited, lost, or released. For scheduling and
+ * reachability (seat occupancy, nudges): a `lost` attempt no longer holds its
+ * seat and cannot be messaged. NOT for the §8.1 "no live agent while a gate is
+ * open" check; use `isAttemptPossiblyAlive` there.
+ */
 export const isAttemptAlive = (attempt: Attempt): boolean =>
   !attempt.released && attempt.state !== 'exited' && attempt.state !== 'lost';
 
 export const liveAttempts = (state: WorkflowState): Attempt[] =>
   Object.values(state.attempts).filter(isAttemptAlive);
+
+/**
+ * Not proven stopped: neither exited nor released (§8.1 / N9). A `lost`
+ * attempt counts, because it may still be running and holding its seat token;
+ * pre-gate clearing stops and releases it like any live attempt.
+ */
+export const isAttemptPossiblyAlive = (attempt: Attempt): boolean =>
+  !attempt.released && attempt.state !== 'exited';
+
+export const possiblyLiveAttempts = (state: WorkflowState): Attempt[] =>
+  Object.values(state.attempts).filter(isAttemptPossiblyAlive);
 
 export const latestAttempt = (
   state: WorkflowState,
