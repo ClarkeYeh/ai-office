@@ -1,2 +1,3 @@
-// Layer placeholder; wiring belongs in main.ts.
-export {};
+export { SystemClock, SystemIdGen } from './identity.js';
+export { TimerScheduler } from './scheduler.js';
+export { FsSpecStore } from './spec-store.js';
