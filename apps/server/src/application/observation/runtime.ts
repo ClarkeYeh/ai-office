@@ -21,6 +21,7 @@ export function attemptBranch(batch: Batch, attempt: Attempt): string | null {
       if (
         record.issued.kind === 'runtime.prepareWorkspace' &&
         record.result?.kind === 'runtime.prepareWorkspace' &&
+        record.result.result !== null &&
         'workspace' in record.result.result &&
         record.result.result.workspace === workspace
       )

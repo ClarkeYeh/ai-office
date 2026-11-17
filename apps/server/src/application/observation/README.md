@@ -6,8 +6,9 @@ Call `start()`, and route timers with `OBSERVATION_TIMER_PREFIX` to `onTimer()`.
 Call `stop()` then await `idle()` before closing the store. In-flight port reads
 finish and commit; stop cancels future timers. Paused workflows remain observed.
 
-The submission service can supply `usageIdentity(attempt)` with its recorded
-`reportedSessionId`; dispatch ID and transcript-message hints are fallbacks.
+Usage lookup first reads `attempt.agentSession` (CP4 contract, forwarded by T28)
+when its provider matches the attempt. Optional `usageIdentity(attempt)` hints
+and dispatch ID/transcript-message search remain fallbacks.
 A session's runtime poll is independent of usage and SCM polling. Calls for the
 same source/scope serialize. Each batch derives against a private snapshot and
 commits events, provider cursor and accounting/head baseline in one runner append.

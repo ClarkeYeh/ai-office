@@ -1,3 +1,4 @@
+import type { EventPayload } from '@ai-office/contracts/events';
 import type { Attempt } from '@ai-office/domain';
 import type { RuntimePort } from '../../ports/runtime.js';
 import type { ScmPort } from '../../ports/scm.js';
@@ -32,7 +33,7 @@ export interface ObservationLoopDeps {
   logger: Logger;
   workflows: () => readonly ObservationWorkflow[];
   budgetFormula?: string;
-  /** Submission service supplies the reported session id first; refs stay opaque. */
+  /** Optional fallback lookup hints; recorded attempt.agentSession takes priority. */
   usageIdentity?: (
     attempt: Attempt,
   ) => Partial<
@@ -97,6 +98,7 @@ export class ObservationLoop {
       for (const record of Object.values(runner.state.commands))
         if (
           record.result?.kind === 'runtime.openSession' &&
+          record.result.result !== null &&
           'session' in record.result.result
         ) {
           const session = record.result.result.session as SessionRef;
@@ -186,8 +188,18 @@ export class ObservationLoop {
       const attempt = runner.state.attempts[attemptId];
       if (!attempt || !attempt.agentRef) return;
       const hints = { ...this.deps.usageIdentity?.(attempt), ...identity };
+      // T28 forwards this CP4 field onto Attempt; use the contract type while
+      // the independently owned domain forwarding change is still in flight.
+      const { agentSession } = attempt as Attempt &
+        Pick<EventPayload<'submission.accepted'>, 'agentSession'>;
+      const provider = attempt.agent === 'codex' ? 'codex' : 'claude';
+      const reportedSessionId =
+        agentSession?.provider === provider
+          ? agentSession.id
+          : hints.reportedSessionId;
       const ref = await this.deps.usage.locate({
         ...hints,
+        ...(reportedSessionId === undefined ? {} : { reportedSessionId }),
         attemptId,
         agent: attempt.agent,
         dispatchId: hints.dispatchId ?? attempt.agentRef,

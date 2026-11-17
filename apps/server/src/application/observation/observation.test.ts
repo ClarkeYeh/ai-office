@@ -375,6 +375,41 @@ it('keeps adapter-filtered finished and turn-start-unobserved escalations out of
 });
 
 describe('usage ingestion', () => {
+  it('prefers the matching provider session recorded on the attempt over fallback hints', async () => {
+    const h = await setup();
+    Object.assign(h.runner.state.attempts['att-1']!, {
+      agentSession: { provider: 'codex', id: 'thread-1' },
+    });
+    const locate = vi.spyOn(h.usage, 'locate');
+    const loop = new ObservationLoop({
+      ...h.deps,
+      usageIdentity: () => ({ reportedSessionId: 'stale-hint' }),
+    });
+    await loop.pollUsage(h.runner, 'att-1', {
+      reportedSessionId: 'another-hint',
+    });
+    expect(locate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        reportedSessionId: 'thread-1',
+        dispatchId: agent,
+      }),
+    );
+  });
+  it.each([undefined, { provider: 'claude', id: 'wrong-provider' }])(
+    'falls back to dispatch search without a matching attempt session: %j',
+    async (agentSession) => {
+      const h = await setup();
+      if (agentSession)
+        Object.assign(h.runner.state.attempts['att-1']!, { agentSession });
+      const locate = vi.spyOn(h.usage, 'locate');
+      await h.loop.pollUsage(h.runner, 'att-1');
+      expect(locate).toHaveBeenLastCalledWith({
+        attemptId: 'att-1',
+        agent: 'codex',
+        dispatchId: agent,
+      });
+    },
+  );
   it('persists cumulative baselines with cursors and resumes with correct deltas and distinct keys', async () => {
     const h = await setup();
     h.usage.append('att-1', {
