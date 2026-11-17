@@ -24,7 +24,7 @@ import type {
   EvolveWarning,
   WorkflowState,
 } from '@ai-office/domain';
-import type { ExternalEffect } from '../effects.js';
+import type { SpawnEffect, ExternalEffect } from '../effects.js';
 import { react as defaultReact } from '../react.js';
 import type { React } from '../react.js';
 
@@ -56,6 +56,7 @@ export type World = (
 ) => WorldReply | undefined;
 
 type Input =
+  | { kind: 'spawn'; effect: SpawnEffect }
   | { kind: 'command'; command: DomainCommand }
   | { kind: 'reply'; issued: IssuedCommand; reply: WorldReply };
 
@@ -223,7 +224,8 @@ export class Simulator {
     for (let input = this.queue.shift(); input; input = this.queue.shift()) {
       if (++this.steps > this.maxSteps)
         throw new Error(`Simulator exceeded ${this.maxSteps} steps`);
-      if (input.kind === 'command') this.run(input.command);
+      if (input.kind === 'spawn') this.spawn(input.effect);
+      else if (input.kind === 'command') this.run(input.command);
       else this.receive(input.issued, input.reply);
     }
     return this;
@@ -310,6 +312,9 @@ export class Simulator {
     this.events.push(event);
     for (const effect of effects) {
       switch (effect.kind) {
+        case 'spawn':
+          this.queue.push({ kind: 'spawn', effect });
+          break;
         case 'internal':
           this.internal.push(effect.command);
           this.queue.push({ kind: 'command', command: effect.command });
@@ -339,6 +344,29 @@ export class Simulator {
           break;
       }
     }
+  }
+
+  private spawn(effect: SpawnEffect): void {
+    if (!this.state.attempts[effect.attemptId])
+      throw new Error('Spawn intent has no attempt');
+    this.issue({
+      kind: 'external',
+      commandId: effect.commandId,
+      stageId: effect.stageId,
+      attemptId: effect.attemptId,
+      command: {
+        kind: 'runtime.spawnAgent',
+        args: {
+          session: 'session-1',
+          agent: effect.agent,
+          title: effect.title ?? `aio:${effect.commandId}`,
+          specPath: `/specs/${effect.attemptId}.md`,
+          specSha256: 'a'.repeat(64),
+          workspace: effect.workspace,
+          keepOpen: effect.keepOpen,
+        },
+      },
+    });
   }
 
   private issue(effect: ExternalEffect): void {
