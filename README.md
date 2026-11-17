@@ -49,3 +49,38 @@ Vitest workspace configuration uses `test.projects` in `vitest.config.ts` (the
 current name for workspaces). Production TypeScript projects exclude test files;
 Vitest runs them separately. Web declarations go to `dist/types`, while Vite writes
 the runnable site and a manifest to `dist`.
+
+## Architecture boundaries
+
+`pnpm depcruise` enforces SPEC §23 across the repository, including type-only
+and side-effect imports. Contracts expose subpaths (`api`, `events`, `stream`,
+`template`, `agent-submission`); consumers must not import the contracts root.
+Domain and engine use only events/template contracts. Application code uses
+ports, pure packages, and its allowed contract subpaths; adapters cannot import
+one another. Ports additionally permit `zod` (architect review decision).
+Only `server/main.ts` composes the application. Templates are consumed only by
+`template-fs` and that composition root.
+
+The config contains the complete layer allowlists and npm/builtin placement
+rules. React and React DOM are the initial web UI package allowlist; add future
+UI dependencies explicitly. Tests may import their subjects and fakes, while
+production cannot import tests. UI components cannot reach API/realtime clients;
+the office scene imports only its own view-model types, and cross-feature imports
+use feature `index.ts` entry points. Cycles, unresolved imports and orphan modules
+fail the check (config and test files are exempt from orphan checking). Skeleton
+entry points have smoke tests until their feature tests replace them.
+
+`pnpm depcruise:selftest` runs isolated violating and allowed samples through the
+same config and resolver, asserting every rule fires and the CLI fails. Samples
+are excluded from production cruising, linting and workspace compilation.
+`noUncheckedSideEffectImports` also makes unresolved side-effect imports fail
+`tsc -b`. `tsconfig.depcruise.json` maps workspace aliases to source so checks do
+not depend on stale build output.
+
+After `pnpm --filter @ai-office/web build`, run `pnpm check:bundle`. Vite emits a
+manifest plus Rollup module stats, including external and tree-shaken imports.
+The check fails on missing metadata, server/Octokit/SQLite/Node module IDs, or
+`child_process` / `orca orchestration` strings anywhere in the output. Run
+`node --test scripts/check-web-bundle/index.test.mjs` to exercise rejection cases.
+Import rules cannot inspect the arguments passed to process APIs: config's
+`gh auth token` limitation and CLI start behavior still require code review.

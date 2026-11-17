@@ -14,13 +14,14 @@
     "format": "prettier --write .",
     "contracts:gen": "pnpm --filter @ai-office/contracts build && node packages/contracts/scripts/generate.mjs",
     "contracts:check": "pnpm --filter @ai-office/contracts build && node packages/contracts/scripts/generate.mjs --check",
-    "depcruise": "echo TODO: depcruise && exit 0",
-    "depcruise:selftest": "echo TODO: depcruise:selftest && exit 0",
-    "check:bundle": "echo TODO: check:bundle && exit 0",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs .",
+    "depcruise:selftest": "node scripts/depcruise-selftest/index.mjs",
+    "check:bundle": "node scripts/check-web-bundle/index.mjs",
     "fixtures:scan": "echo TODO: fixtures:scan && exit 0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "dependency-cruiser": "^18.8.0",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
