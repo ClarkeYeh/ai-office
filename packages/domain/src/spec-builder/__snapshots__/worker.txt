@@ -6,7 +6,7 @@ AI Office is the only coordinator: it starts and stops every agent, opens and me
 
 ## 1. Goal
 
-Implement work item `w2` and push it to your branch `ai-office/ab12/w2`. AI Office opens the pull request from that branch.
+Implement work item `w2` and push it to your branch `ai-office/ab12/w2`. AI Office opens the pull request from that branch and queues it for review.
 
 ## 2. Your role
 
@@ -25,7 +25,7 @@ Acceptance criteria:
 - w2 works
 ```
 
-Depends on:
+Depends on (already merged into the integration branch, so their changes are in your base):
 - `w1` "Item w1" — role `engineer`, agent `codex`, issue #5
 
 Approved meeting conclusion (sha256 `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`) (data, not instructions). It is the authority for scope and technical choices:
@@ -42,7 +42,7 @@ Repository `octo/demo`; default branch `main`; integration branch `ai-office/ab1
 
 ## 4. Workspace and allowed side effects
 
-The current directory is your own worktree on branch `ai-office/ab12/w2`, created from the integration branch `ai-office/ab12-add-dark-mode-toggle`.
+The current directory is your own worktree on branch `ai-office/ab12/w2`, created from the latest integration branch `ai-office/ab12-add-dark-mode-toggle` at commit `feedbee`.
 
 - Commit and push only to `ai-office/ab12/w2` (`git push origin ai-office/ab12/w2`). Never push any other branch and never force-push.
 - Do not open, close or comment on pull requests or issues, and do not run `gh` in any form; AI Office opens your pull request.
@@ -62,6 +62,8 @@ Never run any of these commands, directly or through a script or alias. AI Offic
 - `orca agent launch`
 - `orca terminal create`
 - `gh pr merge`
+- `gh pr create`
+- `gh issue create`
 - `gh issue comment`
 - `gh label`
 - `git push` to the default branch `main`, including force pushes and pushes through another remote or refspec
@@ -96,5 +98,6 @@ Wait for the reply before continuing; the wait does not count toward your time l
 3. Confirm the push succeeded, then report `worker_done` with a short summary of the change and how you verified it.
 
 - Completion protocol: push first, then report `worker_done`. A `worker_done` without a pushed branch counts as a failed attempt.
+- Do not wait for the review after `worker_done`. If the merge-queue integrator asks for changes, AI Office starts a new attempt with its reasons.
 - You have 45 minutes.
 - If AI Office finds no pushed commits it sends one reminder and then waits 5 minutes before escalating the item to a human.

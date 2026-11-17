@@ -58,6 +58,8 @@ Never run any of these commands, directly or through a script or alias. AI Offic
 - `orca agent launch`
 - `orca terminal create`
 - `gh pr merge`
+- `gh pr create`
+- `gh issue create`
 - `gh issue comment`
 - `gh label`
 - `git push` to the default branch `main`, including force pushes and pushes through another remote or refspec
