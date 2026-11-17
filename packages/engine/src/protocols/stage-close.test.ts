@@ -326,7 +326,7 @@ describe('pre-gate clearing (§8.1)', () => {
     });
   });
 
-  test('abort is left to the cancel policy (T16): DecideGate requests cancel, clearing does nothing more', () => {
+  test('abort is completed by the cancel policy after pre-gate clearing fails', () => {
     const sim = run(worldIgnoring((id) => id.includes('/close/')));
     sim.advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);
     const anomaly = openGates(sim)[0];
@@ -342,7 +342,8 @@ describe('pre-gate clearing (§8.1)', () => {
     });
     expect(sim.rejections).toEqual([]);
     expect(sim.state.workflow?.cancelRequested).toBe(true);
-    expect(sim.issued).toHaveLength(issued);
+    expect(sim.issued.length).toBeGreaterThan(issued);
+    expect(sim.state.workflow?.status).toBe('cancelled');
     expect(sim.state.workflow?.pausedReasons).toEqual(['anomaly']);
   });
 

@@ -59,6 +59,8 @@ export interface RuntimePort {
     objective: string;
     correlation: Correlation;
   }): Promise<SessionRef>;
+  /** Explicit user-authorized run-use; idempotent and without a request ID. */
+  reclaimSession(session: SessionRef): Promise<{ reclaimed: boolean }>;
   closeSession(session: SessionRef): Promise<void>;
   prepareWorkspace(req: {
     session: SessionRef;

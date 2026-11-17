@@ -19,18 +19,26 @@ const alerts = (
   candidate: Alert,
 ): DomainEventDraft[] => {
   const workflow = state.workflow!;
-  // Top-ups belong to the exact scope/attempt that raised the gate, never its siblings.
+  // Credits remain linked to their gate. Only an explicit top-up-rerun crosses
+  // attempts, and then only within the same item or stage (never the default).
   const extra = Object.values(state.budgetAlerts).reduce((sum, alert) => {
-    if (
-      budgetAlertKey(alert, 'exceeded') !==
-        budgetAlertKey(candidate, 'exceeded') ||
-      alert.gateId === undefined
-    )
-      return sum;
-    const gate = state.gates[alert.gateId];
+    const gate =
+      alert.gateId === undefined ? undefined : state.gates[alert.gateId];
+    if (gate?.status !== 'approved') return sum;
+    const sameAttempt =
+      budgetAlertKey(alert, 'exceeded') ===
+      budgetAlertKey(candidate, 'exceeded');
+    const carry =
+      gate.decision?.optionId === 'top-up-rerun' &&
+      ((alert.scope === 'item' &&
+        candidate.scope === 'item' &&
+        alert.itemKey === candidate.itemKey &&
+        alert.stageId === candidate.stageId) ||
+        (alert.scope === 'stage' &&
+          candidate.scope === 'stage' &&
+          alert.stageId === candidate.stageId));
     return (
-      sum +
-      (gate?.status === 'approved' ? (gate.decision?.additionalTokens ?? 0) : 0)
+      sum + (sameAttempt || carry ? (gate.decision?.additionalTokens ?? 0) : 0)
     );
   }, 0);
   const budget = candidate.budget + (candidate.metric === 'tokens' ? extra : 0);

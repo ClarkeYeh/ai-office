@@ -34,6 +34,14 @@ export function runtimePortContract(
     afterEach(async () => {
       await f.dispose?.();
     });
+    it('explicitly reclaims a session idempotently without a request ID', async () => {
+      expect(await f.runtime.reclaimSession(f.session)).toEqual({
+        reclaimed: true,
+      });
+      expect(await f.runtime.reclaimSession(f.session)).toEqual({
+        reclaimed: true,
+      });
+    });
     it('returns the pinned base and a usable workspace path, with stable replay', async () => {
       const prepared = await f.runtime.prepareWorkspace(f.prepareRequest);
       expect(prepared.baseSha).toBe(f.prepareRequest.baseSha);

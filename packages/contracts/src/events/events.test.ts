@@ -123,6 +123,7 @@ const template = {
 };
 
 const commandExamples: Record<ExternalCommandKind, unknown> = {
+  'runtime.reclaimSession': { session: 's1' },
   'runtime.openSession': {
     repo: { orcaRepoId: 'orca-1', localPath: '/repo' },
     objective: 'Build aio:c1',
