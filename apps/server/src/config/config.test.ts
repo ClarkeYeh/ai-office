@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -267,5 +268,72 @@ describe('instance lock and runtime information', () => {
     );
     lock.release();
     expect(readFileSync(`${directory}/data/.lock`, 'utf8')).toBe('replacement');
+  });
+  it('removes its own runtime.json on release but leaves a foreign one', () => {
+    const directory = home();
+    const lock = acquireInstanceLock(directory);
+    lock.writeRuntime(4319);
+    lock.release();
+    expect(existsSync(`${directory}/runtime.json`)).toBe(false);
+    const next = acquireInstanceLock(directory);
+    writeFileSync(
+      `${directory}/runtime.json`,
+      JSON.stringify({ port: 1, pid: 1, startedAt: next.startedAt }),
+    );
+    next.release();
+    expect(existsSync(`${directory}/runtime.json`)).toBe(true);
+  });
+  it('treats a lock recorded with its own pid but not held here as stale (container pid 1)', () => {
+    const directory = home();
+    writeFileSync(
+      `${directory}/data/.lock`,
+      JSON.stringify({ pid: process.pid, startedAt: '2026-01-01T00:00:00Z' }),
+    );
+    const lock = acquireInstanceLock(directory);
+    expect(lock.startedAt).not.toBe('2026-01-01T00:00:00Z');
+    expect(() => acquireInstanceLock(directory)).toThrow(InstanceLockedError);
+    lock.release();
+  });
+  it('breaks a lock only when asked, naming pid and start time otherwise', async () => {
+    const directory = home();
+    const child = spawn(
+      process.execPath,
+      ['-e', 'setInterval(() => {}, 1000)'],
+      { stdio: 'ignore' },
+    );
+    await new Promise<void>((resolve) => child.once('spawn', resolve));
+    try {
+      writeFileSync(
+        `${directory}/data/.lock`,
+        JSON.stringify({ pid: child.pid, startedAt: '2026-01-01T00:00:00Z' }),
+      );
+      expect(() => acquireInstanceLock(directory)).toThrow(
+        /2026-01-01T00:00:00Z.*--break-lock/,
+      );
+      const lock = acquireInstanceLock(directory, { breakLock: true });
+      expect(lock.pid).toBe(process.pid);
+      lock.release();
+    } finally {
+      child.kill();
+    }
+  });
+  it('waits briefly for a holder that has created but not yet written the lock', async () => {
+    const directory = home();
+    const path = `${directory}/data/.lock`;
+    writeFileSync(path, '');
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(path)}, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })), 50); setInterval(() => {}, 1000)`,
+      ],
+      { stdio: 'ignore' },
+    );
+    await new Promise<void>((resolve) => child.once('spawn', resolve));
+    try {
+      expect(() => acquireInstanceLock(directory)).toThrow(String(child.pid));
+    } finally {
+      child.kill();
+    }
   });
 });

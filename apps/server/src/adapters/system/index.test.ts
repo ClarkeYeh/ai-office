@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FsSpecStore,
@@ -144,6 +144,18 @@ describe('FsSpecStore', () => {
     expect(store.verify(spec.path, spec.sha256)).toBe(false);
     const unicode = store.write('unicode', '你好');
     expect(store.verify(unicode.path, unicode.sha256)).toBe(true);
+  });
+  it('stores domain attempt IDs with separators under distinct names', () => {
+    const root = temporary();
+    const store = new FsSpecStore(root);
+    const meeting = store.write('wf-1/meeting/1/attempt/lead', 'lead');
+    const seat = store.write('wf-1:lead', 'seat');
+    expect(dirname(meeting.path)).toBe(join(root, 'specs'));
+    expect(meeting.path).not.toBe(seat.path);
+    expect(store.read(meeting.path, meeting.sha256)).toBe('lead');
+    store.removeUnissued('wf-1/meeting/1/attempt/lead');
+    expect(store.verify(meeting.path, meeting.sha256)).toBe(false);
+    expect(store.verify(seat.path, seat.sha256)).toBe(true);
   });
   it('rejects traversal and refuses symlink reads or overwrite', () => {
     const root = temporary();

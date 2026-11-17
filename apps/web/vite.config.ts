@@ -5,6 +5,19 @@ const importedSpecifiers = new Set<string>();
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
   build: { manifest: true, emptyOutDir: false },
+  // `ai-office start --dev` admits this origin; the backend checks the raw Host,
+  // so the proxy rewrites it to the backend's (§13, §17).
+  server: {
+    proxy: Object.fromEntries(
+      ['/api', '/auth'].map((path) => [
+        path,
+        {
+          target: `http://127.0.0.1:${process.env.AI_OFFICE_PORT ?? '4319'}`,
+          changeOrigin: true,
+        },
+      ]),
+    ),
+  },
   plugins: [
     {
       name: 'architecture-module-stats',

@@ -98,6 +98,25 @@ describe('pinned workspace preparation', () => {
     expect((await runtime.prepareWorkspace(request)).path).not.toBe('/mutated');
   });
 
+  it('resolves an unpinned origin/<fetchBranch> base to the fetched head', async () => {
+    const { runtime, request } = await fixture();
+    const head = 'b'.repeat(40);
+    runtime.setRemoteBranch(repo, integration, head);
+    const { baseSha: _pinned, ...rest } = request;
+    void _pinned;
+    const result = await runtime.prepareWorkspace({
+      ...rest,
+      baseBranch: `origin/${integration}`,
+      name: 'merge-1',
+      branch: 'ai-office/merge-1',
+      correlation: c('merge-workspace'),
+    });
+    expect(result.baseSha).toBe(head);
+    expect(runtime.fetchedBranches()).toEqual([
+      { repo, branch: integration, headSha: head },
+    ]);
+  });
+
   it('accepts the concrete command schema shape with the pinned SHA in baseBranch', async () => {
     const { runtime, request, sha } = await fixture();
     const { baseSha: _baseSha, ...commandArgs } = request;

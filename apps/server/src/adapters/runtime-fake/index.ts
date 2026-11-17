@@ -161,6 +161,28 @@ export class FakeRuntime implements RuntimePort {
         'invalid_existing_branch',
         'Existing branch checkout requires fetchBranch to equal branch',
       );
+    // An unpinned `origin/<fetchBranch>` base follows the freshly fetched head
+    // (on-demand reviewers, integrate wrap-up); pinned bases must be known commits.
+    if (
+      req.baseSha === undefined &&
+      req.fetchBranch !== undefined &&
+      req.baseBranch === `origin/${req.fetchBranch}`
+    ) {
+      const remote = this.remoteBranches.get(
+        JSON.stringify([
+          req.repo.orcaRepoId,
+          req.repo.localPath,
+          req.fetchBranch,
+        ]),
+      );
+      if (!remote) throw fail('remote_branch_not_found');
+      this.fetches.push({
+        repo: structuredClone(req.repo),
+        branch: req.fetchBranch,
+        headSha: remote.head,
+      });
+      return remote.head;
+    }
     const baseSha =
       req.baseSha ?? (req.fetchBranch ? req.baseBranch : undefined);
     if (baseSha !== undefined || req.fetchBranch !== undefined) {

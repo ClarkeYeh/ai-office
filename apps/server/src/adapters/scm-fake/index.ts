@@ -209,9 +209,12 @@ export class FakeScm implements ScmPort {
     return seen;
   }
   async compareBranch(ref: RepoScmRef, base: string, head: string) {
+    // Like GitHub's compare API, either side may be a branch or a commit SHA.
     const repo = this.repo(ref),
-      baseSha = repo.branches.get(base),
-      headSha = repo.branches.get(head);
+      resolve = (name: string) =>
+        repo.branches.get(name) ?? (repo.parents.has(name) ? name : undefined),
+      baseSha = resolve(base),
+      headSha = resolve(head);
     if (!baseSha || !headSha) return null;
     const baseAncestors = this.ancestors(repo, baseSha);
     return {

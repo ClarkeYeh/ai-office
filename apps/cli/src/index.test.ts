@@ -1,10 +1,10 @@
 import { expect, test } from 'vitest';
 import { runCli } from './index.js';
 
-test('start remains available for composition-root implementation', async () => {
-  expect(await runCli(['start'])).toEqual({
+test('start refuses fake mode without --dev', async () => {
+  expect(await runCli(['start', '--fake', 'mainline'])).toMatchObject({
     exitCode: 1,
-    message: 'start is not implemented yet.',
+    message: expect.stringContaining('requires --dev'),
   });
 });
 test.each([undefined, '--help', '-h', 'unknown'])(

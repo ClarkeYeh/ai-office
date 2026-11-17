@@ -157,6 +157,22 @@ describe('FakeScm scenarios', () => {
       )?.ahead,
     ).toBe(0);
   });
+  it('compares a branch against a pinned commit SHA, as GitHub does', async () => {
+    const scm = new FakeScm();
+    const repo = { owner: 'o', name: 'r' };
+    scm.addRepo(repo);
+    const base = (await scm.compareBranch(repo, 'main', 'main'))!.headSha;
+    await scm.ensureBranch(repo, 'ai-office/worker', base, {
+      workflowId: 'wf',
+      commandId: 'c',
+    });
+    const head = scm.pushBranch(repo, 'ai-office/worker');
+    expect(await scm.compareBranch(repo, base, 'ai-office/worker')).toEqual({
+      ahead: 1,
+      headSha: head,
+    });
+    expect(await scm.compareBranch(repo, 'f'.repeat(40), 'main')).toBeNull();
+  });
   it('supports a merge still pending at 120 seconds with virtual timers', async () => {
     vi.useFakeTimers();
     try {
