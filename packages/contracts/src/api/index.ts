@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   AgentSubmissionSchema,
   SubmissionResponseSchema,
+  SubmissionHeadersSchema,
 } from '../agent-submission/index.js';
 import { DomainEventSchema } from '../events/index.js';
 import {
@@ -88,12 +89,6 @@ export const AnswerQuestionRequestSchema = z.object({
 });
 export const SeatMessageRequestSchema = z.object({ subject: id, body: id });
 export const IdempotencyHeadersSchema = z.object({ 'idempotency-key': id });
-export const SubmissionHeadersSchema = z.object({
-  authorization: z.string().startsWith('Bearer aio_seat_'),
-  'x-aio-terminal-handle': id.optional(),
-  'x-aio-pane-key': id.optional(),
-  'x-aio-agent-session': id.optional(),
-});
 const ack = z.object({ accepted: z.boolean() });
 const params = z.object({ id });
 const seatParams = z.object({ seatId: id });

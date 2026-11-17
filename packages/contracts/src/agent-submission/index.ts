@@ -82,3 +82,19 @@ export const SubmissionResponseSchema = z.union([
 ]);
 export type AgentSubmission = z.infer<typeof AgentSubmissionSchema>;
 export type SubmissionKind = AgentSubmission['kind'];
+
+export const SEAT_TOKEN_PREFIX = 'aio_seat_';
+export const SUBMISSION_HEADER_NAMES = {
+  authorization: 'authorization',
+  terminalHandle: 'x-aio-terminal-handle',
+  paneKey: 'x-aio-pane-key',
+  agentSession: 'x-aio-agent-session',
+} as const;
+export const SubmissionHeadersSchema = z.object({
+  [SUBMISSION_HEADER_NAMES.authorization]: z
+    .string()
+    .startsWith(`Bearer ${SEAT_TOKEN_PREFIX}`),
+  [SUBMISSION_HEADER_NAMES.terminalHandle]: z.string().min(1).optional(),
+  [SUBMISSION_HEADER_NAMES.paneKey]: z.string().min(1).optional(),
+  [SUBMISSION_HEADER_NAMES.agentSession]: z.string().min(1).optional(),
+});

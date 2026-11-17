@@ -28,7 +28,6 @@ The scanner uses the same rules and rejects raw body fields, malformed JSON, non
 recordings, binary files, symlinks and unsafe filenames. Only README and empty placeholder
 files are permitted alongside JSON. It never prints offending data into CI logs.
 Redaction can change replay payloads; build adapter tests around the sanitized shape.
-A clean CI run does not satisfy M0 acceptance while other root checks remain TODO stubs.
 
-M0 keeps these rules in the fixture scripts; M1 will extract a shared pure package
-for fixtures and the server redactor. No shared package is introduced here.
+The rules currently live in the fixture scripts. M1-T3 owns their extraction into
+`packages/redaction`, shared by fixtures and the server redactor.

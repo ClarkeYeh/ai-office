@@ -9,13 +9,54 @@ const server = 'apps/server/src/';
 const contracts =
   'packages/contracts/(src|dist)/(api|events|stream|template|agent-submission)/';
 const coreContracts = 'packages/contracts/(src|dist)/(events|template)/';
-const npm = '(^|/)node_modules/';
+/** @param {string} name @param {import("dependency-cruiser").IRegularForbiddenRuleType["from"]} from @param {import("dependency-cruiser").IRegularForbiddenRuleType["to"]} to @returns {import("dependency-cruiser").IRegularForbiddenRuleType} */
 const rule = (name, from, to) => ({ name, severity: 'error', from, to });
+/** @param {string} name @param {string} from @param {string[]} allowed */
 const boundary = (name, from, allowed) =>
   rule(name, { path: from, pathNot: [test, tooling] }, { pathNot: allowed });
+/** @param {string} name */
 const packagePath = (name) => `(^|/)(node_modules/)?${name}(/|$)`;
+/** @param {string} name @param {string} target @param {string} allowed */
 const placement = (name, target, allowed) =>
   rule(name, { path: '^(apps|packages)/', pathNot: allowed }, { path: target });
+// IO is adapter-specific; unknown adapters receive only the shared boundary.
+const adapterDependencies = {
+  'runtime-fake': [],
+  'scm-fake': [],
+  'usage-fake': [],
+  'template-fs': [
+    packagePath('yaml'),
+    '^(node:)?(fs(/promises)?|path)$',
+    '^packages/templates/',
+  ],
+  'store-sqlite': [
+    packagePath('better-sqlite3'),
+    '^(node:)?(fs(/promises)?|path|crypto)$',
+  ],
+  redactor: [],
+  'logger-pino': [packagePath('pino'), '^(node:)?(fs(/promises)?|path)$'],
+  system: ['^(node:)?(crypto|fs(/promises)?|path|timers(/promises)?)$'],
+  'runtime-orca': [
+    packagePath('execa'),
+    packagePath('zod'),
+    '^(node:)?(child_process|fs(/promises)?|path|crypto|os)$',
+  ],
+  'scm-github': [
+    packagePath('octokit'),
+    '(^|/)node_modules/@octokit/',
+    packagePath('zod'),
+    '^(node:)?crypto$',
+  ],
+  'usage-sessionlog': [
+    packagePath('zod'),
+    '^(node:)?(fs(/promises)?|path|os)$',
+  ],
+};
+const adapterCommon = [
+  `^${server}ports/`,
+  '^packages/domain/',
+  `^${contracts}`,
+];
 const config = {
   forbidden: [
     rule('no-circular', {}, { circular: true }),
@@ -69,15 +110,18 @@ const config = {
       '^packages/contracts/(src|dist)/agent-submission/',
       '^(node:)?events$',
     ]),
-    boundary('adapters-allowed-dependencies', `^${server}adapters/([^/]+)/`, [
-      `^${server}adapters/$1/`,
-      `^${server}ports/`,
-      '^packages/domain/',
-      `^${contracts}`,
-      '^packages/templates/',
-      npm,
-      '^(node:)?[a-z_]+(/promises)?$',
-    ]),
+    boundary(
+      'adapters-allowed-dependencies',
+      `^${server}adapters/(?!(?:${Object.keys(adapterDependencies).join('|')})/)([^/]+)/`,
+      [`^${server}adapters/$1/`, ...adapterCommon],
+    ),
+    ...Object.entries(adapterDependencies).map(([adapter, dependencies]) =>
+      boundary(
+        `adapter-${adapter}-allowed-dependencies`,
+        `^${server}adapters/${adapter}/`,
+        [`^${server}adapters/${adapter}/`, ...adapterCommon, ...dependencies],
+      ),
+    ),
     rule(
       'no-adapter-to-adapter',
       { path: `^${server}adapters/([^/]+)/`, pathNot: test },
@@ -87,18 +131,22 @@ const config = {
       `^${server}(api|application)/`,
       `^${contracts}`,
       packagePath('fastify'),
+      packagePath('fastify-type-provider-zod'),
       '(^|/)node_modules/@fastify/',
     ]),
     boundary('agent-gateway-allowed-dependencies', `^${server}agent-gateway/`, [
       `^${server}(agent-gateway|application)/`,
       '^packages/contracts/(src|dist)/agent-submission/',
       packagePath('fastify'),
+      packagePath('fastify-type-provider-zod'),
       '(^|/)node_modules/@fastify/',
     ]),
     boundary('config-allowed-dependencies', `^${server}config/`, [
       `^${server}config/`,
       `^${contracts}`,
       '^(node:)?(fs(/promises)?|child_process)$',
+      packagePath('zod'),
+      packagePath('smol-toml'),
       packagePath('execa'),
     ]),
     boundary('cli-allowed-dependencies', '^apps/cli/', [
@@ -126,7 +174,7 @@ const config = {
     ),
     placement(
       'fastify-only-in-inbound',
-      '(^|/)(node_modules/)?(fastify|@fastify/[^/]+)(/|$)',
+      '(^|/)(node_modules/)?(fastify|fastify-type-provider-zod|@fastify/[^/]+)(/|$)',
       `^${server}(api/|agent-gateway/|main\\.ts$)`,
     ),
     placement(

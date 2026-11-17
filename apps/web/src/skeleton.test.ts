@@ -1,22 +1,24 @@
+import { readdir, readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
 
-// Retire each placeholder from this smoke test as its feature gets dedicated tests.
-test('skeleton module entry points can be loaded', async () => {
-  const modules = await Promise.all([
-    import('./api/index.js'),
-    import('./app/index.js'),
-    import('./features/gates/index.js'),
-    import('./features/index.js'),
-    import('./features/office/index.js'),
-    import('./features/office/model/index.js'),
-    import('./features/office/scene/index.js'),
-    import('./features/office/ui/index.js'),
-    import('./features/repos/index.js'),
-    import('./features/seats/index.js'),
-    import('./features/templates/index.js'),
-    import('./features/timeline/index.js'),
-    import('./features/workflows/index.js'),
-    import('./realtime/index.js'),
-  ]);
-  expect(modules).toHaveLength(14);
+// Implemented modules leave this smoke test automatically; their own tests take over.
+test('remaining placeholder modules can be loaded', async () => {
+  async function visit(directory: URL): Promise<void> {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const url = new URL(
+        entry.name + (entry.isDirectory() ? '/' : ''),
+        directory,
+      );
+      if (entry.isDirectory()) await visit(url);
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+        const source = (await readFile(url, 'utf8'))
+          .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+          .trim();
+        if (/^export\s*\{\s*\}\s*;?$/.test(source)) {
+          expect(await import(url.href)).toBeDefined();
+        }
+      }
+    }
+  }
+  await visit(new URL('./', import.meta.url));
 });

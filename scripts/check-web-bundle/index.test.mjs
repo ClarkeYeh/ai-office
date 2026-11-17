@@ -5,6 +5,10 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { checkWebBundle } from './index.mjs';
 
+/**
+ * @typedef {{ directory: string, manifest: Record<string, { file: string, isEntry: boolean }>, stats: { modules: string[], chunks: string[] }, json: (name: string, value: unknown) => Promise<void> }} Fixture
+ * @param {(fixture: Fixture) => Promise<void>} run
+ */
 async function fixture(run) {
   const directory = await mkdtemp(join(tmpdir(), 'ai-office-bundle-'));
   try {
@@ -14,6 +18,7 @@ async function fixture(run) {
       modules: ['/repo/apps/web/src/main.tsx'],
       chunks: ['app.js'],
     };
+    /** @param {string} name @param {unknown} value */
     const json = (name, value) =>
       writeFile(join(directory, '.vite', name), JSON.stringify(value));
     await json('manifest.json', manifest);

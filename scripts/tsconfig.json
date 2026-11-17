@@ -5,7 +5,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "types": ["node"],
-    "erasableSyntaxOnly": true
+    "erasableSyntaxOnly": true,
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["fixtures/**/*.ts"]
+  "include": ["fixtures/**/*.ts", "**/*.mjs"],
+  "exclude": ["depcruise-selftest/samples"]
 }
