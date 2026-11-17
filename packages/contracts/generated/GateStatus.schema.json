@@ -6,7 +6,6 @@
     "approved",
     "revised",
     "rejected",
-    "decided",
     "closed"
   ]
 }

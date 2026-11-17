@@ -9,6 +9,7 @@ import {
   apiEndpoints,
   ErrorResponseSchema,
   GateDecisionRequestSchema,
+  GateStatusSchema,
   QuestionViewSchema,
   SEAT_RECENT_ACTIVITY_LIMIT,
   SeatViewSchema,
@@ -133,7 +134,7 @@ const escalationGate = {
   kind: 'exception',
   exceptionKind: 'question-escalation',
   title: 'Question',
-  status: 'decided',
+  status: 'approved',
   version: 1,
   options: [{ optionId: 'abort', label: 'Abort' }],
   content: { type: 'exception', summary: 'Which DB?', questionId: 'q1' },
@@ -430,6 +431,14 @@ describe('endpoint responses', () => {
 });
 
 describe('read model', () => {
+  test('gate status has only the §4 states', () =>
+    expect(GateStatusSchema.options).toEqual([
+      'open',
+      'approved',
+      'revised',
+      'rejected',
+      'closed',
+    ]));
   test('questions have no expired status (Q10)', () =>
     expect(
       QuestionViewSchema.safeParse({ ...question, status: 'expired' }).success,

@@ -156,13 +156,15 @@ export const SeatViewSchema = z.object({
 
 // gates ---------------------------------------------------------------------
 
-/** `decided` covers `option` and `answer` decisions on exception gates. */
+/**
+ * §4 gate states. Exception gates resolved by an option or answer end as `approved`;
+ * the chosen option and decision kind stay in `GateView.decision`.
+ */
 export const GateStatusSchema = z.enum([
   'open',
   'approved',
   'revised',
   'rejected',
-  'decided',
   'closed',
 ]);
 /**
@@ -419,7 +421,11 @@ const healthComponent = z.object({
   detail: z.string().optional(),
   checkedAt: isoDateTime.optional(),
 });
-/** §13.2 health; `runtime.mode: fake` is shown in the banner (Q7). */
+/**
+ * §13.2 health; `runtime.mode: fake` is shown in the banner (Q7).
+ * TODO(M1-T26): the shim, scm.rateLimit, usage.sources, and adapters sub-structures are
+ * provisional until HealthMonitor defines what it actually collects.
+ */
 export const HealthViewSchema = z.object({
   status: healthStatus,
   runtime: healthComponent.extend({
