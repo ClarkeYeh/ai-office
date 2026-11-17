@@ -14,6 +14,8 @@ export const FORBIDDEN_COMMANDS = [
   'orca agent launch',
   'orca terminal create',
   'gh pr merge',
+  'gh pr create',
+  'gh issue create',
   'gh issue comment',
   'gh label',
 ] as const;
