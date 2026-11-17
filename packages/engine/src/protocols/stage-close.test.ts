@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'vitest';
+import { metaFor } from '../context.js';
 import type { ReactContext } from '../context.js';
+import { internal } from '../effects.js';
 import type { Effect } from '../effects.js';
 import { createReact } from '../react.js';
 import {
   conclusionGate,
+  HASH,
   spawnEffects,
   startWorkflow,
   WORKFLOW_ID,
@@ -22,12 +25,13 @@ import {
 const ATTEMPTS = ['lead-1', 'pm-1'];
 
 /**
- * A meeting-like probe: spawns two agents, and once both are running asks
- * for pre-gate clearing; its stage gate is the conclusion gate.
+ * A meeting-like probe: spawns two agents; once both are running it completes
+ * the stage and, on `stage.completed`, asks for pre-gate clearing. Its stage
+ * gate is the conclusion gate, opened through the real OpenGate decide (T9).
  */
 const probe = (ctx: ReactContext): Effect[] => {
   const { event } = ctx;
-  if (event.type === 'stage.started')
+  if (event.type === 'stage.started' && event.payload.stageId === 'meeting')
     return [
       ...spawnEffects(ctx, {
         attemptId: 'lead-1',
@@ -49,6 +53,15 @@ const probe = (ctx: ReactContext): Effect[] => {
     running(ctx.state) &&
     !running(ctx.before)
   )
+    return [
+      internal({
+        type: 'CompleteStage',
+        meta: metaFor(ctx),
+        stageId: 'meeting',
+        attempt: 1,
+      }),
+    ];
+  if (event.type === 'stage.completed')
     return beginStageClose(ctx, 'meeting', conclusionGate);
   return [];
 };
@@ -72,6 +85,9 @@ const run = (world: World = cooperativeWorld) =>
 
 const openGates = (sim: Simulator) =>
   sim.internal.filter((c) => c.type === 'OpenGate');
+const CONCLUSION = `${WORKFLOW_ID}/gate/conclusion`;
+const restopErrors = (sim: Simulator) =>
+  sim.eventsOf('error.recorded').map((e) => e.payload.code);
 
 describe('pre-gate clearing (§8.1)', () => {
   test('agents that end in time: the stage gate opens with no live agents', () => {
@@ -101,6 +117,41 @@ describe('pre-gate clearing (§8.1)', () => {
     expect(sim.eventsOf('timer.fired')).toEqual([]);
     expect(openGates(sim)).toHaveLength(1);
     expect(sim.issued.some((c) => isClose(c.commandId, 'restop'))).toBe(false);
+    expect(restopErrors(sim)).toEqual([]);
+    expect(sim.rejections).toEqual([]);
+    expect(sim.state.gates[CONCLUSION]?.status).toBe('open');
+  });
+
+  test('the opened stage gate is decided through DecideGate and the next stage starts', () => {
+    const sim = run();
+    sim.dispatch({
+      type: 'DecideGate',
+      gateId: CONCLUSION,
+      decision: 'approve',
+      by: 'user',
+      expectedVersion: 1,
+      // Q1: the hash the user saw equals the one application just read.
+      requestedGithubBodyHash: HASH,
+      currentGithubBodyHash: HASH,
+      approvedSnapshot: {
+        source: 'ai-office',
+        body: '# Conclusion',
+        bodyHash: HASH,
+        structured: null,
+      },
+    });
+    expect(sim.rejections).toEqual([]);
+    expect(sim.state.gates[CONCLUSION]?.status).toBe('approved');
+    expect(sim.state.stages.meeting?.status).toBe('done');
+    expect(sim.state.stages.breakdown).toMatchObject({
+      status: 'running',
+      attempt: 1,
+    });
+    expect(sim.trace().slice(-3)).toEqual([
+      expect.stringContaining(`gate.opened ${CONCLUSION}`),
+      expect.stringContaining(`gate.decided ${CONCLUSION}`),
+      expect.stringContaining('stage.started breakdown#1'),
+    ]);
   });
 
   test('agents that end after the second stop: the stage gate still opens', () => {
@@ -124,6 +175,12 @@ describe('pre-gate clearing (§8.1)', () => {
       sim.eventsOf('timer.cancelled').map((e) => e.payload.timerId),
     ).toEqual([expect.stringContaining('/gate-precheck/phase=restop/')]);
     expect(sim.state.workflow?.pausedReasons).toEqual([]);
+    expect(restopErrors(sim)).toEqual(['stage_close_restop']);
+    expect(sim.eventsOf('error.recorded')[0]?.payload.detail).toBe(
+      'lead-1, pm-1',
+    );
+    expect(sim.state.gates[CONCLUSION]?.status).toBe('open');
+    expect(sim.rejections).toEqual([]);
   });
 
   test('agents still alive after the second stop: anomaly gate and paused, no stage gate', () => {
@@ -158,6 +215,13 @@ describe('pre-gate clearing (§8.1)', () => {
       '2026-11-17T00:01:00.000Z',
       '2026-11-17T00:01:30.000Z',
     ]);
+    expect(restopErrors(sim)).toEqual(['stage_close_restop']);
+    expect(sim.state.gates[gateId]).toMatchObject({
+      kind: 'exception',
+      status: 'open',
+    });
+    expect(sim.state.gates[CONCLUSION]).toBeUndefined();
+    expect(sim.rejections).toEqual([]);
   });
 
   test('timer and command ids are stable for the same event sequence', () => {
@@ -167,8 +231,8 @@ describe('pre-gate clearing (§8.1)', () => {
     expect(b.events).toEqual(a.events);
     expect(a.eventsOf('timer.scheduled').map((e) => e.payload.timerId)).toEqual(
       [
-        `${WORKFLOW_ID}/timer/gate-precheck/phase=wait/stageId=meeting/meeting#1@12`,
-        `${WORKFLOW_ID}/timer/gate-precheck/phase=restop/stageId=meeting/meeting#1@18`,
+        `${WORKFLOW_ID}/timer/gate-precheck/phase=wait/stageId=meeting/meeting#1@13`,
+        `${WORKFLOW_ID}/timer/gate-precheck/phase=restop/stageId=meeting/meeting#1@19`,
       ],
     );
   });
@@ -179,16 +243,17 @@ describe('pre-gate clearing (§8.1)', () => {
     sim.advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);
     const anomaly = openGates(sim)[0];
     if (anomaly?.type !== 'OpenGate') throw new Error('no anomaly gate');
-    // The gate decide (T9) is still a stub: record the gate as it would.
-    sim.inject('gate.opened', { ...anomaly.gate, version: 1 });
     stubborn = false;
-    sim.inject('gate.decided', {
+    sim.dispatch({
+      type: 'DecideGate',
       gateId: anomaly.gate.gateId,
       decision: 'option',
       optionId: CLOSE_ANOMALY_OPTIONS.restop,
       by: 'user',
-      version: 1,
+      expectedVersion: 1,
     });
+    expect(sim.rejections).toEqual([]);
+    expect(sim.state.gates[CONCLUSION]?.status).toBe('open');
     expect(sim.state.workflow?.pausedReasons).toEqual([]);
     expect(sim.liveAgents()).toBe(0);
     expect(openGates(sim).at(-1)).toMatchObject({
@@ -197,20 +262,22 @@ describe('pre-gate clearing (§8.1)', () => {
     });
   });
 
-  test('other decisions and gates are left to the exception policy', () => {
+  test('abort is left to the cancel policy (T16): DecideGate requests cancel, clearing does nothing more', () => {
     const sim = run(worldIgnoring((id) => id.includes('/close/')));
     sim.advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);
     const anomaly = openGates(sim)[0];
     if (anomaly?.type !== 'OpenGate') throw new Error('no anomaly gate');
-    sim.inject('gate.opened', { ...anomaly.gate, version: 1 });
     const issued = sim.issued.length;
-    sim.inject('gate.decided', {
+    sim.dispatch({
+      type: 'DecideGate',
       gateId: anomaly.gate.gateId,
       decision: 'option',
       optionId: CLOSE_ANOMALY_OPTIONS.abort,
       by: 'user',
-      version: 1,
+      expectedVersion: 1,
     });
+    expect(sim.rejections).toEqual([]);
+    expect(sim.state.workflow?.cancelRequested).toBe(true);
     expect(sim.issued).toHaveLength(issued);
     expect(sim.state.workflow?.pausedReasons).toEqual(['anomaly']);
   });

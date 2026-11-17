@@ -326,6 +326,26 @@ export interface EvaluateAnomaly extends Base<'EvaluateAnomaly'> {
 }
 export type AnomalyCommand = EvaluateAnomaly;
 
+// lifecycle records (T12, decide/lifecycle.ts) -------------------------------
+
+/** Records the one nudge engine sent an attempt for `reason` (§7.1 violation protocol). */
+export interface RecordNudge extends Base<'RecordNudge'> {
+  attemptId: string;
+  reason: EventPayload<'message.nudge'>['reason'];
+  subject: string;
+  body: string;
+}
+/** Records an operational error against the workflow (e.g. §8.1 second stop). */
+export interface RecordError extends Base<'RecordError'> {
+  category: EventPayload<'error.recorded'>['category'];
+  code: string;
+  message: string;
+  stageId?: string;
+  commandId?: string;
+  detail?: string;
+}
+export type LifecycleCommand = RecordNudge | RecordError;
+
 export type DomainCommand =
   | WorkflowCommand
   | StageCommand
@@ -336,5 +356,6 @@ export type DomainCommand =
   | BudgetCommand
   | QuestionCommand
   | WorkItemCommand
-  | AnomalyCommand;
+  | AnomalyCommand
+  | LifecycleCommand;
 export type DomainCommandType = DomainCommand['type'];

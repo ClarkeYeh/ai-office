@@ -1,5 +1,6 @@
 import type { EventPayload } from '@ai-office/contracts/events';
 import { liveAttempts } from '@ai-office/domain';
+import type { EXCEPTION_OPTIONS } from '@ai-office/domain';
 import type { OpenGate, WorkflowState } from '@ai-office/domain';
 import { releaseAttempt, stopAttempt } from '../agents.js';
 import { commandId, metaFor } from '../context.js';
@@ -20,11 +21,16 @@ import { cancelTimer, firedTimer, pendingTimers, schedule } from '../timers.js';
 export const PRECHECK_WAIT_MS = 60_000;
 export const PRECHECK_RESTOP_MS = 30_000;
 
-/** Anomaly gate options (§8.1); `abort` is handled with the other exception gates (T16). */
+/**
+ * Anomaly gate options (§8.1), from domain's `EXCEPTION_OPTIONS.anomaly`.
+ * `stop-again` is handled here; `abort` becomes `workflow.cancel_requested` in
+ * DecideGate and its follow-through (stop, close gates, labels) is T16's cancel
+ * policy.
+ */
 export const CLOSE_ANOMALY_OPTIONS = {
-  restop: 'restop-open-gate',
+  restop: 'stop-again',
   abort: 'abort',
-} as const;
+} as const satisfies Record<string, (typeof EXCEPTION_OPTIONS.anomaly)[number]>;
 
 /** Builds the stage gate once the stage has no live agents; supplied per stage kind. */
 export type StageGateBuilder = (
@@ -65,7 +71,10 @@ const stopAll = (
       : []),
   ]);
 
-/** Step 1: called by a stage module when its stage is ready for its gate. */
+/**
+ * Step 1: called by a stage module once its stage is complete (`stage.completed`
+ * → `awaiting_gate`; DecideGate's OpenGate requires that status).
+ */
 export const beginStageClose = (
   ctx: ReactContext,
   stageId: string,
@@ -146,8 +155,18 @@ export const reactStageClose = (
       return openStageGate(ctx, stageId, stageGate);
     if (phase === 'restop') return openAnomaly(ctx, stageId);
     const tag = closeTag(ctx, stageId);
+    const alive = liveAttempts(ctx.state).map((attempt) => attempt.attemptId);
     return [
       ...stopAll(ctx, 'restop', tag),
+      internal({
+        type: 'RecordError',
+        meta: metaFor(ctx),
+        category: 'transient',
+        code: 'stage_close_restop',
+        message: `Agents still alive ${PRECHECK_WAIT_MS / 1000} s after stop; stopping again`,
+        stageId,
+        detail: alive.join(', '),
+      }),
       schedule(
         ctx,
         { purpose: 'gate-precheck', stageId, phase: 'restop' },

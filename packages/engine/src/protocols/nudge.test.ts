@@ -125,6 +125,16 @@ describe('nudge protocol', () => {
         },
       },
     });
+    expect(sim.rejections).toEqual([]);
+    expect(
+      sim.state.gates[nudgeGateId(WORKFLOW_ID, 'lead-1', 'missing-submission')],
+    ).toMatchObject({ kind: 'exception', status: 'open' });
+    expect(sim.eventsOf('message.nudge').map((e) => e.payload)).toEqual([
+      NUDGE,
+    ]);
+    expect(sim.state.attempts['lead-1']?.nudges).toEqual([
+      { reason: 'missing-submission', subject: NUDGE.subject },
+    ]);
     // The single grace timer fired at exactly +5 min.
     expect(sim.eventsOf('timer.fired').map((e) => e.occurredAt)).toEqual([
       '2026-11-17T00:05:00.000Z',

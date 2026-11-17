@@ -33,7 +33,10 @@ export const nudgeCommandId = (
   reason: NudgeReason,
 ): string => commandId({ workflowId }, 'nudge', attemptId, reason);
 
-/** One nudge per attempt and reason, whether recorded as a command or a `message.nudge`. */
+/**
+ * One nudge per attempt and reason: the deterministic send command, or the
+ * `message.nudge` recorded by `RecordNudge` (both are written for every nudge).
+ */
 export const hasNudged = (
   state: WorkflowState,
   workflowId: string,
@@ -77,6 +80,7 @@ export const sendNudge = (
       },
       { stageId: attempt.stageId, attemptId: attempt.attemptId },
     ),
+    internal({ type: 'RecordNudge', meta: metaFor(ctx), ...request }),
     schedule(
       ctx,
       gracePayload(request.attemptId, request.reason),
