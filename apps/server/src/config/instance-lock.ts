@@ -10,17 +10,14 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { z } from 'zod';
+import {
+  RuntimeInfoSchema,
+  type RuntimeInfo,
+} from '@ai-office/contracts/agent-submission';
 import { hasCode } from './settings.js';
 
-// T1 will provide RuntimeInfoSchema in contracts/agent-submission.
-const RuntimeInfoSchema = z.strictObject({
-  port: z.number().int().min(1).max(65535),
-  pid: z.number().int().positive(),
-  startedAt: z.iso.datetime(),
-});
-export type RuntimeInfo = z.infer<typeof RuntimeInfoSchema>;
-const LockInfoSchema = RuntimeInfoSchema.omit({ port: true });
+export type { RuntimeInfo } from '@ai-office/contracts/agent-submission';
+const LockInfoSchema = RuntimeInfoSchema.omit({ port: true }).strict();
 
 export class InstanceLockedError extends Error {
   constructor(readonly pid: number) {
@@ -45,7 +42,7 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function readLockInfo(path: string): z.infer<typeof LockInfoSchema> {
+function readLockInfo(path: string): Omit<RuntimeInfo, 'port'> {
   const text = readFileSync(path, 'utf8');
   let value: unknown;
   try {
