@@ -1,0 +1,55 @@
+apiVersion: ai-office/v1alpha1
+id: feature-to-pr
+name: 需求到 PR
+roles: # 角色＝流程中的職責，不是頭銜
+  lead: { agent: claude-code, effort: high }
+  pm: { agent: claude-code }
+  architect: { agent: claude-code }
+  engineer: { agent: codex } # 預設實作者
+  integrator: { agent: claude-code }
+defaults:
+  integrationBranch: 'ai-office/{shortId}-{slug}'
+  maxReruns: 2 # 關卡退回後重跑同一階段的上限
+  budget: { hardLimitMultiplier: 2 } # 硬上限＝階段預算 × 倍數
+  workflowBudget: { tokens: 3000000 } # 選填：整個流程的上限（所有預算預設值待 M2 依 §10.2 公式校準）
+stages:
+  - id: meeting
+    kind: meeting
+    facilitator: lead
+    participants: [pm, architect, engineer]
+    maxRounds: 2
+    timeouts: { roundMin: 15, stageMin: 60 }
+    budget: { tokens: 300000, maxTurns: 60 }
+    conclusion: { requireTechDecisions: true }
+    gate: { id: conclusion, title: 結論定案, optional: true } # optional：啟動時可關閉
+  - id: breakdown
+    kind: planning
+    owner: lead
+    from: meeting
+    timeouts: { stageMin: 30 }
+    budget: { tokens: 200000, maxTurns: 40 }
+    gate:
+      {
+        id: task-split,
+        title: 任務拆分,
+        optional: true,
+        editable: [title, body, acceptance, role, agent, deps],
+      }
+  - id: implement
+    kind: implement
+    role: engineer # 每個工作項目可在關卡 2 改派
+    from: breakdown
+    maxParallel: 3 # 範圍：單一 workflow
+    timeouts: { itemMin: 45 }
+    budget: { tokens: 1500000, perItem: { tokens: 400000, maxTurns: 120 } }
+    onCall: { role: lead, questionTimeoutMin: 10 } # 值班主 agent（§7.5），預算計入本階段
+  - id: integrate
+    kind: integrate
+    owner: integrator
+    escalateOn: [unresolvable-conflict, ci-failed-twice] # ci 條件只在 repo 有 checks 時生效
+    timeouts: { stageMin: 60 }
+    budget: { tokens: 400000, maxTurns: 100 }
+  - id: final-pr
+    kind: final-pr
+    maxRevisions: 2
+    gate: { id: final-pr, title: 最終 PR } # 不可設 optional：最終 PR 一律由人合併
