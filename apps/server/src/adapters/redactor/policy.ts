@@ -31,9 +31,73 @@ function commands(source: string): string[][] {
   return result;
 }
 
+/** Parse API flags without treating a header, payload or template as the endpoint. */
+function apiWriteRule(args: string[]): PolicyHit['rule'] | undefined {
+  let method: string | undefined;
+  let hasBody = false;
+  let endpoint: string | undefined;
+  const valueFlags = new Set([
+    '--method',
+    '--field',
+    '--raw-field',
+    '--input',
+    '--header',
+    '--hostname',
+    '--cache',
+    '--jq',
+    '--preview',
+    '--template',
+    '-X',
+    '-F',
+    '-f',
+    '-H',
+    '-q',
+    '-p',
+    '-t',
+  ]);
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    const equals = arg.indexOf('=');
+    const attachedShort = /^-[XFfHqpt].+/.test(arg);
+    const flag = attachedShort
+      ? arg.slice(0, 2)
+      : equals >= 0
+        ? arg.slice(0, equals)
+        : arg;
+    if (valueFlags.has(flag)) {
+      const value = attachedShort
+        ? arg.slice(2).replace(/^=/, '')
+        : equals >= 0
+          ? arg.slice(equals + 1)
+          : args[++i];
+      if (flag === '-X' || flag === '--method') method = value?.toUpperCase();
+      if (['-F', '-f', '--field', '--raw-field', '--input'].includes(flag))
+        hasBody = true;
+    } else if (!arg.startsWith('-') && endpoint === undefined) endpoint = arg;
+  }
+  if (
+    !['POST', 'PUT', 'PATCH', 'DELETE'].includes(
+      method ?? (hasBody ? 'POST' : 'GET'),
+    )
+  )
+    return;
+  const path = endpoint
+    ?.replace(/^https?:\/\/[^/]+/i, '')
+    .split(/[?#]/)[0]
+    ?.replace(/\/$/, '');
+  if (!path) return;
+  if (/^\/?repos\/[^/]+\/[^/]+\/(?:pulls\/\d+\/merge|merges)$/.test(path))
+    return 'gh-merge';
+  // The existing contract has no generic ref-write rule. Conservatively classify
+  // all ref mutations as high-risk pushes, even if the body names another branch.
+  if (/^\/?repos\/[^/]+\/[^/]+\/git\/refs(?:\/.*)?$/.test(path))
+    return 'push-default-branch';
+}
+
 export function policyRules(
   source: string,
   defaultBranch: string,
+  currentBranch?: string,
 ): Set<PolicyHit['rule']> {
   const hits = new Set<PolicyHit['rule']>();
   for (const words of commands(source)) {
@@ -42,9 +106,13 @@ export function policyRules(
       words[0] &&
       (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0]) ||
         ['env', 'command', 'sudo'].includes(words[0]))
-    )
+    ) {
+      if (words[0]?.startsWith('GIT_')) currentBranch = undefined;
       words.shift();
+    }
     const executable = words.shift()?.split('/').pop();
+    if (executable === 'cd' || executable === 'pushd' || executable === 'popd')
+      currentBranch = undefined;
     const [group, action] = words;
     if (executable === 'orca') {
       if (group === 'orchestration') {
@@ -65,17 +133,27 @@ export function policyRules(
     }
     if (executable === 'gh') {
       if (group === 'pr' && action === 'merge') hits.add('gh-merge');
-      if (group === 'issue' && action === 'comment') hits.add('gh-comment');
+      if ((group === 'issue' || group === 'pr') && action === 'comment')
+        hits.add('gh-comment');
       if (group === 'label') hits.add('gh-label');
+      if (group === 'api') {
+        const rule = apiWriteRule(words.slice(1));
+        if (rule) hits.add(rule);
+      }
     }
     if (executable === 'git') {
       // Git global options precede the subcommand; skip their values.
       while (words[0]?.startsWith('-')) {
         const option = words.shift();
+        // A different repository or Git config can change the push destination.
+        currentBranch = undefined;
         if (['-C', '-c', '--git-dir', '--work-tree'].includes(option ?? ''))
           words.shift();
       }
-      if (words.shift() === 'push') {
+      const subcommand = words.shift();
+      if (['checkout', 'switch', 'config'].includes(subcommand ?? ''))
+        currentBranch = undefined;
+      if (subcommand === 'push') {
         const positional: string[] = [];
         for (let i = 0; i < words.length; i++) {
           const w = words[i]!;
@@ -101,11 +179,17 @@ export function policyRules(
         if (
           words.includes('--all') ||
           words.includes('--mirror') ||
+          refs.includes(':') ||
+          (refs.length === 0 &&
+            (currentBranch === undefined || currentBranch === defaultBranch)) ||
           refs.some((ref) => {
             const target = ref.replace(/^\+/, '').split(':').pop()!;
             return (
               target === defaultBranch ||
-              target === `refs/heads/${defaultBranch}`
+              target === `refs/heads/${defaultBranch}` ||
+              (target === 'HEAD' &&
+                (currentBranch === undefined ||
+                  currentBranch === defaultBranch))
             );
           })
         )
@@ -116,7 +200,11 @@ export function policyRules(
     if (['sh', 'bash', 'zsh'].includes(executable ?? '')) {
       const index = words.findIndex((w) => /^-[a-z]*c[a-z]*$/.test(w));
       if (index >= 0 && words[index + 1])
-        for (const rule of policyRules(words[index + 1]!, defaultBranch))
+        for (const rule of policyRules(
+          words[index + 1]!,
+          defaultBranch,
+          currentBranch,
+        ))
           hits.add(rule);
     }
   }
