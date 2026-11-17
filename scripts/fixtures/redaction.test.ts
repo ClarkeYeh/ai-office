@@ -129,10 +129,10 @@ describe('fixture redaction', () => {
     );
   });
 
-  it('does not exempt arbitrary hex secrets or lose colliding redacted keys', () => {
+  it('masks secrets even when shaped like IDs and rejects colliding keys', () => {
     expect(
       hasLeaks({
-        value: createHash('sha256').update('synthetic secret').digest('hex'),
+        apiKey: createHash('sha256').update('synthetic secret').digest('hex'),
       }),
     ).toBe(true);
     expect(() =>
@@ -201,5 +201,117 @@ describe('fixture command-line tools', () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toBe('');
     expect(result.stderr).not.toContain('sensitive-raw-data');
+  });
+});
+
+describe('replay fidelity', () => {
+  const uuid = '528e2760-fb33-421f-9706-a7c5c19df281';
+  const sha = createHash('sha1').update('public commit').digest('hex');
+  const identifiers = [
+    'seat.status',
+    'workflow.started',
+    'feature-to-pr.yaml',
+    'src/index.ts',
+    'a.b',
+    '01JCZ8Q4V7XK3M9N2P5R6S8T0W',
+    uuid,
+    sha,
+    createHash('sha256').update('public content').digest('hex'),
+    ...['term', 'ctx', 'task', 'run', 'msg'].flatMap((prefix) => [
+      `${prefix}_${uuid}`,
+      `${prefix}_4fb346313714`,
+    ]),
+  ];
+
+  it.each(identifiers)('preserves replay identifier %s', (id) => {
+    expect(sanitize({ id })).toEqual({ id });
+    expect(hasLeaks({ id })).toBe(false);
+  });
+
+  it('retains test-repo URLs while masking other repositories and credentials', () => {
+    const url = 'https://github.com/ClarkeYeh/ai-office-spike/pull/3';
+    expect(maskText(url)).toBe(url);
+    expect(maskText(`See ${url} for details`)).toBe(`See ${url} for details`);
+    expect(maskText(url.replace('https://', 'https://alice:password@'))).toBe(
+      url,
+    );
+    for (const unsafe of [
+      url.replace('ai-office-spike', 'private-project'),
+      url.replace('ai-office-spike', 'ai-office-spike-extra'),
+      url.replace('github.com', 'github.com.evil.net'),
+      url.replace('https://', 'http://'),
+    ])
+      expect(maskText(unsafe)).toBe('<redacted>');
+    const sanitized = maskText(`${url}?token=short&ref=${sha}`);
+    expect(sanitized).not.toContain('short');
+    expect(sanitized).toContain(sha);
+    expect(maskText(sanitized)).toBe(sanitized);
+  });
+
+  it('round-trips realistic Orca and GitHub JSON without losing replay metadata', () => {
+    const raw = {
+      ok: true,
+      result: {
+        runId: 'run_4fb346313714',
+        terminalHandle: `term_${uuid}`,
+        dispatchId: 'ctx_4fb346313714',
+        taskId: 'task_9d8702c5776d',
+        messages: [
+          {
+            id: 'msg_e06dd897556e',
+            kind: 'seat.status',
+            status: 'working',
+            eventId: identifiers[5],
+            hostname: 'worker.local',
+            input: 'sensitive command',
+          },
+        ],
+      },
+      pullRequest: {
+        number: 3,
+        html_url: 'https://github.com/ClarkeYeh/ai-office-spike/pull/3',
+        head: { sha },
+        expectedHeadSha: sha,
+        body: 'private body',
+      },
+      template: 'feature-to-pr.yaml',
+      file: 'src/index.ts',
+    };
+    const result = cli('sanitize', [], JSON.stringify(raw));
+    expect(result.status).toBe(0);
+    const parsed = JSON.parse(result.stdout) as typeof raw;
+    expect(parsed.result).toMatchObject({
+      runId: raw.result.runId,
+      terminalHandle: raw.result.terminalHandle,
+      dispatchId: raw.result.dispatchId,
+      taskId: raw.result.taskId,
+      messages: [
+        {
+          id: 'msg_e06dd897556e',
+          kind: 'seat.status',
+          status: 'working',
+          eventId: identifiers[5],
+        },
+      ],
+    });
+    expect(parsed.pullRequest).toMatchObject({
+      number: 3,
+      head: { sha },
+      expectedHeadSha: sha,
+      html_url: raw.pullRequest.html_url,
+    });
+    expect(parsed.template).toBe(raw.template);
+    expect(parsed.file).toBe(raw.file);
+    expect(result.stdout).not.toMatch(
+      /sensitive command|private body|worker.local/,
+    );
+    const root = directory();
+    writeFileSync(join(root, 'round-trip.json'), result.stdout);
+    writeFileSync(
+      join(root, 'harmless.json'),
+      '{"kind":"seat.status","ok":true}',
+    );
+    expect(cli('scan', [root]).status).toBe(0);
+    expect(cli('sanitize', [], result.stdout).stdout).toBe(result.stdout);
   });
 });

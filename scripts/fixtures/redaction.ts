@@ -6,6 +6,9 @@ const bodyKeys =
 const secretKeys =
   /(?:password|secret|token|api[_-]?key|authorization|cookie|private[_-]?key)/i;
 const hostKeys = /^(?:host|hostname|host_name|machine|machineName)$/i;
+// IDs remain replayable; explicit provider-token and secret-field rules run first.
+const structuredId =
+  /^(?:[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-f0-9]{40}|[a-f0-9]{64}|[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|(?:term|ctx|task|run|msg)_(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|[a-f0-9]{12,32}))$/i;
 const summaryPattern = /^<redacted length=\d+ sha256=[a-f0-9]{64}>$/;
 
 // Conservative heuristics: false positives should be reviewed, never allowlisted blindly.
@@ -16,7 +19,7 @@ const patterns = [
   /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
   /\/(?:Users|home)\/(?!<redacted>)[^/\s"<>]+/g,
   /\b[A-Z]:\\Users\\(?!<redacted>)[^\\\s"<>]+/gi,
-  /\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*\b/gi,
+  /\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|org|net|edu|gov|mil|io|dev|app|ai|co|uk|tw|local|internal|lan)\b/gi,
   /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
   /\b(?:localhost|[a-z0-9-]+-(?:MacBook|iMac|Mac|PC)(?:-[a-z0-9-]+)?)\b/gi,
 ];
@@ -30,7 +33,7 @@ function entropy(value: string): number {
   }, 0);
 }
 
-export function maskText(value: string): string {
+function maskPlainText(value: string): string {
   // Only our exact metadata representation is exempt from entropy scanning.
   return value
     .split(/(<redacted length=\d+ sha256=[a-f0-9]{64}>)/)
@@ -47,11 +50,47 @@ export function maskText(value: string): string {
         });
       }
       return masked.replace(/[A-Za-z0-9_+/=-]{20,}/g, (candidate) =>
-        entropy(candidate) >= 4.2 ||
-        (/\d/.test(candidate) && entropy(candidate) >= 3.5)
+        !structuredId.test(candidate) &&
+        (entropy(candidate) >= 4.2 ||
+          (/\d/.test(candidate) && entropy(candidate) >= 3.5))
           ? replacement
           : candidate,
       );
+    })
+    .join('');
+}
+
+// Only the dedicated test repository is public fixture provenance. URL parsing
+// prevents prefix lookalikes, userinfo and query credentials from bypassing masking.
+export function maskText(value: string): string {
+  return value
+    .split(/(https?:\/\/[^\s"'<>]+)/gi)
+    .map((part) => {
+      if (!/^https?:\/\//i.test(part)) return maskPlainText(part);
+      try {
+        const url = new URL(part);
+        if (
+          url.origin !== 'https://github.com' ||
+          !/^\/ClarkeYeh\/ai-office-spike(?:\/|$)/.test(url.pathname)
+        )
+          return replacement;
+        url.username = '';
+        url.password = '';
+        url.pathname = url.pathname.split('/').map(maskPlainText).join('/');
+        for (const key of [...url.searchParams.keys()]) {
+          const values = url.searchParams.getAll(key);
+          url.searchParams.delete(key);
+          for (const value of values)
+            url.searchParams.append(
+              maskPlainText(key),
+              secretKeys.test(key) ? replacement : maskPlainText(value),
+            );
+        }
+        url.hash = maskPlainText(url.hash);
+        return url.toString();
+      } catch {
+        return replacement;
+      }
     })
     .join('');
 }

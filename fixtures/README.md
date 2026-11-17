@@ -14,7 +14,11 @@ pnpm fixtures:scan
 Set the output path to a file ending in `*.json` inside this directory.
 The sanitizer accepts a filename or stdin and emits JSON to stdout. It masks emails,
 provider tokens, private keys, secret fields, high-entropy strings, home usernames,
-and hostnames (including URL hosts). Tool inputs/outputs, transcript text, file contents,
+and recognized hostnames (common public suffixes, local suffixes, URL authorities,
+or explicit host fields). Dotted event types and filenames remain intact.
+ULIDs, UUIDs, Orca handles and 40/64-hex hashes are preserved except in secret fields.
+Only URLs under https://github.com/ClarkeYeh/ai-office-spike are preserved;
+URL credentials and secret query parameters are removed or masked. Tool inputs/outputs, transcript text, file contents,
 command output and body/content/text fields become UTF-8 byte length plus SHA-256.
 For fixtures, all body fields are conservatively summarized, including GitHub bodies.
 Review the result before committing: heuristics cannot prove provenance or catch every
@@ -25,3 +29,6 @@ recordings, binary files, symlinks and unsafe filenames. Only README and empty p
 files are permitted alongside JSON. It never prints offending data into CI logs.
 Redaction can change replay payloads; build adapter tests around the sanitized shape.
 A clean CI run does not satisfy M0 acceptance while other root checks remain TODO stubs.
+
+M0 keeps these rules in the fixture scripts; M1 will extract a shared pure package
+for fixtures and the server redactor. No shared package is introduced here.

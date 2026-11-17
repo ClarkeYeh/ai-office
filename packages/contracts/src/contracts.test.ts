@@ -301,9 +301,10 @@ test('submissions reuse the shared event payload schemas', () => {
     (option) => option.shape.kind.value === 'work-items',
   );
   expect(conclusion?.shape.payload).toBe(ConclusionSchema);
-  expect(workItems?.shape.payload.shape.items.element).toBe(
-    WorkItemDraftSchema,
-  );
+  if (!workItems || !('items' in workItems.shape.payload.shape)) {
+    throw new Error('Expected a work-items submission payload');
+  }
+  expect(workItems.shape.payload.shape.items.element).toBe(WorkItemDraftSchema);
 });
 
 test.each(['meeting', 'planning', 'implement', 'integrate', 'final-pr'])(
