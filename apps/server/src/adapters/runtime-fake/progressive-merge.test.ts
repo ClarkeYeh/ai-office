@@ -36,6 +36,50 @@ async function fixture() {
 }
 
 describe('pinned workspace preparation', () => {
+  it('fetches the existing worker branch and preserves its pin after a lost response', async () => {
+    const { runtime, request } = await fixture();
+    const headSha = 'd'.repeat(40);
+    runtime.setRemoteBranch(repo, request.branch, headSha);
+    const rework = {
+      ...request,
+      checkoutExisting: true as const,
+      baseSha: headSha,
+      baseBranch: headSha,
+      fetchBranch: request.branch,
+      name: 'feature-r1',
+    };
+    runtime.injectFault('prepareWorkspace', 'response-lost');
+    await expect(runtime.prepareWorkspace(rework)).rejects.toMatchObject({
+      code: 'response_lost',
+    });
+    runtime.setRemoteBranch(repo, request.branch, 'e'.repeat(40));
+    expect((await runtime.prepareWorkspace(rework)).baseSha).toBe(headSha);
+    expect(runtime.fetchedBranches()).toEqual([
+      { repo, branch: request.branch, headSha },
+    ]);
+  });
+
+  it('rejects existing-branch checkout without the matching fetch or an available remote branch', async () => {
+    const { runtime, request } = await fixture();
+    for (const fetchBranch of [undefined, integration]) {
+      await expect(
+        runtime.prepareWorkspace({
+          ...request,
+          checkoutExisting: true,
+          fetchBranch,
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_existing_branch' });
+    }
+    await expect(
+      runtime.prepareWorkspace({
+        ...request,
+        checkoutExisting: true,
+        fetchBranch: request.branch,
+      }),
+    ).rejects.toMatchObject({ code: 'remote_branch_not_found' });
+    expect(runtime.fetchedBranches()).toEqual([]);
+  });
+
   it('fetches the remote but preserves the SCM-resolved commit across head movement and lost-response replay', async () => {
     const { runtime, request, sha } = await fixture();
     runtime.setRemoteBranch(repo, integration, 'b'.repeat(40));

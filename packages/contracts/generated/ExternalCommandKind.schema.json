@@ -12,6 +12,7 @@
     "runtime.stop",
     "runtime.release",
     "scm.ensureLabels",
+    "scm.compareBranch",
     "scm.ensureBranch",
     "scm.deleteBranch",
     "scm.createIssue",

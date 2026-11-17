@@ -163,6 +163,8 @@ export const portHandlers = (ports: {
       await scm.ensureBranch(args.repo, args.name, args.from, correlation);
       return {};
     },
+    'scm.compareBranch': (args) =>
+      scm.compareBranch(args.repo, args.base, args.head),
     'scm.deleteBranch': async (args) => {
       await scm.deleteBranch(args.repo, args.name);
       return {};
