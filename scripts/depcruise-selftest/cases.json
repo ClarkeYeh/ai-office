@@ -267,8 +267,19 @@
     "rules": []
   },
   {
+    "file": "apps/server/src/config/pino.ts",
+    "rules": ["config-allowed-dependencies", "pino-only-in-logger-or-main"]
+  },
+  {
     "file": "apps/server/src/adapters/system/good.ts",
     "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/system/pino.ts",
+    "rules": [
+      "adapter-system-allowed-dependencies",
+      "pino-only-in-logger-or-main"
+    ]
   },
   {
     "file": "apps/server/src/api/provider.ts",
