@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "commandId"
+      ]
+    },
+    {
+      "$ref": "./CommandResult.schema.json"
+    }
+  ]
+}

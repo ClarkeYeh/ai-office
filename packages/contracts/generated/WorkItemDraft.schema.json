@@ -3,8 +3,7 @@
   "type": "object",
   "properties": {
     "key": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "./WorkItemKey.schema.json"
     },
     "title": {
       "type": "string"
@@ -23,16 +22,12 @@
       "minLength": 1
     },
     "agent": {
-      "type": "string",
-      "enum": [
-        "claude-code",
-        "codex"
-      ]
+      "$ref": "./AgentKind.schema.json"
     },
     "deps": {
       "type": "array",
       "items": {
-        "type": "string"
+        "$ref": "./WorkItemKey.schema.json"
       }
     }
   },

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "activity": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "./ActivityMeta.schema.json"
+      }
+    }
+  },
+  "required": [
+    "attemptId",
+    "activity"
+  ]
+}

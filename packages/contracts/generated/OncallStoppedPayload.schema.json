@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "stageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "queue_empty",
+        "failed",
+        "stage_ended",
+        "cancelled"
+      ]
+    }
+  },
+  "required": [
+    "stageId",
+    "attemptId",
+    "reason"
+  ]
+}

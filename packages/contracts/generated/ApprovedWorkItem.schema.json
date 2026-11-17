@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "key": {
+      "$ref": "./WorkItemKey.schema.json"
+    },
+    "title": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "$ref": "./AgentKind.schema.json"
+    },
+    "deps": {
+      "type": "array",
+      "items": {
+        "$ref": "./WorkItemKey.schema.json"
+      }
+    }
+  },
+  "required": [
+    "key",
+    "title",
+    "body",
+    "acceptance",
+    "role",
+    "agent",
+    "deps"
+  ]
+}

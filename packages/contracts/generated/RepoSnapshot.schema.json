@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "repoId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "localPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "orcaRepoId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "github": {
+      "$ref": "./RepoScmRef.schema.json"
+    },
+    "defaultBranch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "private"
+      ]
+    },
+    "ownerLogin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "defaultBranchProtected": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    }
+  },
+  "required": [
+    "repoId",
+    "localPath",
+    "orcaRepoId",
+    "github",
+    "defaultBranch",
+    "visibility",
+    "ownerLogin",
+    "defaultBranchProtected"
+  ]
+}

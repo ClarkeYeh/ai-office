@@ -74,11 +74,7 @@
           "const": "workflow.started"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkflowStartedPayload.schema.json"
         }
       },
       "required": [
@@ -167,11 +163,7 @@
           "const": "workflow.paused"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkflowPausedPayload.schema.json"
         }
       },
       "required": [
@@ -260,11 +252,7 @@
           "const": "workflow.resumed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkflowResumedPayload.schema.json"
         }
       },
       "required": [
@@ -353,11 +341,7 @@
           "const": "workflow.completed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkflowCompletedPayload.schema.json"
         }
       },
       "required": [
@@ -446,11 +430,7 @@
           "const": "workflow.failed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkflowFailedPayload.schema.json"
         }
       },
       "required": [
@@ -539,11 +519,7 @@
           "const": "workflow.cancel_requested"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkflowCancelRequestedPayload.schema.json"
         }
       },
       "required": [
@@ -632,11 +608,7 @@
           "const": "workflow.cancelled"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkflowCancelledPayload.schema.json"
         }
       },
       "required": [
@@ -725,11 +697,7 @@
           "const": "stage.started"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./StageStartedPayload.schema.json"
         }
       },
       "required": [
@@ -818,11 +786,7 @@
           "const": "stage.completed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./StageCompletedPayload.schema.json"
         }
       },
       "required": [
@@ -911,11 +875,7 @@
           "const": "stage.failed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./StageFailedPayload.schema.json"
         }
       },
       "required": [
@@ -1004,11 +964,7 @@
           "const": "stage.rerun_requested"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./StageRerunRequestedPayload.schema.json"
         }
       },
       "required": [
@@ -1097,11 +1053,7 @@
           "const": "gate.opened"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./GateOpenedPayload.schema.json"
         }
       },
       "required": [
@@ -1190,11 +1142,7 @@
           "const": "gate.content_updated"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./GateContentUpdatedPayload.schema.json"
         }
       },
       "required": [
@@ -1283,11 +1231,7 @@
           "const": "gate.decided"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./GateDecidedPayload.schema.json"
         }
       },
       "required": [
@@ -1376,11 +1320,7 @@
           "const": "gate.closed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./GateClosedPayload.schema.json"
         }
       },
       "required": [
@@ -1469,11 +1409,7 @@
           "const": "seat.spawned"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SeatSpawnedPayload.schema.json"
         }
       },
       "required": [
@@ -1562,11 +1498,7 @@
           "const": "seat.status"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SeatStatusPayload.schema.json"
         }
       },
       "required": [
@@ -1655,11 +1587,7 @@
           "const": "seat.activity"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SeatActivityPayload.schema.json"
         }
       },
       "required": [
@@ -1748,11 +1676,7 @@
           "const": "seat.degraded"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SeatDegradedPayload.schema.json"
         }
       },
       "required": [
@@ -1841,11 +1765,7 @@
           "const": "seat.policy_violation"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SeatPolicyViolationPayload.schema.json"
         }
       },
       "required": [
@@ -1934,11 +1854,7 @@
           "const": "seat.exited"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SeatExitedPayload.schema.json"
         }
       },
       "required": [
@@ -2027,11 +1943,7 @@
           "const": "seat.released"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SeatReleasedPayload.schema.json"
         }
       },
       "required": [
@@ -2120,11 +2032,7 @@
           "const": "agent.unmanaged"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./AgentUnmanagedPayload.schema.json"
         }
       },
       "required": [
@@ -2213,11 +2121,7 @@
           "const": "meeting.round_started"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MeetingRoundStartedPayload.schema.json"
         }
       },
       "required": [
@@ -2306,11 +2210,7 @@
           "const": "meeting.statement"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MeetingStatementPayload.schema.json"
         }
       },
       "required": [
@@ -2399,11 +2299,7 @@
           "const": "meeting.round_completed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MeetingRoundCompletedPayload.schema.json"
         }
       },
       "required": [
@@ -2492,11 +2388,7 @@
           "const": "meeting.concluded"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MeetingConcludedPayload.schema.json"
         }
       },
       "required": [
@@ -2585,11 +2477,7 @@
           "const": "submission.accepted"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SubmissionAcceptedPayload.schema.json"
         }
       },
       "required": [
@@ -2678,11 +2566,7 @@
           "const": "submission.rejected"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./SubmissionRejectedPayload.schema.json"
         }
       },
       "required": [
@@ -2771,11 +2655,7 @@
           "const": "message.question"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MessageQuestionPayload.schema.json"
         }
       },
       "required": [
@@ -2864,11 +2744,7 @@
           "const": "message.forwarded"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MessageForwardedPayload.schema.json"
         }
       },
       "required": [
@@ -2957,11 +2833,7 @@
           "const": "message.answered"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MessageAnsweredPayload.schema.json"
         }
       },
       "required": [
@@ -3050,11 +2922,7 @@
           "const": "message.escalated"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MessageEscalatedPayload.schema.json"
         }
       },
       "required": [
@@ -3143,11 +3011,7 @@
           "const": "message.nudge"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MessageNudgePayload.schema.json"
         }
       },
       "required": [
@@ -3236,11 +3100,7 @@
           "const": "message.instruction"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./MessageInstructionPayload.schema.json"
         }
       },
       "required": [
@@ -3329,11 +3189,7 @@
           "const": "oncall.started"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./OncallStartedPayload.schema.json"
         }
       },
       "required": [
@@ -3422,11 +3278,7 @@
           "const": "oncall.queue_changed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./OncallQueueChangedPayload.schema.json"
         }
       },
       "required": [
@@ -3515,11 +3367,7 @@
           "const": "oncall.stopped"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./OncallStoppedPayload.schema.json"
         }
       },
       "required": [
@@ -3608,11 +3456,7 @@
           "const": "workitem.proposed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkItemProposedPayload.schema.json"
         }
       },
       "required": [
@@ -3701,11 +3545,7 @@
           "const": "workitem.approved"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkItemApprovedPayload.schema.json"
         }
       },
       "required": [
@@ -3794,11 +3634,7 @@
           "const": "workitem.dispatched"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkItemDispatchedPayload.schema.json"
         }
       },
       "required": [
@@ -3887,11 +3723,7 @@
           "const": "workitem.status"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./WorkItemStatusPayload.schema.json"
         }
       },
       "required": [
@@ -3980,11 +3812,7 @@
           "const": "artifact.created"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./ArtifactCreatedPayload.schema.json"
         }
       },
       "required": [
@@ -4073,11 +3901,7 @@
           "const": "pr.status"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./PrStatusPayload.schema.json"
         }
       },
       "required": [
@@ -4166,11 +3990,7 @@
           "const": "scm.issue_drift"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./ScmIssueDriftPayload.schema.json"
         }
       },
       "required": [
@@ -4259,11 +4079,7 @@
           "const": "anomaly.detected"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./AnomalyDetectedPayload.schema.json"
         }
       },
       "required": [
@@ -4352,11 +4168,7 @@
           "const": "usage.tokens"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./UsageTokensPayload.schema.json"
         }
       },
       "required": [
@@ -4445,11 +4257,7 @@
           "const": "usage.turns"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./UsageTurnsPayload.schema.json"
         }
       },
       "required": [
@@ -4538,11 +4346,7 @@
           "const": "budget.exceeded"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./BudgetScope.schema.json"
         }
       },
       "required": [
@@ -4631,11 +4435,7 @@
           "const": "budget.hard_limit"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./BudgetScope.schema.json"
         }
       },
       "required": [
@@ -4724,11 +4524,7 @@
           "const": "command.issued"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./CommandIssuedPayload.schema.json"
         }
       },
       "required": [
@@ -4817,11 +4613,7 @@
           "const": "command.succeeded"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./CommandSucceededPayload.schema.json"
         }
       },
       "required": [
@@ -4910,11 +4702,7 @@
           "const": "command.failed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./CommandFailedPayload.schema.json"
         }
       },
       "required": [
@@ -5003,11 +4791,7 @@
           "const": "command.reconciled"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./CommandReconciledPayload.schema.json"
         }
       },
       "required": [
@@ -5096,11 +4880,7 @@
           "const": "timer.scheduled"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./TimerScheduledPayload.schema.json"
         }
       },
       "required": [
@@ -5189,11 +4969,7 @@
           "const": "timer.fired"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./TimerFiredPayload.schema.json"
         }
       },
       "required": [
@@ -5282,11 +5058,7 @@
           "const": "timer.cancelled"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./TimerCancelledPayload.schema.json"
         }
       },
       "required": [
@@ -5375,11 +5147,7 @@
           "const": "repo.registered"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./RepoSnapshot.schema.json"
         }
       },
       "required": [
@@ -5468,11 +5236,7 @@
           "const": "repo.updated"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./RepoUpdatedPayload.schema.json"
         }
       },
       "required": [
@@ -5561,11 +5325,7 @@
           "const": "health.changed"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./HealthChangedPayload.schema.json"
         }
       },
       "required": [
@@ -5654,11 +5414,7 @@
           "const": "runtime.identity_restored"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./RuntimeIdentityRestoredPayload.schema.json"
         }
       },
       "required": [
@@ -5747,11 +5503,7 @@
           "const": "runtime.identity_hijacked"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./RuntimeIdentityHijackedPayload.schema.json"
         }
       },
       "required": [
@@ -5840,11 +5592,7 @@
           "const": "error.recorded"
         },
         "payload": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
+          "$ref": "./ErrorRecordedPayload.schema.json"
         }
       },
       "required": [

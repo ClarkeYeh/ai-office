@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string",
+  "enum": [
+    "unknown-object",
+    "unmanaged-merge",
+    "early-merge",
+    "default-branch-moved",
+    "policy-hit",
+    "agents-alive-before-gate",
+    "reconcile-gave-up"
+  ]
+}

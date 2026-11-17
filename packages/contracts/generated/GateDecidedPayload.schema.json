@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "gateId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision": {
+      "$ref": "./GateDecision.schema.json"
+    },
+    "by": {
+      "type": "string",
+      "enum": [
+        "user",
+        "auto"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "optionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "comment": {
+      "type": "string"
+    },
+    "edits": {
+      "$ref": "./GateEdits.schema.json"
+    },
+    "approvedSnapshot": {
+      "$ref": "./ApprovedSnapshot.schema.json"
+    },
+    "additionalTokens": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "agent": {
+      "$ref": "./AgentKind.schema.json"
+    }
+  },
+  "required": [
+    "gateId",
+    "decision",
+    "by",
+    "version"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "finalPr": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "mergeCommitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,64}$"
+    }
+  },
+  "required": [
+    "finalPr"
+  ]
+}

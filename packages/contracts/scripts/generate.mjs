@@ -18,26 +18,111 @@ import * as stream from '../dist/stream/index.js';
 import * as submission from '../dist/agent-submission/index.js';
 
 const generated = new URL('../generated/', import.meta.url);
-/** @type {Record<string, ReturnType<typeof jsonSchema>>} */
-const schemas = {};
-/** @param {z.ZodType} schema */
-const jsonSchema = (schema) =>
-  z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'input' });
-for (const module of [events, template, api, stream, submission]) {
-  for (const [name, schema] of Object.entries(module)) {
-    if (schema instanceof z.ZodType) schemas[name] = jsonSchema(schema);
-  }
+/** @typedef {Record<string, unknown>} Json */
+
+// Each exported schema instance is registered once under its shortest export
+// name (e.g. RepoSnapshot over RepoRegisteredPayload); the other names for the
+// same instance (re-exports, `const B = A`) become `$ref` aliases.
+/** @type {Map<z.ZodType, Set<string>>} */
+const names = new Map();
+for (const module of [events, template, api, stream, submission])
+  for (const [name, schema] of Object.entries(module))
+    if (schema instanceof z.ZodType)
+      (names.get(schema) ?? names.set(schema, new Set()).get(schema))?.add(
+        name.replace(/Schema$/, ''),
+      );
+/** @type {Map<z.ZodType, string>} */
+const ids = new Map();
+/** @type {Record<string, string>} alias id → canonical id */
+const aliases = {};
+for (const [schema, set] of names) {
+  const [canonical = '', ...others] = [...set].sort(
+    (a, b) => a.length - b.length || a.localeCompare(b),
+  );
+  ids.set(schema, canonical);
+  for (const alias of others) aliases[alias] = canonical;
 }
-// Cross-field Zod refinements cannot be represented by standard JSON Schema.
-if (!schemas.WorkflowTemplateSchema)
+if (!ids.has(template.WorkflowTemplateSchema))
   throw new Error('Missing workflow template schema');
-schemas.WorkflowTemplateSchema.$comment =
-  'Also validate references, unique stage/gate IDs, kind order, and mandatory final-pr using WorkflowTemplateSchema in Zod; JSON Schema validates structure only.';
-/** @typedef {{ required: boolean, content: Record<string, { schema: ReturnType<typeof jsonSchema> }> }} RequestBody */
-/** @type {Record<string, Record<string, unknown>>} */
-const paths = {};
+
+/**
+ * Converts every registered schema at once so shared definitions are emitted a
+ * single time and referenced through `uri`.
+ * @param {Map<z.ZodType, string>} entries
+ * @param {(id: string) => string} uri
+ * @param {boolean} standalone keep `$schema` (files) or drop it (OpenAPI components)
+ * @returns {Record<string, Json>}
+ */
+const convert = (entries, uri, standalone) => {
+  /** @type {z.core.$ZodRegistry<{ id: string }>} */
+  const registry = z.registry();
+  for (const [schema, id] of entries) registry.add(schema, { id });
+  const { schemas } = z.toJSONSchema(registry, {
+    target: 'draft-2020-12',
+    io: 'input',
+    uri,
+  });
+  /** @type {Record<string, Json>} */
+  const out = {};
+  for (const [id, schema] of Object.entries(schemas).sort(([a], [b]) =>
+    a.localeCompare(b),
+  )) {
+    if (id === '__shared') throw new Error('Unexpected shared definitions');
+    const copy = /** @type {Json} */ ({ ...schema });
+    delete copy.$id;
+    if (!standalone) delete copy.$schema;
+    out[id] = copy;
+  }
+  // Cross-field Zod refinements cannot be represented by standard JSON Schema.
+  const templateSchema = out['WorkflowTemplate'];
+  if (!templateSchema) throw new Error('Missing workflow template schema');
+  templateSchema.$comment =
+    'Also validate references, unique stage/gate IDs, kind order, and mandatory final-pr using WorkflowTemplateSchema in Zod; JSON Schema validates structure only.';
+  for (const [alias, target] of Object.entries(aliases))
+    out[alias] = {
+      ...(standalone
+        ? { $schema: 'https://json-schema.org/draft/2020-12/schema' }
+        : {}),
+      $ref: uri(target),
+    };
+  return out;
+};
+
+// Per-file schemas reference each other with relative URIs.
+const fileSchemas = convert(ids, (id) => `./${id}.schema.json`, true);
+
+// OpenAPI: endpoint-local schemas are converted alongside the named ones and then
+// inlined into `paths`, so they can still `$ref` shared components.
+const componentRef = (/** @type {string} */ id) => `#/components/schemas/${id}`;
+/** @type {Map<z.ZodType, string>} */
+const openapiIds = new Map(ids);
 /** @type {readonly api.EndpointContract[]} */
 const endpoints = api.apiEndpoints;
+for (const endpoint of endpoints)
+  for (const [role, schema] of [
+    ['Body', endpoint.body],
+    ['Response', endpoint.response],
+  ])
+    if (schema instanceof z.ZodType && !openapiIds.has(schema))
+      openapiIds.set(schema, `__${endpoint.operationId}${role}`);
+const converted = convert(openapiIds, componentRef, false);
+/** @type {Record<string, Json>} */
+const components = {};
+for (const [id, schema] of Object.entries(converted))
+  if (!id.startsWith('__')) components[id] = schema;
+/** @param {z.ZodType} schema */
+const schemaRef = (schema) => {
+  const id = openapiIds.get(schema);
+  if (id === undefined) throw new Error('Unregistered endpoint schema');
+  return id.startsWith('__') ? converted[id] : { $ref: componentRef(id) };
+};
+/** Parameters are flattened into properties, so they stay standalone. @param {z.ZodType} schema */
+const inlineSchema = (schema) =>
+  z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'input' });
+
+/** @typedef {{ required: boolean, content: Record<string, { schema: unknown }> }} RequestBody */
+/** @type {Record<string, Record<string, unknown>>} */
+const paths = {};
 for (const endpoint of endpoints) {
   const parameters = [];
   /** @type {['params' | 'query' | 'headers', string][]} */
@@ -49,7 +134,7 @@ for (const endpoint of endpoints) {
   for (const [key, location] of locations) {
     const endpointSchema = endpoint[key];
     if (!endpointSchema) continue;
-    const schema = jsonSchema(endpointSchema);
+    const schema = inlineSchema(endpointSchema);
     for (const [name, property] of Object.entries(schema.properties ?? {})) {
       parameters.push({
         name,
@@ -81,7 +166,7 @@ for (const endpoint of endpoints) {
           : {
               content: {
                 [endpoint.contentType ?? 'application/json']: {
-                  schema: jsonSchema(endpoint.response),
+                  schema: schemaRef(endpoint.response),
                 },
               },
             }),
@@ -90,7 +175,7 @@ for (const endpoint of endpoints) {
         description: 'Error',
         content: {
           'application/json': {
-            schema: { $ref: '#/components/schemas/ErrorResponseSchema' },
+            schema: { $ref: componentRef('ErrorResponse') },
           },
         },
       },
@@ -99,7 +184,7 @@ for (const endpoint of endpoints) {
   if (endpoint.body)
     operation.requestBody = {
       required: true,
-      content: { 'application/json': { schema: jsonSchema(endpoint.body) } },
+      content: { 'application/json': { schema: schemaRef(endpoint.body) } },
     };
   (paths[endpoint.path] ??= {})[endpoint.method] = operation;
 }
@@ -112,15 +197,15 @@ const openapi = {
       session: { type: 'apiKey', in: 'cookie', name: 'aio_session' },
       seatToken: { type: 'http', scheme: 'bearer' },
     },
-    schemas,
+    schemas: components,
   },
 };
 /** @type {Record<string, unknown>} */
 const files = {
   'openapi.json': openapi,
   ...Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => [
-      name.replace(/Schema$/, '') + '.schema.json',
+    Object.entries(fileSchemas).map(([id, schema]) => [
+      id + '.schema.json',
       schema,
     ]),
   ),

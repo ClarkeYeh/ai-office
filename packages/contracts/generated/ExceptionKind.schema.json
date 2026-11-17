@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string",
+  "enum": [
+    "stage-violation",
+    "workitem-failed",
+    "budget-exceeded",
+    "budget-hard-limit",
+    "item-budget-exceeded",
+    "item-budget-hard-limit",
+    "decision-request",
+    "question-escalation",
+    "anomaly",
+    "hijacked"
+  ]
+}
