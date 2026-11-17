@@ -59,9 +59,12 @@ export const TokenUsageSchema = z.object({
   budgetTokens: nonNegativeInt,
   turns: nonNegativeInt,
 });
+export const GateIdSchema = id.clone();
 /** Whiteboard budget bar (§22.1); `hardLimit` = budget × hardLimitMultiplier (§10.1). */
 export const BudgetBarSchema = z.object({
   scope: z.enum(['workflow', 'stage', 'item']),
+  /** Links a budget exception to later gate decisions, including after snapshot replay. */
+  gateId: GateIdSchema.optional(),
   stageId: id.optional(),
   itemKey: WorkItemKeySchema.optional(),
   metric: z.enum(['tokens', 'turns', 'wallclock']),
