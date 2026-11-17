@@ -95,16 +95,22 @@ export function ingestUsage(
             ],
       ),
     ) as Tokens;
-    batch.add(
-      'usage.tokens',
+    // Through decide, so stage/item/workflow budget alerts fire (§10.2).
+    batch.record(
       {
-        attemptId: attempt.attemptId,
-        ...tokens,
-        budgetTokens: formula(tokens),
+        type: 'RecordUsageTokens',
+        meta: {
+          occurredAt: sample.occurredAt,
+          source: 'system',
+          provenance: 'observed',
+        },
+        usage: {
+          attemptId: attempt.attemptId,
+          ...tokens,
+          budgetTokens: formula(tokens),
+        },
       },
       { externalKey: key, occurredAt: sample.occurredAt },
-      'system',
-      attempt,
       '',
     );
     if (sample.cumulative)

@@ -109,6 +109,14 @@ export function ingestScm(
               event,
             );
         } else {
+          // §8.2: only body edits drift; label and comment changes (including
+          // the backend's own decision labels) keep the last known body hash.
+          const known =
+            batch.state.issueDrift[event.issue.number]?.bodyHash ??
+            (gate?.content.type === 'conclusion'
+              ? (gate.github?.bodyHash ?? gate.content.renderedHash)
+              : undefined);
+          if (known === event.bodyHash) break;
           batch.add(
             'scm.issue_drift',
             {

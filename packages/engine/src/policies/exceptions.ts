@@ -369,13 +369,12 @@ export const exceptionsPolicy: Policy = (ctx) => {
           g.status === 'open',
       )
     )
-      return [
-        internal({
-          type: 'ResumeWorkflow',
-          meta: metaFor(ctx),
-          reason: 'anomaly',
-        }),
-      ];
+      // Observation paused for `hijacked` too; reclaiming the run ends both.
+      return (['anomaly', 'hijacked'] as const)
+        .filter((reason) => ctx.state.workflow?.pausedReasons.includes(reason))
+        .map((reason) =>
+          internal({ type: 'ResumeWorkflow', meta: metaFor(ctx), reason }),
+        );
   }
   if (
     event.type === 'command.succeeded' &&

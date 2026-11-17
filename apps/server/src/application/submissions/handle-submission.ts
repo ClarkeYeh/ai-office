@@ -172,11 +172,18 @@ export class HandleSubmission {
       submission.kind === 'merge-request' ||
       submission.kind === 'rework-request'
     ) {
+      // One merge-queue attempt reviews a PR in several rounds: once the PR is
+      // back in review, earlier rework requests were consumed, not replayed.
+      const inReview = Object.values(runner.state.workItems).some(
+        (item) =>
+          item.pr === submission.payload.pr && item.status === 'in_review',
+      );
       const existing = Object.values(runner.state.submissions).find(
         (record) => {
           const old = record.submission;
           return (
             record.attemptId === attempt.attemptId &&
+            !(old.kind === 'rework-request' && inReview) &&
             old.kind === submission.kind &&
             (old.kind === 'merge-request' || old.kind === 'rework-request') &&
             old.payload.pr === submission.payload.pr &&

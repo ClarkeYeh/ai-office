@@ -547,7 +547,9 @@ async function compose(
 
   // Inbound adapters. The gateway sits outside cookie auth; REST and SSE inside.
   let port = 0;
-  const app = Fastify({ logger: false });
+  // Gate and seat ids embed workflow, stage and attempt ids (e.g. nudge gates
+  // run past 100 chars); Fastify's default maxParamLength (100) would 404 them.
+  const app = Fastify({ logger: false, maxParamLength: 1024 });
   cleanup.push(() => app.close());
   registerAgentGateway(app, { submissions, port: () => port });
   await registerApi(app, {

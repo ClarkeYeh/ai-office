@@ -88,6 +88,32 @@ export class Batch {
       }),
     );
   }
+  /**
+   * Like `add` for the command's own event (same externalKey scheme), but via
+   * decide so the events it derives (e.g. budget alerts) are recorded too.
+   */
+  record(
+    command: DomainCommand,
+    observation: Observation,
+    suffix: string,
+  ): void {
+    const result = decide(this.state, command);
+    if (!result.ok)
+      throw new Error(`Observation rejected: ${result.error.code}`);
+    const key =
+      suffix === ''
+        ? observation.externalKey
+        : `${observation.externalKey}:${suffix}`;
+    result.events.forEach((draft, index) =>
+      this.push({
+        ...draft,
+        externalKey:
+          index === 0
+            ? key
+            : `${observation.externalKey}:${draft.type}:${index}`,
+      }),
+    );
+  }
   anomaly(
     observation: EvaluateAnomaly['observation'],
     event: Observation,
