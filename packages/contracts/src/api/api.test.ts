@@ -7,6 +7,7 @@ import {
   API_ERROR_CODES,
   API_ERRORS,
   apiEndpoints,
+  AcceptedSubmissionSchema,
   ErrorResponseSchema,
   GateDecisionRequestSchema,
   GateStatusSchema,
@@ -246,6 +247,15 @@ const readModel = {
     },
   ],
   questions: [question],
+  acceptedSubmissions: {
+    a1: {
+      submissionId: 's1',
+      kind: 'agenda',
+      seatId: 'wf1:lead',
+      acceptedAtSeq: 4,
+      payload: { topics: [{ id: 't1', title: 'Plan', focusByRole: {} }] },
+    },
+  },
   artifacts: [
     { artifactId: 'a1', kind: 'conclusion', at, submissionId: 's1' },
     {
@@ -534,4 +544,35 @@ describe('error response', () => {
     expect(API_ERRORS.gate_content_changed.status).toBe(409);
     expect(API_ERRORS.runtime_unverified_ack_required.status).toBe(428);
   });
+});
+
+test('accepted submissions survive workflow snapshot JSON round trips', () => {
+  const parsed = WorkflowReadModelSchema.parse(
+    JSON.parse(JSON.stringify(readModel)),
+  );
+  expect(parsed.acceptedSubmissions).toEqual(readModel.acceptedSubmissions);
+  expect(
+    WorkflowReadModelSchema.parse({ ...readModel, acceptedSubmissions: {} })
+      .acceptedSubmissions,
+  ).toEqual({});
+});
+
+test('accepted submissions validate the event submission payload and metadata', () => {
+  const accepted = readModel.acceptedSubmissions.a1;
+  expect(AcceptedSubmissionSchema.parse(accepted)).toEqual(accepted);
+  for (const invalid of [
+    { ...accepted, payload: { topics: [] } },
+    { ...accepted, kind: 'statement' },
+    { ...accepted, acceptedAtSeq: 0 },
+    { ...accepted, seatId: '' },
+    { ...accepted, submissionId: '' },
+  ]) {
+    expect(AcceptedSubmissionSchema.safeParse(invalid).success).toBe(false);
+  }
+  expect(
+    WorkflowReadModelSchema.safeParse({
+      ...readModel,
+      acceptedSubmissions: { '': accepted },
+    }).success,
+  ).toBe(false);
 });

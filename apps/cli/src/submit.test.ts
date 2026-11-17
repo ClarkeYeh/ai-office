@@ -119,12 +119,103 @@ test('preserves pending response for merge retry', async () => {
     ),
   ).toEqual({ exitCode: 3, message: JSON.stringify(body) });
 });
-test('validates locally and emits Zod JSON without contacting backend', async () => {
+test('validates locally and emits structured issues without contacting backend', async () => {
   const result = await run({});
   expect(result.exitCode).toBe(2);
-  expect(JSON.parse(result.message)).toMatchObject({ name: 'ZodError' });
+  expect(JSON.parse(result.message)).toEqual({
+    issues: ['questionId', 'body'].map((field) => ({
+      path: ['payload', field],
+      code: 'invalid_type',
+      message: expect.any(String),
+    })),
+  });
+  expect(result.message).not.toContain('aio_seat_test');
   expect(received).toHaveLength(0);
 });
+
+test.each([
+  { topics: [], path: ['payload', 'topics'], code: 'too_small' },
+  {
+    topics: [{ id: 't1', title: 42, focusByRole: {} }],
+    path: ['payload', 'topics', 0, 'title'],
+    code: 'invalid_type',
+  },
+])('reports agenda validation at $path', async ({ topics, path, code }) => {
+  const result = await runCli(
+    ['submit', 'agenda', '--seat-token', 'aio_seat_test', '-'],
+    {
+      env,
+      readStdin: async () => JSON.stringify({ topics }),
+    },
+  );
+  expect(result.exitCode).toBe(2);
+  expect(JSON.parse(result.message)).toEqual({
+    issues: [{ path, code, message: expect.any(String) }],
+  });
+  expect(received).toHaveLength(0);
+});
+
+test('redacts seat tokens in validation paths', async () => {
+  const result = await runCli(
+    ['submit', 'agenda', '--seat-token', 'aio_seat_test', '-'],
+    {
+      env,
+      readStdin: async () =>
+        JSON.stringify({
+          topics: [
+            { id: 't1', title: 'Topic', focusByRole: { aio_seat_test: 42 } },
+          ],
+        }),
+    },
+  );
+  expect(result.exitCode).toBe(2);
+  expect(result.message).not.toContain('aio_seat_test');
+  expect(JSON.parse(result.message).issues[0].path).toEqual([
+    'payload',
+    'topics',
+    0,
+    'focusByRole',
+    '[REDACTED]',
+  ]);
+});
+
+test.each([400, 413, 422])(
+  'normalizes backend validation status %s',
+  async (code) => {
+    status = code;
+    body = {
+      error: {
+        details: {
+          issues: [
+            {
+              path: ['payload', 'topics'],
+              code: 'too_small',
+              message: 'Invalid aio_seat_test',
+              input: 'aio_seat_test',
+            },
+          ],
+        },
+      },
+    };
+    const result = await run();
+    expect(result.exitCode).toBe(2);
+    expect(JSON.parse(result.message)).toEqual({
+      issues: [
+        {
+          path: ['payload', 'topics'],
+          code: 'too_small',
+          message: 'Invalid [REDACTED]',
+        },
+      ],
+    });
+    body = { error: 'Invalid aio_seat_test' };
+    const fallback = await run();
+    expect(JSON.parse(fallback.message)).toEqual({
+      issues: [{ path: [], code: 'custom', message: expect.any(String) }],
+    });
+    expect(fallback.message).not.toContain('aio_seat_test');
+  },
+);
 test('reads a payload file', async () => {
   const file = join(home, 'payload.json');
   writeFileSync(file, JSON.stringify(payload));
@@ -137,9 +228,12 @@ test.each(
     (input) => ({ input }),
   ),
 )('rejects invalid input arguments %j', async ({ input }) => {
-  expect(
-    (await runCli([...args.slice(0, -1), ...input], { env })).exitCode,
-  ).toBe(2);
+  const result = await runCli([...args.slice(0, -1), ...input], { env });
+  expect(result.exitCode).toBe(2);
+  expect(JSON.parse(result.message)).toEqual({
+    issues: [{ path: [], code: 'custom', message: expect.any(String) }],
+  });
+  expect(result.message).not.toContain('aio_seat_test');
 });
 test('rejects unreadable files and invalid JSON', async () => {
   expect(

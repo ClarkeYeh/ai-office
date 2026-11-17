@@ -137,6 +137,15 @@
         "$ref": "./ArtifactRef.schema.json"
       }
     },
+    "acceptedSubmissions": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "./ArtifactId.schema.json"
+      },
+      "additionalProperties": {
+        "$ref": "./AcceptedSubmission.schema.json"
+      }
+    },
     "prs": {
       "type": "array",
       "items": {
@@ -192,6 +201,7 @@
     "workItems",
     "questions",
     "artifacts",
+    "acceptedSubmissions",
     "prs",
     "usage",
     "budgetBars",

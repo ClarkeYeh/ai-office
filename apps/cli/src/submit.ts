@@ -21,8 +21,73 @@ export interface SubmitOptions {
 
 const error = (exitCode: number, message: string): CliResult => ({
   exitCode,
-  message: JSON.stringify({ error: message }),
+  message: JSON.stringify(
+    exitCode === CLI_EXIT_CODES.SCHEMA_ERROR
+      ? { issues: [{ path: [], code: 'custom', message }] }
+      : { error: message },
+  ),
 });
+
+interface Issue {
+  path: PropertyKey[];
+  code: string;
+  message: string;
+}
+
+function schemaError(issues: readonly Issue[], token: string): CliResult {
+  return {
+    exitCode: CLI_EXIT_CODES.SCHEMA_ERROR,
+    message: safeJson(
+      {
+        issues: issues.map(({ path, code, message }) => ({
+          path,
+          code,
+          message,
+        })),
+      },
+      token,
+    ),
+  };
+}
+
+/** Redact even when a backend response or a record key echoes the credential. */
+function safeJson(value: unknown, token: string): string {
+  return JSON.stringify(value)
+    .split(JSON.stringify(token).slice(1, -1))
+    .join('[REDACTED]');
+}
+
+function responseIssues(body: unknown): Issue[] | undefined {
+  if (!body || typeof body !== 'object') return;
+  if ('issues' in body && Array.isArray(body.issues)) {
+    const issues = body.issues;
+    if (
+      issues.length > 0 &&
+      issues.every(
+        (issue): issue is Issue =>
+          issue !== null &&
+          typeof issue === 'object' &&
+          Array.isArray(issue.path) &&
+          issue.path.every(
+            (part: unknown) =>
+              typeof part === 'string' || typeof part === 'number',
+          ) &&
+          typeof issue.code === 'string' &&
+          typeof issue.message === 'string',
+      )
+    )
+      return issues;
+  }
+  // API ErrorResponse places validation details inside error.details.
+  if (
+    'error' in body &&
+    body.error &&
+    typeof body.error === 'object' &&
+    'details' in body.error
+  ) {
+    return responseIssues(body.error.details);
+  }
+}
 
 async function readStdin(): Promise<string> {
   process.stdin.setEncoding('utf8');
@@ -72,10 +137,7 @@ export async function submit(
   }
   const submission = AgentSubmissionSchema.safeParse({ kind, payload });
   if (!submission.success) {
-    return {
-      exitCode: CLI_EXIT_CODES.SCHEMA_ERROR,
-      message: JSON.stringify(submission.error),
-    };
+    return schemaError(submission.error.issues, token);
   }
 
   const names = SUBMISSION_HEADER_NAMES;
@@ -130,9 +192,22 @@ export async function submit(
       },
     );
     const body: unknown = await response.json();
+    const exitCode = exitCodeForHttpStatus(response.status);
+    if (exitCode === CLI_EXIT_CODES.SCHEMA_ERROR) {
+      return schemaError(
+        responseIssues(body) ?? [
+          {
+            path: [],
+            code: 'custom',
+            message: 'Backend rejected submission validation.',
+          },
+        ],
+        token,
+      );
+    }
     return {
-      exitCode: exitCodeForHttpStatus(response.status),
-      message: JSON.stringify(body),
+      exitCode,
+      message: safeJson(body, token),
     };
   } catch {
     // Never echo input, tokens, filesystem paths, or transport exception details.

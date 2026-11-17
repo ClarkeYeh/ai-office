@@ -260,6 +260,21 @@ const submissions = [
 test.each(submissions)('submission $kind round-trips', (value) =>
   roundTrip(AgentSubmissionSchema, value),
 );
+test('agenda requires at least one topic', () => {
+  const result = AgentSubmissionSchema.safeParse({
+    kind: 'agenda',
+    payload: { topics: [] },
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        path: ['payload', 'topics'],
+        code: 'too_small',
+      }),
+    ]);
+  }
+});
 test('submission discriminant and CLI codes are fixed', () => {
   expect(
     AgentSubmissionSchema.safeParse({ kind: 'agenda', payload: { pr: 1 } })
