@@ -74,3 +74,11 @@ does not fetch or create again, including after a lost response. Unknown remote
 branches or unavailable commits fail with a guard error. Requests without fetch
 or SHA retain legacy meeting-workspace behavior. This simulator has no local
 Git repository and does not verify Orca's real SHA-base support; P7 remains M2.
+
+Existing-branch rework uses prepareWorkspace with checkoutExisting: true,
+fetchBranch equal to branch, and baseBranch pinned to the worker branch head
+returned by scm.compareBranch. The caller supplies a fresh deterministic name
+ending in -r<n> and a new command ID; the branch itself remains unchanged.
+The fake validates and fetches that branch, returns the pinned baseSha, and
+replays a lost response without fetching or creating a second workspace.
+Real Orca checkout behavior remains M2 verification P8.
