@@ -146,15 +146,20 @@ export const facilitator: RoleBehavior = {
 /**
  * Reviews one PR per send. The engine's review body is JSON with `pr` and the
  * PR's `headSha`; `rework: true` (test stimulus) requests a rework instead.
+ * Prose (merge-failure follow-ups, reminders) is acknowledged with `done`, so
+ * the engine's review timeout and escalation decide what happens next.
  */
 export const mergeQueue: RoleBehavior = {
   spawn: [done],
   send: (context) => {
-    const review = JSON.parse(context.message?.body ?? '{}') as {
-      pr: number;
-      headSha: string;
-      rework?: boolean;
-    };
+    let review: { pr?: unknown; headSha?: unknown; rework?: boolean };
+    try {
+      review = JSON.parse(context.message?.body ?? '') as typeof review;
+    } catch {
+      return [done];
+    }
+    if (typeof review.pr !== 'number' || typeof review.headSha !== 'string')
+      return [done];
     return [
       submit(
         review.rework
