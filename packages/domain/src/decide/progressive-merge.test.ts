@@ -46,9 +46,10 @@ describe('progressive merge transitions and golden sequence', () => {
       rework: 1,
       attempt: 2,
       baseSha: 'abcdef1',
+      reworkOf: 'review',
     });
     expect(h.events.at(-1)?.payload).toMatchObject({
-      reworkOf: 'worker',
+      reworkOf: 'review',
       retryOf: 'worker',
     });
     h.given(
@@ -571,4 +572,29 @@ test('integrate accepts only a remaining worker PR; rework remains implement-onl
     submission('merge-request', 'already-merged', 'finisher'),
     'not_allowed',
   );
+});
+
+test('a failed rework attempt retries on a new branch without carrying reworkOf or the old PR', () => {
+  const h = reviewing().given(
+    submission(),
+    rework(),
+    dispatch('A', 'worker-2'),
+  );
+  expect(h.state.workItems.A).toMatchObject({
+    reworkOf: 'review',
+    pr: 11,
+    branch: 'ai-office/ab12/A',
+    baseSha: 'abcdef1',
+  });
+  h.given(status('A', 'failed'), dispatch('A', 'worker-3'));
+  expect(h.state.workItems.A).toMatchObject({
+    branch: 'ai-office/ab12/A-a3',
+    attempt: 3,
+    baseSha: 'abcdef1',
+  });
+  expect(h.state.workItems.A?.reworkOf).toBeUndefined();
+  expect(h.state.workItems.A?.pr).toBeUndefined();
+  expect(h.events.at(-1)?.payload).toMatchObject({ retryOf: 'worker-2' });
+  expect(h.events.at(-1)?.payload).not.toHaveProperty('reworkOf');
+  expect(replay(h.events, initialState()).state).toEqual(h.state);
 });

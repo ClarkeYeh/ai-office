@@ -416,11 +416,14 @@ export const decideWorkItem = (
     const attempt = item.attempt + 1;
     const suffix = attempt === 1 ? '' : `-a${attempt}`;
     const rework = item.status === 'rework';
-    if (rework && (!item.branch || !item.workspaceName || !item.pr))
+    if (
+      rework &&
+      (!item.branch || !item.workspaceName || !item.pr || !item.reworkRequest)
+    )
       return reject(
         'conflict',
         'missing_rework_workspace',
-        'Rework requires the existing branch, workspace and PR',
+        'Rework requires the existing branch, workspace, PR and request',
       );
     return accept(
       draft(command.meta, scope, 'workitem.dispatched', {
@@ -436,7 +439,7 @@ export const decideWorkItem = (
           : `aio-${workflow.shortId}-${key}${suffix}`,
         ...defined({
           retryOf: item.currentAttemptId,
-          reworkOf: rework ? item.currentAttemptId : undefined,
+          reworkOf: rework ? item.reworkRequest?.submissionId : undefined,
           baseSha: command.baseSha,
         }),
       }),

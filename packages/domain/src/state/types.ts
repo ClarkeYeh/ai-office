@@ -208,6 +208,8 @@ export type WorkItem = ApprovedWorkItem & {
   headSha?: string;
   statusReason?: string;
   baseSha?: string;
+  /** Submission id of the rework request answered by the current attempt. */
+  reworkOf?: string;
   rework?: number;
   reworkSubmissionIds?: string[];
   reworkRequest?: EventPayload<'workitem.rework_requested'>;
