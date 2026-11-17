@@ -652,6 +652,7 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     const next = updateAttempt(state, p.attemptId, (attempt) => ({
       ...attempt,
       submissions: { ...attempt.submissions, [p.kind]: p.submissionId },
+      ...(p.agentSession === undefined ? {} : { agentSession: p.agentSession }),
     }));
     if (isSkip(next)) return next;
     return {

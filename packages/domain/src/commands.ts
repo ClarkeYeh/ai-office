@@ -221,6 +221,7 @@ export interface AcceptSubmission extends Base<'AcceptSubmission'> {
   submissionId: string;
   attemptId: string;
   submission: AgentSubmission;
+  agentSession?: EventPayload<'submission.accepted'>['agentSession'];
   artifactId?: string;
 }
 /** Failures found before decide (schema, identity) are still recorded (§9.3). */

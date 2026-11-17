@@ -129,6 +129,8 @@ export type Attempt = EventPayload<'seat.spawned'> & {
   nudges: Pick<EventPayload<'message.nudge'>, 'reason' | 'subject'>[];
   /** Opaque runtime ref from the spawn command's result (§11.1). */
   agentRef?: string;
+  /** Last reported provider session, used by application usage lookup. */
+  agentSession?: EventPayload<'submission.accepted'>['agentSession'];
   /** Latest accepted submission id per kind (statements: latest of any round). */
   submissions: Partial<Record<SubmissionKind, string>>;
 };

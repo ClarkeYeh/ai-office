@@ -372,3 +372,33 @@ describe('progressive merge and rework', () => {
     },
   );
 });
+
+test.each(['claude-code', 'codex'] as const)(
+  'records %s session headers on first/change and retains them when omitted',
+  async (agent) => {
+    const h = setup();
+    h.attempt.agent = agent;
+    const provider = agent === 'codex' ? 'codex' : 'claude';
+    const headers = { ...h.headers, 'x-aio-agent-session': 'session-one' };
+    await h.useCase.handle(headers, agenda);
+    expect(h.accepted().at(-1)?.payload.agentSession).toEqual({
+      provider,
+      id: 'session-one',
+    });
+    await h.useCase.handle(headers, agenda);
+    expect(h.accepted().at(-1)?.payload.agentSession).toBeUndefined();
+    await h.useCase.handle(
+      { ...headers, 'x-aio-agent-session': 'session-two' },
+      agenda,
+    );
+    expect(h.runner.state.attempts.a?.agentSession).toEqual({
+      provider,
+      id: 'session-two',
+    });
+    await h.useCase.handle(h.headers, agenda);
+    expect(h.runner.state.attempts.a?.agentSession).toEqual({
+      provider,
+      id: 'session-two',
+    });
+  },
+);
