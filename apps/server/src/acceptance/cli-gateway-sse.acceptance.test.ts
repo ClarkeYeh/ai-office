@@ -93,6 +93,8 @@ async function sse(
           ...(id === undefined ? {} : { id: Number(id) }),
           data: JSON.parse(field('data') ?? 'null') as Json,
         });
+        // One read can carry many frames: return exactly `count`.
+        if (frames.length === count) break;
       }
     }
   } finally {
@@ -113,7 +115,24 @@ describe(
         toFake: ['Date', 'setTimeout', 'clearTimeout'],
       });
       let releaseMerge: (() => void) | undefined;
+      // Once its queue drains, the backend stops and releases the integrator;
+      // a released seat is (correctly) refused. Hold those calls for the
+      // integrator until the CLI re-query has been answered.
+      const integrator: { agent?: unknown } = {};
+      let integratorDone!: () => void;
+      const requeried = new Promise<void>(
+        (resolve) => (integratorDone = resolve),
+      );
       const o = await office({
+        intercept: async (operation, args, call) => {
+          if (
+            (operation === 'stop' || operation === 'release') &&
+            integrator.agent !== undefined &&
+            args[0] === integrator.agent
+          )
+            await requeried;
+          return call();
+        },
         // The first worker merge is held until the test releases it.
         mergeDelay: () =>
           releaseMerge === undefined
@@ -136,6 +155,7 @@ describe(
       const workflowId = await o.start();
       await o.drive(workflowId, async () => captured !== undefined);
       const request = captured!;
+      integrator.agent = request.agent;
       const env = {
         AI_OFFICE_HOME: o.dataDir,
         ORCA_TERMINAL_HANDLE: request.terminalHandle,
@@ -190,6 +210,7 @@ describe(
         'the merge',
       );
       const again = await submit(request.seatToken);
+      integratorDone(); // now the drained queue may stop the integrator
       expect(again.code, again.stdout).toBe(CLI_EXIT_CODES.SUCCESS);
       expect(JSON.parse(again.stdout)).toMatchObject({
         status: 'merged',
