@@ -10,10 +10,12 @@ import {
   isDomainError,
   runningWorkflow,
 } from './support.js';
+import { WORKITEM_EXCEPTION_OPTIONS, workItemGateEffects } from './workitem.js';
 import { validateWorkItemDrafts } from './workitem-drafts.js';
 
 /** Stable option IDs shared with engine callers; labels remain presentation data. */
 export const EXCEPTION_OPTIONS = {
+  ...WORKITEM_EXCEPTION_OPTIONS,
   'stage-violation': ['rerun', 'reassign', 'abort'],
   'workitem-failed': ['retry', 'reassign', 'skip', 'abort'],
   'budget-exceeded': ['top-up', 'finish', 'abort'],
@@ -223,6 +225,7 @@ const decide = (
       }
     }
   }
+  events.push(...workItemGateEffects(state, gate, command));
   if (command.decision === 'option' && command.optionId === 'abort')
     events.push(
       draft(command.meta, scope, 'workflow.cancel_requested', {

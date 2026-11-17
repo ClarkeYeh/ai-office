@@ -333,7 +333,7 @@ describe('budget rules', () => {
 });
 
 describe('work item rules', () => {
-  test('dependencies become ready at pr_open, before integration merges them', () => {
+  test('dependencies wait for merged rather than pr_open', () => {
     const h = worker();
     for (const status of ['in_progress', 'pushed', 'pr_open'] as const)
       h.given({
@@ -341,12 +341,25 @@ describe('work item rules', () => {
         meta: meta(),
         update: { itemKey: 'T1', status },
       });
-    h.given({
-      type: 'DispatchWorkItem',
-      meta: meta(),
-      itemKey: 'T2',
-      attemptId: 'dependent',
-    });
+    rejected(
+      h,
+      {
+        type: 'DispatchWorkItem',
+        meta: meta(),
+        itemKey: 'T2',
+        attemptId: 'dependent',
+      },
+      'dependencies_not_ready',
+    );
+    h.given(
+      eventDraft('workitem.status', { itemKey: 'T1', status: 'merged' }),
+      {
+        type: 'DispatchWorkItem',
+        meta: meta(),
+        itemKey: 'T2',
+        attemptId: 'dependent',
+      },
+    );
     expect(h.state.workItems.T2?.status).toBe('dispatched');
   });
 
@@ -356,17 +369,13 @@ describe('work item rules', () => {
       branch: 'ai-office/ab12/T1',
       attempt: 1,
     });
-    for (const status of [
-      'in_progress',
-      'pushed',
-      'pr_open',
-      'merged',
-    ] as const)
+    for (const status of ['in_progress', 'pushed', 'pr_open'] as const)
       h.given({
         type: 'UpdateWorkItemStatus',
         meta: meta(),
         update: { itemKey: 'T1', attemptId: 'worker', status },
       });
+    h.given(eventDraft('workitem.status', { itemKey: 'T1', status: 'merged' }));
     expect(
       emitted(h, {
         type: 'DispatchWorkItem',
@@ -454,12 +463,16 @@ describe('work item rules', () => {
         reason: 'user',
       },
     });
-    h.given({
-      type: 'DispatchWorkItem',
-      meta: meta(),
-      itemKey: 'T2',
-      attemptId: 'x',
-    });
+    rejected(
+      h,
+      {
+        type: 'DispatchWorkItem',
+        meta: meta(),
+        itemKey: 'T2',
+        attemptId: 'x',
+      },
+      'dependencies_not_ready',
+    );
     rejected(h, {
       type: 'DispatchWorkItem',
       meta: meta(),

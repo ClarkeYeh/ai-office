@@ -184,6 +184,8 @@ export interface OnDemand {
   queue: string[];
   current?: string;
   stopped?: EventPayload<'ondemand.stopped'>['reason'];
+  /** Reconstructed from current assignments, across replacement instances. */
+  deliveries?: Record<string, { attemptId: string; retries: number }>;
 }
 
 export interface WorkItemProposal {
@@ -205,6 +207,13 @@ export type WorkItem = ApprovedWorkItem & {
   pr?: number;
   headSha?: string;
   statusReason?: string;
+  baseSha?: string;
+  /** Submission id of the rework request answered by the current attempt. */
+  reworkOf?: string;
+  rework?: number;
+  reworkSubmissionIds?: string[];
+  reworkRequest?: EventPayload<'workitem.rework_requested'>;
+  mergeCommitSha?: string;
 };
 
 export type Artifact = EventPayload<'artifact.created'> & { createdAt: string };

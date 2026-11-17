@@ -5,6 +5,7 @@ import type {
 } from '../commands.js';
 import { accept, reject } from '../errors.js';
 import type { DecideResult } from '../errors.js';
+import { isAttemptPossiblyAlive } from '../state/index.js';
 import type { Workflow, WorkflowState } from '../state/index.js';
 import {
   defined,
@@ -186,6 +187,20 @@ export const decideStage = (
             status: stage.status,
             attempt: stage.attempt,
           },
+        );
+      if (
+        stage.kind === 'implement' &&
+        Object.values(state.attempts).some(
+          (a) =>
+            a.stageId === stage.id &&
+            a.ondemand !== undefined &&
+            isAttemptPossiblyAlive(a),
+        )
+      )
+        return reject(
+          'conflict',
+          'ondemand_alive',
+          'Stop on-demand instances before ending implementation',
         );
       const scope = { workflowId: workflow.id, stageId: stage.id };
       if (command.type === 'CompleteStage')

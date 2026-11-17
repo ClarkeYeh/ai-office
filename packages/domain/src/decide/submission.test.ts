@@ -103,6 +103,28 @@ describe('submission authorization and replacement', () => {
                     : 'implement',
               );
         h.given(startStage(stageId), spawn('a', role, stageId, { purpose }));
+        if (stageId === 'integrate')
+          h.given(
+            eventDraft('workitem.approved', {
+              gateId: 'task-split',
+              items: [
+                {
+                  key: 'remaining',
+                  title: 'Remaining',
+                  body: 'Work',
+                  acceptance: [],
+                  role: 'engineer',
+                  agent: 'codex',
+                  deps: [],
+                },
+              ],
+            }),
+            eventDraft('workitem.status', {
+              itemKey: 'remaining',
+              status: 'pr_open',
+              pr: 1,
+            }),
+          );
         const result = h.run(submit(submission));
         expect(result.ok).toBe(
           (allowed as readonly string[]).includes(submission.kind),

@@ -299,11 +299,53 @@ export interface DispatchWorkItem extends Base<'DispatchWorkItem'> {
   attemptId: string;
   agent?: AgentKind;
   retryOf?: string;
+  baseSha?: string;
 }
 export interface UpdateWorkItemStatus extends Base<'UpdateWorkItemStatus'> {
   update: EventPayload<'workitem.status'>;
 }
-export type WorkItemCommand = DispatchWorkItem | UpdateWorkItemStatus;
+export interface QueueWorkItemForMerge extends Base<'QueueWorkItemForMerge'> {
+  item: EventPayload<'workitem.merge_queued'>;
+}
+export interface RequestWorkItemRework extends Base<'RequestWorkItemRework'> {
+  submissionId: string;
+  /** Used only when this request exceeds the configured limit. */
+  gateId: string;
+}
+export interface MarkWorkItemMerged extends Base<'MarkWorkItemMerged'> {
+  merged: EventPayload<'workitem.merged'>;
+}
+export interface EvaluateWorkItemDependencies extends Base<'EvaluateWorkItemDependencies'> {
+  itemKey: string;
+  gateId: string;
+}
+export type WorkItemCommand =
+  | DispatchWorkItem
+  | UpdateWorkItemStatus
+  | QueueWorkItemForMerge
+  | RequestWorkItemRework
+  | MarkWorkItemMerged
+  | EvaluateWorkItemDependencies;
+
+export interface StartOnDemand extends Base<'StartOnDemand'> {
+  instance: EventPayload<'ondemand.started'>;
+}
+export interface UpdateOnDemandQueue extends Base<'UpdateOnDemandQueue'> {
+  update: EventPayload<'ondemand.queue_changed'>;
+}
+export interface StopOnDemand extends Base<'StopOnDemand'> {
+  stop: EventPayload<'ondemand.stopped'>;
+}
+/** Timer identity prevents an old timeout from affecting the next queue entry. */
+export interface TimeoutOnDemand extends Base<'TimeoutOnDemand'> {
+  stageId: string;
+  purpose: EventPayload<'ondemand.started'>['purpose'];
+  attemptId: string;
+  current: string;
+  gateId: string;
+}
+export type OnDemandCommand =
+  StartOnDemand | UpdateOnDemandQueue | StopOnDemand | TimeoutOnDemand;
 
 // anomaly (T10, decide/anomaly.ts) --------------------------------------------
 
@@ -399,5 +441,6 @@ export type DomainCommand =
   | QuestionCommand
   | WorkItemCommand
   | AnomalyCommand
-  | LifecycleCommand;
+  | LifecycleCommand
+  | OnDemandCommand;
 export type DomainCommandType = DomainCommand['type'];
