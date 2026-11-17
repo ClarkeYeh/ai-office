@@ -1,2 +1,10 @@
-// Public API placeholder for the M0 foundation.
-export {};
+export * from './agents.js';
+export * from './context.js';
+export * from './effects.js';
+export * from './lifecycle.js';
+export * from './protocols/nudge.js';
+export * from './protocols/stage-close.js';
+export { createReact, DEFAULT_MODULES, react } from './react.js';
+export type { EngineModules, React } from './react.js';
+export type { Policy, StageModule } from './stages/types.js';
+export * from './timers.js';

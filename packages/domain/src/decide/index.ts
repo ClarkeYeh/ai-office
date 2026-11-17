@@ -4,6 +4,7 @@ import type { WorkflowState } from '../state/index.js';
 import { decideAnomaly } from './anomaly.js';
 import { decideBudget } from './budget.js';
 import { decideGate } from './gate.js';
+import { decideLifecycle } from './lifecycle.js';
 import { decideQuestion } from './question.js';
 import { decideSeat } from './seat.js';
 import { decideStage } from './stage.js';
@@ -69,5 +70,8 @@ export const decide = (
       return decideWorkItem(state, command);
     case 'EvaluateAnomaly':
       return decideAnomaly(state, command);
+    case 'RecordNudge':
+    case 'RecordError':
+      return decideLifecycle(state, command);
   }
 };
