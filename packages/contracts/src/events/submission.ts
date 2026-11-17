@@ -54,6 +54,11 @@ export const MergeRequestSchema = z.object({
   pr: positiveInt,
   expectedHeadSha: GitShaSchema,
 });
+/** rev2.10 §7.4a: the merge-queue integrator sends the PR back to its worker branch. */
+export const ReworkRequestSchema = z.object({
+  pr: positiveInt,
+  reasons: z.array(z.string().min(1)).min(1),
+});
 export const DecisionRequestReasonSchema = z.enum([
   'unresolvable-conflict',
   'scope-change',
@@ -81,6 +86,7 @@ export const SUBMISSION_KINDS = [
   'work-items',
   'answer-question',
   'merge-request',
+  'rework-request',
   'decision-request',
   'integration-report',
 ] as const;
@@ -98,6 +104,7 @@ export const AgentSubmissionSchema = z.discriminatedUnion('kind', [
     payload: AnswerQuestionSchema,
   }),
   z.object({ kind: z.literal('merge-request'), payload: MergeRequestSchema }),
+  z.object({ kind: z.literal('rework-request'), payload: ReworkRequestSchema }),
   z.object({
     kind: z.literal('decision-request'),
     payload: DecisionRequestSchema,
@@ -112,6 +119,7 @@ export type Conclusion = z.infer<typeof ConclusionSchema>;
 export type WorkItemDraft = z.infer<typeof WorkItemDraftSchema>;
 export type Agenda = z.infer<typeof AgendaSchema>;
 export type Statement = z.infer<typeof StatementSchema>;
+export type ReworkRequest = z.infer<typeof ReworkRequestSchema>;
 export type DecisionRequest = z.infer<typeof DecisionRequestSchema>;
 export type IntegrationReport = z.infer<typeof IntegrationReportSchema>;
 export type AgentSubmission = z.infer<typeof AgentSubmissionSchema>;

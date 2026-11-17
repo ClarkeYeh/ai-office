@@ -60,6 +60,10 @@ export function prepared() {
   });
   s.push('gate.opened');
   s.push('gate.opened', { ...payloads['gate.opened'], gateId: 'g3' });
-  s.push('oncall.started', { stageId: 'implement', attemptId: 'a5' });
+  s.push('ondemand.started', {
+    stageId: 'implement',
+    purpose: 'oncall',
+    attemptId: 'a5',
+  });
   return s;
 }

@@ -19,6 +19,10 @@ const transitions: Record<WorkItemStatus, readonly WorkItemStatus[]> = {
   in_progress: ['pushed', 'needs_attention', 'failed', 'skipped'],
   pushed: ['pr_open', 'needs_attention', 'failed', 'skipped'],
   pr_open: ['merged', 'needs_attention', 'failed', 'skipped'],
+  // rev2.10 progressive-merge states; their transitions arrive with M1-T10b.
+  merge_queued: [],
+  in_review: [],
+  rework: [],
   needs_attention: ['failed', 'skipped'],
   failed: ['skipped'],
   skipped: [],

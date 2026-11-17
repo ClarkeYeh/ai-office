@@ -7,6 +7,7 @@ import {
   id,
   isoDateTime,
   nonNegativeInt,
+  OndemandRefSchema,
   PolicyHitSchema,
   positiveInt,
   RepoSnapshotSchema,
@@ -119,8 +120,8 @@ export const AttemptViewSchema = z.object({
   role: id,
   agent: AgentKindSchema,
   purpose: AttemptPurposeSchema,
-  /** Q10: on-call attempts share the `onCall.role` seat. */
-  oncall: z.boolean(),
+  /** §7.5: on-demand instances (on-call, merge queue) share their role's seat. */
+  ondemand: OndemandRefSchema.optional(),
   itemKey: WorkItemKeySchema.optional(),
   retryOf: id.optional(),
   state: AttemptStateSchema,
@@ -276,6 +277,11 @@ export const WorkItemViewSchema = WorkItemDraftSchema.extend({
   issue: z.object({ number: positiveInt, url: z.url().optional() }).optional(),
   pr: PrSummarySchema.optional(),
   headSha: GitShaSchema.optional(),
+  /** rev2.10 §7.3: base commit of the current attempt's worktree. */
+  baseSha: GitShaSchema.optional(),
+  /** Merge-queue `rework-request`s accepted so far (§7.4a, `mergeQueue.maxRework`). */
+  reworks: nonNegativeInt,
+  mergeCommitSha: GitShaSchema.optional(),
   reason: z.string().optional(),
   usage: TokenUsageSchema,
 });
@@ -316,7 +322,8 @@ export const MeetingViewSchema = z.object({
     }),
   ),
 });
-export const OncallViewSchema = z.object({
+/** §7.5 on-demand instance; queue holds question ids (`oncall`) or work-item keys (`merge`). */
+export const OndemandViewSchema = z.object({
   active: z.boolean(),
   attemptId: id.optional(),
   queue: z.array(id),
@@ -330,7 +337,13 @@ export const StageViewSchema = z.object({
   runs: z.array(StageRunViewSchema),
   gateId: id.optional(),
   meeting: MeetingViewSchema.optional(),
-  oncall: OncallViewSchema.optional(),
+  /** Implement stage only; keyed by on-demand purpose. */
+  ondemand: z
+    .object({
+      oncall: OndemandViewSchema.optional(),
+      merge: OndemandViewSchema.optional(),
+    })
+    .optional(),
   usage: TokenUsageSchema,
 });
 

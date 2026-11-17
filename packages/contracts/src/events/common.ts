@@ -14,8 +14,9 @@ export const WorkItemKeySchema = z
   .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/);
 
 /**
- * Seats are `(workflow, role[, workItem])` (§4). The on-call lead shares the
- * `onCall.role` seat and marks its attempts with `oncall: true` (Q10).
+ * Seats are `(workflow, role[, workItem])` (§4). On-demand role instances (§7.5:
+ * on-call lead, merge-queue integrator) share their role's seat and mark their
+ * attempts with `ondemand: { purpose }` (Q10, rev2.10).
  */
 export const SeatIdSchema = z.string().min(1);
 export const seatIdFor = (seat: {
@@ -54,11 +55,20 @@ export const WorkItemStatusSchema = z.enum([
   'in_progress',
   'pushed',
   'pr_open',
+  // rev2.10 progressive merge (§4): pr_open → merge_queued → in_review → merged;
+  // in_review → rework → dispatched (new attempt, same branch and PR).
+  'merge_queued',
+  'in_review',
+  'rework',
   'merged',
   'needs_attention',
   'skipped',
   'failed',
 ]);
+
+/** §7.5 on-demand role instances; `merge` is the implement-stage merge queue. */
+export const OndemandPurposeSchema = z.enum(['oncall', 'merge']);
+export const OndemandRefSchema = z.object({ purpose: OndemandPurposeSchema });
 
 // §15's 12 categories. Runtime adapters normally resolve `suspect_escalation` (§11.1)
 // before it reaches the engine, but it stays a valid recorded category.
@@ -149,6 +159,7 @@ export const RepoSnapshotSchema = z.object({
 export { AgentKindSchema };
 export type AttemptState = z.infer<typeof AttemptStateSchema>;
 export type WorkItemStatus = z.infer<typeof WorkItemStatusSchema>;
+export type OndemandPurpose = z.infer<typeof OndemandPurposeSchema>;
 export type ErrorCategory = z.infer<typeof ErrorCategorySchema>;
 export type ActivityMeta = z.infer<typeof ActivityMetaSchema>;
 export type PolicyHit = z.infer<typeof PolicyHitSchema>;

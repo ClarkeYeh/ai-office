@@ -83,12 +83,16 @@ export const payloads = {
             role: 'lead',
             questionTimeoutMin: 10,
           },
+          mergeQueue: {
+            role: 'lead',
+            reviewTimeoutMin: 20,
+          },
+          escalateOn: ['unresolvable-conflict'],
         },
         {
           id: 'integrate',
           kind: 'integrate',
           owner: 'lead',
-          escalateOn: ['unresolvable-conflict'],
           timeouts: {
             stageMin: 60,
           },
@@ -236,7 +240,7 @@ export const payloads = {
     role: 'lead',
     agent: 'claude-code',
     purpose: 'oncall',
-    oncall: true,
+    ondemand: { purpose: 'oncall' },
     keepOpen: true,
     spawnCommandId: 'c1',
   },
@@ -390,17 +394,20 @@ export const payloads = {
     subject: 'Hint',
     body: 'Check README',
   },
-  'oncall.started': {
+  'ondemand.started': {
     stageId: 'implement',
+    purpose: 'oncall',
     attemptId: 'a5',
   },
-  'oncall.queue_changed': {
+  'ondemand.queue_changed': {
     stageId: 'implement',
+    purpose: 'oncall',
     queue: ['msg1', 'msg2'],
     current: 'msg1',
   },
-  'oncall.stopped': {
+  'ondemand.stopped': {
     stageId: 'implement',
+    purpose: 'oncall',
     attemptId: 'a5',
     reason: 'queue_empty',
   },
@@ -446,6 +453,26 @@ export const payloads = {
     status: 'pr_open',
     attemptId: 'a6',
     pr: 5,
+  },
+  'workitem.merge_queued': {
+    itemKey: 'w1',
+    attemptId: 'a6',
+    pr: 5,
+    headSha: 'abcdef1',
+  },
+  'workitem.rework_requested': {
+    itemKey: 'w1',
+    pr: 5,
+    submissionId: 'sub9',
+    attemptId: 'a7',
+    reasons: ['missing tests'],
+    rework: 1,
+  },
+  'workitem.merged': {
+    itemKey: 'w1',
+    pr: 5,
+    mergeCommitSha: 'abcdef2',
+    commandId: 'c9',
   },
   'artifact.created': {
     artifactId: 'art4',

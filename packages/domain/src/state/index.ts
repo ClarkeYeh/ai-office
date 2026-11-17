@@ -22,7 +22,7 @@ export const initialState = (): WorkflowState => ({
   submissions: {},
   rejectedSubmissions: 0,
   questions: {},
-  oncall: {},
+  ondemand: {},
   proposals: {},
   workItems: {},
   workItemOrder: [],
