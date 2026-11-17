@@ -313,4 +313,46 @@ describe('HealthMonitor', () => {
       h.store.read({}).filter((e) => e.type === 'workflow.resumed'),
     ).toHaveLength(1);
   });
+  it('pauses a workflow created while a required breaker is already open', async () => {
+    const handler = vi.fn(async () => ({}));
+    const h = setup({ 'runtime.stop': handler }, (_state, event) =>
+      event.type === 'workflow.started'
+        ? [
+            {
+              kind: 'external',
+              commandId: issued.commandId,
+              command: issued.command,
+            },
+          ]
+        : [],
+    );
+    await h.fail('scm');
+    await h.runners.start(startWorkflow());
+    await flush();
+    expect(h.runners.get('wf-1')?.state.workflow?.pausedReasons).toContain(
+      'scm_unhealthy',
+    );
+    expect(handler).not.toHaveBeenCalled();
+    await h.advance(10_000);
+    await h.runners.idle();
+  });
+  it('restores durable unhealthy pauses and requires a probe before resuming them', async () => {
+    const h = setup();
+    await h.runners.start(startWorkflow());
+    await h.runners.dispatch('wf-1', {
+      type: 'PauseWorkflow',
+      reason: 'runtime_unhealthy',
+      meta: { occurredAt: h.clock.now().toISOString(), source: 'system' },
+    });
+    await h.health.restore();
+    expect(h.health.dispatchBlocked).toBe(true);
+    expect(
+      h.store.read({}).filter((e) => e.type === 'workflow.resumed'),
+    ).toHaveLength(0);
+    await h.advance(10_000);
+    expect(h.health.dispatchBlocked).toBe(false);
+    expect(
+      h.store.read({}).filter((e) => e.type === 'workflow.resumed'),
+    ).toHaveLength(1);
+  });
 });

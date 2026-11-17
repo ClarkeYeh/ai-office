@@ -56,6 +56,25 @@ export class HealthMonitor {
 
   constructor(private readonly deps: HealthMonitorDeps) {}
 
+  /** After runner recovery, retain persisted unhealthy pauses until a fresh probe. */
+  async restore(): Promise<void> {
+    for (const component of ['runtime', 'scm', 'store'] as const) {
+      const reason = `${component}_unhealthy` as const;
+      if (
+        this.states[component].breaker === 'closed' &&
+        this.deps
+          .workflows()
+          .some(
+            (runner) =>
+              runner.state.workflow?.status === 'running' &&
+              runner.state.workflow.pausedReasons.includes(reason),
+          )
+      )
+        this.change(component, 'open');
+    }
+    await this.sync();
+  }
+
   get dispatchBlocked(): boolean {
     return HEALTH_COMPONENTS.some(
       (c) => c !== 'usage' && this.states[c].breaker !== 'closed',
@@ -65,8 +84,13 @@ export class HealthMonitor {
   /** Called before every executor attempt, including attempts queued during an outage. */
   async waitUntilDispatchable(): Promise<void> {
     await this.sync();
-    while (this.dispatchBlocked)
-      await new Promise<void>((resolve) => this.waiters.add(resolve));
+    while (this.dispatchBlocked) {
+      // StartWorkflow registers its runner after its initial events drain.
+      // Resync after yielding so a newly started workflow is paused as well.
+      await this.sync();
+      if (this.dispatchBlocked)
+        await new Promise<void>((resolve) => this.waiters.add(resolve));
+    }
   }
 
   /** Observe adapter calls outside the executor (including synchronous stores). */
