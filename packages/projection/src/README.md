@@ -47,3 +47,15 @@ the watermark without inventing a UI entity. Their resulting state changes arriv
 as the corresponding domain facts. Command failures and recorded errors populate
 error views. System events affect the global view; workflow projection ignores
 system events whose `workflowId` is null.
+
+Implement stages expose independent `ondemand.oncall` and `ondemand.merge` views.
+`ondemand.queue_changed` supplies the ordered queue and current item: question IDs
+for on-call and work-item keys for merge review. Resolve merge keys through
+`workItems` to their PR summaries; seat `currentAttemptId` selects the attempt's
+`ondemand.purpose`, preserving prior purposes in attempt history.
+Work-item facts project queued/review/rework/merged states, the recorded rework
+counter (not a locally incremented count), review reasons, current dispatch base
+SHA, and merge commit SHA. Rework requests identify the reviewer and never replace
+the worker's current attempt. PR summaries remain SCM observations from
+`pr.status`; `workitem.merged` establishes item completion before that observation.
+Projection version 2 rebuilds version 1 checkpoints to include these facts.
