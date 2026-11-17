@@ -6,6 +6,30 @@
       "properties": {
         "kind": {
           "type": "string",
+          "const": "runtime.reclaimSession"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "reclaimed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "reclaimed"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "result"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
           "const": "runtime.openSession"
         },
         "result": {

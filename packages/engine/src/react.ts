@@ -4,7 +4,7 @@ import type { WorkflowState } from '@ai-office/domain';
 import type { ReactContext } from './context.js';
 import type { Effect } from './effects.js';
 import { reactLifecycle } from './lifecycle.js';
-import { budgetPolicy } from './policies/budget.js';
+import { budgetPolicy, filterPolicyEffects } from './policies/budget.js';
 import { cancelPolicy } from './policies/cancel.js';
 import { exceptionsPolicy } from './policies/exceptions.js';
 import { reactStageClose } from './protocols/stage-close.js';
@@ -75,12 +75,12 @@ export const createReact =
         ? undefined
         : modules.stages[kind].stageGate?.(current, stageId);
     };
-    return [
+    return filterPolicyEffects(ctx, [
       ...reactLifecycle(ctx),
       ...reactStageClose(ctx, stageGate),
       ...Object.values(modules.stages).flatMap((stage) => stage.react(ctx)),
       ...modules.policies.flatMap((policy) => policy(ctx)),
-    ];
+    ]);
   };
 
 /** `react(state, event) → Effect[]` (§11.4), pure and deterministic. */

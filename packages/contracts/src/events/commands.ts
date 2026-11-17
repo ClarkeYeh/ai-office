@@ -76,6 +76,7 @@ export const ExternalCommandSchema = z.discriminatedUnion('kind', [
       branch: id,
     }),
   ),
+  command('runtime.reclaimSession', z.object({ session: SessionRef })),
   command('runtime.disposeWorkspace', z.object({ workspace: WorkspaceRef })),
   command('runtime.inspectWorkspace', z.object({ workspace: WorkspaceRef })),
   command(
@@ -189,6 +190,7 @@ export type ExternalCommandKind = ExternalCommand['kind'];
 export const EXTERNAL_COMMAND_KINDS = [
   'runtime.openSession',
   'runtime.prepareWorkspace',
+  'runtime.reclaimSession',
   'runtime.disposeWorkspace',
   'runtime.inspectWorkspace',
   'runtime.spawnAgent',
@@ -244,6 +246,7 @@ const result = <K extends ExternalCommandKind, R extends z.ZodType>(
 const empty = z.object({});
 /** Result recorded by `command.succeeded`; opaque refs feed later command args. */
 export const CommandResultSchema = z.discriminatedUnion('kind', [
+  result('runtime.reclaimSession', z.object({ reclaimed: z.boolean() })),
   result('runtime.openSession', z.object({ session: SessionRef })),
   result(
     'runtime.prepareWorkspace',

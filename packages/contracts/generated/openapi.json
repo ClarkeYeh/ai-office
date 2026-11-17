@@ -2634,6 +2634,30 @@
             "properties": {
               "kind": {
                 "type": "string",
+                "const": "runtime.reclaimSession"
+              },
+              "result": {
+                "type": "object",
+                "properties": {
+                  "reclaimed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "reclaimed"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "result"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
                 "const": "runtime.openSession"
               },
               "result": {
@@ -9488,6 +9512,31 @@
             "properties": {
               "kind": {
                 "type": "string",
+                "const": "runtime.reclaimSession"
+              },
+              "args": {
+                "type": "object",
+                "properties": {
+                  "session": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "session"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "args"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
                 "const": "runtime.disposeWorkspace"
               },
               "args": {
@@ -10119,6 +10168,7 @@
         "enum": [
           "runtime.openSession",
           "runtime.prepareWorkspace",
+          "runtime.reclaimSession",
           "runtime.disposeWorkspace",
           "runtime.inspectWorkspace",
           "runtime.spawnAgent",

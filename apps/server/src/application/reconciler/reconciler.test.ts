@@ -710,3 +710,22 @@ test('a lost redo result write remains pending and is found on the next pass', a
     recovered.runners.get(WORKFLOW_ID)!.state.commands.recover?.status,
   ).toBe('succeeded');
 });
+
+test('replays an explicitly issued reclaim idempotently after a crash without a request ID', async () => {
+  const f = await fixture();
+  const reclaim = vi.spyOn(f.runtime, 'reclaimSession');
+  const { recovered } = await pendingCommand(f, {
+    kind: 'runtime.reclaimSession',
+    args: { session: f.session },
+  });
+  await f.reconciler().reconcile(recovered.runners);
+  await recovered.runners.idle();
+  expect(reclaim).toHaveBeenCalledExactlyOnceWith(f.session);
+  expect(
+    recovered.runners.get(WORKFLOW_ID)!.state.commands.recover,
+  ).toMatchObject({
+    status: 'succeeded',
+    reconciled: 'redone',
+    result: { kind: 'runtime.reclaimSession', result: { reclaimed: true } },
+  });
+});

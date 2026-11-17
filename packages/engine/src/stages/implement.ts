@@ -227,7 +227,9 @@ const scheduleReady = (
         g.content.itemKey === item.key &&
         (g.content.attemptId === item.currentAttemptId ||
           g.gateId === item.statusReason) &&
-        ['retry', 'reassign'].includes(g.decision?.optionId ?? ''),
+        ['retry', 'reassign', 'top-up-rerun'].includes(
+          g.decision?.optionId ?? '',
+        ),
     );
     if (
       slots <= 0 ||

@@ -65,6 +65,7 @@ type EventBody = RuntimeEvent extends infer E
 type Delivery = Awaited<ReturnType<RuntimePort['observe']>>;
 type Operation =
   | 'openSession'
+  | 'reclaimSession'
   | 'prepareWorkspace'
   | 'spawnAgent'
   | 'send'
@@ -378,6 +379,12 @@ export class FakeRuntime implements RuntimePort {
       this.sessions.set(ref, []);
       return ref;
     });
+  }
+  async reclaimSession(session: SessionRef): Promise<{ reclaimed: boolean }> {
+    this.before('reclaimSession');
+    this.session(session);
+    this.after('reclaimSession');
+    return { reclaimed: true };
   }
   async closeSession(session: SessionRef): Promise<void> {
     this.before('closeSession');

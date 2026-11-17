@@ -116,7 +116,7 @@ const dependencyOverride = (state: WorkflowState, itemKey: string): boolean =>
       g.decision?.optionId === 'proceed',
   );
 
-/** Only the new exception options have work-item side effects; T9 options stay unchanged. */
+/** Replayable work-item choices, including item-budget retry and skip. */
 export const workItemGateEffects = (
   state: WorkflowState,
   gate: Gate,
@@ -124,7 +124,14 @@ export const workItemGateEffects = (
 ): DomainEventDraft[] => {
   if (
     gate.kind !== 'exception' ||
-    !(gate.exceptionKind in WORKITEM_EXCEPTION_OPTIONS) ||
+    !(
+      gate.exceptionKind in WORKITEM_EXCEPTION_OPTIONS ||
+      [
+        'item-budget-exceeded',
+        'item-budget-hard-limit',
+        'workitem-failed',
+      ].includes(gate.exceptionKind)
+    ) ||
     gate.content.type !== 'exception'
   )
     return [];
@@ -151,9 +158,14 @@ export const workItemGateEffects = (
       );
   }
   if (
-    ['rework', 'retry', 'reassign', 'requeue', 'merge'].includes(
-      command.optionId ?? '',
-    )
+    [
+      'rework',
+      'retry',
+      'reassign',
+      'requeue',
+      'merge',
+      'top-up-rerun',
+    ].includes(command.optionId ?? '')
   )
     return [
       draft(command.meta, scope, 'workitem.status', {
@@ -293,7 +305,21 @@ export const decideWorkItem = (
         'stale_attempt',
         'Queue belongs to an old attempt',
       );
-    if (item.status !== 'pr_open')
+    const useOutput =
+      item.status === 'needs_attention' &&
+      state.prs[command.item.pr]?.state === 'open' &&
+      Object.values(state.gates).some(
+        (g) =>
+          g.kind === 'exception' &&
+          g.exceptionKind === 'item-budget-hard-limit' &&
+          g.content.type === 'exception' &&
+          g.content.itemKey === item.key &&
+          (g.content.attemptId === undefined ||
+            g.content.attemptId === item.currentAttemptId) &&
+          g.status === 'approved' &&
+          g.decision?.optionId === 'use-output',
+      );
+    if (item.status !== 'pr_open' && !useOutput)
       return reject(
         'conflict',
         'invalid_item_transition',

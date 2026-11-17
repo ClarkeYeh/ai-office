@@ -279,6 +279,8 @@ export const stageArtifact = (ctx: ReactContext, stageId: string): Effect[] => {
 };
 
 const relevant = new Set([
+  'workflow.resumed',
+  'gate.decided',
   'stage.started',
   'stage.completed',
   'command.succeeded',
@@ -299,6 +301,12 @@ const reactMeeting: StageModule['react'] = (ctx) => {
   if (!workflow || config?.kind !== 'meeting' || !relevant.has(ctx.event.type))
     return [];
   const stageId = config.id;
+  const wake =
+    ctx.event.type === 'workflow.resumed' ||
+    (ctx.event.type === 'gate.decided' &&
+      ctx.state.gates[ctx.event.payload.gateId]?.stageId === stageId &&
+      ['top-up', 'top-up-rerun'].includes(ctx.event.payload.optionId ?? ''));
+  if (ctx.event.type === 'gate.decided' && !wake) return [];
   const stage = ctx.state.stages[stageId]!;
   if (
     ctx.event.type === 'stage.completed' &&
@@ -367,6 +375,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
   const lead = attempts.find((a) => a.purpose === 'facilitator');
   if (
     !lead &&
+    !wake &&
     !(
       ctx.event.type === 'command.succeeded' &&
       ctx.event.payload.commandId === id('workspace')
@@ -431,10 +440,11 @@ const reactMeeting: StageModule['react'] = (ctx) => {
   if (
     !participants.length &&
     lead.state === 'done' &&
-    !(
-      ctx.before.attempts[lead.attemptId]?.state === 'done' &&
-      submitted(ctx.before, ctx.before.attempts[lead.attemptId], 'agenda')
-    )
+    (wake ||
+      !(
+        ctx.before.attempts[lead.attemptId]?.state === 'done' &&
+        submitted(ctx.before, ctx.before.attempts[lead.attemptId], 'agenda')
+      ))
   )
     return config.participants.flatMap((role) =>
       spawnStageAgent(

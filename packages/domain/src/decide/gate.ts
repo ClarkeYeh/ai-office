@@ -20,8 +20,15 @@ export const EXCEPTION_OPTIONS = {
   'workitem-failed': ['retry', 'reassign', 'skip', 'abort'],
   'budget-exceeded': ['top-up', 'finish', 'abort'],
   'budget-hard-limit': ['top-up-rerun', 'use-output', 'abort'],
-  'item-budget-exceeded': ['top-up', 'finish', 'abort'],
-  'item-budget-hard-limit': ['top-up-rerun', 'use-output', 'abort'],
+  'item-budget-exceeded': ['top-up', 'finish', 'skip', 'abort'],
+  'item-budget-hard-limit': [
+    'top-up-rerun',
+    'use-output',
+    'retry',
+    'reassign',
+    'skip',
+    'abort',
+  ],
   anomaly: ['continue', 'stop-again', 'abort'],
   hijacked: ['reclaim', 'abort'],
 } as const;

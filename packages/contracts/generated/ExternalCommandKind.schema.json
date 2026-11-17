@@ -4,6 +4,7 @@
   "enum": [
     "runtime.openSession",
     "runtime.prepareWorkspace",
+    "runtime.reclaimSession",
     "runtime.disposeWorkspace",
     "runtime.inspectWorkspace",
     "runtime.spawnAgent",

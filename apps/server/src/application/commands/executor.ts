@@ -81,6 +81,8 @@ export const portHandlers = (ports: {
 }): CommandHandlers => {
   const { runtime, scm, specStore } = ports;
   return {
+    'runtime.reclaimSession': async (args) =>
+      runtime.reclaimSession(args.session as SessionRef),
     'runtime.openSession': async (args, { issued, correlation }) => ({
       session: await runtime.openSession({
         workflowId: issued.workflowId,
