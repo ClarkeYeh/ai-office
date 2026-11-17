@@ -193,6 +193,11 @@ const commandExamples: Record<ExternalCommandKind, unknown> = {
     pr: { repo, number: 4 },
     patch: { state: 'closed' },
   },
+  'scm.compareBranch': {
+    repo,
+    base: 'ai-office/integration',
+    head: 'ai-office/worker',
+  },
   'scm.mergePR': {
     pr: { repo, number: 4 },
     method: 'merge',
@@ -1199,4 +1204,54 @@ describe('rev2.10 progressive merge (M1-CP3)', () => {
       }).success,
     ).toBe(false);
   });
+});
+
+test('compareBranch is read-only and preserves both comparison and missing-branch results', () => {
+  const issued = {
+    commandId: 'compare',
+    kind: 'scm.compareBranch',
+    args: commandExamples['scm.compareBranch'],
+  };
+  expect(CommandIssuedPayloadSchema.parse(issued)).toEqual(issued);
+  expect(
+    CommandIssuedPayloadSchema.safeParse({
+      ...issued,
+      orcaRequestId: '00000000-0000-4000-8000-000000000000',
+    }).success,
+  ).toBe(false);
+  for (const result of [
+    null,
+    { ahead: 0, headSha: sha },
+    { ahead: 2, headSha: sha },
+  ]) {
+    const payload = { commandId: 'compare', kind: 'scm.compareBranch', result };
+    expect(EVENT_PAYLOAD_SCHEMAS['command.succeeded'].parse(payload)).toEqual(
+      payload,
+    );
+  }
+  for (const result of [
+    { ahead: -1, headSha: sha },
+    { ahead: 0.5, headSha: sha },
+    { ahead: 1, headSha: 'HEAD' },
+  ]) {
+    expect(
+      CommandResultSchema.safeParse({ kind: 'scm.compareBranch', result })
+        .success,
+    ).toBe(false);
+  }
+});
+test('prepareWorkspace retains the optional existing-branch checkout flag', () => {
+  const args = {
+    ...(commandExamples['runtime.prepareWorkspace'] as object),
+    checkoutExisting: true,
+  };
+  expect(
+    ExternalCommandSchema.parse({ kind: 'runtime.prepareWorkspace', args }),
+  ).toEqual({ kind: 'runtime.prepareWorkspace', args });
+  expect(
+    ExternalCommandSchema.safeParse({
+      kind: 'runtime.prepareWorkspace',
+      args: { ...args, checkoutExisting: false },
+    }).success,
+  ).toBe(false);
 });

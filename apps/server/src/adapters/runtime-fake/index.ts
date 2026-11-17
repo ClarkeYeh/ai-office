@@ -117,6 +117,12 @@ export class FakeRuntime implements RuntimePort {
   private workspaceBase(
     req: Parameters<RuntimePort['prepareWorkspace']>[0],
   ): string | undefined {
+    if (req.checkoutExisting && req.fetchBranch !== req.branch)
+      throw new PortError(
+        'bug',
+        'invalid_existing_branch',
+        'Existing branch checkout requires fetchBranch to equal branch',
+      );
     const baseSha =
       req.baseSha ?? (req.fetchBranch ? req.baseBranch : undefined);
     if (baseSha !== undefined || req.fetchBranch !== undefined) {

@@ -69,6 +69,8 @@ export const ExternalCommandSchema = z.discriminatedUnion('kind', [
     z.object({
       session: SessionRef,
       repo: RepoRuntimeRefSchema,
+      /** Fresh worktree on the existing remote branch; caller supplies a -r<n> name. */
+      checkoutExisting: z.literal(true).optional(),
       ...workspaceBase,
       name: id,
       branch: id,
@@ -106,6 +108,10 @@ export const ExternalCommandSchema = z.discriminatedUnion('kind', [
   command(
     'scm.ensureLabels',
     z.object({ repo: RepoScmRefSchema, labels: z.array(LabelSpecSchema) }),
+  ),
+  command(
+    'scm.compareBranch',
+    z.object({ repo: RepoScmRefSchema, base: id, head: id }),
   ),
   command(
     'scm.ensureBranch',
@@ -191,6 +197,7 @@ export const EXTERNAL_COMMAND_KINDS = [
   'runtime.stop',
   'runtime.release',
   'scm.ensureLabels',
+  'scm.compareBranch',
   'scm.ensureBranch',
   'scm.deleteBranch',
   'scm.createIssue',
@@ -259,6 +266,12 @@ export const CommandResultSchema = z.discriminatedUnion('kind', [
   result('runtime.release', empty),
   result('scm.ensureLabels', empty),
   result('scm.ensureBranch', empty),
+  result(
+    'scm.compareBranch',
+    z
+      .object({ ahead: z.number().int().nonnegative(), headSha: GitShaSchema })
+      .nullable(),
+  ),
   result('scm.deleteBranch', empty),
   result('scm.createIssue', z.object({ issue: positiveInt, url: z.url() })),
   result('scm.updateIssue', empty),
