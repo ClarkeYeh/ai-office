@@ -43,7 +43,8 @@ export const submitted = (
 export const spawnStageAgent = (
   ctx: ReactContext,
   role: string,
-  spec: SpecRequest,
+  // Merge-queue instances are on-demand (§7.5); T14b spawns them with `ondemand`.
+  spec: Exclude<SpecRequest, { purpose: 'merge-queue' }>,
   workspace: SpawnEffect['workspace'],
   keepOpen: boolean,
 ): Effect[] => {
