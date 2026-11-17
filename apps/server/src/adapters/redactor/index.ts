@@ -163,3 +163,24 @@ export function createRedactor(options: RedactorOptions): Redactor {
     },
   };
 }
+
+/** Composition root supplies repository URL preservation explicitly. */
+export function createRedactorFactory(
+  options: {
+    preservedRepoUrls?: readonly string[];
+  } = {},
+): import('../../ports/services.js').RedactorFactory {
+  return {
+    forAttempt(context) {
+      return createRedactor({
+        defaultBranch: context.defaultBranch,
+        ...(context.currentBranch === null
+          ? {}
+          : { currentBranch: context.currentBranch }),
+        ...(options.preservedRepoUrls === undefined
+          ? {}
+          : { preservedRepoUrls: options.preservedRepoUrls }),
+      });
+    },
+  };
+}

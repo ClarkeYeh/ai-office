@@ -370,6 +370,7 @@ export class FakeScm implements ScmPort {
       headSha: repo.branches.get(obj.head) ?? '',
       mergeable: obj.mergeable,
       ...(obj.mergedBy ? { mergedBy: obj.mergedBy } : {}),
+      ...(obj.mergeCommitSha ? { mergeCommitSha: obj.mergeCommitSha } : {}),
     });
   }
   setChecks(ref: PrRef, status: ObjectState['checks']) {

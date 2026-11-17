@@ -31,3 +31,13 @@ export interface Logger {
   warn(obj: object, msg?: string): void;
   error(obj: object, msg?: string): void;
 }
+
+/** Builds policy-aware redactors with the attempt's current workspace branch. */
+export interface RedactorFactory {
+  forAttempt(context: {
+    attemptId: string;
+    currentBranch: string | null;
+    defaultBranch: string;
+    integrationBranch: string;
+  }): Redactor;
+}
