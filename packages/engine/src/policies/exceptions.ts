@@ -303,7 +303,11 @@ export const exceptionsPolicy: Policy = (ctx) => {
       event.payload.summary,
       event.payload.attemptId,
     );
-  if (event.type === 'seat.exited' && !event.payload.expected)
+  if (
+    event.type === 'seat.exited' &&
+    !event.payload.expected &&
+    event.payload.reason === 'stopped'
+  )
     return openException(
       ctx,
       'anomaly',
@@ -332,6 +336,18 @@ export const exceptionsPolicy: Policy = (ctx) => {
         ]
       : [];
   }
+  if (
+    (event.type === 'command.failed' &&
+      event.payload.kind === 'runtime.reclaimSession') ||
+    (event.type === 'command.succeeded' &&
+      event.payload.kind === 'runtime.reclaimSession' &&
+      !event.payload.result.reclaimed)
+  )
+    return openException(
+      ctx,
+      'hijacked',
+      'Run reclamation did not succeed. Choose explicitly whether to try again or abort.',
+    );
   if (
     event.type === 'command.succeeded' &&
     event.payload.kind === 'runtime.reclaimSession' &&
@@ -389,6 +405,51 @@ export const exceptionsPolicy: Policy = (ctx) => {
       : [];
   }
   const effects: Effect[] = [];
+  // Accepted merge requests survive a pause between acceptance and outbox issue.
+  // Reuse the merge-queue command ID, so an already issued request is never replayed.
+  if (event.type === 'workflow.resumed' || event.type === 'gate.decided') {
+    for (const record of Object.values(ctx.state.submissions)) {
+      const submission = record.submission;
+      if (submission.kind !== 'merge-request') continue;
+      const attempt = ctx.state.attempts[record.attemptId];
+      const instance = attempt && ctx.state.ondemand[attempt.stageId]?.merge;
+      if (
+        !attempt ||
+        instance?.attemptId !== record.attemptId ||
+        !instance.current ||
+        ctx.state.workItems[instance.current]?.pr !== submission.payload.pr
+      )
+        continue;
+      const id = commandId(ctx, 'ondemand', 'merge', record.id);
+      if (!ctx.state.commands[id])
+        effects.push(
+          external(
+            id,
+            {
+              kind: 'scm.mergePR',
+              args: {
+                pr: {
+                  repo: workflow.repo.github,
+                  number: submission.payload.pr,
+                },
+                method: 'merge',
+                expectedHeadSha: submission.payload.expectedHeadSha,
+              },
+            },
+            { stageId: attempt.stageId, attemptId: attempt.attemptId },
+          ),
+        );
+    }
+    if (event.type === 'workflow.resumed')
+      for (const gate of Object.values(ctx.state.gates)) {
+        if (
+          gate.status === 'approved' &&
+          gate.decision?.optionId === 'merge' &&
+          !ctx.state.commands[commandId(ctx, 'human-merge', gate.gateId)]
+        )
+          effects.push(...gateDecision(ctx, gate));
+      }
+  }
   if (event.type === 'gate.decided') {
     const gate = ctx.state.gates[event.payload.gateId];
     if (gate) effects.push(...gateDecision(ctx, gate));

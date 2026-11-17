@@ -227,6 +227,7 @@ export class Reconciler {
       case 'scm.compareBranch':
       case 'runtime.stop':
       case 'runtime.release':
+      case 'runtime.reclaimSession':
       case 'scm.ensureLabels':
       case 'scm.ensureBranch':
       case 'scm.deleteBranch':

@@ -41,6 +41,7 @@ const gate: StageGateBuilder = (state, stageId) => {
 const reactPlanning: StageModule['react'] = (ctx) => {
   if (
     ![
+      'workflow.resumed',
       'stage.started',
       'stage.completed',
       'command.succeeded',
@@ -57,8 +58,13 @@ const reactPlanning: StageModule['react'] = (ctx) => {
   const config = workflow?.template.stages.find((s) => s.kind === 'planning');
   if (!workflow || config?.kind !== 'planning') return [];
   const stageId = config.id;
+  const wake =
+    ctx.event.type === 'workflow.resumed' ||
+    (ctx.event.type === 'gate.decided' &&
+      ctx.state.gates[ctx.event.payload.gateId]?.stageId === stageId &&
+      ['top-up', 'top-up-rerun'].includes(ctx.event.payload.optionId ?? ''));
   const stage = ctx.state.stages[stageId]!;
-  if (ctx.event.type === 'gate.decided') {
+  if (ctx.event.type === 'gate.decided' && !wake) {
     const decided = ctx.state.gates[ctx.event.payload.gateId];
     if (
       decided?.kind !== 'stage' ||
@@ -141,8 +147,9 @@ const reactPlanning: StageModule['react'] = (ctx) => {
   if (
     !lead &&
     sessionRef(ctx.state) &&
-    ((ctx.event.type === 'stage.started' &&
-      ctx.event.payload.stageId === stageId) ||
+    (wake ||
+      (ctx.event.type === 'stage.started' &&
+        ctx.event.payload.stageId === stageId) ||
       (ctx.event.type === 'command.succeeded' &&
         ctx.event.payload.kind === 'runtime.openSession'))
   ) {

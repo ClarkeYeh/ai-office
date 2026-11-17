@@ -23,6 +23,7 @@ export const budgetBlocked = (
   state: WorkflowState,
   stageId?: string,
   itemKey?: string,
+  useOutput = false,
 ): boolean =>
   Object.values(state.budgetAlerts).some((alert) => {
     if (
@@ -45,6 +46,8 @@ export const budgetBlocked = (
     const gate =
       state.gates[alertGateId({ workflowId: state.workflowId! }, alert)];
     const option = gate?.decision?.optionId;
+    if (useOutput && ['finish', 'use-output'].includes(option ?? ''))
+      return false;
     return (
       gate?.status !== 'closed' &&
       !['top-up', 'top-up-rerun', 'retry', 'reassign', 'skip'].includes(
@@ -83,6 +86,24 @@ export const budgetPolicy: Policy = (ctx) => {
   ) {
     const stages = ctx.state.stageOrder.map((id) => ctx.state.stages[id]!);
     const pending = stages.find((s) => s.pendingRerun);
+    const wake: Effect[] = Object.entries(ctx.state.ondemand).flatMap(
+      ([stageId, instances]) =>
+        Object.entries(instances).flatMap(([purpose, instance]) =>
+          instance && !instance.current && instance.queue.length
+            ? [
+                internal({
+                  type: 'UpdateOnDemandQueue',
+                  meta: metaFor(ctx),
+                  update: {
+                    stageId,
+                    purpose: purpose as 'merge' | 'oncall',
+                    queue: instance.queue,
+                  },
+                }),
+              ]
+            : [],
+        ),
+    );
     return pending && !stages.some((s) => s.status === 'running')
       ? [
           internal({
@@ -91,7 +112,7 @@ export const budgetPolicy: Policy = (ctx) => {
             stageId: pending.id,
           }),
         ]
-      : [];
+      : wake;
   }
   if (event.type !== 'budget.exceeded' && event.type !== 'budget.hard_limit') {
     // A spawn already in flight at the fuse can report its ref afterwards.
@@ -185,7 +206,13 @@ export const budgetPolicy: Policy = (ctx) => {
         reason: 'superseded',
       }),
     );
-  if (hard && alert.scope === 'item')
+  if (
+    hard &&
+    alert.scope === 'item' &&
+    !['merged', 'skipped', 'failed'].includes(
+      ctx.state.workItems[alert.itemKey]?.status ?? 'failed',
+    )
+  )
     effects.push(
       internal({
         type: 'UpdateWorkItemStatus',
@@ -236,23 +263,28 @@ export const filterPolicyEffects = (
   effects: Effect[],
 ): Effect[] => {
   const workflow = ctx.state.workflow;
-  const hijacked = Object.values(ctx.state.gates).some(
-    (g) =>
-      g.kind === 'exception' &&
-      g.exceptionKind === 'hijacked' &&
-      g.status !== 'closed' &&
-      !(
-        g.decision?.optionId === 'reclaim' &&
-        Object.values(ctx.state.commands).some(
-          (c) =>
-            c.id === commandId(ctx, 'reclaim', g.gateId) &&
-            c.result?.kind === 'runtime.reclaimSession' &&
-            c.result.result &&
-            'reclaimed' in c.result.result &&
-            c.result.result.reclaimed,
-        )
-      ),
-  );
+  const hijacked = Object.values(ctx.state.gates)
+    .filter(
+      (g) =>
+        g.kind === 'exception' &&
+        g.exceptionKind === 'hijacked' &&
+        g.status !== 'closed',
+    )
+    .slice(-1)
+    .some(
+      (g) =>
+        !(
+          g.decision?.optionId === 'reclaim' &&
+          Object.values(ctx.state.commands).some(
+            (c) =>
+              c.id === commandId(ctx, 'reclaim', g.gateId) &&
+              c.result?.kind === 'runtime.reclaimSession' &&
+              c.result.result &&
+              'reclaimed' in c.result.result &&
+              c.result.result.reclaimed,
+          )
+        ),
+    );
   const paused =
     !workflow ||
     workflow.status !== 'running' ||
@@ -261,85 +293,129 @@ export const filterPolicyEffects = (
     hijacked ||
     ctx.event.type === 'runtime.identity_hijacked' ||
     ctx.event.type === 'anomaly.detected' ||
+    (ctx.event.type === 'seat.exited' &&
+      !ctx.event.payload.expected &&
+      ctx.event.payload.reason === 'stopped') ||
     (ctx.event.type === 'health.changed' &&
       ctx.event.payload.component !== 'usage' &&
       ctx.event.payload.status !== 'healthy');
-  return effects.filter((effect) => {
-    if (
+  return effects
+    .map((effect): Effect =>
+      workflow?.cancelRequested &&
       effect.kind === 'external' &&
-      ['runtime.send', 'runtime.answer'].includes(effect.command.kind) &&
-      (hijacked || ctx.event.type === 'runtime.identity_hijacked')
+      effect.command.kind === 'runtime.release'
+        ? {
+            ...effect,
+            command: {
+              ...effect.command,
+              args: { ...effect.command.args, removeWorkspace: false },
+            },
+          }
+        : effect,
     )
-      return false;
-    let stageId: string | undefined;
-    let itemKey: string | undefined;
-    let dispatch = false;
-    if (effect.kind === 'spawn') {
-      dispatch = true;
-      stageId = effect.stageId;
-      itemKey = ctx.state.attempts[effect.attemptId]?.itemKey;
-      // Spawn intents can precede the SpawnAttempt event in the same batch.
-      const spawn = effects.find(
-        (e) =>
-          e.kind === 'internal' &&
-          e.command.type === 'SpawnAttempt' &&
-          e.command.attemptId === effect.attemptId,
-      );
-      if (spawn?.kind === 'internal' && spawn.command.type === 'SpawnAttempt')
-        itemKey = spawn.command.itemKey;
-    } else if (effect.kind === 'internal') {
-      const c = effect.command;
+    .filter((effect) => {
       if (
-        c.type === 'SpawnAttempt' ||
-        c.type === 'StartStage' ||
-        c.type === 'StartOnDemand' ||
-        c.type === 'DispatchWorkItem'
-      ) {
+        workflow?.cancelRequested &&
+        effect.kind === 'external' &&
+        effect.command.kind === 'runtime.disposeWorkspace'
+      )
+        return false;
+      if (
+        effect.kind === 'external' &&
+        ['runtime.send', 'runtime.answer'].includes(effect.command.kind) &&
+        (hijacked || ctx.event.type === 'runtime.identity_hijacked')
+      )
+        return false;
+      let stageId: string | undefined;
+      let itemKey: string | undefined;
+      let dispatch = false;
+      if (effect.kind === 'spawn') {
         dispatch = true;
-        stageId =
-          'stageId' in c
-            ? c.stageId
-            : c.type === 'StartOnDemand'
-              ? c.instance.stageId
+        stageId = effect.stageId;
+        itemKey = ctx.state.attempts[effect.attemptId]?.itemKey;
+        // Spawn intents can precede the SpawnAttempt event in the same batch.
+        const spawn = effects.find(
+          (e) =>
+            e.kind === 'internal' &&
+            e.command.type === 'SpawnAttempt' &&
+            e.command.attemptId === effect.attemptId,
+        );
+        if (spawn?.kind === 'internal' && spawn.command.type === 'SpawnAttempt')
+          itemKey = spawn.command.itemKey;
+      } else if (effect.kind === 'internal') {
+        const c = effect.command;
+        if (
+          c.type === 'StartOnDemand' &&
+          (!workflow ||
+            workflow.cancelRequested ||
+            workflow.status !== 'running')
+        )
+          return false;
+        if (
+          c.type === 'SpawnAttempt' ||
+          c.type === 'StartStage' ||
+          c.type === 'DispatchWorkItem'
+        ) {
+          dispatch = true;
+          stageId =
+            'stageId' in c
+              ? c.stageId
               : ctx.state.stageOrder.find(
                   (id) => ctx.state.stages[id]?.kind === 'implement',
                 );
-        itemKey = 'itemKey' in c ? c.itemKey : undefined;
+          itemKey = 'itemKey' in c ? c.itemKey : undefined;
+        }
+        if (
+          c.type === 'UpdateOnDemandQueue' &&
+          c.update.current !== undefined &&
+          c.update.current !==
+            ctx.state.ondemand[c.update.stageId]?.[c.update.purpose]?.current
+        ) {
+          dispatch = true;
+          stageId = c.update.stageId;
+          itemKey = c.update.purpose === 'merge' ? c.update.current : undefined;
+        }
+      } else if (effect.kind === 'external') {
+        dispatch = [
+          'runtime.spawnAgent',
+          'runtime.prepareWorkspace',
+          'scm.mergePR',
+        ].includes(effect.command.kind);
+        stageId = effect.stageId;
+        itemKey = effect.attemptId
+          ? ctx.state.attempts[effect.attemptId]?.itemKey
+          : undefined;
+        if (
+          effect.command.kind === 'runtime.send' &&
+          !effect.commandId.startsWith(commandId(ctx, 'finish') + '/') &&
+          !effect.commandId.startsWith(commandId(ctx, 'budget-reminder') + '/')
+        ) {
+          const agent = effect.command.args.agent;
+          dispatch = Object.values(ctx.state.attempts).some(
+            (a) => a.agentRef === agent && a.ondemand?.purpose === 'merge',
+          );
+        }
+        if (effect.command.kind === 'scm.mergePR')
+          itemKey = Object.values(ctx.state.workItems).find(
+            (i) =>
+              i.pr ===
+              (
+                effect.command as Extract<
+                  typeof effect.command,
+                  { kind: 'scm.mergePR' }
+                >
+              ).args.pr.number,
+          )?.key;
       }
-    } else if (effect.kind === 'external') {
-      dispatch = [
-        'runtime.spawnAgent',
-        'runtime.prepareWorkspace',
-        'scm.mergePR',
-      ].includes(effect.command.kind);
-      stageId = effect.stageId;
-      itemKey = effect.attemptId
-        ? ctx.state.attempts[effect.attemptId]?.itemKey
-        : undefined;
-      if (
-        effect.command.kind === 'runtime.send' &&
-        !effect.commandId.startsWith(commandId(ctx, 'finish') + '/') &&
-        !effect.commandId.startsWith(commandId(ctx, 'budget-reminder') + '/')
-      ) {
-        const agent = effect.command.args.agent;
-        dispatch = Object.values(ctx.state.attempts).some(
-          (a) => a.agentRef === agent && a.ondemand?.purpose === 'merge',
-        );
-      }
-      if (effect.command.kind === 'scm.mergePR')
-        itemKey = Object.values(ctx.state.workItems).find(
-          (i) =>
-            i.pr ===
-            (
-              effect.command as Extract<
-                typeof effect.command,
-                { kind: 'scm.mergePR' }
-              >
-            ).args.pr.number,
-        )?.key;
-    }
-    return (
-      !dispatch || (!paused && !budgetBlocked(ctx.state, stageId, itemKey))
-    );
-  });
+      return (
+        !dispatch ||
+        (!paused &&
+          !budgetBlocked(
+            ctx.state,
+            stageId,
+            itemKey,
+            effect.kind === 'external' && effect.command.kind === 'scm.mergePR',
+          ))
+      );
+    });
 };

@@ -29,8 +29,25 @@ const modules = {
     ]),
   ) as unknown as typeof DEFAULT_MODULES.stages,
 };
-function setup(stage = 'implement', world = cooperativeWorld) {
-  const sim = new Simulator({ react: createReact(modules), world });
+function setup(
+  stage = 'implement',
+  world = cooperativeWorld,
+  ondemand = false,
+) {
+  const sim = new Simulator({
+    react: createReact(
+      ondemand
+        ? {
+            ...modules,
+            stages: {
+              ...modules.stages,
+              ondemand: DEFAULT_MODULES.stages.ondemand,
+            },
+          }
+        : modules,
+    ),
+    world,
+  });
   sim.dispatch(startWorkflow());
   for (const s of Object.values(sim.state.stages))
     s.status =
@@ -1049,7 +1066,10 @@ it('filters every dispatch form and keeps merge assignments paused without block
   ];
   sim.state.workItems.a!.pr = 1;
   sim.state.workflow!.pausedReasons = ['anomaly'];
-  expect(filterPolicyEffects(ctx, effects)).toEqual(effects.slice(-2));
+  expect(filterPolicyEffects(ctx, effects)).toEqual([
+    effects[3],
+    ...effects.slice(-2),
+  ]);
   sim.state.workflow!.pausedReasons = [];
   expect(filterPolicyEffects(ctx, effects)).toEqual(effects);
   usage(sim, 'a', 400_000);
@@ -1231,5 +1251,247 @@ it('unexpected exits open anomalies, medium policy hits remind, and custom decis
         g.status === 'open',
     ),
   ).toBe(true);
+  expect(sim.rejections).toEqual([]);
+});
+
+it('cancels real merge/on-call modules without removing any worker workspace', () => {
+  const sim = setup('implement', cooperativeWorld, true);
+  agent(sim, 'a');
+  Object.assign(sim.state.workItems.a!, {
+    status: 'pr_open',
+    pr: 11,
+    headSha: 'abcdef2',
+  });
+  sim.dispatch({
+    type: 'QueueWorkItemForMerge',
+    item: { itemKey: 'a', attemptId: 'a', pr: 11, headSha: 'abcdef2' },
+  });
+  sim.dispatch({
+    type: 'AskQuestion',
+    questionId: 'q',
+    attemptId: 'a',
+    body: 'Which interface?',
+  });
+  expect(sim.state.ondemand.implement?.merge?.attemptId).toBeTruthy();
+  expect(sim.state.ondemand.implement?.oncall?.attemptId).toBeTruthy();
+  sim.dispatch({ type: 'RequestCancel', by: 'user' });
+  expect(sim.state.workflow!.status).toBe('cancelled');
+  const releases = sim.issued.filter(
+    (e) => e.command.kind === 'runtime.release',
+  );
+  expect(releases.length).toBeGreaterThanOrEqual(3);
+  expect(
+    releases.every(
+      (e) =>
+        e.command.kind === 'runtime.release' &&
+        e.command.args.removeWorkspace === false,
+    ),
+  ).toBe(true);
+  expect(
+    sim.issued.some((e) => e.command.kind === 'runtime.disposeWorkspace'),
+  ).toBe(false);
+  expect(sim.rejections).toEqual([]);
+});
+
+it('a soft stage budget holds queued PRs and top-up wakes the existing merge instance', () => {
+  const sim = setup('implement', cooperativeWorld, true);
+  agent(sim, 'a');
+  agent(sim, 'b');
+  Object.assign(sim.state.workItems.a!, {
+    status: 'pr_open',
+    pr: 11,
+    headSha: 'abcdef2',
+  });
+  Object.assign(sim.state.workItems.b!, {
+    status: 'pr_open',
+    pr: 12,
+    headSha: 'abcdef2',
+  });
+  sim.dispatch({
+    type: 'QueueWorkItemForMerge',
+    item: { itemKey: 'a', attemptId: 'a', pr: 11, headSha: 'abcdef2' },
+  });
+  const reviewer = sim.state.ondemand.implement!.merge!.attemptId!;
+  sim.inject('budget.exceeded', {
+    scope: 'stage',
+    stageId: 'implement',
+    stageAttempt: 1,
+    metric: 'tokens',
+    used: 100,
+    budget: 100,
+    threshold: 100,
+    gateId: 'budget',
+  });
+  sim.dispatch({
+    type: 'QueueWorkItemForMerge',
+    item: { itemKey: 'b', attemptId: 'b', pr: 12, headSha: 'abcdef2' },
+  });
+  sim.inject('workitem.status', { itemKey: 'a', status: 'skipped' });
+  expect(sim.state.ondemand.implement!.merge!.current).toBeUndefined();
+  expect(sim.state.ondemand.implement!.merge!.queue).toEqual(['b']);
+  choose(sim, 'budget', 'top-up', { additionalTokens: 100 });
+  expect(sim.state.ondemand.implement!.merge!.current).toBe('b');
+  expect(sim.state.ondemand.implement!.merge!.attemptId).toBe(reviewer);
+  expect(sim.rejections).toEqual([]);
+});
+
+it('an accepted merge waits during pause and is issued exactly once on resume', () => {
+  const sim = setup('implement', cooperativeWorld, true);
+  agent(sim, 'a');
+  Object.assign(sim.state.workItems.a!, {
+    status: 'pr_open',
+    pr: 11,
+    headSha: 'abcdef2',
+  });
+  sim.dispatch({
+    type: 'QueueWorkItemForMerge',
+    item: { itemKey: 'a', attemptId: 'a', pr: 11, headSha: 'abcdef2' },
+  });
+  const reviewer = sim.state.ondemand.implement!.merge!.attemptId!;
+  sim.dispatch({ type: 'PauseWorkflow', reason: 'scm_unhealthy' });
+  sim.dispatch({
+    type: 'AcceptSubmission',
+    submissionId: 'merge-request',
+    attemptId: reviewer,
+    submission: {
+      kind: 'merge-request',
+      payload: { pr: 11, expectedHeadSha: 'abcdef2' },
+    },
+  });
+  expect(
+    sim.issued.filter((e) => e.command.kind === 'scm.mergePR'),
+  ).toHaveLength(0);
+  sim.dispatch({ type: 'ResumeWorkflow', reason: 'scm_unhealthy' });
+  expect(
+    sim.issued.filter((e) => e.command.kind === 'scm.mergePR'),
+  ).toHaveLength(1);
+  expect(sim.state.workItems.a!.status).toBe('merged');
+  expect(sim.rejections).toEqual([]);
+});
+
+it.each(['meeting', 'planning'] as const)(
+  '%s re-evaluates blocked spawns after health recovery and soft top-up',
+  (kind) => {
+    for (const pause of ['health', 'budget']) {
+      const world = (
+        e: Parameters<typeof cooperativeWorld>[0],
+        sim: Simulator,
+      ) => {
+        if (
+          e.command.kind === 'runtime.prepareWorkspace' ||
+          (kind === 'planning' && e.command.kind === 'runtime.openSession')
+        )
+          return undefined;
+        return cooperativeWorld(e, sim);
+      };
+      const sim = new Simulator({
+        world,
+        react: createReact({
+          ...modules,
+          stages: { ...modules.stages, [kind]: DEFAULT_MODULES.stages[kind] },
+        }),
+      });
+      sim.dispatch(startWorkflow());
+      const stageId = kind === 'meeting' ? 'meeting' : 'breakdown';
+      if (kind === 'planning') {
+        sim.state.stages.meeting!.status = 'done';
+        sim.dispatch({ type: 'StartStage', stageId });
+        if (pause === 'health')
+          sim.dispatch({ type: 'PauseWorkflow', reason: 'runtime_unhealthy' });
+        else
+          sim.inject('budget.exceeded', {
+            scope: 'workflow',
+            metric: 'tokens',
+            used: 100,
+            budget: 100,
+            threshold: 100,
+          });
+        const session = sim.issued.find(
+          (e) => e.command.kind === 'runtime.openSession',
+        )!;
+        sim.inject('command.succeeded', {
+          commandId: session.commandId,
+          kind: 'runtime.openSession',
+          result: { session: 'session-1' },
+        });
+      } else {
+        if (pause === 'health')
+          sim.dispatch({ type: 'PauseWorkflow', reason: 'runtime_unhealthy' });
+        else
+          sim.inject('budget.exceeded', {
+            scope: 'stage',
+            stageId,
+            stageAttempt: 1,
+            metric: 'tokens',
+            used: 100,
+            budget: 100,
+            threshold: 100,
+          });
+        const workspace = sim.issued.find(
+          (e) => e.command.kind === 'runtime.prepareWorkspace',
+        )!;
+        sim.inject(
+          'command.succeeded',
+          {
+            commandId: workspace.commandId,
+            kind: 'runtime.prepareWorkspace',
+            result: { workspace: 'workspace', path: '/workspace' },
+          },
+          { stageId },
+        );
+      }
+      expect(sim.eventsOf('seat.spawned')).toHaveLength(0);
+      if (pause === 'health')
+        sim.dispatch({ type: 'ResumeWorkflow', reason: 'runtime_unhealthy' });
+      else
+        choose(sim, Object.keys(sim.state.gates)[0]!, 'top-up', {
+          additionalTokens: 100,
+        });
+      expect(sim.eventsOf('seat.spawned')).toHaveLength(1);
+      expect(sim.rejections).toEqual([]);
+    }
+  },
+);
+
+it('failed reclamation offers another explicit choice and a later success clears the hijack guard', () => {
+  let calls = 0;
+  const sim = setup('implement', (e, s) =>
+    e.command.kind === 'runtime.reclaimSession'
+      ? { ok: true, result: { reclaimed: ++calls > 1 } }
+      : cooperativeWorld(e, s),
+  );
+  sim.inject('runtime.identity_hijacked', {
+    run: 'session-1',
+    coordinatorHandle: 'other',
+    consumerGeneration: 1,
+  });
+  choose(sim, Object.values(sim.state.gates)[0]!.gateId, 'reclaim');
+  expect(calls).toBe(1);
+  const retry = Object.values(sim.state.gates).find(
+    (g) => g.status === 'open',
+  )!;
+  expect(retry).toBeTruthy();
+  choose(sim, retry.gateId, 'reclaim');
+  expect(calls).toBe(2);
+  expect(sim.state.workflow!.pausedReasons).toEqual([]);
+  const effects = [
+    internal({ type: 'StartStage', meta: sim.meta(), stageId: 'implement' }),
+  ];
+  expect(
+    filterPolicyEffects(
+      context(sim, 'workflow.resumed', { reason: 'anomaly' }),
+      effects,
+    ),
+  ).toEqual(effects);
+  expect(sim.rejections).toEqual([]);
+});
+
+it('late usage never regresses a terminal work item to needs_attention', () => {
+  const sim = setup();
+  agent(sim, 'a');
+  sim.state.workItems.a!.status = 'merged';
+  sim.state.attempts.a!.state = 'exited';
+  usage(sim, 'a', 800_000);
+  expect(sim.state.workItems.a!.status).toBe('merged');
   expect(sim.rejections).toEqual([]);
 });
