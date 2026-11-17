@@ -121,6 +121,122 @@ describe('policy detection', () => {
   });
 });
 
+describe('follow-up policy gaps', () => {
+  it.each([
+    'gh api -X PUT repos/o/r/pulls/12/merge',
+    'gh api repos/o/r/pulls/12/merge --method=PUT',
+    'gh api -XPUT /repos/o/r/pulls/12/merge',
+    'gh api --method PUT https://api.github.com/repos/o/r/pulls/12/merge',
+    'gh api repos/{owner}/{repo}/merges -f base=main -f head=feature',
+    'gh api -X POST repos/o/r/merges --input request.json',
+    'gh api repos/o/r/merges --raw-field=base=main',
+    'gh api repos/o/r/merges -Fbase=main',
+    'gh api repos/o/r/merges --input=request.json',
+    'true && /opt/bin/gh api --hostname github.com -H "Accept: application/json" -X PUT "repos/o/r/pulls/12/merge"',
+  ])('detects high-severity API merges: %s', (command) => {
+    expect(redactor.toActivity(output({ command })).policyHits).toEqual([
+      { rule: 'gh-merge', severity: 'high', messageId: 'm1' },
+    ]);
+  });
+  it.each([
+    'gh api -X POST repos/o/r/git/refs -f ref=refs/heads/main -f sha=abc',
+    'gh api repos/o/r/git/refs/heads/main --method PATCH -f sha=abc',
+    'gh api --method=PATCH /repos/o/r/git/refs/heads/main',
+    'gh api repos/o/r/git/refs -F ref=refs/heads/feature',
+    'gh api -X DELETE repos/o/r/git/refs/heads/main',
+  ])('detects high-severity API ref writes: %s', (command) => {
+    expect(redactor.toActivity(output({ command })).policyHits).toEqual([
+      { rule: 'push-default-branch', severity: 'high', messageId: 'm1' },
+    ]);
+  });
+  it.each([
+    'gh api repos/o/r/pulls/12/merge',
+    'gh api -X GET repos/o/r/git/refs/heads/main',
+    'gh api repos/o/r/git/refs --method GET -f per_page=10',
+    'gh api --method HEAD repos/o/r/pulls/12/merge',
+    'gh api -X POST repos/o/r/issues -f body=repos/o/r/merges',
+    'gh api -X POST repos/o/r/issues --template repos/o/r/merges',
+    'gh api -X POST repos/o/r/git/matching-refs',
+    'gh pr view 12 --comments',
+    'echo "gh pr comment 12 --body hello"',
+  ])(
+    'does not flag reads, payload paths or unrelated endpoints: %s',
+    (command) => {
+      expect(redactor.toActivity(output({ command })).policyHits).toEqual([]);
+    },
+  );
+  it('detects PR comments at medium severity', () => {
+    expect(
+      redactor.toActivity(
+        output({ command: 'gh pr comment 12 --body "Please review"' }),
+      ).policyHits,
+    ).toEqual([{ rule: 'gh-comment', severity: 'medium', messageId: 'm1' }]);
+  });
+  it.each([
+    'git push',
+    'git push origin',
+    'git push -u origin HEAD',
+    'git push --repo=origin',
+    'git push origin +HEAD',
+    "sh -c 'git push'",
+  ])(
+    'detects implicit pushes with default or unknown context: %s',
+    (command) => {
+      for (const options of [
+        { defaultBranch: 'main' },
+        { defaultBranch: 'main', currentBranch: 'main' },
+      ]) {
+        expect(
+          createRedactor(options).toActivity(output({ command })).policyHits,
+        ).toEqual([
+          { rule: 'push-default-branch', severity: 'high', messageId: 'm1' },
+        ]);
+      }
+      expect(
+        createRedactor({
+          defaultBranch: 'main',
+          currentBranch: 'feature',
+        }).toActivity(output({ command })).policyHits,
+      ).toEqual([]);
+    },
+  );
+  it.each([
+    'git push origin HEAD:feature',
+    'git push origin feature',
+    'git push origin refs/heads/feature',
+  ])('respects an explicit non-default destination: %s', (command) => {
+    expect(
+      createRedactor({
+        defaultBranch: 'main',
+        currentBranch: 'main',
+      }).toActivity(output({ command })).policyHits,
+    ).toEqual([]);
+  });
+  it.each([
+    'git switch main && git push',
+    'git checkout main; git push origin HEAD',
+    'cd /other/repo && git push',
+    'git -C /other/repo push',
+    'GIT_DIR=/other/repo/.git git push',
+    'git -c push.default=matching push',
+    'git config push.default matching && git push',
+    'git push origin :',
+    'git push origin HEAD:main',
+    'git push origin main',
+  ])(
+    'does not let feature context hide a possible default-branch push: %s',
+    (command) => {
+      const contextual = createRedactor({
+        defaultBranch: 'main',
+        currentBranch: 'feature',
+      });
+      expect(contextual.toActivity(output({ command })).policyHits).toEqual([
+        { rule: 'push-default-branch', severity: 'high', messageId: 'm1' },
+      ]);
+    },
+  );
+});
+
 describe('L0 activity', () => {
   it('does not trust summary-shaped raw strings or inherited tool names', () => {
     const input = `<redacted length=999 sha256=${'a'.repeat(64)}>`;
