@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "stageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "$ref": "./StageKind.schema.json"
+    },
+    "status": {
+      "$ref": "./StageStatus.schema.json"
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "./StageRunView.schema.json"
+      }
+    },
+    "gateId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "meeting": {
+      "$ref": "./MeetingView.schema.json"
+    },
+    "oncall": {
+      "$ref": "./OncallView.schema.json"
+    },
+    "usage": {
+      "$ref": "./TokenUsage.schema.json"
+    }
+  },
+  "required": [
+    "stageId",
+    "kind",
+    "status",
+    "runs",
+    "usage"
+  ]
+}

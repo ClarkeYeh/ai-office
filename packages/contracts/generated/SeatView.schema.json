@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "seatId": {
+      "$ref": "./SeatId.schema.json"
+    },
+    "workflowId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "itemKey": {
+      "$ref": "./WorkItemKey.schema.json"
+    },
+    "agent": {
+      "anyOf": [
+        {
+          "$ref": "./AgentKind.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state": {
+      "anyOf": [
+        {
+          "$ref": "./AttemptState.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "degraded": {
+      "type": "boolean"
+    },
+    "currentAttemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "currentWorkItem": {
+      "$ref": "./WorkItemKey.schema.json"
+    },
+    "recentActivity": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "$ref": "./ActivityView.schema.json"
+      }
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "$ref": "./AttemptView.schema.json"
+      }
+    },
+    "policyHits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule": {
+            "type": "string",
+            "enum": [
+              "orca-dispatch",
+              "orca-run-use",
+              "orca-worker-stop",
+              "orca-agent-launch",
+              "gh-merge",
+              "gh-comment",
+              "push-default-branch",
+              "gh-label"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium"
+            ]
+          },
+          "messageId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "rule",
+          "severity",
+          "messageId",
+          "attemptId"
+        ]
+      }
+    },
+    "usage": {
+      "$ref": "./TokenUsage.schema.json"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "./ErrorView.schema.json"
+      }
+    }
+  },
+  "required": [
+    "seatId",
+    "workflowId",
+    "role",
+    "agent",
+    "state",
+    "degraded",
+    "recentActivity",
+    "attempts",
+    "policyHits",
+    "usage",
+    "errors"
+  ]
+}
