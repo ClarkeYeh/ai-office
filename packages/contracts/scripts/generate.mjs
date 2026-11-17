@@ -18,7 +18,9 @@ import * as stream from '../dist/stream/index.js';
 import * as submission from '../dist/agent-submission/index.js';
 
 const generated = new URL('../generated/', import.meta.url);
+/** @type {Record<string, ReturnType<typeof jsonSchema>>} */
 const schemas = {};
+/** @param {z.ZodType} schema */
 const jsonSchema = (schema) =>
   z.toJSONSchema(schema, { target: 'draft-2020-12', io: 'input' });
 for (const module of [events, template, api, stream, submission]) {
@@ -27,19 +29,28 @@ for (const module of [events, template, api, stream, submission]) {
   }
 }
 // Cross-field Zod refinements cannot be represented by standard JSON Schema.
+if (!schemas.WorkflowTemplateSchema)
+  throw new Error('Missing workflow template schema');
 schemas.WorkflowTemplateSchema.$comment =
   'Also validate references, unique stage/gate IDs, kind order, and mandatory final-pr using WorkflowTemplateSchema in Zod; JSON Schema validates structure only.';
+/** @typedef {{ required: boolean, content: Record<string, { schema: ReturnType<typeof jsonSchema> }> }} RequestBody */
+/** @type {Record<string, Record<string, unknown>>} */
 const paths = {};
-for (const endpoint of api.apiEndpoints) {
+/** @type {readonly api.EndpointContract[]} */
+const endpoints = api.apiEndpoints;
+for (const endpoint of endpoints) {
   const parameters = [];
-  for (const [key, location] of [
+  /** @type {['params' | 'query' | 'headers', string][]} */
+  const locations = [
     ['params', 'path'],
     ['query', 'query'],
     ['headers', 'header'],
-  ]) {
-    if (!endpoint[key]) continue;
-    const schema = jsonSchema(endpoint[key]);
-    for (const [name, property] of Object.entries(schema.properties)) {
+  ];
+  for (const [key, location] of locations) {
+    const endpointSchema = endpoint[key];
+    if (!endpointSchema) continue;
+    const schema = jsonSchema(endpointSchema);
+    for (const [name, property] of Object.entries(schema.properties ?? {})) {
       parameters.push({
         name,
         in: location,
@@ -49,6 +60,7 @@ for (const endpoint of api.apiEndpoints) {
     }
   }
   const operation = {
+    .../** @type {{ requestBody?: RequestBody }} */ ({}),
     operationId: endpoint.operationId,
     security: endpoint.path.startsWith('/api/')
       ? [{ session: [] }]
@@ -103,6 +115,7 @@ const openapi = {
     schemas,
   },
 };
+/** @type {Record<string, unknown>} */
 const files = {
   'openapi.json': openapi,
   ...Object.fromEntries(
@@ -135,7 +148,13 @@ try {
     for (const name of committed) {
       if (
         (await readFile(new URL(name, generated), 'utf8')) !==
-        (await readFile(join(output, name), 'utf8'))
+        (await readFile(
+          new URL(
+            name,
+            typeof output === 'string' ? pathToFileURL(output + '/') : output,
+          ),
+          'utf8',
+        ))
       )
         throw new Error(`${name} differs; run pnpm contracts:gen`);
     }

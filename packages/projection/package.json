@@ -15,5 +15,9 @@
   },
   "dependencies": {
     "@ai-office/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "fast-check": "^4.10.2"
   }
 }

@@ -22,6 +22,8 @@ try {
   // hostile samples or depending on which adapter dependencies are installed yet.
   const packages = [
     'zod',
+    'smol-toml',
+    'fastify-type-provider-zod',
     'fastify',
     '@fastify/cors',
     'octokit',
@@ -82,8 +84,13 @@ try {
     ],
     { cwd: temporary, encoding: 'utf8' },
   );
-  assert(validation.status > 0, 'Error reporter must fail on violations');
+  assert(
+    validation.status !== null && validation.status > 0,
+    'Error reporter must fail on violations',
+  );
+  /** @type {import('dependency-cruiser').ICruiseResult} */
   const report = JSON.parse(result.stdout);
+  /** @type {{ file: string, rules: string[] }[]} */
   const cases = JSON.parse(
     await readFile(join(import.meta.dirname, 'cases.json'), 'utf8'),
   );

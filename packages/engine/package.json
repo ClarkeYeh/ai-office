@@ -14,7 +14,11 @@
     "test": "vitest run --config ../../vitest.config.ts --project @ai-office/engine"
   },
   "dependencies": {
-    "@ai-office/domain": "workspace:*",
-    "@ai-office/contracts": "workspace:*"
+    "@ai-office/contracts": "workspace:*",
+    "@ai-office/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "fast-check": "^4.10.2"
   }
 }

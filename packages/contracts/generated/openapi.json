@@ -28510,32 +28510,6 @@
           "requirement"
         ]
       },
-      "SubmissionHeadersSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "authorization": {
-            "type": "string",
-            "format": "starts_with",
-            "pattern": "^Bearer aio_seat_.*"
-          },
-          "x-aio-terminal-handle": {
-            "type": "string",
-            "minLength": 1
-          },
-          "x-aio-pane-key": {
-            "type": "string",
-            "minLength": 1
-          },
-          "x-aio-agent-session": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "authorization"
-        ]
-      },
       "TemplateInvalidSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -35606,6 +35580,32 @@
               "payload"
             ]
           }
+        ]
+      },
+      "SubmissionHeadersSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "authorization": {
+            "type": "string",
+            "format": "starts_with",
+            "pattern": "^Bearer aio_seat_.*"
+          },
+          "x-aio-terminal-handle": {
+            "type": "string",
+            "minLength": 1
+          },
+          "x-aio-pane-key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "x-aio-agent-session": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "authorization"
         ]
       },
       "SubmissionResponseSchema": {

@@ -31,6 +31,12 @@ jobs:
         run: pnpm lint
       - name: Test
         run: pnpm test
+      - name: Test build and validation scripts
+        run: pnpm test:scripts
+      - name: Check pure-package coverage
+        run: pnpm test:coverage
+      - name: Smoke-test native SQLite on Node 24
+        run: pnpm vitest run --project @ai-office/server native.test.ts
       - name: Check dependency boundaries
         run: pnpm depcruise
       - name: Test dependency boundary rules
