@@ -47,8 +47,8 @@ const applyAll = (harness: Harness, ...drafts: DomainEventDraft[]): Harness => {
 };
 
 describe('coverage of the event catalogue', () => {
-  test('evolve handles exactly the 63 contract event types', () => {
-    expect(EVENT_TYPES).toHaveLength(63);
+  test('evolve handles exactly the 66 contract event types', () => {
+    expect(EVENT_TYPES).toHaveLength(66);
     expect([...HANDLED_EVENT_TYPES].sort()).toEqual([...EVENT_TYPES].sort());
   });
 
@@ -574,37 +574,74 @@ describe('message and on-call events', () => {
     ]);
   });
 
-  test('on-call queue', () => {
+  test('on-demand queue (on-call purpose)', () => {
     const harness = meeting();
     applyAll(
       harness,
-      sample('oncall.queue_changed'),
-      sample('oncall.stopped', { attemptId: 'att-x' }),
-      sample('oncall.started'),
+      sample('ondemand.queue_changed'),
+      sample('ondemand.stopped', { attemptId: 'att-x' }),
+      sample('ondemand.started'),
     );
-    expect(harness.state.oncall.meeting).toEqual({
+    expect(harness.state.ondemand.meeting?.oncall).toEqual({
       stageId: 'meeting',
       attemptId: 'att-1',
       queue: [],
     });
     applyAll(
       harness,
-      sample('oncall.queue_changed'),
-      eventDraft('oncall.queue_changed', { stageId: 'meeting', queue: [] }),
+      sample('ondemand.queue_changed'),
+      eventDraft('ondemand.queue_changed', {
+        stageId: 'meeting',
+        purpose: 'oncall',
+        queue: [],
+      }),
     );
-    expect(harness.state.oncall.meeting).toEqual({
+    expect(harness.state.ondemand.meeting?.oncall).toEqual({
       stageId: 'meeting',
       attemptId: 'att-1',
       queue: [],
     });
-    applyAll(harness, sample('oncall.queue_changed'), sample('oncall.stopped'));
-    expect(harness.state.oncall.meeting).toEqual({
+    applyAll(
+      harness,
+      sample('ondemand.queue_changed'),
+      sample('ondemand.stopped'),
+    );
+    expect(harness.state.ondemand.meeting?.oncall).toEqual({
       stageId: 'meeting',
       attemptId: 'att-1',
       queue: ['q-1'],
       stopped: 'queue_empty',
     });
-    expect(harness.warnings.map((w) => w.code)).toEqual(['oncall_not_running']);
+    expect(harness.state.ondemand.meeting?.merge).toBeUndefined();
+    expect(harness.warnings.map((w) => w.code)).toEqual([
+      'ondemand_not_running',
+    ]);
+  });
+
+  test('on-demand purposes keep separate instances per stage', () => {
+    const harness = meeting();
+    applyAll(
+      harness,
+      sample('ondemand.started'),
+      eventDraft('ondemand.started', {
+        stageId: 'meeting',
+        purpose: 'merge',
+        attemptId: 'att-m',
+      }),
+      eventDraft('ondemand.stopped', {
+        stageId: 'meeting',
+        purpose: 'merge',
+        attemptId: 'att-1',
+        reason: 'queue_empty',
+      }),
+    );
+    expect(harness.state.ondemand.meeting).toEqual({
+      oncall: { stageId: 'meeting', attemptId: 'att-1', queue: [] },
+      merge: { stageId: 'meeting', attemptId: 'att-m', queue: [] },
+    });
+    expect(harness.warnings.map((w) => w.code)).toEqual([
+      'ondemand_not_running',
+    ]);
   });
 });
 

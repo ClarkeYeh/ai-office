@@ -138,7 +138,6 @@ export const samplePayloads = (ids: SampleIds = DEFAULT_IDS): Samples => {
       role: 'pm',
       agent: 'claude-code',
       purpose: 'participant',
-      oncall: false,
       keepOpen: true,
       spawnCommandId: ids.commandId,
     },
@@ -232,14 +231,20 @@ export const samplePayloads = (ids: SampleIds = DEFAULT_IDS): Samples => {
       subject: 's',
       body: 'b',
     },
-    'oncall.started': { stageId: ids.stageId, attemptId: ids.attemptId },
-    'oncall.queue_changed': {
+    'ondemand.started': {
       stageId: ids.stageId,
+      purpose: 'oncall',
+      attemptId: ids.attemptId,
+    },
+    'ondemand.queue_changed': {
+      stageId: ids.stageId,
+      purpose: 'oncall',
       queue: [ids.questionId],
       current: ids.questionId,
     },
-    'oncall.stopped': {
+    'ondemand.stopped': {
       stageId: ids.stageId,
+      purpose: 'oncall',
       attemptId: ids.attemptId,
       reason: 'queue_empty',
     },
@@ -267,6 +272,26 @@ export const samplePayloads = (ids: SampleIds = DEFAULT_IDS): Samples => {
       pr: ids.n,
       headSha: SHA,
       reason: 'r',
+    },
+    'workitem.merge_queued': {
+      itemKey: ids.itemKey,
+      attemptId: ids.attemptId,
+      pr: ids.n,
+      headSha: SHA,
+    },
+    'workitem.rework_requested': {
+      itemKey: ids.itemKey,
+      pr: ids.n,
+      submissionId: ids.submissionId,
+      attemptId: ids.attemptId,
+      reasons: ['r'],
+      rework: 1,
+    },
+    'workitem.merged': {
+      itemKey: ids.itemKey,
+      pr: ids.n,
+      mergeCommitSha: SHA,
+      commandId: ids.commandId,
     },
     'artifact.created':
       ids.n % 3 === 0

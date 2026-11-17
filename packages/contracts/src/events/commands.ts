@@ -19,10 +19,19 @@ const AgentRef = id;
 const WorkspaceRef = id;
 const QuestionRef = id;
 
+/**
+ * rev2.10 §6.5/§7.3: bases resolve against the remote. With `fetchBranch` the
+ * adapter runs `git fetch origin <fetchBranch>` first; `baseBranch` may then be
+ * the commit sha the backend resolved for `origin/<integration branch>`.
+ */
+const workspaceBase = {
+  baseBranch: id,
+  fetchBranch: id.optional(),
+};
 export const WorkspaceReqSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('new-worktree'),
-    baseBranch: id,
+    ...workspaceBase,
     name: id,
     branch: id,
   }),
@@ -60,7 +69,7 @@ export const ExternalCommandSchema = z.discriminatedUnion('kind', [
     z.object({
       session: SessionRef,
       repo: RepoRuntimeRefSchema,
-      baseBranch: id,
+      ...workspaceBase,
       name: id,
       branch: id,
     }),
@@ -231,7 +240,12 @@ export const CommandResultSchema = z.discriminatedUnion('kind', [
   result('runtime.openSession', z.object({ session: SessionRef })),
   result(
     'runtime.prepareWorkspace',
-    z.object({ workspace: WorkspaceRef, path: id }),
+    z.object({
+      workspace: WorkspaceRef,
+      path: id,
+      /** Commit the worktree HEAD was created at (`workitem.dispatched.baseSha`). */
+      baseSha: GitShaSchema.optional(),
+    }),
   ),
   result('runtime.disposeWorkspace', empty),
   result(

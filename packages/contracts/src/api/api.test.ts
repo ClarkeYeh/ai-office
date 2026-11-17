@@ -58,7 +58,6 @@ const attempt = {
   role: 'engineer',
   agent: 'codex',
   purpose: 'worker',
-  oncall: false,
   itemKey: 'w1',
   state: 'waiting_input',
   degraded: false,
@@ -215,7 +214,20 @@ const readModel = {
       kind: 'implement',
       status: 'running',
       runs: [{ attempt: 1, mode: 'initial', startedAt: at }],
-      oncall: { active: true, attemptId: 'att9', queue: ['q1'], current: 'q1' },
+      ondemand: {
+        oncall: {
+          active: true,
+          attemptId: 'att9',
+          queue: ['q1'],
+          current: 'q1',
+        },
+        merge: {
+          active: true,
+          attemptId: 'att8',
+          queue: ['w2'],
+          current: 'w1',
+        },
+      },
       usage,
     },
     {
@@ -237,11 +249,13 @@ const readModel = {
       role: 'engineer',
       agent: 'codex',
       deps: [],
-      status: 'pr_open',
+      status: 'in_review',
       attempts: 1,
       currentAttemptId: 'att1',
       seatId: 'wf1:engineer:w1',
       branch: 'ai-office/abcd/w1',
+      baseSha: 'abcdef1',
+      reworks: 1,
       issue: { number: 3 },
       pr,
       usage,
@@ -464,11 +478,38 @@ describe('read model', () => {
         ),
       }).success,
     ).toBe(false));
-  test('on-call attempts carry the oncall flag (Q10)', () => {
-    const withoutFlag: Partial<typeof attempt> = { ...attempt };
-    delete withoutFlag.oncall;
+  test('on-demand attempts carry their purpose (Q10, rev2.10)', () => {
+    const onDemand = (purpose: string) => ({
+      ...seat,
+      attempts: [{ ...attempt, ondemand: { purpose } }],
+    });
+    expect(SeatViewSchema.safeParse(onDemand('merge')).success).toBe(true);
+    expect(SeatViewSchema.safeParse(onDemand('oncall')).success).toBe(true);
+    expect(SeatViewSchema.safeParse(onDemand('lead')).success).toBe(false);
+  });
+  test('work items count reworks and only accept rev2.10 statuses', () => {
+    const [item] = readModel.workItems;
+    if (item === undefined) throw new Error('fixture has a work item');
+    const withoutReworks: Partial<typeof item> = { ...item };
+    delete withoutReworks.reworks;
     expect(
-      SeatViewSchema.safeParse({ ...seat, attempts: [withoutFlag] }).success,
+      WorkflowReadModelSchema.safeParse({
+        ...readModel,
+        workItems: [withoutReworks],
+      }).success,
+    ).toBe(false);
+    for (const status of ['merge_queued', 'rework', 'merged'])
+      expect(
+        WorkflowReadModelSchema.safeParse({
+          ...readModel,
+          workItems: [{ ...item, status }],
+        }).success,
+      ).toBe(true);
+    expect(
+      WorkflowReadModelSchema.safeParse({
+        ...readModel,
+        workItems: [{ ...item, status: 'reviewing' }],
+      }).success,
     ).toBe(false);
   });
   test('rejects unknown agent kinds in usage by agent', () =>

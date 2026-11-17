@@ -102,6 +102,22 @@
       "properties": {
         "kind": {
           "type": "string",
+          "const": "rework-request"
+        },
+        "payload": {
+          "$ref": "./ReworkRequest.schema.json"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
           "const": "decision-request"
         },
         "payload": {

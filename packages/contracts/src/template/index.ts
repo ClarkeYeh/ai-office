@@ -27,10 +27,21 @@ export const GateSchema = z.object({
     .optional(),
 });
 const id = z.string().min(1);
+/** Counted per PR; `ci-failed-twice` applies only when the repo has checks (§5.2). */
+export const EscalateOnSchema = z.array(
+  z.enum(['unresolvable-conflict', 'ci-failed-twice']),
+);
+/** rev2.10 §5.2: `escalateOn` may only appear on implement; other kinds reject it. */
+const noEscalateOn = {
+  escalateOn: z
+    .never({ error: 'escalateOn is only allowed on the implement stage' })
+    .optional(),
+};
 export const StageSchema = z.discriminatedUnion('kind', [
   z.object({
     id,
     kind: z.literal('meeting'),
+    ...noEscalateOn,
     facilitator: id,
     participants: z.array(id).min(1),
     maxRounds: positive,
@@ -42,6 +53,7 @@ export const StageSchema = z.discriminatedUnion('kind', [
   z.object({
     id,
     kind: z.literal('planning'),
+    ...noEscalateOn,
     owner: id,
     from: id,
     timeouts: z.object({ stageMin: positive }),
@@ -57,18 +69,27 @@ export const StageSchema = z.discriminatedUnion('kind', [
     timeouts: z.object({ itemMin: positive }),
     budget: BudgetSchema,
     onCall: z.object({ role: id, questionTimeoutMin: positive }),
+    /** rev2.10 §7.4a/§7.5: on-demand merge-queue integrator. */
+    mergeQueue: z.object({
+      role: id,
+      reviewTimeoutMin: positive,
+      /** Rework requests per item before the exception gate; defaults to `defaults.maxReruns`. */
+      maxRework: z.number().int().nonnegative().optional(),
+    }),
+    escalateOn: EscalateOnSchema,
   }),
   z.object({
     id,
     kind: z.literal('integrate'),
+    ...noEscalateOn,
     owner: id,
-    escalateOn: z.array(z.enum(['unresolvable-conflict', 'ci-failed-twice'])),
     timeouts: z.object({ stageMin: positive }),
     budget: BudgetSchema,
   }),
   z.object({
     id,
     kind: z.literal('final-pr'),
+    ...noEscalateOn,
     maxRevisions: z.number().int().nonnegative(),
     gate: GateSchema,
   }),
@@ -116,6 +137,7 @@ export const WorkflowTemplateSchema = z
       if ('owner' in stage) role(stage.owner, 'owner');
       if ('role' in stage) role(stage.role, 'role');
       if ('onCall' in stage) role(stage.onCall.role, 'onCall.role');
+      if ('mergeQueue' in stage) role(stage.mergeQueue.role, 'mergeQueue.role');
       if ('from' in stage && !stageIds.has(stage.from))
         issue('from', 'Must reference an upstream stage');
       if (stageIds.has(stage.id)) issue('id', 'Stage ids must be unique');

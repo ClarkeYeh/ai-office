@@ -3,6 +3,7 @@ import type {
   EventOfType,
   EventPayload,
   EventType,
+  OndemandPurpose,
 } from '@ai-office/contracts/events';
 import {
   budgetAlertKey,
@@ -16,6 +17,7 @@ import type {
   BudgetLevel,
   Gate,
   GateDecided,
+  OnDemand,
   Stage,
   Usage,
   WorkflowState,
@@ -57,6 +59,19 @@ const put = <T>(
   key: string | number,
   value: T,
 ): Record<string, T> => ({ ...record, [key]: value });
+
+const putOndemand = (
+  state: WorkflowState,
+  stageId: string,
+  purpose: OndemandPurpose,
+  value: OnDemand,
+): WorkflowState => ({
+  ...state,
+  ondemand: put(state.ondemand, stageId, {
+    ...state.ondemand[stageId],
+    [purpose]: value,
+  }),
+});
 
 const drop = <T>(record: Record<string, T>, key: string): Record<string, T> => {
   const next = { ...record };
@@ -734,40 +749,32 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     })),
   'message.instruction': unchanged,
 
-  // on-call (T6 baseline; engine T14 relies on it) ---------------------------
-  'oncall.started': (state, { payload: p }) => ({
-    ...state,
-    oncall: put(state.oncall, p.stageId, {
+  // on-demand instances (T6 baseline as on-call; rev2.10 adds `purpose`) ----
+  'ondemand.started': (state, { payload: p }) =>
+    putOndemand(state, p.stageId, p.purpose, {
       stageId: p.stageId,
       attemptId: p.attemptId,
       queue: [],
     }),
-  }),
-  'oncall.queue_changed': (state, { payload: p }) => {
-    const current = state.oncall[p.stageId];
-    return {
-      ...state,
-      oncall: put(state.oncall, p.stageId, {
-        ...omit(current ?? { stageId: p.stageId, queue: [] }, 'current'),
-        queue: p.queue,
-        ...(p.current === undefined ? {} : { current: p.current }),
-      }),
-    };
+  'ondemand.queue_changed': (state, { payload: p }) => {
+    const current = state.ondemand[p.stageId]?.[p.purpose];
+    return putOndemand(state, p.stageId, p.purpose, {
+      ...omit(current ?? { stageId: p.stageId, queue: [] }, 'current'),
+      queue: p.queue,
+      ...(p.current === undefined ? {} : { current: p.current }),
+    });
   },
-  'oncall.stopped': (state, { payload: p }) => {
-    const current = state.oncall[p.stageId];
+  'ondemand.stopped': (state, { payload: p }) => {
+    const current = state.ondemand[p.stageId]?.[p.purpose];
     if (current === undefined || current.attemptId !== p.attemptId)
       return skip(
-        'oncall_not_running',
-        `On-call ${p.attemptId} is not running`,
+        'ondemand_not_running',
+        `On-demand ${p.purpose} ${p.attemptId} is not running`,
       );
-    return {
-      ...state,
-      oncall: put(state.oncall, p.stageId, {
-        ...omit(current, 'current'),
-        stopped: p.reason,
-      }),
-    };
+    return putOndemand(state, p.stageId, p.purpose, {
+      ...omit(current, 'current'),
+      stopped: p.reason,
+    });
   },
 
   // work items (T6 baseline; T9 proposals/approval, T10 dispatch/status) -----
@@ -836,6 +843,10 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       }),
     };
   },
+  // rev2.10 progressive merge: contracts only (M1-CP3); state follows in M1-T10b.
+  'workitem.merge_queued': unchanged,
+  'workitem.rework_requested': unchanged,
+  'workitem.merged': unchanged,
 
   // artifacts and SCM --------------------------------------------------------
   'artifact.created': (state, event) => {

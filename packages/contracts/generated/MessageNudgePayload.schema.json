@@ -14,6 +14,7 @@
         "stage-timeout",
         "item-timeout",
         "question-timeout",
+        "review-timeout",
         "budget-wrap-up"
       ]
     },

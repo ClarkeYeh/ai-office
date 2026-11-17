@@ -12,6 +12,8 @@ import { commandInputs, policyRules } from './policy.js';
 
 export interface RedactorOptions {
   defaultBranch: string;
+  /** Fresh worktree branch context; omit when unknown (implicit pushes then hit). */
+  currentBranch?: string;
   preservedRepoUrls?: readonly string[];
 }
 
@@ -123,7 +125,11 @@ export function createRedactor(options: RedactorOptions): Redactor {
             : {}),
         });
         for (const source of commandInputs(block.input))
-          for (const rule of policyRules(source, options.defaultBranch))
+          for (const rule of policyRules(
+            source,
+            options.defaultBranch,
+            options.currentBranch,
+          ))
             rules.add(rule);
       }
       output.blocks.forEach((block, index) => {

@@ -25,8 +25,16 @@
     "meeting": {
       "$ref": "./MeetingView.schema.json"
     },
-    "oncall": {
-      "$ref": "./OncallView.schema.json"
+    "ondemand": {
+      "type": "object",
+      "properties": {
+        "oncall": {
+          "$ref": "./OndemandView.schema.json"
+        },
+        "merge": {
+          "$ref": "./OndemandView.schema.json"
+        }
+      }
     },
     "usage": {
       "$ref": "./TokenUsage.schema.json"

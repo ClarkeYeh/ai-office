@@ -13,7 +13,7 @@ import { finalPrStage } from './stages/final-pr.js';
 import { implementStage } from './stages/implement.js';
 import { integrateStage } from './stages/integrate.js';
 import { meetingStage } from './stages/meeting.js';
-import { oncallStage } from './stages/oncall.js';
+import { ondemandStage } from './ondemand/index.js';
 import { planningStage } from './stages/planning.js';
 import type { Policy, StageModule } from './stages/types.js';
 
@@ -22,7 +22,7 @@ export interface EngineModules {
     meeting: StageModule;
     planning: StageModule;
     implement: StageModule;
-    oncall: StageModule;
+    ondemand: StageModule;
     integrate: StageModule;
     'final-pr': StageModule;
   };
@@ -34,7 +34,7 @@ export const DEFAULT_MODULES: EngineModules = {
     meeting: meetingStage,
     planning: planningStage,
     implement: implementStage,
-    oncall: oncallStage,
+    ondemand: ondemandStage,
     integrate: integrateStage,
     'final-pr': finalPrStage,
   },

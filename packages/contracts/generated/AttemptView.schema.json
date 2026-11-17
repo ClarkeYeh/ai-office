@@ -25,8 +25,8 @@
     "purpose": {
       "$ref": "./AttemptPurpose.schema.json"
     },
-    "oncall": {
-      "type": "boolean"
+    "ondemand": {
+      "$ref": "./OndemandRef.schema.json"
     },
     "itemKey": {
       "$ref": "./WorkItemKey.schema.json"
@@ -81,7 +81,6 @@
     "role",
     "agent",
     "purpose",
-    "oncall",
     "state",
     "degraded",
     "startedAt",
