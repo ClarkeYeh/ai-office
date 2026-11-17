@@ -33,7 +33,7 @@ const adapterDependencies = {
     packagePath('better-sqlite3'),
     '^(node:)?(fs(/promises)?|path|crypto)$',
   ],
-  redactor: [],
+  redactor: ['^packages/redaction/'],
   'logger-pino': [packagePath('pino'), '^(node:)?(fs(/promises)?|path)$'],
   system: ['^(node:)?(crypto|fs(/promises)?|path|timers(/promises)?)$'],
   'runtime-orca': [
@@ -84,6 +84,9 @@ const config = {
     boundary('contracts-allowed-dependencies', '^packages/contracts/', [
       '^packages/contracts/',
       packagePath('zod'),
+    ]),
+    boundary('redaction-allowed-dependencies', '^packages/redaction/', [
+      '^packages/redaction/',
     ]),
     boundary('projection-allowed-dependencies', '^packages/projection/', [
       '^packages/projection/',

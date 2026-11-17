@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@ai-office/redaction':
+        specifier: workspace:*
+        version: link:packages/redaction
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.15.0)
@@ -63,6 +66,9 @@ importers:
       '@ai-office/projection':
         specifier: workspace:*
         version: link:../../packages/projection
+      '@ai-office/redaction':
+        specifier: workspace:*
+        version: link:../../packages/redaction
       '@ai-office/templates':
         specifier: workspace:*
         version: link:../../packages/templates
@@ -177,6 +183,12 @@ importers:
       fast-check:
         specifier: ^4.10.2
         version: 4.10.2
+
+  packages/redaction:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
 
   packages/templates: {}
 

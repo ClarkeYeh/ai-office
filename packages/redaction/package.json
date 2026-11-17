@@ -1,0 +1,19 @@
+{
+  "name": "@ai-office/redaction",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/redaction"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2"
+  }
+}
