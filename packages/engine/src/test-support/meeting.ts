@@ -55,6 +55,10 @@ interface Scenario {
   dirty?: boolean;
   planning?: boolean;
   missingItems?: boolean;
+  /** This role's releases fail permanently. */
+  releaseFails?: string;
+  /** ...and its stops are ignored, so the agent stays alive. */
+  stuck?: boolean;
 }
 export const scenario =
   (options: Scenario = {}): World =>
@@ -79,6 +83,20 @@ export const scenario =
       artifactId: `artifact-${sim.events.length}`,
       submission,
     });
+    if (attempt?.role === options.releaseFails) {
+      if (issued.command.kind === 'runtime.release')
+        return {
+          ok: false,
+          error: {
+            category: 'permanent',
+            code: 'release_failed',
+            message: 'Release failed',
+            retryable: false,
+          },
+        };
+      if (issued.command.kind === 'runtime.stop' && options.stuck)
+        return { ok: true, result: {} };
+    }
     if (issued.command.kind === 'runtime.inspectWorkspace' && options.dirty)
       return {
         ok: true,

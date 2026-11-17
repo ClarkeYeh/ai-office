@@ -284,6 +284,7 @@ const relevant = new Set([
   'stage.started',
   'stage.completed',
   'command.succeeded',
+  'command.failed',
   'seat.status',
   'seat.released',
   'seat.exited',
@@ -727,12 +728,18 @@ const reactMeeting: StageModule['react'] = (ctx) => {
           inspected.result.changedFiles,
         )
       : [];
-  if (attempts.some((a) => !a.released))
-    return attempts
+  // A permanently failed release must not hang the meeting: the stage completes
+  // and the §8.1 pre-gate protocol stops it again or opens the anomaly gate.
+  const releasing = attempts.filter(
+    (a) =>
+      !a.released &&
+      commands[commandId(ctx, 'release', a.attemptId, 'meeting-end')]
+        ?.status !== 'failed',
+  );
+  if (releasing.length)
+    return releasing
       .filter(
-        (a) =>
-          !a.released &&
-          !commands[commandId(ctx, 'release', a.attemptId, 'meeting-end')],
+        (a) => !commands[commandId(ctx, 'release', a.attemptId, 'meeting-end')],
       )
       .flatMap((a) => [
         ...stopAttempt(ctx, a, 'meeting-end'),
