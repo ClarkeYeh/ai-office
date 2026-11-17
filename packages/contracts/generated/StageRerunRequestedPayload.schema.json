@@ -33,11 +33,7 @@
       "type": "string"
     },
     "agentOverride": {
-      "type": "string",
-      "enum": [
-        "claude-code",
-        "codex"
-      ]
+      "$ref": "./AgentKind.schema.json"
     }
   },
   "required": [

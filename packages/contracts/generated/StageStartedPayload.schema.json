@@ -7,14 +7,7 @@
       "minLength": 1
     },
     "kind": {
-      "type": "string",
-      "enum": [
-        "meeting",
-        "planning",
-        "implement",
-        "integrate",
-        "final-pr"
-      ]
+      "$ref": "./StageKind.schema.json"
     },
     "attempt": {
       "type": "integer",
@@ -22,22 +15,13 @@
       "maximum": 9007199254740991
     },
     "mode": {
-      "type": "string",
-      "enum": [
-        "initial",
-        "rerun",
-        "revision"
-      ]
+      "$ref": "./StageMode.schema.json"
     },
     "feedback": {
       "type": "string"
     },
     "agentOverride": {
-      "type": "string",
-      "enum": [
-        "claude-code",
-        "codex"
-      ]
+      "$ref": "./AgentKind.schema.json"
     }
   },
   "required": [

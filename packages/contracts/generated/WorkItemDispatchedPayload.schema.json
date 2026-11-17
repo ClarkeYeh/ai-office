@@ -3,8 +3,7 @@
   "type": "object",
   "properties": {
     "itemKey": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "$ref": "./WorkItemKey.schema.json"
     },
     "attemptId": {
       "type": "string",
@@ -16,11 +15,7 @@
       "maximum": 9007199254740991
     },
     "agent": {
-      "type": "string",
-      "enum": [
-        "claude-code",
-        "codex"
-      ]
+      "$ref": "./AgentKind.schema.json"
     },
     "branch": {
       "type": "string",

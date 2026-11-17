@@ -9,40 +9,7 @@
         "minLength": 1
       },
       "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "tokens": {
-            "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991
-          },
-          "maxTurns": {
-            "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991
-          },
-          "perItem": {
-            "type": "object",
-            "properties": {
-              "tokens": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              },
-              "maxTurns": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              }
-            },
-            "required": [
-              "tokens"
-            ]
-          }
-        },
-        "required": [
-          "tokens"
-        ]
+        "$ref": "./Budget.schema.json"
       }
     },
     "workflow": {

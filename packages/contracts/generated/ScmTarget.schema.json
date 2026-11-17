@@ -3,21 +3,7 @@
   "type": "object",
   "properties": {
     "repo": {
-      "type": "object",
-      "properties": {
-        "owner": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "owner",
-        "name"
-      ]
+      "$ref": "./RepoScmRef.schema.json"
     },
     "number": {
       "type": "integer",

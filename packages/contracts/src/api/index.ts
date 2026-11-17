@@ -23,6 +23,7 @@ export const ReadModelSchema = z.record(z.string(), z.unknown());
 export const ErrorResponseSchema = z.object({
   error: z.object({
     code: id,
+    // TODO(M1-T2): reuse ErrorCategorySchema from contracts/events (adds suspect_escalation, §15).
     category: z.enum([
       'transient',
       'rate_limited',

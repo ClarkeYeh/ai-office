@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GitShaSchema } from '../events/common.js';
 
 // Submission payloads are defined in contracts/events so domain can validate them (§9.1).
 export {
@@ -55,7 +56,7 @@ export const SubmissionResponseSchema = z.discriminatedUnion('status', [
     status: z.literal('merged'),
     submissionId,
     pr: z.number().int().positive(),
-    mergeCommitSha: z.string().regex(/^[0-9a-f]{7,64}$/),
+    mergeCommitSha: GitShaSchema,
   }),
   z.object({ status: z.literal('pending'), submissionId }),
   z.object({

@@ -24,71 +24,7 @@
     "structured": {
       "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "summary": {
-              "type": "string"
-            },
-            "decisions": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "title": {
-                    "type": "string"
-                  },
-                  "rationale": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "title",
-                  "rationale"
-                ]
-              }
-            },
-            "techDecisions": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "topic": {
-                    "type": "string"
-                  },
-                  "options": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "chosen": {
-                    "type": "string"
-                  },
-                  "rationale": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "topic",
-                  "options",
-                  "chosen",
-                  "rationale"
-                ]
-              }
-            },
-            "openQuestions": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "required": [
-            "summary",
-            "decisions",
-            "techDecisions",
-            "openQuestions"
-          ]
+          "$ref": "./Conclusion.schema.json"
         },
         {
           "type": "null"

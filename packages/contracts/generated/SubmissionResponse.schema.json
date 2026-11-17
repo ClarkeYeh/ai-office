@@ -80,15 +80,7 @@
           "maximum": 9007199254740991
         },
         "reason": {
-          "type": "string",
-          "enum": [
-            "conflict",
-            "checks_failed",
-            "not_mergeable",
-            "head_mismatch",
-            "not_found",
-            "guard"
-          ]
+          "$ref": "./MergeFailureReason.schema.json"
         },
         "message": {
           "type": "string"

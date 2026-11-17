@@ -12,21 +12,7 @@
           "type": "object",
           "properties": {
             "repo": {
-              "type": "object",
-              "properties": {
-                "orcaRepoId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "localPath": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "orcaRepoId",
-                "localPath"
-              ]
+              "$ref": "./RepoRuntimeRef.schema.json"
             },
             "objective": {
               "type": "string"
@@ -58,21 +44,7 @@
               "minLength": 1
             },
             "repo": {
-              "type": "object",
-              "properties": {
-                "orcaRepoId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "localPath": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "orcaRepoId",
-                "localPath"
-              ]
+              "$ref": "./RepoRuntimeRef.schema.json"
             },
             "baseBranch": {
               "type": "string",
@@ -166,11 +138,7 @@
               "minLength": 1
             },
             "agent": {
-              "type": "string",
-              "enum": [
-                "claude-code",
-                "codex"
-              ]
+              "$ref": "./AgentKind.schema.json"
             },
             "model": {
               "type": "string",
@@ -197,56 +165,7 @@
               "pattern": "^[0-9a-f]{64}$"
             },
             "workspace": {
-              "oneOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "new-worktree"
-                    },
-                    "baseBranch": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "branch": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "baseBranch",
-                    "name",
-                    "branch"
-                  ]
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "const": "existing-worktree"
-                    },
-                    "workspace": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "readOnly": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "kind",
-                    "workspace",
-                    "readOnly"
-                  ]
-                }
-              ]
+              "$ref": "./WorkspaceReq.schema.json"
             },
             "keepOpen": {
               "type": "boolean"
@@ -396,42 +315,12 @@
           "type": "object",
           "properties": {
             "repo": {
-              "type": "object",
-              "properties": {
-                "owner": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "owner",
-                "name"
-              ]
+              "$ref": "./RepoScmRef.schema.json"
             },
             "labels": {
               "type": "array",
               "items": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "color": {
-                    "type": "string",
-                    "pattern": "^[0-9a-fA-F]{6}$"
-                  },
-                  "description": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name"
-                ]
+                "$ref": "./LabelSpec.schema.json"
               }
             }
           },
@@ -457,21 +346,7 @@
           "type": "object",
           "properties": {
             "repo": {
-              "type": "object",
-              "properties": {
-                "owner": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "owner",
-                "name"
-              ]
+              "$ref": "./RepoScmRef.schema.json"
             },
             "name": {
               "type": "string",
@@ -505,21 +380,7 @@
           "type": "object",
           "properties": {
             "repo": {
-              "type": "object",
-              "properties": {
-                "owner": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "owner",
-                "name"
-              ]
+              "$ref": "./RepoScmRef.schema.json"
             },
             "name": {
               "type": "string",
@@ -549,21 +410,7 @@
           "type": "object",
           "properties": {
             "repo": {
-              "type": "object",
-              "properties": {
-                "owner": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "owner",
-                "name"
-              ]
+              "$ref": "./RepoScmRef.schema.json"
             },
             "title": {
               "type": "string",
@@ -604,35 +451,7 @@
           "type": "object",
           "properties": {
             "issue": {
-              "type": "object",
-              "properties": {
-                "repo": {
-                  "type": "object",
-                  "properties": {
-                    "owner": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "owner",
-                    "name"
-                  ]
-                },
-                "number": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "repo",
-                "number"
-              ]
+              "$ref": "./IssueRef.schema.json"
             },
             "patch": {
               "type": "object",
@@ -676,43 +495,7 @@
           "type": "object",
           "properties": {
             "target": {
-              "type": "object",
-              "properties": {
-                "repo": {
-                  "type": "object",
-                  "properties": {
-                    "owner": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "owner",
-                    "name"
-                  ]
-                },
-                "number": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "type": {
-                  "type": "string",
-                  "enum": [
-                    "issue",
-                    "pr"
-                  ]
-                }
-              },
-              "required": [
-                "repo",
-                "number",
-                "type"
-              ]
+              "$ref": "./ScmTarget.schema.json"
             },
             "body": {
               "type": "string"
@@ -740,43 +523,7 @@
           "type": "object",
           "properties": {
             "target": {
-              "type": "object",
-              "properties": {
-                "repo": {
-                  "type": "object",
-                  "properties": {
-                    "owner": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "owner",
-                    "name"
-                  ]
-                },
-                "number": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "type": {
-                  "type": "string",
-                  "enum": [
-                    "issue",
-                    "pr"
-                  ]
-                }
-              },
-              "required": [
-                "repo",
-                "number",
-                "type"
-              ]
+              "$ref": "./ScmTarget.schema.json"
             },
             "labels": {
               "type": "array",
@@ -808,21 +555,7 @@
           "type": "object",
           "properties": {
             "repo": {
-              "type": "object",
-              "properties": {
-                "owner": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "owner",
-                "name"
-              ]
+              "$ref": "./RepoScmRef.schema.json"
             },
             "title": {
               "type": "string",
@@ -868,35 +601,7 @@
           "type": "object",
           "properties": {
             "pr": {
-              "type": "object",
-              "properties": {
-                "repo": {
-                  "type": "object",
-                  "properties": {
-                    "owner": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "owner",
-                    "name"
-                  ]
-                },
-                "number": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "repo",
-                "number"
-              ]
+              "$ref": "./PrRef.schema.json"
             },
             "patch": {
               "type": "object",
@@ -940,35 +645,7 @@
           "type": "object",
           "properties": {
             "pr": {
-              "type": "object",
-              "properties": {
-                "repo": {
-                  "type": "object",
-                  "properties": {
-                    "owner": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "owner",
-                    "name"
-                  ]
-                },
-                "number": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "repo",
-                "number"
-              ]
+              "$ref": "./PrRef.schema.json"
             },
             "method": {
               "type": "string",

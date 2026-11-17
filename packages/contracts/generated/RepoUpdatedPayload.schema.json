@@ -15,21 +15,7 @@
       "minLength": 1
     },
     "github": {
-      "type": "object",
-      "properties": {
-        "owner": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "owner",
-        "name"
-      ]
+      "$ref": "./RepoScmRef.schema.json"
     },
     "defaultBranch": {
       "type": "string",

@@ -3,8 +3,7 @@
   "type": "object",
   "properties": {
     "seatId": {
-      "type": "string",
-      "minLength": 1
+      "$ref": "./SeatId.schema.json"
     },
     "attemptId": {
       "type": "string",

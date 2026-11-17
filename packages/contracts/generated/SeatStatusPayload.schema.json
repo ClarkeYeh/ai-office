@@ -7,17 +7,7 @@
       "minLength": 1
     },
     "state": {
-      "type": "string",
-      "enum": [
-        "starting",
-        "working",
-        "waiting_input",
-        "idle",
-        "done",
-        "error",
-        "exited",
-        "lost"
-      ]
+      "$ref": "./AttemptState.schema.json"
     },
     "waitingSince": {
       "type": "string",

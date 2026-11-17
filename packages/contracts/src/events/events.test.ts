@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import {
   AgentSubmissionSchema as SubmissionFromAgentPath,
@@ -11,6 +12,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   DomainEventSchema,
   EVENT_PAYLOAD_SCHEMAS,
+  ErrorCategorySchema,
   EVENT_TYPES,
   EXTERNAL_COMMAND_KINDS,
   ExternalCommandSchema,
@@ -687,7 +689,7 @@ const payloadExamples: Record<EventType, { valid: unknown; invalid: unknown }> =
         kind: 'scm.mergePR',
         attempts: 1,
         error: {
-          category: 'suspect_escalation',
+          category: 'panic',
           code: 'x',
           message: '',
           retryable: false,
@@ -961,4 +963,38 @@ test('draft and payload helper types narrow by event type', () => {
   // @ts-expect-error drafts never carry seq.
   const withSeq: DomainEventDraft = { ...draft, seq: 1 };
   expect([draft, payload, withSeq]).toHaveLength(3);
+});
+
+test('error categories match the 12 in SPEC §15', () => {
+  expect(ErrorCategorySchema.options).toEqual([
+    'transient',
+    'rate_limited',
+    'auth',
+    'suspect_escalation',
+    'identity',
+    'hijacked',
+    'contract_mismatch',
+    'permanent',
+    'bug',
+    'conflict',
+    'validation',
+    'guard',
+  ]);
+});
+
+test('generated schemas reference shared definitions that exist', () => {
+  const dir = new URL('../../generated/', import.meta.url);
+  const files = readdirSync(dir).filter((name) => name.endsWith('.json'));
+  const refs = (text: string) =>
+    [...text.matchAll(/"\$ref": "([^"]+)"/g)].map((match) => match[1]!);
+  for (const name of files.filter((file) => file !== 'openapi.json'))
+    for (const ref of refs(readFileSync(new URL(name, dir), 'utf8')))
+      if (!ref.startsWith('#')) expect(files).toContain(ref.slice(2));
+  const openapi = readFileSync(new URL('openapi.json', dir), 'utf8');
+  const components = Object.keys(JSON.parse(openapi).components.schemas);
+  for (const ref of refs(openapi))
+    if (ref.startsWith('#/components/schemas/'))
+      expect(components).toContain(ref.slice('#/components/schemas/'.length));
+  expect(components).toContain('DomainEvent');
+  expect(openapi).not.toContain('./');
 });

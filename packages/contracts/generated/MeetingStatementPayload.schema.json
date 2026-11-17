@@ -19,39 +19,7 @@
       "minLength": 1
     },
     "statement": {
-      "type": "object",
-      "properties": {
-        "round": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
-        },
-        "position": {
-          "type": "string"
-        },
-        "arguments": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "concerns": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "readyToConclude": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "round",
-        "position",
-        "arguments",
-        "concerns",
-        "readyToConclude"
-      ]
+      "$ref": "./Statement.schema.json"
     }
   },
   "required": [

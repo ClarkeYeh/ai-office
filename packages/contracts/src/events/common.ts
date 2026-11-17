@@ -17,7 +17,7 @@ export const WorkItemKeySchema = z
  * Seats are `(workflow, role[, workItem])` (§4). The on-call lead shares the
  * `onCall.role` seat and marks its attempts with `oncall: true` (Q10).
  */
-export const SeatIdSchema = id;
+export const SeatIdSchema = z.string().min(1);
 export const seatIdFor = (seat: {
   workflowId: string;
   role: string;
@@ -60,11 +60,13 @@ export const WorkItemStatusSchema = z.enum([
   'failed',
 ]);
 
-// §15. `suspect_escalation` is resolved inside runtime adapters and never surfaces as an error.
+// §15's 12 categories. Runtime adapters normally resolve `suspect_escalation` (§11.1)
+// before it reaches the engine, but it stays a valid recorded category.
 export const ErrorCategorySchema = z.enum([
   'transient',
   'rate_limited',
   'auth',
+  'suspect_escalation',
   'identity',
   'hijacked',
   'contract_mismatch',
@@ -124,7 +126,10 @@ export const IssueRefSchema = z.object({
   repo: RepoScmRefSchema,
   number: positiveInt,
 });
-export const PrRefSchema = IssueRefSchema;
+export const PrRefSchema = z.object({
+  repo: RepoScmRefSchema,
+  number: positiveInt,
+});
 export const ScmTargetSchema = IssueRefSchema.extend({
   type: z.enum(['issue', 'pr']),
 });

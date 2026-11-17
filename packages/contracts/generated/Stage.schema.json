@@ -49,40 +49,7 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         },
         "conclusion": {
           "type": "object",
@@ -96,38 +63,7 @@
           ]
         },
         "gate": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "title": {
-              "type": "string",
-              "minLength": 1
-            },
-            "optional": {
-              "type": "boolean"
-            },
-            "editable": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "body",
-                  "acceptance",
-                  "role",
-                  "agent",
-                  "deps"
-                ]
-              }
-            }
-          },
-          "required": [
-            "id",
-            "title"
-          ]
+          "$ref": "./Gate.schema.json"
         }
       },
       "required": [
@@ -175,74 +111,10 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         },
         "gate": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "title": {
-              "type": "string",
-              "minLength": 1
-            },
-            "optional": {
-              "type": "boolean"
-            },
-            "editable": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "body",
-                  "acceptance",
-                  "role",
-                  "agent",
-                  "deps"
-                ]
-              }
-            }
-          },
-          "required": [
-            "id",
-            "title"
-          ]
+          "$ref": "./Gate.schema.json"
         }
       },
       "required": [
@@ -293,40 +165,7 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         },
         "onCall": {
           "type": "object",
@@ -397,40 +236,7 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         }
       },
       "required": [
@@ -459,38 +265,7 @@
           "maximum": 9007199254740991
         },
         "gate": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "title": {
-              "type": "string",
-              "minLength": 1
-            },
-            "optional": {
-              "type": "boolean"
-            },
-            "editable": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "body",
-                  "acceptance",
-                  "role",
-                  "agent",
-                  "deps"
-                ]
-              }
-            }
-          },
-          "required": [
-            "id",
-            "title"
-          ]
+          "$ref": "./Gate.schema.json"
         }
       },
       "required": [

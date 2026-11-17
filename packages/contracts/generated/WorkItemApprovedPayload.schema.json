@@ -9,52 +9,7 @@
     "items": {
       "type": "array",
       "items": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-          },
-          "title": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
-          },
-          "acceptance": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "role": {
-            "type": "string",
-            "minLength": 1
-          },
-          "agent": {
-            "type": "string",
-            "enum": [
-              "claude-code",
-              "codex"
-            ]
-          },
-          "deps": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-            }
-          }
-        },
-        "required": [
-          "key",
-          "title",
-          "body",
-          "acceptance",
-          "role",
-          "agent",
-          "deps"
-        ]
+        "$ref": "./ApprovedWorkItem.schema.json"
       }
     }
   },

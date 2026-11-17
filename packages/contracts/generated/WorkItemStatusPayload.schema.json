@@ -3,23 +3,10 @@
   "type": "object",
   "properties": {
     "itemKey": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "$ref": "./WorkItemKey.schema.json"
     },
     "status": {
-      "type": "string",
-      "enum": [
-        "proposed",
-        "approved",
-        "dispatched",
-        "in_progress",
-        "pushed",
-        "pr_open",
-        "merged",
-        "needs_attention",
-        "skipped",
-        "failed"
-      ]
+      "$ref": "./WorkItemStatus.schema.json"
     },
     "attemptId": {
       "type": "string",

@@ -7,65 +7,10 @@
       "minLength": 1
     },
     "kind": {
-      "type": "string",
-      "enum": [
-        "runtime.openSession",
-        "runtime.prepareWorkspace",
-        "runtime.disposeWorkspace",
-        "runtime.inspectWorkspace",
-        "runtime.spawnAgent",
-        "runtime.send",
-        "runtime.answer",
-        "runtime.stop",
-        "runtime.release",
-        "scm.ensureLabels",
-        "scm.ensureBranch",
-        "scm.deleteBranch",
-        "scm.createIssue",
-        "scm.updateIssue",
-        "scm.comment",
-        "scm.setLabels",
-        "scm.openPR",
-        "scm.updatePR",
-        "scm.mergePR"
-      ]
+      "$ref": "./ExternalCommandKind.schema.json"
     },
     "error": {
-      "type": "object",
-      "properties": {
-        "category": {
-          "type": "string",
-          "enum": [
-            "transient",
-            "rate_limited",
-            "auth",
-            "identity",
-            "hijacked",
-            "contract_mismatch",
-            "permanent",
-            "bug",
-            "conflict",
-            "validation",
-            "guard"
-          ]
-        },
-        "code": {
-          "type": "string",
-          "minLength": 1
-        },
-        "message": {
-          "type": "string"
-        },
-        "retryable": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "category",
-        "code",
-        "message",
-        "retryable"
-      ]
+      "$ref": "./ErrorInfo.schema.json"
     },
     "attempts": {
       "type": "integer",

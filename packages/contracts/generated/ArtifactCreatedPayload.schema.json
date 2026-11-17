@@ -164,8 +164,7 @@
           ]
         },
         "itemKey": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          "$ref": "./WorkItemKey.schema.json"
         }
       },
       "required": [
@@ -199,8 +198,7 @@
           ]
         },
         "itemKey": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          "$ref": "./WorkItemKey.schema.json"
         }
       },
       "required": [
@@ -246,8 +244,7 @@
           "minLength": 1
         },
         "itemKey": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          "$ref": "./WorkItemKey.schema.json"
         }
       },
       "required": [

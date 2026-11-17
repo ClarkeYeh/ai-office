@@ -3,26 +3,10 @@
   "type": "object",
   "properties": {
     "reason": {
-      "type": "string",
-      "enum": [
-        "schema",
-        "identity_mismatch",
-        "not_allowed",
-        "gate_open"
-      ]
+      "$ref": "./SubmissionRejectionReason.schema.json"
     },
     "kind": {
-      "type": "string",
-      "enum": [
-        "agenda",
-        "statement",
-        "conclusion",
-        "work-items",
-        "answer-question",
-        "merge-request",
-        "decision-request",
-        "integration-report"
-      ]
+      "$ref": "./SubmissionKind.schema.json"
     },
     "attemptId": {
       "type": "string",

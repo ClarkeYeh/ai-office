@@ -3,13 +3,7 @@
   "type": "object",
   "properties": {
     "reason": {
-      "type": "string",
-      "enum": [
-        "unresolvable-conflict",
-        "scope-change",
-        "conflicts-with-conclusion",
-        "other"
-      ]
+      "$ref": "./DecisionRequestReason.schema.json"
     },
     "question": {
       "type": "string"

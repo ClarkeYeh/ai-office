@@ -10,38 +10,7 @@
       "minItems": 1,
       "type": "array",
       "items": {
-        "type": "object",
-        "properties": {
-          "rule": {
-            "type": "string",
-            "enum": [
-              "orca-dispatch",
-              "orca-run-use",
-              "orca-worker-stop",
-              "orca-agent-launch",
-              "gh-merge",
-              "gh-comment",
-              "push-default-branch",
-              "gh-label"
-            ]
-          },
-          "severity": {
-            "type": "string",
-            "enum": [
-              "high",
-              "medium"
-            ]
-          },
-          "messageId": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "rule",
-          "severity",
-          "messageId"
-        ]
+        "$ref": "./PolicyHit.schema.json"
       }
     }
   },

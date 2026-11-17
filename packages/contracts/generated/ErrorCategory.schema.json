@@ -5,6 +5,7 @@
     "transient",
     "rate_limited",
     "auth",
+    "suspect_escalation",
     "identity",
     "hijacked",
     "contract_mismatch",
