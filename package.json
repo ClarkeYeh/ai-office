@@ -17,16 +17,18 @@
     "depcruise": "depcruise --config .dependency-cruiser.cjs .",
     "depcruise:selftest": "node scripts/depcruise-selftest/index.mjs",
     "check:bundle": "node scripts/check-web-bundle/index.mjs",
-    "fixtures:scan": "echo TODO: fixtures:scan && exit 0"
+    "fixtures:scan": "node scripts/fixtures/scan.ts",
+    "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "dependency-cruiser": "^18.8.0",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "@types/node": "^24.10.0",
+    "dependency-cruiser": "^18.8.0"
   }
 }
