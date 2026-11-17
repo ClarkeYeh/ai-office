@@ -1,2 +1,10 @@
-// Layer placeholder; wiring belongs in main.ts.
-export {};
+export {
+  SettingsSchema,
+  createDataDirectories,
+  readSettings,
+  resolveDataDir,
+} from './settings.js';
+export type { Settings } from './settings.js';
+export { readGhToken } from './read-gh-token.js';
+export { acquireInstanceLock, InstanceLockedError } from './instance-lock.js';
+export type { InstanceLock, RuntimeInfo } from './instance-lock.js';
