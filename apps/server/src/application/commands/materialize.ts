@@ -4,7 +4,7 @@ import type { DomainError, WorkflowState } from '@ai-office/domain';
 import { sessionRef } from '@ai-office/engine';
 import { PortError } from '../../ports/errors.js';
 import type { SeatTokenStore, SpecStore } from '../../ports/stores.js';
-import type { SpawnEffect } from './spawn-effect.js';
+import type { SpawnEffect } from '@ai-office/engine';
 
 export interface SpawnMaterializerDeps {
   seatTokens: SeatTokenStore;

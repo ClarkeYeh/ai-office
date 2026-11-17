@@ -1,3 +1,4 @@
+import { replay } from '@ai-office/domain';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { Simulator } from '../test-support/simulator.js';
@@ -142,6 +143,20 @@ describe('meeting stage protocol', () => {
 
 it('continues another round with surviving participants after an absence', () => {
   const sim = runMeeting({ absent: ['pm'] }).advance(5 * 60_000);
+  // The existing round-completed contract durably records absence; do not invent
+  // a statement from a participant who never submitted one.
+  const rebuilt = replay(sim.events);
+  const absent = Object.values(rebuilt.state.attempts).find(
+    (a) => a.role === 'pm',
+  )!;
+  expect(rebuilt.warnings).toEqual([]);
+  expect(
+    rebuilt.state.meetings.meeting?.rounds[1]?.completed?.absentAttemptIds,
+  ).toEqual([absent.attemptId]);
+  expect(absent.released).toBe(true);
+  expect(rebuilt.state.meetings.meeting?.rounds[2]?.attemptIds).not.toContain(
+    absent.attemptId,
+  );
   checked(sim);
   expect(sim.eventsOf('meeting.round_completed')).toHaveLength(2);
   expect(
