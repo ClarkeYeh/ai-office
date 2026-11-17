@@ -91,7 +91,12 @@ export const WorkflowTemplateSchema = z
     const stageIds = new Set<string>();
     const gateIds = new Set<string>();
     const order = ['meeting', 'planning', 'implement', 'integrate', 'final-pr'];
-    let previous = -1;
+    if (template.stages.length !== order.length)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['stages'],
+        message: 'All five stage kinds are required, each exactly once',
+      });
     template.stages.forEach((stage, index) => {
       const issue = (field: string, message: string) =>
         ctx.addIssue({
@@ -115,13 +120,11 @@ export const WorkflowTemplateSchema = z
         issue('from', 'Must reference an upstream stage');
       if (stageIds.has(stage.id)) issue('id', 'Stage ids must be unique');
       stageIds.add(stage.id);
-      const rank = order.indexOf(stage.kind);
-      if (rank <= previous)
+      if (stage.kind !== order[index])
         issue(
           'kind',
           'Stages must follow meeting → planning → implement → integrate → final-pr',
         );
-      previous = rank;
       if ('gate' in stage) {
         if (gateIds.has(stage.gate.id))
           issue('gate.id', 'Gate ids must be unique');

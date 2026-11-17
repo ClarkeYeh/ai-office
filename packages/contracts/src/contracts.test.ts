@@ -305,3 +305,36 @@ test('submissions reuse the shared event payload schemas', () => {
     WorkItemDraftSchema,
   );
 });
+
+test.each(['meeting', 'planning', 'implement', 'integrate', 'final-pr'])(
+  'requires stage kind %s exactly once',
+  (kind) => {
+    const missing = WorkflowTemplateSchema.parse(template());
+    missing.stages = missing.stages.filter((stage) => stage.kind !== kind);
+    expect(WorkflowTemplateSchema.safeParse(missing).success).toBe(false);
+    const duplicate = WorkflowTemplateSchema.parse(template());
+    const index = duplicate.stages.findIndex((stage) => stage.kind === kind);
+    duplicate.stages.splice(
+      index,
+      0,
+      structuredClone(duplicate.stages[index]!),
+    );
+    expect(WorkflowTemplateSchema.safeParse(duplicate).success).toBe(false);
+  },
+);
+
+test('rejects the previously accepted meeting → integrate → final-pr subset', () => {
+  const value = WorkflowTemplateSchema.parse(template());
+  value.stages = value.stages.filter(
+    (stage) => !['planning', 'implement'].includes(stage.kind),
+  );
+  const result = WorkflowTemplateSchema.safeParse(value);
+  expect(result.success).toBe(false);
+  if (!result.success)
+    expect(result.error.issues).toContainEqual(
+      expect.objectContaining({
+        path: ['stages'],
+        message: 'All five stage kinds are required, each exactly once',
+      }),
+    );
+});
