@@ -224,6 +224,7 @@ export class Reconciler {
       // Read-only calls and explicitly idempotent mutations.
       case 'runtime.disposeWorkspace':
       case 'runtime.inspectWorkspace':
+      case 'scm.compareBranch':
       case 'runtime.stop':
       case 'runtime.release':
       case 'scm.ensureLabels':
