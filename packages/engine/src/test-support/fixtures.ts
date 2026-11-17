@@ -180,5 +180,5 @@ export const conclusionGate = (
 /** Default modules with the meeting partition replaced by a test probe. */
 export const withMeeting = (meeting: StageModule): EngineModules => ({
   ...DEFAULT_MODULES,
-  stages: { ...DEFAULT_MODULES.stages, meeting },
+  stages: { ...DEFAULT_MODULES.stages, meeting, planning: { react: () => [] } },
 });

@@ -1,5 +1,10 @@
 import type { ExternalCommand } from '@ai-office/contracts/events';
-import type { DomainCommand, TimerPayload } from '@ai-office/domain';
+import type {
+  AgentKind,
+  SpecRequest,
+  DomainCommand,
+  TimerPayload,
+} from '@ai-office/domain';
 
 /**
  * A runtime/scm side effect (§11.4). `commandId` is chosen by engine and is
@@ -41,8 +46,31 @@ export interface CancelTimerEffect {
   reason?: string;
 }
 
+/** Application materializes the spec and token before writing command.issued. */
+export interface SpawnEffect {
+  kind: 'spawn';
+  commandId: string;
+  stageId: string;
+  seatId: string;
+  attemptId: string;
+  spec: SpecRequest;
+  agent: AgentKind;
+  model?: string;
+  effort?: 'low' | 'medium' | 'high';
+  title?: string;
+  workspace: Extract<
+    ExternalCommand,
+    { kind: 'runtime.spawnAgent' }
+  >['args']['workspace'];
+  keepOpen: boolean;
+}
+
 export type Effect =
-  ExternalEffect | InternalEffect | TimerEffect | CancelTimerEffect;
+  | SpawnEffect
+  | ExternalEffect
+  | InternalEffect
+  | TimerEffect
+  | CancelTimerEffect;
 
 export const external = (
   commandId: string,
