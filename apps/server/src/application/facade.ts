@@ -1,13 +1,41 @@
 import type { WorkflowRunners } from './runner/runners.js';
+import { CommandUseCases } from './use-cases/commands.js';
+import type { CommandUseCaseDeps } from './use-cases/commands.js';
+export type {
+  StartWorkflowInput,
+  GateDecisionInput,
+  AnswerInput,
+  CommandUseCaseDeps,
+} from './use-cases/commands.js';
+export { UseCaseError } from './use-cases/support.js';
 
-/**
- * What api / agent-gateway see of application (§23). Type skeleton only (plan
- * §5.1): T27 adds the command use cases and T28 HandleSubmission, each in its
- * own section below; main.ts (T33) builds the implementation.
- */
-export interface ApplicationFacade {
-  /** Per-workflow actors and the global workflow slot (T23). */
+export interface ApplicationFacade extends Pick<
+  CommandUseCases,
+  | 'startWorkflow'
+  | 'decideGate'
+  | 'answerQuestion'
+  | 'cancelWorkflow'
+  | 'cleanupWorkflow'
+  | 'messageSeat'
+  | 'registerRepo'
+> {
   readonly runners: WorkflowRunners;
-  // --- T27: command use cases (StartWorkflow, DecideGate, AnswerQuestion, …)
   // --- T28: HandleSubmission
 }
+
+/** T33 supplies ports; inbound adapters depend only on this facade. */
+export const createCommandFacade = (
+  deps: CommandUseCaseDeps,
+): ApplicationFacade => {
+  const commands = new CommandUseCases(deps);
+  return {
+    runners: deps.runners,
+    startWorkflow: commands.startWorkflow.bind(commands),
+    decideGate: commands.decideGate.bind(commands),
+    answerQuestion: commands.answerQuestion.bind(commands),
+    cancelWorkflow: commands.cancelWorkflow.bind(commands),
+    cleanupWorkflow: commands.cleanupWorkflow.bind(commands),
+    messageSeat: commands.messageSeat.bind(commands),
+    registerRepo: commands.registerRepo.bind(commands),
+  };
+};

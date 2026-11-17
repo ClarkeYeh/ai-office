@@ -1,0 +1,664 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  DomainEventSchema,
+  CURRENT_SCHEMA_VERSION,
+} from '@ai-office/contracts/events';
+import { EXCEPTION_OPTIONS } from '@ai-office/domain';
+import { createCommandFacade } from '../facade.js';
+import {
+  harness,
+  startWorkflow,
+  repo,
+} from '../runner/test-support/harness.js';
+import { InMemoryIdempotencyStore } from '../../test-support/stores.js';
+import { draft, hash } from './support.js';
+import { renderConclusion, parseConclusion } from './commands.js';
+
+const setup = () => {
+  const h = harness({ react: () => [] });
+  const template = startWorkflow().template;
+  const templates = {
+    get: vi.fn(async () => template),
+    list: vi.fn(async () => ({ valid: [template], invalid: [] })),
+  };
+  h.world.runtime.health = vi.fn(async () => ({
+    available: true,
+    verified: true,
+    version: '1',
+    shim: 'ready' as const,
+    ownership: 'owned' as const,
+  }));
+  h.world.runtime.inspectLocalRepo = vi.fn(async () => ({
+    isGitMainWorktree: true,
+    originUrl: 'git@github.com:octo/demo.git',
+    runtimeRepoId: 'orca-repo-1',
+  }));
+  h.world.scm.inspectRepo = vi.fn(async () => ({
+    defaultBranch: 'main',
+    visibility: 'public' as const,
+    viewerLogin: 'octo',
+    defaultBranchProtected: true,
+  }));
+  h.store.append([draft(h.clock, null, 'repo.registered', repo())]);
+  const idempotency = new InMemoryIdempotencyStore(h.clock);
+  const deps = {
+    ...h,
+    templates,
+    runtime: h.world.runtime,
+    scm: h.world.scm,
+    idempotency,
+    redactor: {
+      maskSecrets: <T>(v: T): T => v,
+      toActivity: () => ({ activity: [], policyHits: [] }),
+    },
+    limits: { globalAgents: 7 },
+  };
+  const api = createCommandFacade(deps);
+  const start = () =>
+    api.startWorkflow({
+      templateId: template.id,
+      repoId: 'repo-1',
+      requirement: 'Test feature',
+    });
+  const seed = async () => {
+    await h.runners.start(startWorkflow());
+    return h.runners.get('wf-1')!;
+  };
+  return { ...h, deps, api, templates, template, start, seed };
+};
+const conclusion = {
+  summary: 'A plan',
+  decisions: [],
+  techDecisions: [],
+  openQuestions: [],
+};
+const openConclusion = async (h: ReturnType<typeof setup>) => {
+  const r = await h.seed();
+  const stage = h.template.stages.find((s) => s.kind === 'meeting')!;
+  await r.append([
+    draft(h.clock, r.workflowId, 'stage.started', {
+      stageId: stage.id,
+      kind: 'meeting',
+      attempt: 1,
+      mode: 'initial',
+    }),
+    {
+      ...draft(h.clock, r.workflowId, 'artifact.created', {
+        artifactId: `wf-1/${stage.id}/1/issue`,
+        kind: 'issue',
+        number: 3,
+        url: 'https://github.com/octo/demo/issues/3',
+        purpose: 'conclusion',
+      }),
+      stageId: stage.id,
+    },
+    draft(h.clock, r.workflowId, 'gate.opened', {
+      kind: 'stage',
+      gateId: 'g',
+      stageId: stage.id,
+      templateGateId: stage.gate.id,
+      stageKind: 'meeting',
+      optional: false,
+      title: 'Conclusion',
+      version: 1,
+      options: [],
+      content: {
+        type: 'conclusion',
+        artifactId: 'submitted',
+        renderedHash: await hash(renderConclusion(conclusion)),
+      },
+    }),
+  ]);
+  const body = renderConclusion(conclusion);
+  h.world.scm.getIssue = vi.fn(async () => ({
+    body,
+    bodyHash: await hash(body),
+    updatedAt: '2026-11-17T01:00:00.000Z',
+    labels: ['changed-label'],
+  }));
+  return { r, body };
+};
+
+describe('StartWorkflow and registration', () => {
+  it('snapshots limits and one persisted shortId, and rejects concurrent/paused slots', async () => {
+    const h = setup();
+    const results = await Promise.allSettled([h.start(), h.start()]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find((r) => r.status === 'rejected')).toMatchObject({
+      reason: { status: 409, code: 'workflow_slot_busy' },
+    });
+    const event = h.events().find((e) => e.type === 'workflow.started')!;
+    expect(event.payload).toMatchObject({ limits: { globalAgents: 7 } });
+    const runner = h.runners.get(event.workflowId!)!;
+    await runner.dispatch({
+      type: 'PauseWorkflow',
+      meta: { occurredAt: h.clock.now().toISOString(), source: 'user' },
+      reason: 'runtime_unhealthy',
+    });
+    await expect(h.start()).rejects.toMatchObject({ status: 409 });
+    expect(runner.state.workflow?.shortId).toBe(
+      event.type === 'workflow.started' ? event.payload.shortId : '',
+    );
+  });
+  it('rejects invalid templates, unknown roles, mandatory gate toggles and unverified runtime', async () => {
+    const h = setup();
+    h.templates.get.mockResolvedValueOnce({
+      file: 'bad.yaml',
+      issues: [{ path: 'stages', message: 'invalid' }],
+    } as never);
+    await expect(h.start()).rejects.toMatchObject({
+      status: 422,
+      code: 'template_invalid',
+    });
+    await expect(
+      h.api.startWorkflow({
+        templateId: h.template.id,
+        repoId: 'repo-1',
+        requirement: 'x',
+        roleOverrides: { missing: { agent: 'codex' } },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: 'unknown_role' });
+    await expect(
+      h.api.startWorkflow({
+        templateId: h.template.id,
+        repoId: 'repo-1',
+        requirement: 'x',
+        gateToggles: { missing: false },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: 'gate_not_optional' });
+    vi.mocked(h.world.runtime.health).mockResolvedValue({
+      available: true,
+      verified: false,
+      version: 'x',
+      shim: 'ready',
+      ownership: 'owned',
+    });
+    await expect(h.start()).rejects.toMatchObject({ status: 428 });
+    await expect(
+      h.api.startWorkflow({
+        templateId: h.template.id,
+        repoId: 'repo-1',
+        requirement: 'x',
+        acknowledgeUnverifiedRuntime: true,
+      }),
+    ).resolves.toHaveProperty('workflowId');
+  });
+  it('validates local repo and GitHub origin, registers once, and permits protection warnings', async () => {
+    const h = setup();
+    vi.mocked(h.world.runtime.inspectLocalRepo).mockResolvedValueOnce({
+      isGitMainWorktree: false,
+      runtimeRepoId: 'r',
+      originUrl: null,
+    });
+    await expect(
+      h.api.registerRepo({ localPath: '/other' }),
+    ).rejects.toMatchObject({ code: 'repo_not_main_worktree' });
+    vi.mocked(h.world.runtime.inspectLocalRepo).mockResolvedValueOnce({
+      isGitMainWorktree: true,
+      runtimeRepoId: null,
+      originUrl: null,
+    });
+    await expect(
+      h.api.registerRepo({ localPath: '/other' }),
+    ).rejects.toMatchObject({ code: 'repo_not_in_orca' });
+    vi.mocked(h.world.runtime.inspectLocalRepo).mockResolvedValueOnce({
+      isGitMainWorktree: true,
+      runtimeRepoId: 'r',
+      originUrl: 'https://evil.example/a/b',
+    });
+    await expect(
+      h.api.registerRepo({ localPath: '/other' }),
+    ).rejects.toMatchObject({ code: 'invalid_github_origin' });
+    vi.mocked(h.world.scm.inspectRepo).mockResolvedValueOnce({
+      defaultBranch: 'main',
+      visibility: 'private',
+      defaultBranchProtected: 'unknown',
+      viewerLogin: 'octo',
+    });
+    const registered = await h.api.registerRepo({ localPath: '/other' });
+    expect(registered).toMatchObject({
+      github: { owner: 'octo', name: 'demo' },
+      defaultBranchProtected: 'unknown',
+    });
+    expect(await h.api.registerRepo({ localPath: '/other' })).toEqual(
+      registered,
+    );
+  });
+});
+
+describe('gate decisions', () => {
+  it('fresh body hash controls approval; updatedAt/labels do not, and same key replays across facade recreation', async () => {
+    const h = setup();
+    const { r, body } = await openConclusion(h);
+    const input = {
+      decision: 'approve' as const,
+      expectedVersion: 1,
+      githubBodyHash: await hash(body),
+      githubUpdatedAt: '2020-01-01T00:00:00.000Z',
+    };
+    const result = await h.api.decideGate('g', input, 'key');
+    expect(
+      await createCommandFacade(h.deps).decideGate('g', input, 'key'),
+    ).toEqual(result);
+    expect(h.world.scm.getIssue).toHaveBeenCalledTimes(1);
+    expect(r.state.gates.g?.status).toBe('approved');
+    const event = h.events().find((e) => e.type === 'gate.decided')!;
+    expect(event.payload).toMatchObject({
+      approvedSnapshot: { body, structured: conclusion, source: 'github' },
+    });
+    await expect(
+      h.api.decideGate('g', { ...input, comment: 'different' }, 'key'),
+    ).rejects.toMatchObject({ status: 409, code: 'idempotency_mismatch' });
+  });
+  it('rejects stale versions, changed body and SCM failures without writing a decision', async () => {
+    const h = setup();
+    await openConclusion(h);
+    await expect(
+      h.api.decideGate('g', { decision: 'approve', expectedVersion: 2 }, 'v'),
+    ).rejects.toMatchObject({ status: 409, code: 'gate_version_conflict' });
+    await expect(
+      h.api.decideGate(
+        'g',
+        {
+          decision: 'approve',
+          expectedVersion: 1,
+          githubBodyHash: '0'.repeat(64),
+        },
+        'hash',
+      ),
+    ).rejects.toMatchObject({ status: 409, code: 'gate_content_changed' });
+    vi.mocked(h.world.scm.getIssue).mockRejectedValueOnce(new Error('offline'));
+    await expect(
+      h.api.decideGate(
+        'g',
+        { decision: 'approve', expectedVersion: 1 },
+        'offline',
+      ),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(h.events().filter((e) => e.type === 'gate.decided')).toHaveLength(0);
+  });
+  it('preserves edited structured conclusions and supports unparseable GitHub text', async () => {
+    const h = setup();
+    const { body } = await openConclusion(h);
+    const edited = { ...conclusion, summary: 'Changed' };
+    await h.api.decideGate(
+      'g',
+      {
+        decision: 'revise',
+        expectedVersion: 1,
+        githubBodyHash: await hash(body),
+        edits: { type: 'conclusion', conclusion: edited },
+      },
+      'revise',
+    );
+    expect(
+      h.events().find((e) => e.type === 'gate.decided')?.payload,
+    ).toMatchObject({
+      approvedSnapshot: { source: 'ai-office', structured: edited },
+    });
+    expect(parseConclusion('arbitrary GitHub text')).toBeNull();
+  });
+  it.each([
+    'dependency-blocked',
+    'rework-limit',
+    'merge-blocked',
+    'merge-review-failed',
+  ] as const)(
+    'routes every %s option through domain validation',
+    async (kind) => {
+      for (const optionId of EXCEPTION_OPTIONS[kind]) {
+        const h = setup();
+        const r = await h.seed();
+        const stage = h.template.stages.find((s) => s.kind === 'implement')!;
+        await r.append([
+          draft(h.clock, r.workflowId, 'gate.opened', {
+            kind: 'exception',
+            exceptionKind: kind,
+            gateId: 'g',
+            stageId: stage.id,
+            title: kind,
+            version: 1,
+            options: EXCEPTION_OPTIONS[kind].map((optionId) => ({
+              optionId,
+              label: optionId,
+            })),
+            content: { type: 'exception', summary: 'exception' },
+          }),
+        ]);
+        await expect(
+          h.api.decideGate(
+            'g',
+            {
+              decision: 'option',
+              optionId,
+              expectedVersion: 1,
+              ...(optionId === 'reassign' ? { agent: 'codex' as const } : {}),
+            },
+            'key',
+          ),
+        ).resolves.toEqual({ gateId: 'g' });
+        expect(
+          h.events().find((e) => e.type === 'gate.decided')?.payload,
+        ).toMatchObject({ optionId });
+      }
+    },
+  );
+});
+
+it('atomically answers an escalated question and decides its gate, with replay', async () => {
+  const h = setup();
+  const r = await h.seed();
+  await r.append([
+    draft(h.clock, r.workflowId, 'message.question', {
+      questionId: 'q',
+      attemptId: 'a',
+      body: 'Choose?',
+    }),
+    draft(h.clock, r.workflowId, 'message.escalated', {
+      questionId: 'q',
+      gateId: 'g',
+      reason: 'timeout',
+    }),
+    draft(h.clock, r.workflowId, 'gate.opened', {
+      kind: 'exception',
+      exceptionKind: 'question-escalation',
+      gateId: 'g',
+      stageId: h.template.stages[0]!.id,
+      title: 'Question',
+      version: 1,
+      options: [],
+      content: { type: 'exception', summary: 'Choose?', questionId: 'q' },
+    }),
+  ]);
+  await h.api.answerQuestion('q', { body: 'Yes' }, 'key');
+  await h.api.answerQuestion('q', { body: 'Yes' }, 'key');
+  expect(r.state.questions.q?.status).toBe('answered');
+  expect(r.state.gates.g?.status).toBe('approved');
+  expect(h.events().filter((e) => e.type === 'message.answered')).toHaveLength(
+    1,
+  );
+});
+
+it('cancels and rejects cleanup before terminal state and messages to ended attempts', async () => {
+  const h = setup();
+  const r = await h.seed();
+  await expect(h.api.cleanupWorkflow('wf-1')).rejects.toMatchObject({
+    status: 409,
+  });
+  await expect(
+    h.api.messageSeat('lead', { subject: 'Hi', body: 'Work' }),
+  ).rejects.toMatchObject({ status: 409 });
+  await h.api.cancelWorkflow('wf-1');
+  expect(r.state.workflow?.cancelRequested).toBe(true);
+  await r.dispatch({
+    type: 'MarkCancelled',
+    meta: { occurredAt: h.clock.now().toISOString(), source: 'user' },
+  });
+  expect(await h.api.cleanupWorkflow('wf-1')).toEqual({
+    workflowId: 'wf-1',
+    commandIds: [],
+  });
+  for (const event of h.events())
+    expect(DomainEventSchema.safeParse(event).success).toBe(true);
+  expect(CURRENT_SCHEMA_VERSION['workflow.started']).toBeGreaterThan(0);
+});
+
+it('records instructions and concrete runtime sends in the outbox only for live attempts', async () => {
+  const h = setup();
+  const r = await h.seed();
+  const stageId = h.template.stages[0]!.id;
+  await r.append([
+    draft(h.clock, r.workflowId, 'stage.started', {
+      stageId,
+      kind: 'meeting',
+      attempt: 1,
+      mode: 'initial',
+    }),
+    draft(h.clock, r.workflowId, 'seat.spawned', {
+      seatId: 'wf-1/lead',
+      attemptId: 'a',
+      attempt: 1,
+      stageId,
+      role: 'lead',
+      agent: 'codex',
+      purpose: 'facilitator',
+      keepOpen: true,
+      spawnCommandId: 'spawn',
+    }),
+    draft(h.clock, r.workflowId, 'command.succeeded', {
+      commandId: 'spawn',
+      kind: 'runtime.spawnAgent',
+      result: { agent: 'agent-ref' },
+    }),
+    draft(h.clock, r.workflowId, 'seat.status', {
+      attemptId: 'a',
+      state: 'working',
+    }),
+  ]);
+  // Runtime status attaches the persisted ref through its observed spawn outcome.
+  const attempt = r.state.attempts.a!;
+  expect(attempt).toBeDefined();
+  // A spawn command is necessary for the domain to accept its outcome.
+  if (!attempt.agentRef) {
+    await r.append([
+      draft(h.clock, r.workflowId, 'command.issued', {
+        commandId: 'spawn',
+        orcaRequestId: h.ids.orcaRequestId('spawn'),
+        kind: 'runtime.spawnAgent',
+        args: {
+          session: 'session',
+          agent: 'codex',
+          title: 'lead',
+          specPath: '/spec',
+          specSha256: '0'.repeat(64),
+          workspace: {
+            kind: 'existing-worktree',
+            workspace: 'ws',
+            readOnly: false,
+          },
+          keepOpen: true,
+        },
+      }),
+      draft(h.clock, r.workflowId, 'command.succeeded', {
+        commandId: 'spawn',
+        kind: 'runtime.spawnAgent',
+        result: { agent: 'agent-ref' },
+      }),
+    ]);
+  }
+  const result = await h.api.messageSeat('wf-1/lead', {
+    subject: 'Instruction',
+    body: 'Continue',
+  });
+  await h.runners.idle();
+  expect(r.state.commands[result.commandId]?.status).toBe('succeeded');
+  expect(
+    h.events().find((e) => e.type === 'message.instruction')?.payload,
+  ).toMatchObject({ body: 'Continue', attemptId: 'a' });
+  await r.append([
+    draft(h.clock, r.workflowId, 'seat.exited', {
+      attemptId: 'a',
+      reason: 'done',
+      expected: true,
+    }),
+  ]);
+  await expect(
+    h.api.messageSeat('wf-1/lead', { subject: 'More', body: 'Work' }),
+  ).rejects.toMatchObject({ status: 409 });
+});
+
+it('cleanup uses persisted workspace refs and worker branches, protecting integration/main and retaining shortId on restart', async () => {
+  const h = setup();
+  const r = await h.seed();
+  const started = r.state.workflow!;
+  for (const [i, branch] of [
+    `ai-office/${started.shortId}/w1`,
+    started.integrationBranch,
+    'main',
+  ].entries()) {
+    await r.append([
+      draft(h.clock, r.workflowId, 'command.issued', {
+        commandId: `prepare-${i}`,
+        kind: 'runtime.prepareWorkspace',
+        args: {
+          session: 'session',
+          repo: {
+            localPath: started.repo.localPath,
+            orcaRepoId: started.repo.orcaRepoId,
+          },
+          baseBranch: 'main',
+          name: `ws-${i}`,
+          branch,
+        },
+      }),
+      draft(h.clock, r.workflowId, 'command.succeeded', {
+        commandId: `prepare-${i}`,
+        kind: 'runtime.prepareWorkspace',
+        result: { workspace: `workspace-${i}`, path: `/work/${i}` },
+      }),
+    ]);
+  }
+  await h.api.cancelWorkflow(r.workflowId);
+  await r.dispatch({
+    type: 'MarkCancelled',
+    meta: { source: 'user', occurredAt: h.clock.now().toISOString() },
+  });
+  const { commandIds } = await h.api.cleanupWorkflow(r.workflowId);
+  await h.runners.idle();
+  expect(commandIds).toHaveLength(4);
+  expect(
+    commandIds.every((id) => r.state.commands[id]?.status === 'succeeded'),
+  ).toBe(true);
+  const deleted = h
+    .events()
+    .filter(
+      (e) =>
+        e.type === 'command.issued' && e.payload.kind === 'scm.deleteBranch',
+    );
+  expect(deleted).toHaveLength(1);
+  expect(deleted[0]?.payload).toMatchObject({
+    args: { name: `ai-office/${started.shortId}/w1` },
+  });
+  const restored = harness({ store: h.store, react: () => [] });
+  const mint = vi.spyOn(restored.ids, 'shortId');
+  restored.runners.recover();
+  expect(restored.runners.get(r.workflowId)?.state.workflow?.shortId).toBe(
+    started.shortId,
+  );
+  expect(mint).not.toHaveBeenCalled();
+  for (const event of h.events()) DomainEventSchema.parse(event);
+});
+
+it('checks missing resources, unavailability, invalid answers and option choices', async () => {
+  const h = setup();
+  await expect(h.api.cancelWorkflow('missing')).rejects.toMatchObject({
+    status: 404,
+  });
+  await expect(h.api.cleanupWorkflow('missing')).rejects.toMatchObject({
+    status: 404,
+  });
+  await expect(
+    h.api.answerQuestion('missing', { body: 'yes' }, 'k'),
+  ).rejects.toMatchObject({ status: 404 });
+  await expect(
+    h.api.decideGate(
+      'missing',
+      { decision: 'approve', expectedVersion: 1 },
+      'k',
+    ),
+  ).rejects.toMatchObject({ status: 404 });
+  h.templates.get.mockResolvedValueOnce(null as never);
+  await expect(h.start()).rejects.toMatchObject({
+    status: 404,
+    code: 'unknown_template',
+  });
+  await expect(
+    h.api.startWorkflow({
+      templateId: h.template.id,
+      repoId: 'missing',
+      requirement: 'x',
+    }),
+  ).rejects.toMatchObject({ status: 404, code: 'unknown_repo' });
+  vi.mocked(h.world.runtime.health).mockResolvedValueOnce({
+    available: false,
+    verified: true,
+    version: 'x',
+    shim: 'ready',
+    ownership: 'owned',
+  });
+  await expect(h.start()).rejects.toMatchObject({ status: 503 });
+  const r = await h.seed();
+  await r.append([
+    draft(h.clock, r.workflowId, 'message.question', {
+      questionId: 'q',
+      attemptId: 'a',
+      body: '?',
+    }),
+  ]);
+  await expect(
+    h.api.answerQuestion('q', { body: 'yes' }, 'a'),
+  ).rejects.toMatchObject({ status: 409 });
+  await expect(
+    h.api.answerQuestion('q', { body: ' ' }, 'b'),
+  ).rejects.toMatchObject({ status: 422 });
+  await r.append([
+    draft(h.clock, r.workflowId, 'gate.opened', {
+      kind: 'exception',
+      exceptionKind: 'dependency-blocked',
+      gateId: 'g',
+      stageId: h.template.stages[0]!.id,
+      title: 'Dependency',
+      version: 1,
+      options: [{ optionId: 'proceed', label: 'Proceed' }],
+      content: { type: 'exception', summary: 'Blocked' },
+    }),
+  ]);
+  await expect(
+    h.api.decideGate(
+      'g',
+      { decision: 'option', optionId: 'unknown', expectedVersion: 1 },
+      'c',
+    ),
+  ).rejects.toMatchObject({ status: 422, code: 'invalid_gate_decision' });
+});
+
+it('revalidates the gate version after SCM preflight and deduplicates concurrent decisions', async () => {
+  const h = setup();
+  const { r, body } = await openConclusion(h);
+  const input = {
+    decision: 'approve' as const,
+    expectedVersion: 1,
+    githubBodyHash: await hash(body),
+  };
+  vi.mocked(h.world.scm.getIssue).mockImplementationOnce(async () => {
+    await r.dispatch({
+      type: 'UpdateGateContent',
+      meta: { source: 'scm', occurredAt: h.clock.now().toISOString() },
+      update: {
+        gateId: 'g',
+        source: 'github',
+        bodyHash: await hash(body),
+        githubUpdatedAt: h.clock.now().toISOString(),
+      },
+    });
+    return {
+      body,
+      bodyHash: await hash(body),
+      updatedAt: h.clock.now().toISOString(),
+      labels: [],
+    };
+  });
+  await expect(h.api.decideGate('g', input, 'old')).rejects.toMatchObject({
+    status: 409,
+    code: 'gate_version_conflict',
+  });
+  const current = { ...input, expectedVersion: 2 };
+  const values = await Promise.all([
+    h.api.decideGate('g', current, 'same'),
+    h.api.decideGate('g', current, 'same'),
+  ]);
+  expect(values[0]).toEqual(values[1]);
+  expect(h.events().filter((e) => e.type === 'gate.decided')).toHaveLength(1);
+  await h.runners.idle();
+  for (const event of h.events()) DomainEventSchema.parse(event);
+});
