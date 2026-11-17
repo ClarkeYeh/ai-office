@@ -31,7 +31,8 @@
             ]
           },
           "scope": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           },
           "effort": {
             "type": "string",

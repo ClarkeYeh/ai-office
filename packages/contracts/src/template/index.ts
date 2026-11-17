@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const AgentKindSchema = z.enum(['claude-code', 'codex']);
 export const RoleSchema = z.object({
   agent: AgentKindSchema,
-  scope: z.string().optional(),
+  scope: z.string().max(1000).optional(),
   effort: z.enum(['low', 'medium', 'high']).optional(),
 });
 export const RoleOverridesSchema = z.record(

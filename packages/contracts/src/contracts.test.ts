@@ -283,6 +283,16 @@ test('template roles preserve optional free-text scope', () => {
   expect(WorkflowTemplateSchema.safeParse(withoutScopes).success).toBe(true);
 });
 
+test('template role scope is limited to 1000 characters', () => {
+  const withScope = (scope: string) => {
+    const value = template();
+    (value.roles as Record<string, { scope?: string }>).pm!.scope = scope;
+    return WorkflowTemplateSchema.safeParse(value).success;
+  };
+  expect(withScope('x'.repeat(1000))).toBe(true);
+  expect(withScope('x'.repeat(1001))).toBe(false);
+});
+
 test('submissions reuse the shared event payload schemas', () => {
   const conclusion = AgentSubmissionSchema.options.find(
     (option) => option.shape.kind.value === 'conclusion',
