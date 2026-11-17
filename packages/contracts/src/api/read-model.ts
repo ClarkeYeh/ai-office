@@ -32,6 +32,7 @@ import {
   SeatDegradedPayloadSchema,
   StageFailedPayloadSchema,
   StageModeSchema,
+  SubmissionAcceptedPayloadSchema,
   WorkflowFailedPayloadSchema,
   WorkflowLimitsSchema,
 } from '../events/payloads.js';
@@ -344,6 +345,16 @@ export const UsageViewSchema = z.object({
   byAgent: z.partialRecord(AgentKindSchema, TokenUsageSchema),
   bySeat: z.record(SeatIdSchema, TokenUsageSchema),
 });
+export const ArtifactIdSchema = id.clone();
+/** Retain masked submission content so snapshots and SSE replay expose the same data. */
+export const AcceptedSubmissionSchema = z.intersection(
+  SubmissionAcceptedPayloadSchema.shape.submission,
+  z.object({
+    submissionId: SubmissionAcceptedPayloadSchema.shape.submissionId,
+    seatId: SeatIdSchema,
+    acceptedAtSeq: positiveInt,
+  }),
+);
 export const WorkflowReadModelSchema = z.object({
   workflowId: id,
   shortId: id,
@@ -376,6 +387,7 @@ export const WorkflowReadModelSchema = z.object({
   workItems: z.array(WorkItemViewSchema),
   questions: z.array(QuestionViewSchema),
   artifacts: z.array(ArtifactRefSchema),
+  acceptedSubmissions: z.record(ArtifactIdSchema, AcceptedSubmissionSchema),
   prs: z.array(PrSummarySchema),
   usage: UsageViewSchema,
   budgetBars: z.array(BudgetBarSchema),
@@ -480,6 +492,7 @@ export type QuestionView = z.infer<typeof QuestionViewSchema>;
 export type WorkItemView = z.infer<typeof WorkItemViewSchema>;
 export type StageView = z.infer<typeof StageViewSchema>;
 export type WorkflowReadModel = z.infer<typeof WorkflowReadModelSchema>;
+export type AcceptedSubmission = z.infer<typeof AcceptedSubmissionSchema>;
 export type WorkflowSummary = z.infer<typeof WorkflowSummarySchema>;
 export type RepoView = z.infer<typeof RepoViewSchema>;
 export type HealthView = z.infer<typeof HealthViewSchema>;

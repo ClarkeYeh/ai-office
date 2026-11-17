@@ -26,13 +26,15 @@ export const WorkItemDraftSchema = z.object({
   deps: z.array(WorkItemKeySchema),
 });
 export const AgendaSchema = z.object({
-  topics: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      focusByRole: z.record(z.string(), z.string()),
-    }),
-  ),
+  topics: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        focusByRole: z.record(z.string(), z.string()),
+      }),
+    )
+    .min(1),
 });
 export const StatementSchema = z.object({
   round: positiveInt,

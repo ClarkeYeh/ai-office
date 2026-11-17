@@ -1057,6 +1057,35 @@
           "accepted"
         ]
       },
+      "AcceptedSubmission": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AgentSubmission"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "submissionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "seatId": {
+                "$ref": "#/components/schemas/SeatId"
+              },
+              "acceptedAtSeq": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "submissionId",
+              "seatId",
+              "acceptedAtSeq"
+            ]
+          }
+        ]
+      },
       "ActivityMeta": {
         "type": "object",
         "properties": {
@@ -1178,6 +1207,7 @@
         "type": "object",
         "properties": {
           "topics": {
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "object",
@@ -1927,6 +1957,10 @@
             ]
           }
         ]
+      },
+      "ArtifactId": {
+        "type": "string",
+        "minLength": 1
       },
       "ArtifactKind": {
         "type": "string",
@@ -13958,6 +13992,15 @@
               "$ref": "#/components/schemas/ArtifactRef"
             }
           },
+          "acceptedSubmissions": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/components/schemas/ArtifactId"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AcceptedSubmission"
+            }
+          },
           "prs": {
             "type": "array",
             "items": {
@@ -14013,6 +14056,7 @@
           "workItems",
           "questions",
           "artifacts",
+          "acceptedSubmissions",
           "prs",
           "usage",
           "budgetBars",
