@@ -1,3 +1,4 @@
+import { createReact } from '@ai-office/engine';
 import { createHash } from 'node:crypto';
 import type { WorkflowTemplate } from '@ai-office/contracts/template';
 import type { DomainEvent, RepoSnapshot } from '@ai-office/contracts/events';
@@ -16,6 +17,20 @@ import {
 import { CommandExecutor, portHandlers } from '../../commands/executor.js';
 import { WorkflowRunners } from '../runners.js';
 import type { RunnerReact, WorkflowRunnerDeps } from '../workflow-runner.js';
+
+/** Unit-test runner mechanics without starting production stage modules. */
+const idleStage = { react: () => [] };
+export const lifecycleReact = createReact({
+  stages: {
+    meeting: idleStage,
+    planning: idleStage,
+    implement: idleStage,
+    ondemand: idleStage,
+    integrate: idleStage,
+    'final-pr': idleStage,
+  },
+  policies: [],
+});
 
 export const WORKFLOW_ID = 'wf-1';
 export const START = '2026-11-17T00:00:00.000Z';
@@ -275,7 +290,7 @@ export const harness = (options: HarnessOptions = {}) => {
     seatTokens,
     specStore,
     cliPath: CLI_PATH,
-    ...(options.react === undefined ? {} : { react: options.react }),
+    react: options.react ?? lifecycleReact,
   };
   const runners = new WorkflowRunners(deps);
   const events = (): DomainEvent[] => store.read({});

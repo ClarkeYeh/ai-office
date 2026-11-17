@@ -15,6 +15,7 @@ import type { Correlation, RuntimePort } from '../../ports/runtime.js';
 import type { ScmPort } from '../../ports/scm.js';
 import type { Logger, Scheduler } from '../../ports/services.js';
 import type { SpecStore } from '../../ports/stores.js';
+import type { HealthMonitor } from '../health/health-monitor.js';
 import { retryDelay, toErrorInfo } from './errors.js';
 
 type ArgsOf<K extends ExternalCommandKind> = Extract<
@@ -210,6 +211,7 @@ export const RETRY_TIMER_PREFIX = 'aio-retry:';
 
 export interface CommandExecutorDeps {
   handlers: CommandHandlers;
+  health?: HealthMonitor;
   /** Backoff waits go through the Scheduler, never real time (plan M1-T23). */
   scheduler: Scheduler;
   clock: { now(): Date };
@@ -263,9 +265,18 @@ export class CommandExecutor {
           : { attemptId: issued.attemptId }),
       },
     };
+    const component = issued.command.kind.startsWith('scm.')
+      ? 'scm'
+      : 'runtime';
+    let retry = 0;
     for (let attempt = 1; ; attempt++) {
+      if (this.deps.health !== undefined)
+        await this.deps.health.waitUntilDispatchable();
+      const startedAt = this.deps.clock.now().getTime();
       try {
         const result = await handler(issued.command.args, ctx);
+        if (this.deps.health !== undefined)
+          await this.deps.health.record(component, startedAt);
         return {
           ok: true,
           attempts: attempt,
@@ -273,7 +284,19 @@ export class CommandExecutor {
         };
       } catch (thrown) {
         const error = toErrorInfo(thrown);
-        const delay = retryDelay(error.category, attempt - 1, this.random);
+        if (this.deps.health !== undefined)
+          await this.deps.health.record(component, startedAt, error.category);
+        // An outage leaves the outbox command pending, with its original args/ID.
+        // Recovery starts a fresh retry budget; attempts still counts real calls.
+        if (
+          error.category === 'transient' &&
+          this.deps.health?.dispatchBlocked
+        ) {
+          await this.deps.health.waitUntilDispatchable();
+          retry = 0;
+          continue;
+        }
+        const delay = retryDelay(error.category, retry++, this.random);
         log.warn(
           { kind: issued.command.kind, attempt, error, retryInMs: delay },
           'command attempt failed',

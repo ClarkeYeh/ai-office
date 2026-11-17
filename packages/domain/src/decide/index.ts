@@ -4,6 +4,7 @@ import type { WorkflowState } from '../state/index.js';
 import { decideAnomaly } from './anomaly.js';
 import { decideBudget } from './budget.js';
 import { decideGate } from './gate.js';
+import { decideMeeting } from './meeting.js';
 import { decideLifecycle } from './lifecycle.js';
 import { decideQuestion } from './question.js';
 import { decideSeat } from './seat.js';
@@ -24,6 +25,12 @@ export const decide = (
   command: DomainCommand,
 ): DecideResult => {
   switch (command.type) {
+    case 'RecordStageArtifact':
+    case 'StartMeetingRound':
+    case 'RecordMeetingStatement':
+    case 'CompleteMeetingRound':
+    case 'ConcludeMeeting':
+      return decideMeeting(state, command);
     case 'StartWorkflow':
     case 'PauseWorkflow':
     case 'ResumeWorkflow':

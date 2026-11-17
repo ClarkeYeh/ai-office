@@ -39,10 +39,10 @@ import type {
   IssuedCommand,
 } from '../commands/executor.js';
 import { materializeSpawn } from '../commands/materialize.js';
-import type { SpawnEffect } from '../commands/spawn-effect.js';
+import type { SpawnEffect } from '@ai-office/engine';
 
-/** Engine effects plus the spawn intent (until T13 adds it to `Effect`). */
-export type RunnerEffect = Effect | SpawnEffect;
+/** Runner consumes the engine effect contract, including spawn intents. */
+export type RunnerEffect = Effect;
 export type RunnerReact = (
   state: WorkflowState,
   event: DomainEvent,
