@@ -17,9 +17,9 @@
     "depcruise": "node scripts/depcruise/index.mjs",
     "depcruise:selftest": "node scripts/depcruise-selftest/index.mjs",
     "check:bundle": "node scripts/check-web-bundle/index.mjs",
-    "fixtures:scan": "node scripts/fixtures/scan.ts",
+    "fixtures:scan": "pnpm --filter @ai-office/redaction build && node scripts/fixtures/scan.ts",
     "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json",
-    "test:scripts": "node --test scripts/**/*.test.mjs",
+    "test:scripts": "node --test 'scripts/**/*.test.mjs'",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
@@ -32,6 +32,7 @@
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "@ai-office/redaction": "workspace:*"
   }
 }
