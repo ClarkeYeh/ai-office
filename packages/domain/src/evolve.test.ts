@@ -585,7 +585,8 @@ describe('message and on-call events', () => {
     expect(harness.state.ondemand.meeting?.oncall).toEqual({
       stageId: 'meeting',
       attemptId: 'att-1',
-      queue: [],
+      queue: ['q-1'],
+      current: 'q-1',
     });
     applyAll(
       harness,
@@ -600,6 +601,7 @@ describe('message and on-call events', () => {
       stageId: 'meeting',
       attemptId: 'att-1',
       queue: [],
+      deliveries: { 'q-1': { attemptId: 'att-1', retries: 0 } },
     });
     applyAll(
       harness,
@@ -611,6 +613,7 @@ describe('message and on-call events', () => {
       attemptId: 'att-1',
       queue: ['q-1'],
       stopped: 'queue_empty',
+      deliveries: { 'q-1': { attemptId: 'att-1', retries: 0 } },
     });
     expect(harness.state.ondemand.meeting?.merge).toBeUndefined();
     expect(harness.warnings.map((w) => w.code)).toEqual([

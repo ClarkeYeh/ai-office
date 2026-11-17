@@ -752,15 +752,58 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
   // on-demand instances (T6 baseline as on-call; rev2.10 adds `purpose`) ----
   'ondemand.started': (state, { payload: p }) =>
     putOndemand(state, p.stageId, p.purpose, {
-      stageId: p.stageId,
+      ...omit<OnDemand, 'stopped'>(
+        state.ondemand[p.stageId]?.[p.purpose] ?? {
+          stageId: p.stageId,
+          queue: [],
+        },
+        'stopped',
+      ),
       attemptId: p.attemptId,
-      queue: [],
     }),
   'ondemand.queue_changed': (state, { payload: p }) => {
     const current = state.ondemand[p.stageId]?.[p.purpose];
+    if (
+      p.current !== undefined &&
+      current?.attemptId !== undefined &&
+      p.current !== current.current
+    ) {
+      const attempt = state.attempts[current.attemptId];
+      if (attempt)
+        state = {
+          ...state,
+          attempts: put(state.attempts, attempt.attemptId, {
+            ...attempt,
+            nudges: attempt.nudges.filter(
+              (n) =>
+                n.subject !== p.current ||
+                n.reason !==
+                  (p.purpose === 'merge'
+                    ? 'review-timeout'
+                    : 'question-timeout'),
+            ),
+          }),
+        };
+    }
     return putOndemand(state, p.stageId, p.purpose, {
       ...omit(current ?? { stageId: p.stageId, queue: [] }, 'current'),
       queue: p.queue,
+      ...(p.current === undefined || current?.attemptId === undefined
+        ? {}
+        : {
+            deliveries: {
+              ...current.deliveries,
+              [p.current]: {
+                attemptId: current.attemptId,
+                retries:
+                  (current.deliveries?.[p.current]?.retries ?? 0) +
+                  (current.deliveries?.[p.current] &&
+                  current.deliveries[p.current]!.attemptId !== current.attemptId
+                    ? 1
+                    : 0),
+              },
+            },
+          }),
       ...(p.current === undefined ? {} : { current: p.current }),
     });
   },
@@ -816,8 +859,15 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     return {
       ...state,
       workItems: put(state.workItems, p.itemKey, {
-        ...item,
+        ...omit(
+          item,
+          'headSha',
+          'baseSha',
+          'statusReason',
+          ...(p.reworkOf === undefined ? ['pr' as const] : []),
+        ),
         status: 'dispatched',
+        ...(p.baseSha === undefined ? {} : { baseSha: p.baseSha }),
         agent: p.agent,
         attempt: p.attempt,
         attemptIds: [...item.attemptIds, p.attemptId],
@@ -831,6 +881,17 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     const item = state.workItems[p.itemKey];
     if (item === undefined)
       return skip('unknown_item', `No work item ${p.itemKey}`);
+    // A human-authorized requeue starts a fresh review retry allowance.
+    if (p.status === 'merge_queued' && p.reason !== undefined) {
+      const gate = state.gates[p.reason];
+      const instance =
+        gate === undefined ? undefined : state.ondemand[gate.stageId]?.merge;
+      if (gate?.decision?.optionId === 'requeue' && instance?.deliveries)
+        state = putOndemand(state, gate.stageId, 'merge', {
+          ...instance,
+          deliveries: drop(instance.deliveries, p.itemKey),
+        });
+    }
     return {
       ...state,
       workItems: put(state.workItems, p.itemKey, {
@@ -843,10 +904,64 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       }),
     };
   },
-  // rev2.10 progressive merge: contracts only (M1-CP3); state follows in M1-T10b.
-  'workitem.merge_queued': unchanged,
-  'workitem.rework_requested': unchanged,
-  'workitem.merged': unchanged,
+  'workitem.merge_queued': (state, { payload: p }) => {
+    const item = state.workItems[p.itemKey];
+    if (!item) return skip('unknown_item', 'Queue references an unknown item');
+    if (item.currentAttemptId !== p.attemptId)
+      return skip('stale_attempt', 'Queue references an old attempt');
+    const stage = state.stageOrder.find(
+      (id) => state.stages[id]?.kind === 'implement',
+    );
+    const instance =
+      stage === undefined ? undefined : state.ondemand[stage]?.merge;
+    if (stage !== undefined && instance?.deliveries?.[p.itemKey])
+      state = putOndemand(state, stage, 'merge', {
+        ...instance,
+        deliveries: drop(instance.deliveries, p.itemKey),
+      });
+    return {
+      ...state,
+      workItems: put(state.workItems, p.itemKey, {
+        ...item,
+        status: 'merge_queued',
+        pr: p.pr,
+        headSha: p.headSha,
+      }),
+    };
+  },
+  'workitem.rework_requested': (state, { payload: p }) => {
+    const item = state.workItems[p.itemKey];
+    if (!item) return skip('unknown_item', 'Rework references an unknown item');
+    if (item.pr !== p.pr || p.rework !== (item.rework ?? 0) + 1)
+      return skip('stale_rework', 'Rework is out of order');
+    return {
+      ...state,
+      workItems: put(state.workItems, p.itemKey, {
+        ...item,
+        status: 'rework',
+        rework: p.rework,
+        reworkRequest: p,
+        reworkSubmissionIds: [
+          ...(item.reworkSubmissionIds ?? []),
+          p.submissionId,
+        ],
+      }),
+    };
+  },
+  'workitem.merged': (state, { payload: p }) => {
+    const item = state.workItems[p.itemKey];
+    if (!item) return skip('unknown_item', 'Merge references an unknown item');
+    if (item.pr !== p.pr)
+      return skip('stale_pr', 'Merge references a different PR');
+    return {
+      ...state,
+      workItems: put(state.workItems, p.itemKey, {
+        ...item,
+        status: 'merged',
+        mergeCommitSha: p.mergeCommitSha,
+      }),
+    };
+  },
 
   // artifacts and SCM --------------------------------------------------------
   'artifact.created': (state, event) => {

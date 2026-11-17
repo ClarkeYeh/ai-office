@@ -1003,3 +1003,70 @@ describe('M1-T9 transitions', () => {
     },
   ]);
 });
+
+// Progressive-merge rows use the same event-sourced histories as the golden tests.
+import {
+  dispatch as pmDispatch,
+  queue as pmQueue,
+  instance as pmInstance,
+  readyPR,
+  reviewing,
+  submission,
+  rework,
+  merged,
+} from './test-support/progressive-merge.js';
+describe('M1-T10b transitions', () => {
+  runTransitionRows([
+    {
+      name: 'PR open is not ready',
+      given: (h) => {
+        return h.given(...readyPR().events);
+      },
+      when: pmDispatch('B'),
+      then: { error: 'dependencies_not_ready' },
+    },
+    {
+      name: 'queued → in_review',
+      given: (h) => {
+        const source = pmInstance(
+          readyPR().given(pmQueue('merge', ['A'])),
+          'merge',
+        );
+        return h.given(...source.events);
+      },
+      when: pmQueue('merge', [], 'A'),
+      then: ['ondemand.queue_changed', 'workitem.status'],
+    },
+    {
+      name: 'in_review → merged',
+      given: (h) => {
+        return h.given(...reviewing().events);
+      },
+      when: merged,
+      then: ['workitem.merged'],
+    },
+    {
+      name: 'in_review → rework',
+      given: (h) => {
+        return h.given(...reviewing().given(submission()).events);
+      },
+      when: rework(),
+      then: ['workitem.rework_requested'],
+    },
+  ]);
+  runTransitionRows([
+    {
+      name: 'rework → dispatched retains the PR branch',
+      given: (h) =>
+        h.given(...reviewing().given(submission(), rework()).events),
+      when: pmDispatch('A', 'worker-2'),
+      then: ['workitem.dispatched'],
+      check: (h) =>
+        expect(h.state.workItems.A).toMatchObject({
+          branch: 'ai-office/ab12/A',
+          pr: 11,
+          attempt: 2,
+        }),
+    },
+  ]);
+});

@@ -65,6 +65,11 @@ export const decideSubmission = (
     'meeting:participant': ['statement'],
     'planning:planner': ['work-items'],
     'implement:oncall': ['answer-question', 'decision-request'],
+    'implement:integrator': [
+      'merge-request',
+      'rework-request',
+      'decision-request',
+    ],
     'integrate:integrator': [
       'merge-request',
       'decision-request',
@@ -80,7 +85,12 @@ export const decideSubmission = (
           config.participants.includes(attempt.role)
       : config?.kind === 'planning' || config?.kind === 'integrate'
         ? attempt.role === config.owner
-        : config?.kind === 'implement' && attempt.role === config.onCall.role;
+        : config?.kind === 'implement' &&
+          (attempt.purpose === 'oncall'
+            ? attempt.role === config.onCall.role &&
+              attempt.ondemand?.purpose === 'oncall'
+            : attempt.role === config.mergeQueue.role &&
+              attempt.ondemand?.purpose === 'merge');
   if (!roleAllowed)
     return reject(
       'conflict',
@@ -93,6 +103,40 @@ export const decideSubmission = (
       'conflict',
       'not_allowed',
       'Submission kind is not allowed for this role and stage',
+    );
+  if (
+    stage.kind === 'implement' &&
+    (submission.kind === 'merge-request' ||
+      submission.kind === 'rework-request')
+  ) {
+    const queue = state.ondemand[stage.id]?.merge;
+    const item = state.workItems[queue?.current ?? ''];
+    if (
+      queue?.stopped ||
+      queue?.attemptId !== attempt.attemptId ||
+      !item ||
+      item.status !== 'in_review' ||
+      item.pr !== submission.payload.pr
+    )
+      return reject(
+        'conflict',
+        'not_allowed',
+        'Submission must target this instance’s current PR review',
+      );
+  }
+  if (
+    stage.kind === 'integrate' &&
+    submission.kind === 'merge-request' &&
+    !Object.values(state.workItems).some(
+      (item) =>
+        item.pr === submission.payload.pr &&
+        ['pr_open', 'merge_queued', 'in_review'].includes(item.status),
+    )
+  )
+    return reject(
+      'conflict',
+      'not_allowed',
+      'Final integration can only merge a remaining worker PR',
     );
   if (submission.kind === 'work-items') {
     const error = validateWorkItemDrafts(state, submission.payload.items);

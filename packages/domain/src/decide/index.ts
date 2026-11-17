@@ -6,6 +6,7 @@ import { decideBudget } from './budget.js';
 import { decideGate } from './gate.js';
 import { decideMeeting } from './meeting.js';
 import { decideLifecycle } from './lifecycle.js';
+import { decideOnDemand } from './ondemand.js';
 import { decideQuestion } from './question.js';
 import { decideSeat } from './seat.js';
 import { decideStage } from './stage.js';
@@ -72,9 +73,18 @@ export const decide = (
     case 'AnswerQuestion':
     case 'EscalateQuestion':
       return decideQuestion(state, command);
+    case 'QueueWorkItemForMerge':
+    case 'RequestWorkItemRework':
+    case 'MarkWorkItemMerged':
+    case 'EvaluateWorkItemDependencies':
     case 'DispatchWorkItem':
     case 'UpdateWorkItemStatus':
       return decideWorkItem(state, command);
+    case 'StartOnDemand':
+    case 'UpdateOnDemandQueue':
+    case 'StopOnDemand':
+    case 'TimeoutOnDemand':
+      return decideOnDemand(state, command);
     case 'EvaluateAnomaly':
       return decideAnomaly(state, command);
     case 'RecordNudge':

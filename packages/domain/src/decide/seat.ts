@@ -26,6 +26,39 @@ const spawnAttempt = (
       'stage_not_running',
       `Stage ${stage.id} is ${stage.status}`,
     );
+  const config = workflow.template.stages.find((s) => s.id === stage.id);
+  const ondemand =
+    command.purpose === 'oncall'
+      ? ('oncall' as const)
+      : command.purpose === 'integrator' && stage.kind === 'implement'
+        ? ('merge' as const)
+        : undefined;
+  if (ondemand !== undefined) {
+    if (
+      config?.kind !== 'implement' ||
+      command.role !==
+        (ondemand === 'oncall' ? config.onCall.role : config.mergeQueue.role) ||
+      !command.keepOpen
+    )
+      return reject(
+        'conflict',
+        'not_allowed',
+        'On-demand attempts must use the configured role and keep-open',
+      );
+    if (
+      Object.values(state.attempts).some(
+        (a) =>
+          a.stageId === stage.id &&
+          a.ondemand?.purpose === ondemand &&
+          isAttemptAlive(a),
+      )
+    )
+      return reject(
+        'conflict',
+        'ondemand_alive',
+        'Only one live instance per stage and purpose',
+      );
+  }
   const role = workflow.template.roles[command.role];
   if (role === undefined)
     return reject('validation', 'unknown_role', `No role ${command.role}`);
@@ -93,9 +126,7 @@ const spawnAttempt = (
         role: command.role,
         agent: command.agent ?? override?.agent ?? role.agent,
         purpose: command.purpose,
-        ...(command.purpose === 'oncall'
-          ? { ondemand: { purpose: 'oncall' as const } }
-          : {}),
+        ...(ondemand !== undefined ? { ondemand: { purpose: ondemand } } : {}),
         keepOpen: command.keepOpen,
         spawnCommandId: command.spawnCommandId,
         ...defined({

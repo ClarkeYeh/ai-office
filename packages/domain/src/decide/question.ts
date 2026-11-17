@@ -1,3 +1,4 @@
+import { canRetryOnDemand } from './ondemand.js';
 import type { QuestionCommand } from '../commands.js';
 import { accept, reject } from '../errors.js';
 import type { DecideResult } from '../errors.js';
@@ -115,6 +116,19 @@ export const decideQuestion = (
           'invalid_responder',
           'Responder must be the live on-call or facilitator for this stage attempt',
         );
+      if (
+        Object.values(state.questions).some(
+          (q) =>
+            q.id !== question.id &&
+            q.status === 'forwarded' &&
+            q.forwarded?.toAttemptId === command.toAttemptId,
+        )
+      )
+        return reject(
+          'conflict',
+          'current_unresolved',
+          'Responder must finish the previous question',
+        );
       const previous = question.forwarded;
       if (
         command.retry !== (previous === undefined ? 0 : previous.retry + 1) ||
@@ -127,7 +141,7 @@ export const decideQuestion = (
         );
       if (previous !== undefined) {
         const old = state.attempts[previous.toAttemptId];
-        if (old !== undefined && old.state !== 'exited' && old.state !== 'lost')
+        if (!canRetryOnDemand(old, command.retry))
           return reject(
             'conflict',
             'responder_not_failed',
