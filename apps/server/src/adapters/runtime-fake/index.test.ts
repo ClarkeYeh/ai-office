@@ -34,8 +34,20 @@ async function fixture(options: Partial<FakeRuntimeOptions> = {}) {
 }
 runtimePortContract(async () => {
   const f = await fixture();
+  const baseSha = 'a'.repeat(40);
+  f.runtime.setRemoteBranch(f.repo, 'ai-office/integration', baseSha);
   return {
     ...f,
+    prepareRequest: {
+      session: f.session,
+      repo: f.repo,
+      baseBranch: baseSha,
+      baseSha,
+      fetchBranch: 'ai-office/integration',
+      name: 'worker',
+      branch: 'ai-office/worker',
+      correlation: { workflowId: 'wf', commandId: 'prepare' },
+    },
     advance: (ms) => f.clock.advance(ms),
     identity: (a) => f.runtime.identity(a),
     stimulus: async (a, action) => {
@@ -240,8 +252,9 @@ describe('FakeRuntime scenarios and faults', () => {
       branch: 'shared',
       correlation: { workflowId: 'wf', commandId: 'workspace' },
     };
-    const ws = await f.runtime.prepareWorkspace(req);
-    expect(await f.runtime.prepareWorkspace(req)).toBe(ws);
+    const prepared = await f.runtime.prepareWorkspace(req);
+    const ws = prepared.workspace;
+    expect(await f.runtime.prepareWorkspace(req)).toEqual(prepared);
     f.runtime.setWorkspaceInspection(ws, {
       clean: false,
       changedFiles: ['changed.ts'],
@@ -426,7 +439,6 @@ describe('mainline example', () => {
       'statement',
       'conclusion',
       'work-items',
-      'merge-request',
       'integration-report',
     ]);
     for (const title of ['facilitator', 'pm', 'architect', 'engineer'])

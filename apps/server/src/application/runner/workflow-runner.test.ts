@@ -670,3 +670,73 @@ describe('restart and global slot', () => {
     expect(runner?.state.workflow?.pausedReasons).toEqual(['anomaly']);
   });
 });
+
+describe('port result metadata', () => {
+  test('preserves the adapter workspace path and SCM URLs in command results', async () => {
+    const h = harness();
+    const commands = [
+      {
+        kind: 'runtime.prepareWorkspace' as const,
+        args: {
+          session: 'session-1',
+          repo: { orcaRepoId: 'repo', localPath: '/repo' },
+          baseBranch: 'main',
+          branch: 'ai-office/worker',
+          name: 'worker',
+        },
+      },
+      {
+        kind: 'scm.createIssue' as const,
+        args: {
+          repo: { owner: 'octo', name: 'demo' },
+          title: 'Issue',
+          body: '',
+          labels: [],
+        },
+      },
+      {
+        kind: 'scm.openPR' as const,
+        args: {
+          repo: { owner: 'octo', name: 'demo' },
+          title: 'PR',
+          body: '',
+          base: 'ai-office/integration',
+          head: 'ai-office/worker',
+        },
+      },
+    ];
+    const results = [];
+    for (const command of commands) {
+      results.push(
+        await h.executor.execute({
+          workflowId: WORKFLOW_ID,
+          commandId: command.kind,
+          command,
+        }),
+      );
+    }
+    expect(results).toMatchObject([
+      {
+        ok: true,
+        result: {
+          kind: 'runtime.prepareWorkspace',
+          result: { workspace: 'ws-1', path: '/worktrees/worker' },
+        },
+      },
+      {
+        ok: true,
+        result: {
+          kind: 'scm.createIssue',
+          result: { issue: 7, url: 'https://scm.example/issues/7' },
+        },
+      },
+      {
+        ok: true,
+        result: {
+          kind: 'scm.openPR',
+          result: { pr: 8, url: 'https://scm.example/pull/8' },
+        },
+      },
+    ]);
+  });
+});

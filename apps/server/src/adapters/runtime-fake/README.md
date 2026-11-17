@@ -2,10 +2,17 @@
 
 `createFakeRuntime({ clock, scenario, submitter, onPush, localRepos })` implements
 `RuntimePort` without processes, files, logging, or imports from other adapters.
-Use `mainlineScenario` from `./mainline.js` for the 21-line §0.1 agent behavior
-example. Its sample payloads live in `mainline-actions.ts`; PR 1, `aio/feature`,
-and `abcdef0` are illustrative values to map to the application's SCM fixture.
-The application still drives human gates, role dispatch, and meeting rounds.
+Use `mainlineScenario` from `./mainline.js` for the progressive-merge §0.1
+agent behavior example. Planning proposes a feature and a dependent item. The
+`merge-queue` role is spawned with `keepOpen: true`; each send body is JSON
+`{ pr, expectedHeadSha, rework?: boolean }`. A rework review submits reasons;
+the harness pushes another commit to the same worker branch/PR before sending
+it for review again. The same reviewer can merge the dependent PR next.
+`integrator` only submits the final integration report. Sample worker branch,
+SHA and report PR numbers in `mainline-actions.ts` are illustrative values to
+map to the application's SCM fixture. The application still drives human gates,
+role dispatch, readiness, and meeting rounds. `progressive-merge.test.ts`
+exercises these adapter interactions; the full workflow event golden is T34.
 
 A scenario maps spawn titles to roles by default; supply `scenario.role(request)`
 to select a role using the composition root's prompt/title convention. Each role
@@ -47,3 +54,23 @@ it does not model destruction of the external Orca runtime itself.
 The portable `test-support/runtime-port-contract.ts` suite accepts a runtime,
 spawn request, clock advancement, caller identity, and stimulus hooks. M2 can
 bind those hooks to Orca fixture replay; assertions do not inspect fake state.
+
+## Workspace bases
+
+`prepareWorkspace` returns `{ workspace, path, baseSha? }`; the opaque ref is
+not a filesystem path. For implement dispatch, the application first resolves
+`ScmPort.compareBranch(repo, integration, integration).headSha`, then records
+that SHA as `baseBranch` and supplies `fetchBranch: integration`. The optional
+port input `baseSha`, when supplied, must match `baseBranch`. The current
+contracts command input carries only `baseBranch` and `fetchBranch`; the
+returned `baseSha` is available for `workitem.dispatched` (T14/T23).
+
+Wire `setRemoteBranch(repo, branch, headSha)` to the test's SCM head after a
+merge. This models monotonically advancing remote history without coupling
+adapters. `fetchedBranches()` records fetches; preparation fetches before
+checking that the pinned SHA is available, and never silently substitutes a
+newer remote head. Same-command replay returns the original path/ref/SHA and
+does not fetch or create again, including after a lost response. Unknown remote
+branches or unavailable commits fail with a guard error. Requests without fetch
+or SHA retain legacy meeting-workspace behavior. This simulator has no local
+Git repository and does not verify Orca's real SHA-base support; P7 remains M2.

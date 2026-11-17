@@ -72,12 +72,6 @@ export const spawnPrompt = (
     `Read the AI Office spec at ${args.specPath} (sha256 ${args.specSha256}) and follow it exactly.`,
   ].join('\n');
 
-const issueUrl = (
-  repo: { owner: string; name: string },
-  kind: 'issues' | 'pull',
-  number: number,
-) => `https://github.com/${repo.owner}/${repo.name}/${kind}/${number}`;
-
 /** The default handlers: one RuntimePort / ScmPort call per kind (§11.1, §11.2). */
 export const portHandlers = (ports: {
   runtime: RuntimePort;
@@ -95,13 +89,11 @@ export const portHandlers = (ports: {
       }),
     }),
     'runtime.prepareWorkspace': async (args, { correlation }) => {
-      const workspace = await runtime.prepareWorkspace({
+      return runtime.prepareWorkspace({
         ...args,
         session: args.session as SessionRef,
         correlation,
       });
-      // RuntimePort returns only the opaque ref (gap reported in T23's PR).
-      return { workspace, path: workspace };
     },
     'runtime.disposeWorkspace': async (args) => {
       await runtime.disposeWorkspace(args.workspace as WorkspaceRef);
@@ -179,7 +171,7 @@ export const portHandlers = (ports: {
       const ref = await scm.createIssue(repo, draft, correlation);
       return {
         issue: ref.number,
-        url: issueUrl(ref.repo, 'issues', ref.number),
+        url: ref.url,
       };
     },
     'scm.updateIssue': async (args) => {
@@ -199,7 +191,7 @@ export const portHandlers = (ports: {
     'scm.openPR': async (args, { correlation }) => {
       const { repo, ...draft } = args;
       const ref = await scm.openPR(repo, draft, correlation);
-      return { pr: ref.number, url: issueUrl(ref.repo, 'pull', ref.number) };
+      return { pr: ref.number, url: ref.url };
     },
     'scm.updatePR': async (args) => {
       await scm.updatePR(args.pr, args.patch);

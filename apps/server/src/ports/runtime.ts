@@ -26,6 +26,13 @@ export type WorkspaceReq =
   | { kind: 'new-worktree'; baseBranch: string; name: string; branch: string } // Orca：worktree create --branch，再 worker-start --worktree path:
   | { kind: 'existing-worktree'; workspace: WorkspaceRef; readOnly: boolean }; // 會議共用；Orca 不強制唯讀
 
+export type PreparedWorkspace = {
+  workspace: WorkspaceRef;
+  path: string;
+  /** The pinned commit actually used to create this workspace. */
+  baseSha?: string;
+};
+
 export interface RuntimePort {
   capabilities(): RuntimeCapabilities;
   health(): Promise<RuntimeHealth>; // 含版本、verified/unverified、shim 狀態、run 擁有權
@@ -39,11 +46,15 @@ export interface RuntimePort {
   prepareWorkspace(req: {
     session: SessionRef;
     repo: RepoRuntimeRef;
+    /** Implement dispatch supplies the SHA resolved by ScmPort.compareBranch. */
     baseBranch: string;
+    /** Fetch origin/<fetchBranch> before creating the workspace at baseSha. */
+    fetchBranch?: string | undefined;
+    baseSha?: string | undefined;
     name: string;
     branch: string;
     correlation: Correlation;
-  }): Promise<WorkspaceRef>;
+  }): Promise<PreparedWorkspace>;
   disposeWorkspace(ws: WorkspaceRef): Promise<void>;
   spawnAgent(req: {
     session: SessionRef;

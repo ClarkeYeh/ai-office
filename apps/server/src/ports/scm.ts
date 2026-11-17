@@ -50,7 +50,7 @@ export interface ScmPort {
     repo: RepoScmRef,
     d: IssueDraft,
     c: Correlation,
-  ): Promise<IssueRef>; // body 附 <!-- ai-office:cmd=<commandId> -->
+  ): Promise<IssueRef & { url: string }>; // body 附 <!-- ai-office:cmd=<commandId> -->
   getIssue(ref: IssueRef): Promise<{
     body: string;
     bodyHash: string;
@@ -60,7 +60,11 @@ export interface ScmPort {
   updateIssue(ref: IssueRef, patch: IssuePatch): Promise<void>;
   comment(ref: IssueRef | PrRef, body: string, c: Correlation): Promise<void>;
   setLabels(ref: IssueRef | PrRef, labels: string[]): Promise<void>;
-  openPR(repo: RepoScmRef, d: PrDraft, c: Correlation): Promise<PrRef>;
+  openPR(
+    repo: RepoScmRef,
+    d: PrDraft,
+    c: Correlation,
+  ): Promise<PrRef & { url: string }>;
   updatePR(ref: PrRef, patch: PrPatch): Promise<void>;
   mergePR(
     ref: PrRef,
