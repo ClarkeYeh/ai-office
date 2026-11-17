@@ -438,8 +438,8 @@ const healthComponent = z.object({
 });
 /**
  * §13.2 health; `runtime.mode: fake` is shown in the banner (Q7).
- * TODO(M1-T26): the shim, scm.rateLimit, usage.sources, and adapters sub-structures are
- * provisional until HealthMonitor defines what it actually collects.
+ * Adapter counters and latency percentiles cover the last five minutes.
+ * Runtime-specific metadata is optional until supplied by the real adapter.
  */
 export const HealthViewSchema = z.object({
   status: healthStatus,
@@ -481,6 +481,10 @@ export const HealthViewSchema = z.object({
       adapter: id,
       calls: nonNegativeInt,
       failures: nonNegativeInt,
+      /** Rolling five-minute window; nearest-rank percentiles, zero when empty. */
+      p50Ms: z.number().nonnegative().optional(),
+      p95Ms: z.number().nonnegative().optional(),
+      failureRate: z.number().min(0).max(1).optional(),
       lastErrorCategory: ErrorCategorySchema.optional(),
     }),
   ),
