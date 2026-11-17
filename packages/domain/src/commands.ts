@@ -256,6 +256,7 @@ export interface RecordWallclockLimit extends Base<'RecordWallclockLimit'> {
   stageId: string;
   itemKey?: string;
   attemptId?: string;
+  /** Raw elapsed minutes; domain subtracts recorded question waits for items. */
   usedMinutes: number;
 }
 export type BudgetCommand =
@@ -314,9 +315,18 @@ export interface EvaluateAnomaly extends Base<'EvaluateAnomaly'> {
         pr: EventPayload<'pr.status'>;
         author?: string;
         managed: boolean;
+        /** Creation time from SCM; unknown-object detection requires this. */
+        createdAt?: string;
       }
-    | { kind: 'issue'; number: number; author?: string; managed: boolean }
-    | { kind: 'default-branch'; sha: string }
+    | {
+        kind: 'issue';
+        number: number;
+        author?: string;
+        managed: boolean;
+        createdAt?: string;
+      }
+    /** ObservationLoop supplies its persisted compareBranch polling baseline. */
+    | { kind: 'default-branch'; sha: string; previousSha?: string }
     | {
         kind: 'policy-hits';
         attemptId: string;

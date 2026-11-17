@@ -692,7 +692,8 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       }),
     };
   },
-  'message.answered': (state, { payload: p }) => {
+  'message.answered': (state, event) => {
+    const p = event.payload;
     const question = state.questions[p.questionId];
     if (question === undefined || question.status === 'answered')
       return skip('question_not_open', `Question ${p.questionId} is not open`);
@@ -701,6 +702,7 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       questions: put(state.questions, p.questionId, {
         ...question,
         status: 'answered',
+        answeredAt: event.occurredAt,
         answer: omit(p, 'questionId'),
       }),
     };

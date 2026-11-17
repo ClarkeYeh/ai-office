@@ -1,6 +1,4 @@
 import { describe, expect, test } from 'vitest';
-import type { DomainCommand } from '../commands.js';
-import { decide } from './index.js';
 import { integrationBranchName, slugify } from './workflow.js';
 import {
   ATTEMPT_TRANSITIONS,
@@ -181,89 +179,6 @@ describe('integration branch naming', () => {
       code: 'invalid_integration_branch',
     });
   });
-});
-
-describe('dispatcher', () => {
-  const notYet: DomainCommand[] = [
-    {
-      type: 'RecordUsageTokens',
-      meta: meta(),
-      usage: {
-        attemptId: 'a',
-        inputUncached: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        budgetTokens: 0,
-      },
-    },
-    {
-      type: 'RecordUsageTurns',
-      meta: meta(),
-      usage: { attemptId: 'a', turns: 1 },
-    },
-    {
-      type: 'RecordWallclockLimit',
-      meta: meta(),
-      stageId: 'meeting',
-      usedMinutes: 1,
-    },
-    {
-      type: 'AskQuestion',
-      meta: meta(),
-      questionId: 'q',
-      attemptId: 'a',
-      body: 'b',
-    },
-    {
-      type: 'ForwardQuestion',
-      meta: meta(),
-      questionId: 'q',
-      to: 'on-call',
-      toAttemptId: 'a',
-      retry: 0,
-    },
-    {
-      type: 'AnswerQuestion',
-      meta: meta(),
-      questionId: 'q',
-      by: 'user',
-      body: 'b',
-    },
-    {
-      type: 'EscalateQuestion',
-      meta: meta(),
-      questionId: 'q',
-      reason: 'timeout',
-      gateId: 'g',
-    },
-    { type: 'DispatchWorkItem', meta: meta(), itemKey: 'i', attemptId: 'a' },
-    {
-      type: 'UpdateWorkItemStatus',
-      meta: meta(),
-      update: { itemKey: 'i', status: 'skipped' },
-    },
-    {
-      type: 'EvaluateAnomaly',
-      meta: meta(),
-      observation: { kind: 'default-branch', sha: 'abcdef1' },
-    },
-  ];
-
-  test.each(notYet.map((command) => [command.type, command] as const))(
-    '%s is routed to its (not yet implemented) partition',
-    (_type, command) => {
-      expect(decide(initialState(), command)).toEqual({
-        ok: false,
-        error: {
-          category: 'bug',
-          code: 'not_implemented',
-          message: `${command.type} is not implemented yet`,
-          details: { commandType: command.type },
-        },
-      });
-    },
-  );
 });
 
 describe('state selectors', () => {

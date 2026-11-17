@@ -41,9 +41,3 @@ export const reject = (
   ok: false,
   error: domainError(category, code, message, details),
 });
-
-/** Placeholder result for decide partitions that later work items fill in. */
-export const notImplemented = (commandType: string): DecideResult =>
-  reject('bug', 'not_implemented', `${commandType} is not implemented yet`, {
-    commandType,
-  });

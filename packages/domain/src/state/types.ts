@@ -168,6 +168,8 @@ export interface Question {
   itemKey?: string;
   body: string;
   askedAt: string;
+  /** Event time used to reconstruct paused work-item timeout intervals. */
+  answeredAt?: string;
   status: QuestionStatus;
   forwarded?: Omit<EventPayload<'message.forwarded'>, 'questionId'>;
   escalation?: Omit<EventPayload<'message.escalated'>, 'questionId'>;
