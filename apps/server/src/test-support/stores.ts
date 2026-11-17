@@ -132,6 +132,7 @@ const hash = (secret: string) =>
   createHash('sha256').update(secret).digest('hex');
 const secret = (prefix: string) => prefix + randomBytes(32).toString('hex');
 export class InMemorySeatTokenStore implements SeatTokenStore {
+  constructor(private readonly events?: EventStore) {}
   private issued = new Set<string>();
   private hashes = new Map<string, string>();
   issue(attemptId: string): string {
@@ -145,6 +146,27 @@ export class InMemorySeatTokenStore implements SeatTokenStore {
     this.issued.add(attemptId);
     this.hashes.set(hash(token), attemptId);
     return token;
+  }
+  rotateUnissued(attemptId: string): string {
+    if (
+      this.events === undefined ||
+      this.events
+        .read({})
+        .some(
+          (e) =>
+            e.type === 'command.issued' &&
+            e.payload.kind === 'runtime.spawnAgent' &&
+            e.attemptId === attemptId,
+        )
+    )
+      throw new PortError(
+        'conflict',
+        'seat_token_reissue',
+        'Cannot prove spawn unissued',
+      );
+    this.revoke(attemptId);
+    this.issued.delete(attemptId);
+    return this.issue(attemptId);
   }
   verify(token: string): string | null {
     return this.hashes.get(hash(token)) ?? null;

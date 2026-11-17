@@ -49,6 +49,30 @@ export class FsSpecStore implements SpecStore {
     }
     return { path, sha256 };
   }
+  removeUnissued(attemptId: string): void {
+    if (!/^[A-Za-z0-9_-]+$/.test(attemptId))
+      throw new TypeError('Invalid attempt ID');
+    this.remove(join(this.directory, attemptId + '.md'));
+  }
+  read(path: string, sha256: string): string | null {
+    this.checkPath(path);
+    let fd: number | undefined;
+    try {
+      fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+      const content = readFileSync(fd);
+      return hash(content) === sha256 ? content.toString('utf8') : null;
+    } catch (error) {
+      if (
+        ['ENOENT', 'ELOOP'].includes(
+          (error as NodeJS.ErrnoException).code ?? '',
+        )
+      )
+        return null;
+      throw error;
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+    }
+  }
   private checkPath(path: string): void {
     if (
       dirname(resolve(path)) !== this.directory ||

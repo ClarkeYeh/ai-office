@@ -1,3 +1,4 @@
+import type { CommandResult } from '@ai-office/contracts/events';
 import { PortError } from '../../ports/errors.js';
 import {
   AgentRefSchema,
@@ -94,6 +95,42 @@ const fail = (code: string) =>
 /** In-memory port simulator. Raw prompts/output stay transient; no files, processes or logging. */
 export class FakeRuntime implements RuntimePort {
   private sequence = 0;
+  private markers = new Map<string, CommandResult>();
+  private pruned = new Set<string>();
+  private workspaceNames = new Map<
+    string,
+    {
+      commandId: string;
+      prepared: Awaited<ReturnType<RuntimePort['prepareWorkspace']>>;
+    }
+  >();
+  pruneReceipt(commandId: string): void {
+    this.pruned.add(commandId);
+  }
+  async inspectRequest(
+    _requestId: string,
+    commandId: string,
+  ): ReturnType<RuntimePort['inspectRequest']> {
+    this.before('findByCorrelation');
+    const result = this.markers.get(commandId);
+    return result && !this.pruned.has(commandId)
+      ? { status: 'completed', result: structuredClone(result) }
+      : { status: 'absent' };
+  }
+  async findCommandByMarker(commandId: string): Promise<CommandResult | null> {
+    this.before('findByCorrelation');
+    return structuredClone(this.markers.get(commandId) ?? null);
+  }
+  async findWorkspace(
+    req: Parameters<RuntimePort['findWorkspace']>[0],
+  ): ReturnType<RuntimePort['findWorkspace']> {
+    this.before('findByCorrelation');
+    const found = this.workspaceNames.get(JSON.stringify([req.repo, req.name]));
+    if (!found || !this.workspaces.has(found.prepared.workspace)) return null;
+    if (found.commandId !== req.commandId)
+      throw fail('workspace_comment_mismatch');
+    return structuredClone(found.prepared);
+  }
   private remoteBranches = new Map<
     string,
     { head: string; commits: Set<string> }
@@ -242,6 +279,17 @@ export class FakeRuntime implements RuntimePort {
       return structuredClone(previous.result) as T;
     }
     const result = effect();
+    if (['openSession', 'spawnAgent', 'send', 'answer'].includes(operation)) {
+      this.markers.set(correlation.commandId, {
+        kind: 'runtime.' + operation,
+        result:
+          operation === 'openSession'
+            ? { session: result }
+            : operation === 'spawnAgent'
+              ? { agent: result }
+              : {},
+      } as CommandResult);
+    }
     this.commands.set(correlation.commandId, {
       signature,
       result: structuredClone(result),
@@ -346,14 +394,26 @@ export class FakeRuntime implements RuntimePort {
       req.session,
       () => {
         this.session(req.session);
+        const key = JSON.stringify([req.repo, req.name]);
+        const existing = this.workspaceNames.get(key);
+        if (existing && this.workspaces.has(existing.prepared.workspace)) {
+          if (existing.commandId !== req.correlation.commandId)
+            throw fail('workspace_comment_mismatch');
+          return structuredClone(existing.prepared);
+        }
         const baseSha = this.workspaceBase(req);
         const ref = WorkspaceRefSchema.parse(this.id('workspace'));
         this.workspaces.set(ref, { clean: true, changedFiles: [] });
-        return {
+        const prepared = {
           workspace: ref,
           path: `/fake-worktrees/${ref}`,
           ...(baseSha === undefined ? {} : { baseSha }),
         };
+        this.workspaceNames.set(key, {
+          commandId: req.correlation.commandId,
+          prepared,
+        });
+        return prepared;
       },
     );
   }
