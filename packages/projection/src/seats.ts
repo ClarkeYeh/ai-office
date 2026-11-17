@@ -37,7 +37,7 @@ export function applySeats(m: ReadModel, e: DomainEvent): void {
       role: p.role,
       agent: p.agent,
       purpose: p.purpose,
-      oncall: p.oncall,
+      ...(p.ondemand === undefined ? {} : { ondemand: p.ondemand }),
       ...(p.itemKey === undefined ? {} : { itemKey: p.itemKey }),
       ...(p.retryOf === undefined ? {} : { retryOf: p.retryOf }),
       state: 'starting',

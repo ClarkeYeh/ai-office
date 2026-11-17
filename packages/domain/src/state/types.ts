@@ -1,6 +1,7 @@
 import type {
   AttemptState,
   EventPayload,
+  OndemandPurpose,
   PolicyHit,
   RepoSnapshot,
   WorkItemStatus,
@@ -176,12 +177,13 @@ export interface Question {
   answer?: Omit<EventPayload<'message.answered'>, 'questionId'>;
 }
 
-export interface OnCall {
+/** One on-demand role instance (§7.5) per stage and purpose. */
+export interface OnDemand {
   stageId: string;
   attemptId?: string;
   queue: string[];
   current?: string;
-  stopped?: EventPayload<'oncall.stopped'>['reason'];
+  stopped?: EventPayload<'ondemand.stopped'>['reason'];
 }
 
 export interface WorkItemProposal {
@@ -262,7 +264,8 @@ export interface WorkflowState {
   submissions: Record<string, SubmissionRecord>;
   rejectedSubmissions: number;
   questions: Record<string, Question>;
-  oncall: Record<string, OnCall>;
+  /** Keyed by stage id, then by on-demand purpose. */
+  ondemand: Record<string, Partial<Record<OndemandPurpose, OnDemand>>>;
   proposals: Record<string, WorkItemProposal>;
   workItems: Record<string, WorkItem>;
   workItemOrder: string[];

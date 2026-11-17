@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import {
   AgentSubmissionSchema as SubmissionFromAgentPath,
   exitCodeForHttpStatus,
@@ -9,15 +9,20 @@ import {
 import {
   AgentSubmissionSchema,
   CommandIssuedPayloadSchema,
+  CommandResultSchema,
   CURRENT_SCHEMA_VERSION,
   DomainEventSchema,
   EVENT_PAYLOAD_SCHEMAS,
   ErrorCategorySchema,
   EVENT_TYPES,
   EXTERNAL_COMMAND_KINDS,
+  ExceptionKindSchema,
   ExternalCommandSchema,
   ORCA_REQUEST_ID_KINDS,
   seatIdFor,
+  SubmissionAcceptedPayloadSchema,
+  TimerPayloadSchema,
+  WorkItemStatusSchema,
   type DomainEventDraft,
   type EventPayload,
   type EventType,
@@ -98,12 +103,13 @@ const template = {
       timeouts: { itemMin: 45 },
       budget: { tokens: 1000, perItem: { tokens: 100 } },
       onCall: { role: 'lead', questionTimeoutMin: 10 },
+      mergeQueue: { role: 'lead', reviewTimeoutMin: 20 },
+      escalateOn: ['unresolvable-conflict'],
     },
     {
       id: 'integrate',
       kind: 'integrate',
       owner: 'lead',
-      escalateOn: ['unresolvable-conflict'],
       timeouts: { stageMin: 60 },
       budget: { tokens: 1000 },
     },
@@ -333,11 +339,15 @@ const payloadExamples: Record<EventType, { valid: unknown; invalid: unknown }> =
         role: 'lead',
         agent: 'claude-code',
         purpose: 'oncall',
-        oncall: true,
+        ondemand: { purpose: 'oncall' },
         keepOpen: true,
         spawnCommandId: 'c1',
       },
-      invalid: { seatId: 'wf1:lead', attemptId: 'a1', oncall: 'yes' },
+      invalid: {
+        seatId: 'wf1:lead',
+        attemptId: 'a1',
+        ondemand: { purpose: 'merge-queue' },
+      },
     },
     'seat.status': {
       valid: { attemptId: 'a1', state: 'waiting_input', waitingSince: at },
@@ -497,17 +507,32 @@ const payloadExamples: Record<EventType, { valid: unknown; invalid: unknown }> =
       },
       invalid: { seatId: 'wf1:engineer:w1', subject: '' },
     },
-    'oncall.started': {
-      valid: { stageId: 'implement', attemptId: 'a5' },
-      invalid: { stageId: 'implement' },
+    'ondemand.started': {
+      valid: { stageId: 'implement', purpose: 'merge', attemptId: 'a5' },
+      invalid: { stageId: 'implement', attemptId: 'a5' },
     },
-    'oncall.queue_changed': {
-      valid: { stageId: 'implement', queue: ['msg1', 'msg2'], current: 'msg1' },
-      invalid: { stageId: 'implement', queue: 'msg1' },
+    'ondemand.queue_changed': {
+      valid: {
+        stageId: 'implement',
+        purpose: 'oncall',
+        queue: ['msg1', 'msg2'],
+        current: 'msg1',
+      },
+      invalid: { stageId: 'implement', purpose: 'oncall', queue: 'msg1' },
     },
-    'oncall.stopped': {
-      valid: { stageId: 'implement', attemptId: 'a5', reason: 'queue_empty' },
-      invalid: { stageId: 'implement', attemptId: 'a5', reason: 'expired' },
+    'ondemand.stopped': {
+      valid: {
+        stageId: 'implement',
+        purpose: 'merge',
+        attemptId: 'a5',
+        reason: 'queue_empty',
+      },
+      invalid: {
+        stageId: 'implement',
+        purpose: 'merge-queue',
+        attemptId: 'a5',
+        reason: 'queue_empty',
+      },
     },
     'workitem.proposed': {
       valid: { stageId: 'planning', submissionId: 'sub2', items: [draft] },
@@ -529,6 +554,7 @@ const payloadExamples: Record<EventType, { valid: unknown; invalid: unknown }> =
         agent: 'codex',
         branch: 'ai-office/abcd1234/w1-a2',
         workspaceName: 'aio-abcd1234-w1-a2',
+        baseSha: sha,
         retryOf: 'a4',
       },
       invalid: {
@@ -541,8 +567,34 @@ const payloadExamples: Record<EventType, { valid: unknown; invalid: unknown }> =
       },
     },
     'workitem.status': {
-      valid: { itemKey: 'w1', status: 'pr_open', attemptId: 'a6', pr: 5 },
+      valid: { itemKey: 'w1', status: 'in_review', attemptId: 'a6', pr: 5 },
       invalid: { itemKey: 'w1', status: 'done' },
+    },
+    'workitem.merge_queued': {
+      valid: { itemKey: 'w1', attemptId: 'a6', pr: 5, headSha: sha },
+      invalid: { itemKey: 'w1', attemptId: 'a6', pr: 5 },
+    },
+    'workitem.rework_requested': {
+      valid: {
+        itemKey: 'w1',
+        pr: 5,
+        submissionId: 'sub9',
+        attemptId: 'a7',
+        reasons: ['missing tests'],
+        rework: 1,
+      },
+      invalid: {
+        itemKey: 'w1',
+        pr: 5,
+        submissionId: 'sub9',
+        attemptId: 'a7',
+        reasons: [],
+        rework: 1,
+      },
+    },
+    'workitem.merged': {
+      valid: { itemKey: 'w1', pr: 5, mergeCommitSha: sha, commandId: 'c9' },
+      invalid: { itemKey: 'w1', pr: 5, mergeCommitSha: 'not-a-sha' },
     },
     'artifact.created': {
       valid: {
@@ -768,8 +820,8 @@ const event = (type: EventType, payload: unknown) => ({
 });
 
 test('EVENT_TYPES matches the DomainEventSchema options one-to-one', () => {
-  expect(EVENT_TYPES).toHaveLength(63);
-  expect(new Set(EVENT_TYPES).size).toBe(63);
+  expect(EVENT_TYPES).toHaveLength(66);
+  expect(new Set(EVENT_TYPES).size).toBe(66);
   expect(DomainEventSchema.options.map((o) => o.shape.type.value)).toEqual([
     ...EVENT_TYPES,
   ]);
@@ -997,4 +1049,154 @@ test('generated schemas reference shared definitions that exist', () => {
       expect(components).toContain(ref.slice('#/components/schemas/'.length));
   expect(components).toContain('DomainEvent');
   expect(openapi).not.toContain('./');
+});
+
+describe('rev2.10 progressive merge (M1-CP3)', () => {
+  test.each(['merge_queued', 'in_review', 'rework'])(
+    'work-item status %s parses',
+    (status) => {
+      expect(WorkItemStatusSchema.parse(status)).toBe(status);
+    },
+  );
+  test.each(['rework_requested', 'reviewing', 'queued'])(
+    'work-item status %s is rejected',
+    (status) => {
+      expect(WorkItemStatusSchema.safeParse(status).success).toBe(false);
+    },
+  );
+
+  test('oncall.* event types are gone; ondemand.* carry a purpose', () => {
+    expect(EVENT_TYPES.filter((t) => t.startsWith('oncall.'))).toEqual([]);
+    for (const type of [
+      'oncall.started',
+      'oncall.queue_changed',
+      'oncall.stopped',
+    ])
+      expect(
+        DomainEventSchema.safeParse(
+          event(type as EventType, payloadExamples['ondemand.started'].valid),
+        ).success,
+      ).toBe(false);
+    for (const type of [
+      'ondemand.started',
+      'ondemand.queue_changed',
+      'ondemand.stopped',
+    ] as const) {
+      const withoutPurpose = {
+        ...(payloadExamples[type].valid as object),
+        purpose: undefined,
+      };
+      expect(
+        EVENT_PAYLOAD_SCHEMAS[type].safeParse(withoutPurpose).success,
+      ).toBe(false);
+    }
+  });
+
+  test('seat.spawned drops the oncall flag for ondemand.purpose', () => {
+    const valid = payloadExamples['seat.spawned'].valid as Record<
+      string,
+      unknown
+    >;
+    const schema = EVENT_PAYLOAD_SCHEMAS['seat.spawned'];
+    expect(
+      schema.parse({ ...valid, ondemand: { purpose: 'merge' } }),
+    ).toMatchObject({ ondemand: { purpose: 'merge' } });
+    const plain = { ...valid };
+    delete plain.ondemand;
+    expect(schema.parse(plain)).not.toHaveProperty('ondemand');
+    // Unknown keys are stripped, so the legacy flag never reaches consumers.
+    expect(schema.parse({ ...plain, oncall: true })).not.toHaveProperty(
+      'oncall',
+    );
+  });
+
+  test('rework-request is the ninth submission kind', () => {
+    const submission = {
+      kind: 'rework-request',
+      payload: { pr: 5, reasons: ['Add tests'] },
+    } as const;
+    expect(AgentSubmissionSchema.options).toHaveLength(9);
+    expect(
+      SubmissionAcceptedPayloadSchema.parse({
+        submissionId: 'sub9',
+        attemptId: 'a7',
+        kind: 'rework-request',
+        submission,
+      }).kind,
+    ).toBe('rework-request');
+    expect(
+      SubmissionAcceptedPayloadSchema.safeParse({
+        submissionId: 'sub9',
+        attemptId: 'a7',
+        kind: 'merge-request',
+        submission,
+      }).success,
+    ).toBe(false);
+  });
+
+  test('prepareWorkspace fetches the remote base and reports baseSha', () => {
+    const args = {
+      ...(commandExamples['runtime.prepareWorkspace'] as object),
+      baseBranch: sha,
+      fetchBranch: 'ai-office/abcd1234-demo',
+    };
+    expect(
+      ExternalCommandSchema.parse({ kind: 'runtime.prepareWorkspace', args }),
+    ).toMatchObject({ args: { fetchBranch: 'ai-office/abcd1234-demo' } });
+    expect(
+      ExternalCommandSchema.safeParse({
+        kind: 'runtime.prepareWorkspace',
+        args: { ...args, fetchBranch: '' },
+      }).success,
+    ).toBe(false);
+    expect(
+      CommandResultSchema.parse({
+        kind: 'runtime.prepareWorkspace',
+        result: { workspace: 'ws1', path: '/wt/w1', baseSha: sha },
+      }),
+    ).toMatchObject({ result: { baseSha: sha } });
+    expect(
+      CommandResultSchema.safeParse({
+        kind: 'runtime.prepareWorkspace',
+        result: { workspace: 'ws1', path: '/wt/w1', baseSha: 'HEAD' },
+      }).success,
+    ).toBe(false);
+    expect(
+      EVENT_PAYLOAD_SCHEMAS['workitem.dispatched'].safeParse({
+        ...(payloadExamples['workitem.dispatched'].valid as object),
+        baseSha: 'origin/main',
+      }).success,
+    ).toBe(false);
+  });
+
+  test('exception gates and timers for the merge queue', () => {
+    for (const kind of [
+      'dependency-blocked',
+      'merge-blocked',
+      'rework-limit',
+      'merge-review-failed',
+    ])
+      expect(ExceptionKindSchema.safeParse(kind).success).toBe(true);
+    expect(
+      TimerPayloadSchema.parse({
+        purpose: 'review-timeout',
+        itemKey: 'w1',
+        attemptId: 'a7',
+      }).purpose,
+    ).toBe('review-timeout');
+    expect(
+      TimerPayloadSchema.parse({
+        purpose: 'ondemand-idle',
+        stageId: 'implement',
+        ondemand: 'merge',
+      }).purpose,
+    ).toBe('ondemand-idle');
+    expect(
+      TimerPayloadSchema.safeParse({
+        purpose: 'ondemand-idle',
+        stageId: 'implement',
+        ondemand: 'merge-queue',
+      }).success,
+    ).toBe(false);
+  });
 });

@@ -17,7 +17,7 @@ roles: # 角色＝流程中的職責，不是頭銜
     scope: 評估實作可行性與工作量；實作指派的工作項目並撰寫測試
   integrator:
     agent: claude-code
-    scope: 依相依順序整合 worker PR、解衝突、執行驗證並撰寫整合報告
+    scope: 在合併佇列中逐一審查 worker PR、解衝突或要求修改；收尾時做整體驗證、fix-forward 並撰寫整合報告
 defaults:
   integrationBranch: 'ai-office/{shortId}-{slug}'
   maxReruns: 2 # 關卡退回後重跑同一階段的上限
@@ -54,10 +54,11 @@ stages:
     timeouts: { itemMin: 45 }
     budget: { tokens: 1500000, perItem: { tokens: 400000, maxTurns: 120 } }
     onCall: { role: lead, questionTimeoutMin: 10 } # 值班主 agent（§7.5），預算計入本階段
+    mergeQueue: { role: integrator, reviewTimeoutMin: 20, maxRework: 2 } # 合併佇列整合者（§7.4a、§7.5）
+    escalateOn: [unresolvable-conflict, ci-failed-twice] # 以每個 PR 計；ci 條件只在 repo 有 checks 時生效
   - id: integrate
-    kind: integrate
+    kind: integrate # 收尾：整體驗證、fix-forward、整合報告（§7.4b）
     owner: integrator
-    escalateOn: [unresolvable-conflict, ci-failed-twice] # ci 條件只在 repo 有 checks 時生效
     timeouts: { stageMin: 60 }
     budget: { tokens: 400000, maxTurns: 100 }
   - id: final-pr

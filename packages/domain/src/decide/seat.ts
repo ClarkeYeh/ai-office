@@ -93,7 +93,9 @@ const spawnAttempt = (
         role: command.role,
         agent: command.agent ?? override?.agent ?? role.agent,
         purpose: command.purpose,
-        oncall: command.purpose === 'oncall',
+        ...(command.purpose === 'oncall'
+          ? { ondemand: { purpose: 'oncall' as const } }
+          : {}),
         keepOpen: command.keepOpen,
         spawnCommandId: command.spawnCommandId,
         ...defined({

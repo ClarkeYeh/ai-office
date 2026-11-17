@@ -54,10 +54,11 @@ stages:
     timeouts: { itemMin: 45 }
     budget: { tokens: 1000 }
     onCall: { role: lead, questionTimeoutMin: 10 }
+    mergeQueue: { role: lead, reviewTimeoutMin: 20, maxRework: 2 }
+    escalateOn: [unresolvable-conflict, ci-failed-twice]
   - id: integrate
     kind: integrate
     owner: lead
-    escalateOn: [unresolvable-conflict, ci-failed-twice]
     timeouts: { stageMin: 60 }
     budget: { tokens: 1000 }
   - id: final-pr
@@ -81,7 +82,7 @@ const envelope = {
 };
 // Per-type payload examples live in events/events.test.ts.
 test('domain events reject runtime-only types and invalid envelopes', () => {
-  expect(DomainEventSchema.options).toHaveLength(63);
+  expect(DomainEventSchema.options).toHaveLength(66);
   expect(
     DomainEventSchema.safeParse({
       ...envelope,
@@ -132,6 +133,36 @@ const invalidTemplates: [
     'on-call role reference',
     (t) => {
       t.stages[2].onCall.role = 'missing';
+    },
+  ],
+  [
+    'merge-queue role reference',
+    (t) => {
+      t.stages[2].mergeQueue.role = 'missing';
+    },
+  ],
+  [
+    'merge queue required on implement',
+    (t) => {
+      delete t.stages[2].mergeQueue;
+    },
+  ],
+  [
+    'escalateOn on integrate (rev2.10 moved it to implement)',
+    (t) => {
+      t.stages[3].escalateOn = ['unresolvable-conflict'];
+    },
+  ],
+  [
+    'escalateOn on meeting',
+    (t) => {
+      t.stages[0].escalateOn = [];
+    },
+  ],
+  [
+    'unknown escalateOn condition',
+    (t) => {
+      t.stages[2].escalateOn = ['tests-flaky'];
     },
   ],
   [
@@ -243,6 +274,7 @@ const submissions = [
   },
   { kind: 'answer-question', payload: { questionId: 'q1', body: 'Yes' } },
   { kind: 'merge-request', payload: { pr: 1, expectedHeadSha: 'abc1234' } },
+  { kind: 'rework-request', payload: { pr: 1, reasons: ['Add tests'] } },
   {
     kind: 'decision-request',
     payload: { reason: 'other', question: 'Which?', options: ['A'] },
@@ -274,6 +306,16 @@ test('agenda requires at least one topic', () => {
       }),
     ]);
   }
+});
+test.each([
+  ['no reasons', { pr: 1, reasons: [] }],
+  ['empty reason', { pr: 1, reasons: [''] }],
+  ['missing pr', { reasons: ['Add tests'] }],
+])('rework-request rejects %s', (_, payload) => {
+  expect(
+    AgentSubmissionSchema.safeParse({ kind: 'rework-request', payload })
+      .success,
+  ).toBe(false);
 });
 test('submission discriminant and CLI codes are fixed', () => {
   expect(
