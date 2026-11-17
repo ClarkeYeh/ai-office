@@ -42,5 +42,5 @@ without coupling the adapter to a specific projection version.
   policy hits. Use it only with synthetic test input.
 - Runtime refs/cursors are branded serialized strings, matching T1's serialized
   command args. Only adapters interpret their contents. `inspectLocalRepo` uses
-  M1_PLAN §8 Q5 names (`orcaRepoId`, `remoteUrl`, `isMainWorktree`), authoritative
-  over the different names in SPEC rev2.5.
+  SPEC rev2.7 §11.1 / §17.3 names (`runtimeRepoId`, `originUrl`,
+  `isGitMainWorktree`) to keep the inspection result independent of Orca.

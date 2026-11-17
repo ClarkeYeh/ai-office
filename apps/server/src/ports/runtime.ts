@@ -80,9 +80,9 @@ export interface RuntimePort {
     paneKey?: string;
   }): Promise<AgentRef | null>;
   inspectLocalRepo(localPath: string): Promise<{
-    isMainWorktree: boolean;
-    remoteUrl: string | null;
-    orcaRepoId: string | null;
+    isGitMainWorktree: boolean;
+    originUrl: string | null;
+    runtimeRepoId: string | null;
   }>; // Repo 註冊（§17.3）
   inspectWorkspace(
     ws: WorkspaceRef,
