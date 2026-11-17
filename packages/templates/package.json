@@ -7,7 +7,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./feature-to-pr.yaml": "./feature-to-pr.yaml"
   },
   "scripts": {
     "build": "tsc -b",
