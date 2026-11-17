@@ -52,15 +52,15 @@ stages:
     from: breakdown
     maxParallel: 3 # 範圍：單一 workflow
     timeouts: { itemMin: 45 }
-    budget: { tokens: 1500000, perItem: { tokens: 400000, maxTurns: 120 } }
+    budget: { tokens: 1800000, perItem: { tokens: 400000, maxTurns: 120 } } # 含合併佇列與值班用量；M2 校準
     onCall: { role: lead, questionTimeoutMin: 10 } # 值班主 agent（§7.5），預算計入本階段
     mergeQueue: { role: integrator, reviewTimeoutMin: 20, maxRework: 2 } # 合併佇列整合者（§7.4a、§7.5）
     escalateOn: [unresolvable-conflict, ci-failed-twice] # 以每個 PR 計；ci 條件只在 repo 有 checks 時生效
   - id: integrate
     kind: integrate # 收尾：整體驗證、fix-forward、整合報告（§7.4b）
     owner: integrator
-    timeouts: { stageMin: 60 }
-    budget: { tokens: 400000, maxTurns: 100 }
+    timeouts: { stageMin: 30 }
+    budget: { tokens: 200000, maxTurns: 60 } # 合併已在實作階段完成；M2 校準
   - id: final-pr
     kind: final-pr
     maxRevisions: 2
