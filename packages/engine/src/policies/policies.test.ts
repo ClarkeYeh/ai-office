@@ -1495,3 +1495,50 @@ it('late usage never regresses a terminal work item to needs_attention', () => {
   expect(sim.state.workItems.a!.status).toBe('merged');
   expect(sim.rejections).toEqual([]);
 });
+
+it('the implementation scheduler retries a hard-limited item with its scoped top-up', () => {
+  const sim = new Simulator({
+    react: createReact({
+      ...modules,
+      stages: {
+        ...modules.stages,
+        implement: DEFAULT_MODULES.stages.implement,
+      },
+    }),
+    world: (e, s) =>
+      e.command.kind === 'scm.compareBranch'
+        ? { ok: true, result: { ahead: 1, headSha: 'a'.repeat(40) } }
+        : cooperativeWorld(e, s),
+  });
+  sim.dispatch(startWorkflow());
+  sim.state.stages.meeting!.status = 'done';
+  sim.state.stages.breakdown!.status = 'done';
+  sim.state.workItems.A = {
+    key: 'A',
+    title: 'A',
+    body: 'body',
+    acceptance: ['works'],
+    role: 'engineer',
+    agent: 'codex',
+    deps: [],
+    status: 'approved',
+    approvedGateId: 'tasks',
+    attempt: 0,
+    attemptIds: [],
+    issue: 10,
+  };
+  sim.state.workItemOrder = ['A'];
+  sim.dispatch({ type: 'StartStage', stageId: 'implement' });
+  const old = sim.state.workItems.A!.currentAttemptId!;
+  usage(sim, old, 800_000);
+  const hard = Object.values(sim.state.gates).find(
+    (g) =>
+      g.kind === 'exception' && g.exceptionKind === 'item-budget-hard-limit',
+  )!;
+  choose(sim, hard.gateId, 'top-up-rerun', { additionalTokens: 100_000 });
+  expect(sim.state.workItems.A!.attempt).toBe(2);
+  expect(sim.state.workItems.A!.currentAttemptId).not.toBe(old);
+  usage(sim, sim.state.workItems.A!.currentAttemptId!, 499_999);
+  expect(sim.state.workItems.A!.status).toBe('in_progress');
+  expect(sim.rejections).toEqual([]);
+});
