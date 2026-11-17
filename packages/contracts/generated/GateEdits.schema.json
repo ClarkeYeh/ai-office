@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "conclusion"
+        },
+        "conclusion": {
+          "$ref": "./Conclusion.schema.json"
+        }
+      },
+      "required": [
+        "type",
+        "conclusion"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "work-items"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "./WorkItemDraft.schema.json"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "templateSnapshot": {
+      "$ref": "./WorkflowTemplate.schema.json"
+    },
+    "repo": {
+      "$ref": "./RepoSnapshot.schema.json"
+    },
+    "requirement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shortId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]{4,12}$"
+    },
+    "integrationBranch": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^ai-office\\/.*"
+    },
+    "roleOverrides": {
+      "$ref": "./RoleOverrides.schema.json"
+    },
+    "gateToggles": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "budgets": {
+      "$ref": "./AppliedBudgets.schema.json"
+    },
+    "limits": {
+      "$ref": "./WorkflowLimits.schema.json"
+    },
+    "acknowledgedUnverifiedRuntime": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "templateSnapshot",
+    "repo",
+    "requirement",
+    "shortId",
+    "integrationBranch",
+    "roleOverrides",
+    "gateToggles",
+    "budgets",
+    "limits",
+    "acknowledgedUnverifiedRuntime"
+  ]
+}

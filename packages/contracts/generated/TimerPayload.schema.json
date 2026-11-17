@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "round-timeout"
+        },
+        "stageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "round": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "purpose",
+        "stageId",
+        "round"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "stage-timeout"
+        },
+        "stageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attempt": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "purpose",
+        "stageId",
+        "attempt"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "item-timeout"
+        },
+        "itemKey": {
+          "$ref": "./WorkItemKey.schema.json"
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "purpose",
+        "itemKey",
+        "attemptId"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "question-timeout"
+        },
+        "questionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "purpose",
+        "questionId"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "nudge-grace"
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "missing-submission",
+            "round-timeout",
+            "stage-timeout",
+            "item-timeout",
+            "question-timeout",
+            "budget-wrap-up"
+          ]
+        }
+      },
+      "required": [
+        "purpose",
+        "attemptId",
+        "reason"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "gate-precheck"
+        },
+        "stageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "wait",
+            "restop"
+          ]
+        }
+      },
+      "required": [
+        "purpose",
+        "stageId",
+        "phase"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "wallclock-hard-limit"
+        },
+        "stageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "itemKey": {
+          "$ref": "./WorkItemKey.schema.json"
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "purpose",
+        "stageId"
+      ]
+    }
+  ]
+}

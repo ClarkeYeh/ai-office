@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "submissionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "$ref": "./SubmissionKind.schema.json"
+    },
+    "submission": {
+      "$ref": "./AgentSubmission.schema.json"
+    },
+    "artifactId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "submissionId",
+    "attemptId",
+    "kind",
+    "submission"
+  ]
+}

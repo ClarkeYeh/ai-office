@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "commandId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "$ref": "./ExternalCommandKind.schema.json"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "found",
+        "redone",
+        "gave_up"
+      ]
+    },
+    "detail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "commandId",
+    "kind",
+    "outcome"
+  ]
+}

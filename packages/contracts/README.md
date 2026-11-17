@@ -16,10 +16,14 @@ cross-field reference, uniqueness, and ordering checks; consumers must implement
 those checks separately or use the exported Zod schema. The generated template
 schema includes a comment recording that limitation.
 
-M0 event payloads and projection read models are intentionally extensible skeletons.
-API shapes not specified in detail (budget overrides, list wrappers, acknowledgments,
-merge results) are provisional until M1. Template filesystem checks (filename equals
-id) and contextual request validation (role overrides, gate toggles, work-item graphs,
+Every event type has a concrete payload schema (`EVENT_PAYLOAD_SCHEMAS`, all at
+schema version 1). `ExternalCommandSchema` in `/events` is the single command type
+shared by engine effects, `command.issued`, the CommandExecutor, and the Reconciler.
+Submission payloads also live in `/events` so domain can validate them;
+`/agent-submission` re-exports them with the response, `runtime.json`, and exit-code
+contracts. Projection read models and API shapes not specified in detail (budget
+overrides, list wrappers, acknowledgments) remain provisional until M1-T2.
+Template filesystem checks (filename equals id) and contextual request validation (role overrides, gate toggles, work-item graphs,
 authorization, and workflow state) belong to adapters/application rather than these
 transport schemas. `final-pr` gates must omit `optional`, including `optional: false`.
 

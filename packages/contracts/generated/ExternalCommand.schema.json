@@ -1,0 +1,672 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.openSession"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "$ref": "./RepoRuntimeRef.schema.json"
+            },
+            "objective": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo",
+            "objective"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.prepareWorkspace"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "session": {
+              "type": "string",
+              "minLength": 1
+            },
+            "repo": {
+              "$ref": "./RepoRuntimeRef.schema.json"
+            },
+            "baseBranch": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "branch": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "session",
+            "repo",
+            "baseBranch",
+            "name",
+            "branch"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.disposeWorkspace"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "workspace": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "workspace"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.inspectWorkspace"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "workspace": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "workspace"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.spawnAgent"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "session": {
+              "type": "string",
+              "minLength": 1
+            },
+            "agent": {
+              "$ref": "./AgentKind.schema.json"
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "effort": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "specPath": {
+              "type": "string",
+              "minLength": 1
+            },
+            "specSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "workspace": {
+              "$ref": "./WorkspaceReq.schema.json"
+            },
+            "keepOpen": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "session",
+            "agent",
+            "title",
+            "specPath",
+            "specSha256",
+            "workspace",
+            "keepOpen"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.send"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "type": "string",
+              "minLength": 1
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "agent",
+            "subject",
+            "body"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.answer"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "question": {
+              "type": "string",
+              "minLength": 1
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "question",
+            "body"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.stop"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "agent"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "runtime.release"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "agent": {
+              "type": "string",
+              "minLength": 1
+            },
+            "removeWorkspace": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "agent",
+            "removeWorkspace"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.ensureLabels"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "$ref": "./RepoScmRef.schema.json"
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "$ref": "./LabelSpec.schema.json"
+              }
+            }
+          },
+          "required": [
+            "repo",
+            "labels"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.ensureBranch"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "$ref": "./RepoScmRef.schema.json"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "from": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "repo",
+            "name",
+            "from"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.deleteBranch"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "$ref": "./RepoScmRef.schema.json"
+            },
+            "name": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^ai-office\\/.*"
+            }
+          },
+          "required": [
+            "repo",
+            "name"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.createIssue"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "$ref": "./RepoScmRef.schema.json"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "body": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "repo",
+            "title",
+            "body",
+            "labels"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.updateIssue"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "issue": {
+              "$ref": "./IssueRef.schema.json"
+            },
+            "patch": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "body": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "closed"
+                  ]
+                }
+              }
+            }
+          },
+          "required": [
+            "issue",
+            "patch"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.comment"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "$ref": "./ScmTarget.schema.json"
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "target",
+            "body"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.setLabels"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "$ref": "./ScmTarget.schema.json"
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "target",
+            "labels"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.openPR"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "$ref": "./RepoScmRef.schema.json"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "body": {
+              "type": "string"
+            },
+            "head": {
+              "type": "string",
+              "minLength": 1
+            },
+            "base": {
+              "type": "string",
+              "minLength": 1
+            },
+            "draft": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "repo",
+            "title",
+            "body",
+            "head",
+            "base"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.updatePR"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "pr": {
+              "$ref": "./PrRef.schema.json"
+            },
+            "patch": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "body": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "closed"
+                  ]
+                }
+              }
+            }
+          },
+          "required": [
+            "pr",
+            "patch"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.mergePR"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "pr": {
+              "$ref": "./PrRef.schema.json"
+            },
+            "method": {
+              "type": "string",
+              "const": "merge"
+            },
+            "expectedHeadSha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7,64}$"
+            }
+          },
+          "required": [
+            "pr",
+            "method",
+            "expectedHeadSha"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    }
+  ]
+}

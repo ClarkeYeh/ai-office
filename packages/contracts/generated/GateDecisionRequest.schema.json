@@ -19,11 +19,7 @@
       "type": "string"
     },
     "edits": {
-      "type": "object",
-      "propertyNames": {
-        "type": "string"
-      },
-      "additionalProperties": {}
+      "$ref": "./ReadModel.schema.json"
     },
     "expectedVersion": {
       "type": "integer",

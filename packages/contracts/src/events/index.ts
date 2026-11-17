@@ -1,30 +1,41 @@
 import { z } from 'zod';
-import { AgentKindSchema } from '../template/index.js';
+import {
+  CommandFailedPayloadSchema,
+  CommandIssuedPayloadSchema,
+  CommandReconciledPayloadSchema,
+  CommandSucceededPayloadSchema,
+} from './commands.js';
+import * as p from './payloads.js';
 
-export const ConclusionSchema = z.object({
-  summary: z.string(),
-  decisions: z.array(z.object({ title: z.string(), rationale: z.string() })),
-  techDecisions: z.array(
-    z.object({
-      topic: z.string(),
-      options: z.array(z.string()),
-      chosen: z.string(),
-      rationale: z.string(),
-    }),
-  ),
-  openQuestions: z.array(z.string()),
-});
-export const WorkItemDraftSchema = z.object({
-  key: z.string().min(1),
-  title: z.string(),
-  body: z.string(),
-  acceptance: z.array(z.string()),
-  role: z.string().min(1),
-  agent: AgentKindSchema.optional(),
-  deps: z.array(z.string()),
-});
-export type Conclusion = z.infer<typeof ConclusionSchema>;
-export type WorkItemDraft = z.infer<typeof WorkItemDraftSchema>;
+export * from './commands.js';
+export * from './payloads.js';
+export * from './submission.js';
+export {
+  ActivityMetaSchema,
+  AttemptStateSchema,
+  ErrorCategorySchema,
+  ErrorInfoSchema,
+  IssueRefSchema,
+  PolicyHitSchema,
+  PrRefSchema,
+  RepoRuntimeRefSchema,
+  RepoScmRefSchema,
+  RepoSnapshotSchema,
+  ScmTargetSchema,
+  SeatIdSchema,
+  seatIdFor,
+  StageKindSchema,
+  WorkItemKeySchema,
+  WorkItemStatusSchema,
+} from './common.js';
+export type {
+  ActivityMeta,
+  AttemptState,
+  ErrorCategory,
+  PolicyHit,
+  RepoSnapshot,
+  WorkItemStatus,
+} from './common.js';
 
 export const EventEnvelopeSchema = z.object({
   seq: z.number().int().positive(),
@@ -41,120 +52,173 @@ export const EventEnvelopeSchema = z.object({
   externalKey: z.string().optional(),
   causationId: z.string().optional(),
 });
-// Payloads remain extensible M0 skeletons; runtime-port events are deliberately excluded.
-const payload = z.record(z.string(), z.unknown());
-export const DomainEventSchema = z.discriminatedUnion('type', [
-  EventEnvelopeSchema.extend({ type: z.literal('workflow.started'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('workflow.paused'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('workflow.resumed'), payload }),
+
+// Runtime-port events (agent.output, agent.status, …) are deliberately excluded (§11.1).
+export const EVENT_TYPES = [
+  'workflow.started',
+  'workflow.paused',
+  'workflow.resumed',
+  'workflow.completed',
+  'workflow.failed',
+  'workflow.cancel_requested',
+  'workflow.cancelled',
+  'stage.started',
+  'stage.completed',
+  'stage.failed',
+  'stage.rerun_requested',
+  'gate.opened',
+  'gate.content_updated',
+  'gate.decided',
+  'gate.closed',
+  'seat.spawned',
+  'seat.status',
+  'seat.activity',
+  'seat.degraded',
+  'seat.policy_violation',
+  'seat.exited',
+  'seat.released',
+  'agent.unmanaged',
+  'meeting.round_started',
+  'meeting.statement',
+  'meeting.round_completed',
+  'meeting.concluded',
+  'submission.accepted',
+  'submission.rejected',
+  'message.question',
+  'message.forwarded',
+  'message.answered',
+  'message.escalated',
+  'message.nudge',
+  'message.instruction',
+  'oncall.started',
+  'oncall.queue_changed',
+  'oncall.stopped',
+  'workitem.proposed',
+  'workitem.approved',
+  'workitem.dispatched',
+  'workitem.status',
+  'artifact.created',
+  'pr.status',
+  'scm.issue_drift',
+  'anomaly.detected',
+  'usage.tokens',
+  'usage.turns',
+  'budget.exceeded',
+  'budget.hard_limit',
+  'command.issued',
+  'command.succeeded',
+  'command.failed',
+  'command.reconciled',
+  'timer.scheduled',
+  'timer.fired',
+  'timer.cancelled',
+  'repo.registered',
+  'repo.updated',
+  'health.changed',
+  'runtime.identity_restored',
+  'runtime.identity_hijacked',
+  'error.recorded',
+] as const;
+export type EventType = (typeof EVENT_TYPES)[number];
+
+/** Payload schema per event type; sources are cited in the M1-T1 PR table. */
+export const EVENT_PAYLOAD_SCHEMAS = {
+  'workflow.started': p.WorkflowStartedPayloadSchema,
+  'workflow.paused': p.WorkflowPausedPayloadSchema,
+  'workflow.resumed': p.WorkflowResumedPayloadSchema,
+  'workflow.completed': p.WorkflowCompletedPayloadSchema,
+  'workflow.failed': p.WorkflowFailedPayloadSchema,
+  'workflow.cancel_requested': p.WorkflowCancelRequestedPayloadSchema,
+  'workflow.cancelled': p.WorkflowCancelledPayloadSchema,
+  'stage.started': p.StageStartedPayloadSchema,
+  'stage.completed': p.StageCompletedPayloadSchema,
+  'stage.failed': p.StageFailedPayloadSchema,
+  'stage.rerun_requested': p.StageRerunRequestedPayloadSchema,
+  'gate.opened': p.GateOpenedPayloadSchema,
+  'gate.content_updated': p.GateContentUpdatedPayloadSchema,
+  'gate.decided': p.GateDecidedPayloadSchema,
+  'gate.closed': p.GateClosedPayloadSchema,
+  'seat.spawned': p.SeatSpawnedPayloadSchema,
+  'seat.status': p.SeatStatusPayloadSchema,
+  'seat.activity': p.SeatActivityPayloadSchema,
+  'seat.degraded': p.SeatDegradedPayloadSchema,
+  'seat.policy_violation': p.SeatPolicyViolationPayloadSchema,
+  'seat.exited': p.SeatExitedPayloadSchema,
+  'seat.released': p.SeatReleasedPayloadSchema,
+  'agent.unmanaged': p.AgentUnmanagedPayloadSchema,
+  'meeting.round_started': p.MeetingRoundStartedPayloadSchema,
+  'meeting.statement': p.MeetingStatementPayloadSchema,
+  'meeting.round_completed': p.MeetingRoundCompletedPayloadSchema,
+  'meeting.concluded': p.MeetingConcludedPayloadSchema,
+  'submission.accepted': p.SubmissionAcceptedPayloadSchema,
+  'submission.rejected': p.SubmissionRejectedPayloadSchema,
+  'message.question': p.MessageQuestionPayloadSchema,
+  'message.forwarded': p.MessageForwardedPayloadSchema,
+  'message.answered': p.MessageAnsweredPayloadSchema,
+  'message.escalated': p.MessageEscalatedPayloadSchema,
+  'message.nudge': p.MessageNudgePayloadSchema,
+  'message.instruction': p.MessageInstructionPayloadSchema,
+  'oncall.started': p.OncallStartedPayloadSchema,
+  'oncall.queue_changed': p.OncallQueueChangedPayloadSchema,
+  'oncall.stopped': p.OncallStoppedPayloadSchema,
+  'workitem.proposed': p.WorkItemProposedPayloadSchema,
+  'workitem.approved': p.WorkItemApprovedPayloadSchema,
+  'workitem.dispatched': p.WorkItemDispatchedPayloadSchema,
+  'workitem.status': p.WorkItemStatusPayloadSchema,
+  'artifact.created': p.ArtifactCreatedPayloadSchema,
+  'pr.status': p.PrStatusPayloadSchema,
+  'scm.issue_drift': p.ScmIssueDriftPayloadSchema,
+  'anomaly.detected': p.AnomalyDetectedPayloadSchema,
+  'usage.tokens': p.UsageTokensPayloadSchema,
+  'usage.turns': p.UsageTurnsPayloadSchema,
+  'budget.exceeded': p.BudgetExceededPayloadSchema,
+  'budget.hard_limit': p.BudgetHardLimitPayloadSchema,
+  'command.issued': CommandIssuedPayloadSchema,
+  'command.succeeded': CommandSucceededPayloadSchema,
+  'command.failed': CommandFailedPayloadSchema,
+  'command.reconciled': CommandReconciledPayloadSchema,
+  'timer.scheduled': p.TimerScheduledPayloadSchema,
+  'timer.fired': p.TimerFiredPayloadSchema,
+  'timer.cancelled': p.TimerCancelledPayloadSchema,
+  'repo.registered': p.RepoRegisteredPayloadSchema,
+  'repo.updated': p.RepoUpdatedPayloadSchema,
+  'health.changed': p.HealthChangedPayloadSchema,
+  'runtime.identity_restored': p.RuntimeIdentityRestoredPayloadSchema,
+  'runtime.identity_hijacked': p.RuntimeIdentityHijackedPayloadSchema,
+  'error.recorded': p.ErrorRecordedPayloadSchema,
+} as const satisfies Record<EventType, z.ZodType>;
+
+/** Every payload is at version 1; bump per type and add an upcaster in store-sqlite (§19). */
+export const CURRENT_SCHEMA_VERSION = Object.fromEntries(
+  EVENT_TYPES.map((type) => [type, 1]),
+) as Record<EventType, number>;
+
+const variant = <T extends EventType>(type: T) =>
   EventEnvelopeSchema.extend({
-    type: z.literal('workflow.completed'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('workflow.failed'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('workflow.cancel_requested'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('workflow.cancelled'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('stage.started'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('stage.completed'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('stage.failed'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('stage.rerun_requested'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('gate.opened'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('gate.content_updated'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('gate.decided'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('gate.closed'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('seat.spawned'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('seat.status'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('seat.activity'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('seat.degraded'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('seat.policy_violation'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('seat.exited'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('seat.released'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('agent.unmanaged'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('meeting.round_started'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('meeting.statement'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('meeting.round_completed'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('meeting.concluded'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('submission.accepted'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('submission.rejected'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('message.question'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('message.forwarded'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('message.answered'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('message.escalated'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('message.nudge'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('message.instruction'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('oncall.started'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('oncall.queue_changed'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('oncall.stopped'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('workitem.proposed'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('workitem.approved'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('workitem.dispatched'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('workitem.status'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('artifact.created'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('pr.status'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('scm.issue_drift'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('anomaly.detected'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('usage.tokens'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('usage.turns'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('budget.exceeded'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('budget.hard_limit'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('command.issued'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('command.succeeded'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('command.failed'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('command.reconciled'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('timer.scheduled'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('timer.fired'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('timer.cancelled'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('repo.registered'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('repo.updated'), payload }),
-  EventEnvelopeSchema.extend({ type: z.literal('health.changed'), payload }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('runtime.identity_restored'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({
-    type: z.literal('runtime.identity_hijacked'),
-    payload,
-  }),
-  EventEnvelopeSchema.extend({ type: z.literal('error.recorded'), payload }),
-]);
+    type: z.literal(type),
+    payload: EVENT_PAYLOAD_SCHEMAS[type],
+  });
+type Variants<T extends readonly EventType[]> = {
+  -readonly [K in keyof T]: T[K] extends EventType
+    ? ReturnType<typeof variant<T[K]>>
+    : never;
+};
+export const DomainEventSchema = z.discriminatedUnion(
+  'type',
+  EVENT_TYPES.map((type) => variant(type)) as Variants<typeof EVENT_TYPES>,
+);
 export type DomainEvent = z.infer<typeof DomainEventSchema>;
-export type EventType = DomainEvent['type'];
+export type EventOfType<T extends EventType> = Extract<
+  DomainEvent,
+  { type: T }
+>;
+export type EventPayload<T extends EventType> = EventOfType<T>['payload'];
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+/** What `domain.decide` returns; EventStore assigns `seq`, `id`, and `recordedAt`. */
+export type DomainEventDraft = DistributiveOmit<
+  DomainEvent,
+  'seq' | 'id' | 'recordedAt'
+>;

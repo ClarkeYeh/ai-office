@@ -3,11 +3,7 @@
   "type": "object",
   "properties": {
     "readModel": {
-      "type": "object",
-      "propertyNames": {
-        "type": "string"
-      },
-      "additionalProperties": {}
+      "$ref": "./ReadModel.schema.json"
     },
     "asOfSeq": {
       "type": "integer",
