@@ -1,0 +1,226 @@
+import type { Attempt } from '@ai-office/domain';
+import type { RuntimeEvent } from '../../ports/runtime-events.js';
+import type { RedactorFactory } from '../../ports/services.js';
+import { Batch } from './batch.js';
+
+export function attemptBranch(batch: Batch, attempt: Attempt): string | null {
+  const spawn = batch.state.commands[attempt.spawnCommandId]?.issued;
+  if (
+    spawn?.kind === 'runtime.spawnAgent' &&
+    spawn.args.workspace.kind === 'new-worktree'
+  )
+    return spawn.args.workspace.branch;
+  // A rework attempt may use an existing worktree. Resolve that exact workspace,
+  // not the current work item's branch (which could belong to a later attempt).
+  if (
+    spawn?.kind === 'runtime.spawnAgent' &&
+    spawn.args.workspace.kind === 'existing-worktree'
+  ) {
+    const workspace = spawn.args.workspace.workspace;
+    for (const record of Object.values(batch.state.commands))
+      if (
+        record.issued.kind === 'runtime.prepareWorkspace' &&
+        record.result?.kind === 'runtime.prepareWorkspace' &&
+        record.result.result !== null &&
+        'workspace' in record.result.result &&
+        record.result.result.workspace === workspace
+      )
+        return record.issued.args.branch;
+  }
+  return null;
+}
+
+export function ingestRuntime(
+  batch: Batch,
+  events: readonly RuntimeEvent[],
+  factory: RedactorFactory,
+): void {
+  const workflow = batch.state.workflow!;
+  for (const event of events) {
+    if (batch.observed(event.externalKey)) continue;
+    if (event.type === 'agent.unmanaged') {
+      const redactor = factory.forAttempt({
+        attemptId: 'unmanaged',
+        currentBranch: null,
+        defaultBranch: workflow.repo.defaultBranch,
+        integrationBranch: workflow.integrationBranch,
+      });
+      batch.anomaly(
+        {
+          kind: 'unmanaged-agent',
+          agent: redactor.maskSecrets({
+            dispatch: event.dispatch,
+            ...(event.parentDispatch === undefined
+              ? {}
+              : { parentDispatch: event.parentDispatch }),
+            ...(event.agentKind === undefined
+              ? {}
+              : { agentKind: event.agentKind }),
+            ...(event.title === undefined ? {} : { title: event.title }),
+          }),
+        },
+        event,
+        'runtime',
+      );
+      continue;
+    }
+    if (event.type === 'runtime.identity_restored') {
+      batch.add(
+        event.type,
+        { newShim: event.newShim, runs: event.runs },
+        event,
+        'runtime',
+      );
+      continue;
+    }
+    if (event.type === 'runtime.identity_hijacked') {
+      batch.add(
+        event.type,
+        {
+          run: event.run,
+          coordinatorHandle: event.coordinatorHandle,
+          consumerGeneration: event.consumerGeneration,
+        },
+        event,
+        'runtime',
+      );
+      batch.add('workflow.paused', { reason: 'hijacked' }, event, 'runtime');
+      continue;
+    }
+    if (event.type === 'runtime.contract_mismatch') {
+      // Raw adapter validation issues may contain input values; never persist them.
+      batch.add(
+        'workflow.paused',
+        { reason: 'runtime_unhealthy' },
+        event,
+        'runtime',
+      );
+      continue;
+    }
+    const attempt = Object.values(batch.state.attempts).find(
+      (a) => a.agentRef === event.agent,
+    );
+    if (!attempt)
+      throw new Error('Runtime observation has no recorded attempt');
+    const redactor = factory.forAttempt({
+      attemptId: attempt.attemptId,
+      currentBranch: attemptBranch(batch, attempt),
+      defaultBranch: workflow.repo.defaultBranch,
+      integrationBranch: workflow.integrationBranch,
+    });
+    const attemptId = attempt.attemptId;
+    switch (event.type) {
+      case 'agent.status':
+        batch.add(
+          'seat.status',
+          {
+            attemptId,
+            state: event.state,
+            ...(event.waitingSince === undefined
+              ? {}
+              : { waitingSince: event.waitingSince }),
+          },
+          event,
+          'runtime',
+          attempt,
+        );
+        break;
+      case 'agent.output': {
+        const { activity, policyHits } = redactor.toActivity(event);
+        if (activity.length)
+          batch.add(
+            'seat.activity',
+            { attemptId, activity },
+            event,
+            'runtime',
+            attempt,
+          );
+        if (policyHits.length)
+          batch.anomaly(
+            { kind: 'policy-hits', attemptId, hits: policyHits },
+            event,
+            'runtime',
+          );
+        if (event.role === 'assistant')
+          batch.add(
+            'usage.turns',
+            { attemptId, turns: 1 },
+            { ...event, externalKey: `turn:${attemptId}:${event.messageId}` },
+            'runtime',
+            attempt,
+          );
+        break;
+      }
+      case 'agent.question':
+        batch.add(
+          'message.question',
+          {
+            attemptId,
+            questionId: event.question,
+            body: redactor.maskSecrets(event.body),
+            ...(attempt.itemKey === undefined
+              ? {}
+              : { itemKey: attempt.itemKey }),
+          },
+          { ...event, externalKey: `question:${event.question}` },
+          'runtime',
+          attempt,
+        );
+        break;
+      case 'agent.done':
+        batch.add(
+          'seat.status',
+          { attemptId, state: event.outcome === 'success' ? 'done' : 'error' },
+          event,
+          'runtime',
+          attempt,
+        );
+        break;
+      case 'agent.degraded':
+        batch.add(
+          'seat.degraded',
+          { attemptId, reason: event.reason },
+          event,
+          'runtime',
+          attempt,
+        );
+        break;
+      case 'agent.stopped':
+      case 'agent.exited': {
+        const commanded = Object.values(batch.state.commands).some(
+          (record) =>
+            (record.issued.kind === 'runtime.stop' ||
+              record.issued.kind === 'runtime.release') &&
+            record.issued.args.agent === event.agent &&
+            record.status !== 'failed' &&
+            Date.parse(record.issuedAt) <= Date.parse(event.occurredAt),
+        );
+        const expected =
+          commanded ||
+          (event.type === 'agent.exited' &&
+            (attempt.released ||
+              (!attempt.keepOpen && attempt.state === 'done')));
+        batch.add(
+          'seat.exited',
+          {
+            attemptId,
+            expected,
+            reason:
+              event.type === 'agent.stopped'
+                ? 'stopped'
+                : redactor.maskSecrets(event.reason),
+          },
+          event,
+          'runtime',
+          attempt,
+        );
+        if (!expected) {
+          // No external-stop anomaly kind exists in v1; use the observable exit
+          // and pause. The exception policy handles seat.exited{expected:false}.
+          batch.add('workflow.paused', { reason: 'anomaly' }, event, 'runtime');
+        }
+        break;
+      }
+    }
+  }
+}

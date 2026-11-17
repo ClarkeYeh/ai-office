@@ -14,6 +14,10 @@ export const ScmEventSchema = z.discriminatedUnion('type', [
     headSha: z.string(),
     mergeable: z.boolean().nullable(),
     mergedBy: z.string().optional(),
+    mergeCommitSha: z
+      .string()
+      .regex(/^[0-9a-f]{7,64}$/)
+      .optional(),
   }),
   envelope.extend({
     type: z.literal('pr.checks'),

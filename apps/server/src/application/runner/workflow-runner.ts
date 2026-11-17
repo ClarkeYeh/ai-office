@@ -71,15 +71,28 @@ type Settle<T> = {
   reject: (error: unknown) => void;
 };
 
+export const REACTION_CURSOR = 'runner.last-reacted';
+const EFFECT_CURSOR = 'runner.effect';
+
 type Input =
-  | { kind: 'command'; command: DomainCommand; settle?: Settle<DispatchResult> }
+  | {
+      kind: 'command';
+      command: DomainCommand;
+      settle?: Settle<DispatchResult>;
+      cursor?: CursorWrite;
+    }
   | {
       kind: 'append';
       drafts: DomainEventDraft[];
       cursors?: CursorWrite[];
       settle: Settle<DomainEvent[]>;
     }
-  | { kind: 'spawn'; effect: SpawnEffect; cause: DomainEvent }
+  | {
+      kind: 'spawn';
+      effect: SpawnEffect;
+      cause: DomainEvent;
+      cursor: CursorWrite;
+    }
   | { kind: 'result'; issued: IssuedCommand; outcome: CommandOutcome }
   | { kind: 'timer'; timerId: string };
 
@@ -128,6 +141,10 @@ const issuedFrom = (
  */
 export class WorkflowRunner {
   private current: WorkflowState;
+  /** Highest event handled in this queue drain; publish only after all effects persist. */
+  private reactedSeq = 0;
+  private reactionFailed = false;
+  private recovering = false;
   private readonly queue: Input[] = [];
   private draining = false;
   private inFlight = 0;
@@ -158,10 +175,27 @@ export class WorkflowRunner {
     deps: WorkflowRunnerDeps,
     events: Iterable<DomainEvent>,
   ): WorkflowRunner {
-    const { state, warnings } = replay(events);
+    const history = [...events];
+    const { state, warnings } = replay(history);
     const runner = new WorkflowRunner(workflowId, deps, state);
     for (const warning of warnings)
       runner.log.warn({ warning }, 'event skipped during replay');
+    const checkpoint = deps.store.readCursor(REACTION_CURSOR, workflowId);
+    const after = typeof checkpoint === 'number' ? checkpoint : 0;
+    let before = initialState();
+    runner.recovering = true;
+    runner.draining = true;
+    try {
+      for (const event of history) {
+        if (event.seq > after) runner.reactEvent(before, event);
+        before = evolveWithWarning(before, event).state;
+        runner.reactedSeq = Math.max(runner.reactedSeq, event.seq);
+      }
+    } finally {
+      runner.draining = false;
+    }
+    runner.drain();
+    runner.recovering = false;
     runner.rearmTimers();
     for (const attemptId of Object.keys(state.attempts))
       runner.cleanupAttempt(attemptId);
@@ -207,21 +241,23 @@ export class WorkflowRunner {
     this.enqueue({ kind: 'result', issued, outcome });
   }
 
-  /**
-   * Re-executes an issued command with its recorded args (reconcile `redone`).
-   * Returns false when the command is unknown or already has a result.
-   */
+  /** Recover the original scope, which the domain command ledger does not retain. */
+  issuedCommand(commandId: string): IssuedCommand | undefined {
+    const event = this.deps.store
+      .read({ workflowId: this.workflowId })
+      .find(
+        (e) => e.type === 'command.issued' && e.payload.commandId === commandId,
+      );
+    return event?.type === 'command.issued' ? issuedFrom(event) : undefined;
+  }
+
+  /** Re-execute persisted args; false if unknown or already resolved. */
   redo(commandId: string): boolean {
     const record = this.current.commands[commandId];
     if (record?.status !== 'issued') return false;
-    const { commandId: id, orcaRequestId, ...command } = record.issued;
-    this.execute({
-      workflowId: this.workflowId,
-      commandId: id,
-      command: command as ExternalCommand,
-      ...(orcaRequestId === undefined ? {} : { orcaRequestId }),
-      ...scopeOf(record),
-    });
+    const issued = this.issuedCommand(commandId);
+    if (!issued) return false;
+    this.execute(issued);
     return true;
   }
 
@@ -260,6 +296,17 @@ export class WorkflowRunner {
     } finally {
       this.draining = false;
     }
+    if (!this.reactionFailed && this.queue.length === 0) {
+      this.deps.store.append([], {
+        cursors: [
+          {
+            source: REACTION_CURSOR,
+            scope: this.workflowId,
+            value: this.reactedSeq,
+          },
+        ],
+      });
+    }
     if (!this.busy) {
       const waiters = this.idleWaiters;
       this.idleWaiters = [];
@@ -271,7 +318,7 @@ export class WorkflowRunner {
     try {
       switch (input.kind) {
         case 'command': {
-          const result = this.runCommand(input.command);
+          const result = this.runCommand(input.command, input.cursor);
           input.settle?.resolve(result);
           return;
         }
@@ -279,7 +326,7 @@ export class WorkflowRunner {
           input.settle.resolve(this.commit(input.drafts, input.cursors));
           return;
         case 'spawn':
-          this.spawn(input.effect, input.cause);
+          this.spawn(input.effect, input.cause, input.cursor);
           return;
         case 'result':
           this.record(input.issued, input.outcome);
@@ -297,7 +344,8 @@ export class WorkflowRunner {
           return;
       }
     } catch (error) {
-      // A failed append (store down) loses only this input; the queue goes on.
+      // Never checkpoint past an effect whose durable writes failed.
+      this.reactionFailed = true;
       this.log.error(
         { input: input.kind, error: String(error) },
         'input failed',
@@ -306,16 +354,23 @@ export class WorkflowRunner {
     }
   }
 
-  private runCommand(command: DomainCommand): DispatchResult {
+  private runCommand(
+    command: DomainCommand,
+    cursor?: CursorWrite,
+  ): DispatchResult {
     const result = decide(this.current, command);
     if (!result.ok) {
       this.log.info(
         { command: command.type, error: result.error },
         'command rejected',
       );
+      if (cursor) this.completeEffect(cursor);
       return result;
     }
-    return { ok: true, events: this.commit(result.events) };
+    return {
+      ok: true,
+      events: this.commit(result.events, cursor ? [cursor] : undefined),
+    };
   }
 
   /** One transaction, then react/evolve per stored event, then the effects. */
@@ -327,42 +382,72 @@ export class WorkflowRunner {
       drafts,
       cursors === undefined ? undefined : { cursors },
     );
-    const effects: [RunnerEffect, DomainEvent][] = [];
+    const effects: [RunnerEffect, DomainEvent, CursorWrite][] = [];
     for (const event of stored) {
       // §11.4 / engine contract: react sees the state BEFORE the event.
-      for (const effect of this.reactFn(this.current, event))
-        effects.push([effect, event]);
+      this.reactFn(this.current, event).forEach((effect, index) =>
+        effects.push([effect, event, this.effectCursor(event, index)]),
+      );
+      this.reactedSeq = Math.max(this.reactedSeq, event.seq);
       const applied = evolveWithWarning(this.current, event);
       if (applied.warning !== undefined)
         this.log.warn({ warning: applied.warning }, 'event skipped by evolve');
       this.current = applied.state;
       if (event.attemptId !== undefined) this.cleanupAttempt(event.attemptId);
     }
-    for (const [effect, cause] of effects) this.handle(effect, cause);
+    for (const [effect, cause, cursor] of effects)
+      this.handle(effect, cause, cursor);
     return stored;
   }
 
-  private handle(effect: RunnerEffect, cause: DomainEvent): void {
+  private effectCursor(event: DomainEvent, index: number): CursorWrite {
+    return {
+      source: EFFECT_CURSOR,
+      scope: this.workflowId + ':' + event.id + ':' + index,
+      value: true,
+    };
+  }
+
+  private completeEffect(cursor: CursorWrite): void {
+    this.deps.store.append([], { cursors: [cursor] });
+  }
+
+  private reactEvent(before: WorkflowState, event: DomainEvent): void {
+    this.reactFn(before, event).forEach((effect, index) =>
+      this.handle(effect, event, this.effectCursor(event, index)),
+    );
+  }
+
+  private handle(
+    effect: RunnerEffect,
+    cause: DomainEvent,
+    cursor: CursorWrite,
+  ): void {
+    if (this.deps.store.readCursor(cursor.source, cursor.scope) === true)
+      return;
     switch (effect.kind) {
       case 'internal':
-        this.queue.push({ kind: 'command', command: effect.command });
+        this.queue.push({ kind: 'command', command: effect.command, cursor });
         return;
       case 'spawn':
-        this.queue.push({ kind: 'spawn', effect, cause });
+        this.queue.push({ kind: 'spawn', effect, cause, cursor });
         return;
       case 'timer':
-        this.commit([
-          this.draft(
-            'timer.scheduled',
-            {
-              timerId: effect.timer.id,
-              fireAt: effect.timer.fireAt,
-              payload: effect.timer.payload,
-            },
-            {},
-            { causationId: cause.id },
-          ),
-        ]);
+        this.commit(
+          [
+            this.draft(
+              'timer.scheduled',
+              {
+                timerId: effect.timer.id,
+                fireAt: effect.timer.fireAt,
+                payload: effect.timer.payload,
+              },
+              {},
+              { causationId: cause.id },
+            ),
+          ],
+          [cursor],
+        );
         this.deps.scheduler.schedule({
           id: effect.timer.id,
           workflowId: this.workflowId,
@@ -370,29 +455,53 @@ export class WorkflowRunner {
         });
         return;
       case 'cancelTimer':
-        if (!Object.hasOwn(this.current.timers, effect.id)) return;
-        this.commit([
-          this.draft(
-            'timer.cancelled',
-            {
-              timerId: effect.id,
-              ...(effect.reason === undefined ? {} : { reason: effect.reason }),
-            },
-            {},
-            { causationId: cause.id },
-          ),
-        ]);
+        if (!Object.hasOwn(this.current.timers, effect.id)) {
+          this.completeEffect(cursor);
+          return;
+        }
+        this.commit(
+          [
+            this.draft(
+              'timer.cancelled',
+              {
+                timerId: effect.id,
+                ...(effect.reason === undefined
+                  ? {}
+                  : { reason: effect.reason }),
+              },
+              {},
+              { causationId: cause.id },
+            ),
+          ],
+          [cursor],
+        );
         this.deps.scheduler.cancel(effect.id);
         return;
       case 'external':
-        this.issue(effect.commandId, effect.command, scopeOf(effect), cause);
+        this.issue(
+          effect.commandId,
+          effect.command,
+          scopeOf(effect),
+          cause,
+          cursor,
+        );
         return;
     }
   }
 
-  private spawn(effect: SpawnEffect, cause: DomainEvent): void {
-    if (Object.hasOwn(this.current.commands, effect.commandId)) return;
-    const command = materializeSpawn(this.current, effect, this.deps);
+  private spawn(
+    effect: SpawnEffect,
+    cause: DomainEvent,
+    cursor: CursorWrite,
+  ): void {
+    if (Object.hasOwn(this.current.commands, effect.commandId)) {
+      this.completeEffect(cursor);
+      return;
+    }
+    const command = materializeSpawn(this.current, effect, {
+      ...this.deps,
+      recoverUnissued: this.recovering,
+    });
     if ('category' in command) {
       this.log.error(
         { commandId: effect.commandId, error: command },
@@ -412,7 +521,7 @@ export class WorkflowRunner {
       );
       return;
     }
-    this.issue(effect.commandId, command, scopeOf(effect), cause);
+    this.issue(effect.commandId, command, scopeOf(effect), cause, cursor);
   }
 
   /** Writes `command.issued` (fully concrete, §11.5), then executes it. */
@@ -421,24 +530,31 @@ export class WorkflowRunner {
     command: ExternalCommand,
     scope: Scope,
     cause: DomainEvent,
+    cursor: CursorWrite,
   ): void {
     // Deterministic ids make a re-derived effect detectable: issue once.
-    if (Object.hasOwn(this.current.commands, commandId)) return;
+    if (Object.hasOwn(this.current.commands, commandId)) {
+      this.completeEffect(cursor);
+      return;
+    }
     const orcaRequestId = ORCA_REQUEST_KINDS.has(command.kind)
       ? this.deps.ids.orcaRequestId(commandId)
       : undefined;
-    const [event] = this.commit([
-      this.draft(
-        'command.issued',
-        {
-          commandId,
-          ...(orcaRequestId === undefined ? {} : { orcaRequestId }),
-          ...command,
-        } as EventPayload<'command.issued'>,
-        scope,
-        { causationId: cause.id },
-      ),
-    ]);
+    const [event] = this.commit(
+      [
+        this.draft(
+          'command.issued',
+          {
+            commandId,
+            ...(orcaRequestId === undefined ? {} : { orcaRequestId }),
+            ...command,
+          } as EventPayload<'command.issued'>,
+          scope,
+          { causationId: cause.id },
+        ),
+      ],
+      [cursor],
+    );
     if (event?.type === 'command.issued') this.execute(issuedFrom(event));
   }
 

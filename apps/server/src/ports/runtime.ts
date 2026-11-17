@@ -1,3 +1,4 @@
+import type { CommandResult } from '@ai-office/contracts/events';
 import type { AgentKind } from './refs.js';
 import type {
   RepoRuntimeRef,
@@ -34,6 +35,22 @@ export type PreparedWorkspace = {
 };
 
 export interface RuntimePort {
+  /** Request receipt lookup; absence is not proof the mutation did not happen. */
+  inspectRequest(
+    requestId: string,
+    commandId: string,
+  ): Promise<
+    | { status: 'pending' | 'absent' }
+    | { status: 'completed'; result: CommandResult }
+  >;
+  /** Search durable aio: markers even after request receipts were pruned. */
+  findCommandByMarker(commandId: string): Promise<CommandResult | null>;
+  /** Find by deterministic name; reject a mismatching aio: comment. */
+  findWorkspace(req: {
+    repo: RepoRuntimeRef;
+    name: string;
+    commandId: string;
+  }): Promise<PreparedWorkspace | null>;
   capabilities(): RuntimeCapabilities;
   health(): Promise<RuntimeHealth>; // 含版本、verified/unverified、shim 狀態、run 擁有權
   openSession(req: {

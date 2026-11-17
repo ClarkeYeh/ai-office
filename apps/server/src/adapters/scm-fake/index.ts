@@ -67,6 +67,25 @@ const hash = async (body: string) =>
 export class FakeScm implements ScmPort {
   private repos = new Map<string, RepoState>();
   private sequence = 0;
+  private lostReplies = new Set<
+    'createIssue' | 'openPR' | 'comment' | 'mergePR'
+  >();
+  injectResponseLost(
+    operation: 'createIssue' | 'openPR' | 'comment' | 'mergePR',
+  ): void {
+    this.lostReplies.add(operation);
+  }
+  private afterMutation(
+    operation: 'createIssue' | 'openPR' | 'comment' | 'mergePR',
+  ): void {
+    if (this.lostReplies.delete(operation))
+      throw new PortError(
+        'transient',
+        'response_lost',
+        'Fake SCM response lost after success',
+        true,
+      );
+  }
   private mergeDelayMs: number;
   constructor(private options: FakeScmOptions = {}) {
     this.mergeDelayMs = options.mergeDelayMs ?? 0;
@@ -256,6 +275,7 @@ export class FakeScm implements ScmPort {
         this.repo(ref).info.viewerLogin,
       ).ref,
     );
+    this.afterMutation('createIssue');
     return { ...issue, url: this.htmlUrl(issue, 'issues') };
   }
   private htmlUrl(ref: IssueRef | PrRef, kind: 'issues' | 'pull'): string {
@@ -304,6 +324,7 @@ export class FakeScm implements ScmPort {
       return;
     obj.comments.push(marked(body, c.commandId));
     await this.changed(obj);
+    this.afterMutation('comment');
   }
   async addExternalComment(ref: IssueRef | PrRef, body: string) {
     const obj = this.object(ref);
@@ -327,6 +348,7 @@ export class FakeScm implements ScmPort {
     );
     this.prState(obj);
     this.setChecks(obj.ref, 'none');
+    this.afterMutation('openPR');
     return { ...structuredClone(obj.ref), url: this.htmlUrl(obj.ref, 'pull') };
   }
   async updatePR(ref: PrRef, patch: PrPatch) {
@@ -348,6 +370,7 @@ export class FakeScm implements ScmPort {
       headSha: repo.branches.get(obj.head) ?? '',
       mergeable: obj.mergeable,
       ...(obj.mergedBy ? { mergedBy: obj.mergedBy } : {}),
+      ...(obj.mergeCommitSha ? { mergeCommitSha: obj.mergeCommitSha } : {}),
     });
   }
   setChecks(ref: PrRef, status: ObjectState['checks']) {
@@ -408,6 +431,13 @@ export class FakeScm implements ScmPort {
     this.prState(obj);
     return { mergeCommitSha: sha };
   }
+  async getPR(ref: PrRef): ReturnType<ScmPort['getPR']> {
+    const obj = this.object(ref, 'pr');
+    return {
+      state: obj.state,
+      ...(obj.mergeCommitSha ? { mergeCommitSha: obj.mergeCommitSha } : {}),
+    };
+  }
   async mergePR(
     ref: PrRef,
     opts: { method: 'merge'; expectedHeadSha: string },
@@ -421,7 +451,9 @@ export class FakeScm implements ScmPort {
         ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
       )(this.mergeDelayMs);
     this.checkMerge(obj, opts.expectedHeadSha);
-    return this.merge(obj, this.repo(ref.repo).info.viewerLogin);
+    const result = this.merge(obj, this.repo(ref.repo).info.viewerLogin);
+    this.afterMutation('mergePR');
+    return result;
   }
   async mergeExternally(
     ref: PrRef,

@@ -295,3 +295,56 @@ describe('meeting validation boundaries', () => {
     );
   });
 });
+
+it('records only the final PR proven by its successful openPR command', () => {
+  const h = new Harness().given(startCommand());
+  const workflow = h.state.workflow!;
+  const pr = {
+    type: 'RecordStageArtifact',
+    meta: meta(),
+    stageId: 'final-pr',
+    commandId: 'final-open',
+    artifact: {
+      kind: 'pr',
+      artifactId: 'final-pr-artifact',
+      purpose: 'final',
+      number: 42,
+      url: 'https://github.com/o/r/pull/42',
+      head: workflow.integrationBranch,
+      base: workflow.repo.defaultBranch,
+    },
+  } satisfies DomainCommand;
+  expect(h.run(pr)).toMatchObject({ ok: false });
+  h.given(
+    eventDraft('command.issued', {
+      commandId: 'final-open',
+      kind: 'scm.openPR',
+      args: {
+        repo: workflow.repo.github,
+        title: 'Final PR',
+        body: 'Verified',
+        head: workflow.integrationBranch,
+        base: workflow.repo.defaultBranch,
+      },
+    }),
+    eventDraft('command.succeeded', {
+      commandId: 'final-open',
+      kind: 'scm.openPR',
+      result: { pr: 42, url: 'https://github.com/o/r/pull/42' },
+    }),
+  );
+  for (const patch of [
+    { purpose: 'worker' as const },
+    { number: 43 },
+    { base: 'wrong' },
+    { head: 'wrong' },
+    { url: 'https://github.com/o/r/pull/43' },
+  ]) {
+    expect(
+      h.run({ ...pr, artifact: { ...pr.artifact, ...patch } }),
+    ).toMatchObject({ ok: false });
+  }
+  h.given(pr);
+  expect(h.state.workflow?.finalPr).toBe(42);
+  expect(h.run(pr)).toEqual({ ok: true, events: [] });
+});

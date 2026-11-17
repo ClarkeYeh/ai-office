@@ -51,6 +51,33 @@ export const decideMeeting = (
           'invalid_artifact',
           'Issue must reference a successful createIssue command',
         );
+    } else if (artifact.kind === 'pr' && artifact.purpose === 'final') {
+      const record =
+        command.commandId === undefined
+          ? undefined
+          : state.commands[command.commandId];
+      const issued = record?.issued;
+      const result = record?.result;
+      if (
+        state.stages[command.stageId]?.kind !== 'final-pr' ||
+        issued?.kind !== 'scm.openPR' ||
+        result?.kind !== 'scm.openPR' ||
+        !result.result ||
+        !('pr' in result.result) ||
+        result.result.pr !== artifact.number ||
+        result.result.url !== artifact.url ||
+        artifact.head !== state.workflow.integrationBranch ||
+        artifact.base !== state.workflow.repo.defaultBranch ||
+        issued.args.head !== artifact.head ||
+        issued.args.base !== artifact.base ||
+        issued.args.repo.owner !== state.workflow.repo.github.owner ||
+        issued.args.repo.name !== state.workflow.repo.github.name
+      )
+        return reject(
+          'validation',
+          'invalid_artifact',
+          'Final PR must reference a successful openPR for this workflow',
+        );
     } else
       return reject(
         'validation',

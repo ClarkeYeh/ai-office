@@ -295,3 +295,21 @@ test('purpose does not authorize a different template role', () => {
   );
   error(h, submit(), 'not_allowed');
 });
+
+test('session metadata is emitted on first report/change and preserved by replay', () => {
+  const h = meeting();
+  const first = { provider: 'claude' as const, id: 'session-one' };
+  const changed = { provider: 'claude' as const, id: 'session-two' };
+  h.given({ ...submit(agenda, 'first'), agentSession: first });
+  expect(h.events.at(-1)?.payload).toMatchObject({ agentSession: first });
+  expect(h.state.attempts.a?.agentSession).toEqual(first);
+  h.given({ ...submit(agenda, 'same'), agentSession: first });
+  expect(h.events.at(-1)?.payload).not.toHaveProperty('agentSession');
+  h.given(submit(agenda, 'omitted'));
+  expect(h.state.attempts.a?.agentSession).toEqual(first);
+  h.given({ ...submit(agenda, 'changed'), agentSession: changed });
+  expect(h.events.at(-1)?.payload).toMatchObject({ agentSession: changed });
+  const replayed = new Harness();
+  replayed.append(...h.events);
+  expect(replayed.state.attempts.a?.agentSession).toEqual(changed);
+});
