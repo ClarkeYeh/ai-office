@@ -341,6 +341,62 @@ describe('event upcasting', () => {
   });
 });
 
+describe('legacy oncall events (rev2.10 ondemand rename)', () => {
+  const stored = (type: string, payload: Record<string, unknown>) => ({
+    ...eventDraft('legacy'),
+    seq: 1,
+    id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    recordedAt: '2026-11-17T00:00:00.000Z',
+    type,
+    payload,
+  });
+  it.each([
+    ['oncall.started', 'ondemand.started', { attemptId: 'a5' }],
+    [
+      'oncall.queue_changed',
+      'ondemand.queue_changed',
+      { queue: ['q1'], current: 'q1' },
+    ],
+    [
+      'oncall.stopped',
+      'ondemand.stopped',
+      { attemptId: 'a5', reason: 'queue_empty' },
+    ],
+  ])('reads %s as %s with purpose oncall', (legacy, current, extra) => {
+    const payload = { stageId: 'implement', ...extra };
+    expect(upcastEvent(stored(legacy, payload))).toMatchObject({
+      type: current,
+      schemaVersion: 1,
+      payload: { ...payload, purpose: 'oncall' },
+    });
+  });
+  it('maps the seat.spawned oncall flag to ondemand', () => {
+    const payload = {
+      seatId: 'wf1:lead',
+      attemptId: 'a1',
+      attempt: 1,
+      stageId: 'implement',
+      role: 'lead',
+      agent: 'claude-code',
+      purpose: 'oncall',
+      keepOpen: true,
+      spawnCommandId: 'c1',
+    };
+    expect(
+      upcastEvent(stored('seat.spawned', { ...payload, oncall: true })).payload,
+    ).toEqual({ ...payload, ondemand: { purpose: 'oncall' } });
+    expect(
+      upcastEvent(
+        stored('seat.spawned', {
+          ...payload,
+          purpose: 'worker',
+          oncall: false,
+        }),
+      ).payload,
+    ).toEqual({ ...payload, purpose: 'worker' });
+  });
+});
+
 describe('sessions and idempotency', () => {
   it('restores a consumed bootstrap code if session insertion fails', () => {
     const db = database();

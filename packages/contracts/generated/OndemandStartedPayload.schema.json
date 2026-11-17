@@ -6,6 +6,9 @@
       "type": "string",
       "minLength": 1
     },
+    "purpose": {
+      "$ref": "./OndemandPurpose.schema.json"
+    },
     "attemptId": {
       "type": "string",
       "minLength": 1
@@ -13,6 +16,7 @@
   },
   "required": [
     "stageId",
+    "purpose",
     "attemptId"
   ]
 }

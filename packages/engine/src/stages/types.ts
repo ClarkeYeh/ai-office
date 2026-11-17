@@ -3,7 +3,7 @@ import type { Effect } from '../effects.js';
 import type { StageGateBuilder } from '../protocols/stage-close.js';
 
 /**
- * One stage partition (plan §5.1: meeting/planning T13, implement/oncall T14,
+ * One stage partition (plan §5.1: meeting/planning T13, implement T14, ondemand T14b,
  * integrate/final-pr T15). `react` sees every event and filters for itself;
  * gated stages also supply the stage gate opened after pre-gate clearing.
  */

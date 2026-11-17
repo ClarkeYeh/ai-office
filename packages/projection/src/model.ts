@@ -57,7 +57,7 @@ export function startWorkflow(
           }
         : {}),
       ...(s.kind === 'implement'
-        ? { oncall: { active: false, queue: [] } }
+        ? { ondemand: { oncall: { active: false, queue: [] } } }
         : {}),
     })),
     gates: [],

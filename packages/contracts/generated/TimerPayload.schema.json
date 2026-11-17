@@ -90,6 +90,48 @@
       "properties": {
         "purpose": {
           "type": "string",
+          "const": "review-timeout"
+        },
+        "itemKey": {
+          "$ref": "./WorkItemKey.schema.json"
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "purpose",
+        "itemKey",
+        "attemptId"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "ondemand-idle"
+        },
+        "stageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ondemand": {
+          "$ref": "./OndemandPurpose.schema.json"
+        }
+      },
+      "required": [
+        "purpose",
+        "stageId",
+        "ondemand"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
           "const": "nudge-grace"
         },
         "attemptId": {
@@ -104,6 +146,7 @@
             "stage-timeout",
             "item-timeout",
             "question-timeout",
+            "review-timeout",
             "budget-wrap-up"
           ]
         }

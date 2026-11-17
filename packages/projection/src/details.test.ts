@@ -337,14 +337,18 @@ test('stage reruns preserve history and question routing never invents missing e
     feedback: 'Improve',
     agentOverride: 'codex',
   });
-  s.push('oncall.queue_changed');
-  s.push('oncall.queue_changed', { stageId: 'implement', queue: [] });
-  expect(s.model.stages[2]?.oncall?.current).toBeUndefined();
-  s.push('oncall.stopped', {
-    ...payloads['oncall.stopped'],
+  s.push('ondemand.queue_changed');
+  s.push('ondemand.queue_changed', {
+    stageId: 'implement',
+    purpose: 'oncall',
+    queue: [],
+  });
+  expect(s.model.stages[2]?.ondemand?.oncall?.current).toBeUndefined();
+  s.push('ondemand.stopped', {
+    ...payloads['ondemand.stopped'],
     attemptId: 'different',
   });
-  expect(s.model.stages[2]?.oncall?.active).toBe(true);
+  expect(s.model.stages[2]?.ondemand?.oncall?.active).toBe(true);
   s.push('workflow.failed', { reason: 'other', detail: 'Reason' });
   expect(s.model.outcome?.detail).toBe('Reason');
   s.push('workitem.dispatched', {

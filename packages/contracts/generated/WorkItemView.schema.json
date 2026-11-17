@@ -76,6 +76,19 @@
       "type": "string",
       "pattern": "^[0-9a-f]{7,64}$"
     },
+    "baseSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,64}$"
+    },
+    "reworks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "mergeCommitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,64}$"
+    },
     "reason": {
       "type": "string"
     },
@@ -92,6 +105,7 @@
     "deps",
     "status",
     "attempts",
+    "reworks",
     "usage"
   ]
 }

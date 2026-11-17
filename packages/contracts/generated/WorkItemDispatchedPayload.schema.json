@@ -26,7 +26,15 @@
       "type": "string",
       "minLength": 1
     },
+    "baseSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,64}$"
+    },
     "retryOf": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reworkOf": {
       "type": "string",
       "minLength": 1
     }

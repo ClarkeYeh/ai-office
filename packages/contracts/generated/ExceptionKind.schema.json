@@ -11,6 +11,10 @@
     "decision-request",
     "question-escalation",
     "anomaly",
-    "hijacked"
+    "hijacked",
+    "dependency-blocked",
+    "merge-blocked",
+    "rework-limit",
+    "merge-review-failed"
   ]
 }

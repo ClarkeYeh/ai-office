@@ -100,28 +100,28 @@ export function applyWorkflow(m: ReadModel, e: DomainEvent): void {
       }
       return;
     }
-    case 'oncall.started': {
-      const stage = m.stages.find((s) => s.stageId === e.payload.stageId);
-      if (stage?.oncall) {
-        stage.oncall.active = true;
-        stage.oncall.attemptId = e.payload.attemptId;
+    case 'ondemand.started': {
+      const view = ondemandView(m, e.payload);
+      if (view) {
+        view.active = true;
+        view.attemptId = e.payload.attemptId;
       }
       return;
     }
-    case 'oncall.queue_changed': {
-      const stage = m.stages.find((s) => s.stageId === e.payload.stageId);
-      if (stage?.oncall) {
-        stage.oncall.queue = e.payload.queue;
-        if (e.payload.current === undefined) delete stage.oncall.current;
-        else stage.oncall.current = e.payload.current;
+    case 'ondemand.queue_changed': {
+      const view = ondemandView(m, e.payload);
+      if (view) {
+        view.queue = e.payload.queue;
+        if (e.payload.current === undefined) delete view.current;
+        else view.current = e.payload.current;
       }
       return;
     }
-    case 'oncall.stopped': {
-      const stage = m.stages.find((s) => s.stageId === e.payload.stageId);
-      if (stage?.oncall && stage.oncall.attemptId === e.payload.attemptId) {
-        stage.oncall.active = false;
-        delete stage.oncall.current;
+    case 'ondemand.stopped': {
+      const view = ondemandView(m, e.payload);
+      if (view && view.attemptId === e.payload.attemptId) {
+        view.active = false;
+        delete view.current;
       }
       return;
     }
@@ -184,6 +184,7 @@ export function applyWorkflow(m: ReadModel, e: DomainEvent): void {
         ...item,
         status: e.type === 'workitem.approved' ? 'approved' : 'proposed',
         attempts: 0,
+        reworks: 0,
         usage: emptyUsage(),
       }));
       return;
@@ -248,4 +249,11 @@ export function applyWorkflow(m: ReadModel, e: DomainEvent): void {
       return;
     }
   }
+}
+
+function ondemandView(
+  m: ReadModel,
+  p: { stageId: string; purpose: 'oncall' | 'merge' },
+) {
+  return m.stages.find((s) => s.stageId === p.stageId)?.ondemand?.[p.purpose];
 }

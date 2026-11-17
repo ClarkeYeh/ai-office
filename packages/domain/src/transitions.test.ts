@@ -663,7 +663,7 @@ const T6_ROWS: TransitionRow[] = [
     check: (h) =>
       expect(h.state.attempts['att-oc']).toMatchObject({
         seatId: 'wf-1:lead',
-        oncall: true,
+        ondemand: { purpose: 'oncall' },
       }),
   },
   {

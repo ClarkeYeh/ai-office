@@ -68,10 +68,12 @@ const assertions: Partial<
     expect(m.questions[0]?.answer?.body).toBe('sqlite'),
   'message.escalated': (m) =>
     expect(m.questions[0]?.escalation?.reason).toBe('timeout'),
-  'oncall.started': (m) => expect(m.stages[2]?.oncall?.active).toBe(true),
-  'oncall.queue_changed': (m) =>
-    expect(m.stages[2]?.oncall?.queue).toEqual(['msg1', 'msg2']),
-  'oncall.stopped': (m) => expect(m.stages[2]?.oncall?.active).toBe(false),
+  'ondemand.started': (m) =>
+    expect(m.stages[2]?.ondemand?.oncall?.active).toBe(true),
+  'ondemand.queue_changed': (m) =>
+    expect(m.stages[2]?.ondemand?.oncall?.queue).toEqual(['msg1', 'msg2']),
+  'ondemand.stopped': (m) =>
+    expect(m.stages[2]?.ondemand?.oncall?.active).toBe(false),
   'workitem.proposed': (m) => expect(m.workItems[0]?.status).toBe('proposed'),
   'workitem.approved': (m) => expect(m.workItems[0]?.agent).toBe('codex'),
   'workitem.dispatched': (m) =>
@@ -114,6 +116,10 @@ const noViewChange: EventType[] = [
   'health.changed',
   'runtime.identity_restored',
   'runtime.identity_hijacked',
+  // Progressive-merge read model (queue, reworks, merge commit) lands in M1-T7b.
+  'workitem.merge_queued',
+  'workitem.rework_requested',
+  'workitem.merged',
 ];
 test('behavior catalog covers every event type', () =>
   expect([...Object.keys(assertions), ...noViewChange].sort()).toEqual(

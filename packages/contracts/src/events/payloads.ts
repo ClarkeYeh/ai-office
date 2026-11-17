@@ -13,6 +13,8 @@ import {
   id,
   isoDateTime,
   nonNegativeInt,
+  OndemandPurposeSchema,
+  OndemandRefSchema,
   PolicyHitSchema,
   positiveInt,
   RepoSnapshotSchema,
@@ -143,6 +145,11 @@ export const ExceptionKindSchema = z.enum([
   'question-escalation',
   'anomaly',
   'hijacked',
+  // rev2.10 progressive merge (§8.3).
+  'dependency-blocked',
+  'merge-blocked',
+  'rework-limit',
+  'merge-review-failed',
 ]);
 /** `input` tells the UI which extra value the option needs (§8.3: budget top-up, reassignment). */
 export const GateOptionSchema = z.object({
@@ -264,13 +271,14 @@ export const AttemptPurposeSchema = z.enum([
 export const SeatSpawnedPayloadSchema = z.object({
   seatId: SeatIdSchema,
   attemptId: id,
-  /** 1-based per seat; on-call attempts count on the shared lead seat. */
+  /** 1-based per seat; on-demand attempts count on their role's shared seat. */
   attempt: positiveInt,
   stageId: id,
   role: id,
   agent: AgentKindSchema,
   purpose: AttemptPurposeSchema,
-  oncall: z.boolean(),
+  /** Set for on-demand role instances (§7.5): on-call lead or merge-queue integrator. */
+  ondemand: OndemandRefSchema.optional(),
   keepOpen: z.boolean(),
   itemKey: WorkItemKeySchema.optional(),
   retryOf: id.optional(),
@@ -416,6 +424,7 @@ export const MessageNudgePayloadSchema = z.object({
     'stage-timeout',
     'item-timeout',
     'question-timeout',
+    'review-timeout',
     'budget-wrap-up',
   ]),
   subject: id,
@@ -428,19 +437,23 @@ export const MessageInstructionPayloadSchema = z.object({
   body: z.string(),
 });
 
-// on-call -------------------------------------------------------------------
+// on-demand role instances (§7.5; rev2.10 generalised `oncall.*`) -----------
 
-export const OncallStartedPayloadSchema = z.object({
+export const OndemandStartedPayloadSchema = z.object({
   stageId: id,
+  purpose: OndemandPurposeSchema,
   attemptId: id,
 });
-export const OncallQueueChangedPayloadSchema = z.object({
+/** Queue entries are question ids (`oncall`) or work-item keys (`merge`). */
+export const OndemandQueueChangedPayloadSchema = z.object({
   stageId: id,
+  purpose: OndemandPurposeSchema,
   queue: z.array(id),
   current: id.optional(),
 });
-export const OncallStoppedPayloadSchema = z.object({
+export const OndemandStoppedPayloadSchema = z.object({
   stageId: id,
+  purpose: OndemandPurposeSchema,
   attemptId: id,
   reason: z.enum(['queue_empty', 'failed', 'stage_ended', 'cancelled']),
 });
@@ -467,7 +480,14 @@ export const WorkItemDispatchedPayloadSchema = z.object({
   /** `ai-office/<shortId>/<itemKey>` or `…-a<n>` for n ≥ 2 (§7.3). */
   branch: z.string().startsWith('ai-office/'),
   workspaceName: id,
+  /**
+   * rev2.10 §7.3: integration-branch commit the worktree was created from; it
+   * contains every dependency's merge commit. Optional until dispatch records it (T14).
+   */
+  baseSha: GitShaSchema.optional(),
   retryOf: id.optional(),
+  /** Set when this attempt answers a merge-queue `rework-request` (same branch and PR). */
+  reworkOf: id.optional(),
 });
 export const WorkItemStatusPayloadSchema = z.object({
   itemKey: WorkItemKeySchema,
@@ -477,6 +497,30 @@ export const WorkItemStatusPayloadSchema = z.object({
   pr: positiveInt.optional(),
   headSha: GitShaSchema.optional(),
   reason: z.string().optional(),
+});
+/** rev2.10 §7.3: worker PR opened (or reworked) and queued for review (§7.4a step 1). */
+export const WorkItemMergeQueuedPayloadSchema = z.object({
+  itemKey: WorkItemKeySchema,
+  attemptId: id,
+  pr: positiveInt,
+  headSha: GitShaSchema,
+});
+/** §7.4a: the merge-queue integrator sent the PR back; `rework` counts this request (1-based). */
+export const WorkItemReworkRequestedPayloadSchema = z.object({
+  itemKey: WorkItemKeySchema,
+  pr: positiveInt,
+  submissionId: id,
+  /** The merge-queue integrator's attempt that submitted the rework-request. */
+  attemptId: id,
+  reasons: z.array(z.string().min(1)).min(1),
+  rework: positiveInt,
+});
+/** §7.4a: backend merge via ScmPort succeeded; later `pr.status{merged}` only confirms it. */
+export const WorkItemMergedPayloadSchema = z.object({
+  itemKey: WorkItemKeySchema,
+  pr: positiveInt,
+  mergeCommitSha: GitShaSchema,
+  commandId: id,
 });
 
 // artifacts and SCM ---------------------------------------------------------
@@ -632,6 +676,16 @@ export const TimerPayloadSchema = z.discriminatedUnion('purpose', [
     attemptId: id,
   }),
   z.object({ purpose: z.literal('question-timeout'), questionId: id }),
+  z.object({
+    purpose: z.literal('review-timeout'),
+    itemKey: WorkItemKeySchema,
+    attemptId: id,
+  }),
+  z.object({
+    purpose: z.literal('ondemand-idle'),
+    stageId: id,
+    ondemand: OndemandPurposeSchema,
+  }),
   z.object({
     purpose: z.literal('nudge-grace'),
     attemptId: id,
