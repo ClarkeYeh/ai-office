@@ -6,7 +6,7 @@ import type {
 import type { EventOfType } from '@ai-office/contracts/events';
 
 /** Increment when persisted projection semantics change; rebuild older checkpoints. */
-export const PROJECTION_VERSION = 1;
+export const PROJECTION_VERSION = 2;
 export const CHECKPOINT_INTERVAL = 500;
 export type ReadModel = WorkflowReadModel;
 export const initialReadModel = (): ReadModel | null => null;
@@ -57,7 +57,12 @@ export function startWorkflow(
           }
         : {}),
       ...(s.kind === 'implement'
-        ? { ondemand: { oncall: { active: false, queue: [] } } }
+        ? {
+            ondemand: {
+              oncall: { active: false, queue: [] },
+              merge: { active: false, queue: [] },
+            },
+          }
         : {}),
     })),
     gates: [],

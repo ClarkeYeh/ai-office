@@ -79,6 +79,22 @@ const assertions: Partial<
   'workitem.dispatched': (m) =>
     expect(m.workItems[0]?.workspaceName).toBe('aio-abcd1234-w1-a2'),
   'workitem.status': (m) => expect(m.workItems[0]?.status).toBe('pr_open'),
+  'workitem.merge_queued': (m) =>
+    expect(m.workItems[0]).toMatchObject({
+      status: 'merge_queued',
+      headSha: 'abcdef1',
+    }),
+  'workitem.rework_requested': (m) =>
+    expect(m.workItems[0]).toMatchObject({
+      status: 'rework',
+      reworks: 1,
+      reason: 'missing tests',
+    }),
+  'workitem.merged': (m) =>
+    expect(m.workItems[0]).toMatchObject({
+      status: 'merged',
+      mergeCommitSha: 'abcdef2',
+    }),
   'artifact.created': (m) => expect(m.artifacts[0]?.number).toBe(5),
   'pr.status': (m) => expect(m.prs[0]?.state).toBe('merged'),
   'scm.issue_drift': (m) =>
@@ -116,10 +132,6 @@ const noViewChange: EventType[] = [
   'health.changed',
   'runtime.identity_restored',
   'runtime.identity_hijacked',
-  // Progressive-merge read model (queue, reworks, merge commit) lands in M1-T7b.
-  'workitem.merge_queued',
-  'workitem.rework_requested',
-  'workitem.merged',
 ];
 test('behavior catalog covers every event type', () =>
   expect([...Object.keys(assertions), ...noViewChange].sort()).toEqual(

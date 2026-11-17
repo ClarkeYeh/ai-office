@@ -198,9 +198,40 @@ export function applyWorkflow(m: ReadModel, e: DomainEvent): void {
         item.agent = p.agent;
         item.branch = p.branch;
         item.workspaceName = p.workspaceName;
+        if (p.baseSha === undefined) delete item.baseSha;
+        else item.baseSha = p.baseSha;
         const found = findAttempt(m, p.attemptId);
         if (found) item.seatId = found.seat.seatId;
       }
+      return;
+    }
+    case 'workitem.merge_queued': {
+      const p = e.payload;
+      const item = m.workItems.find((w) => w.key === p.itemKey);
+      if (!item) return;
+      item.status = 'merge_queued';
+      item.currentAttemptId = p.attemptId;
+      item.headSha = p.headSha;
+      const pr = m.prs.find((pr) => pr.number === p.pr);
+      if (pr) item.pr = { ...pr };
+      return;
+    }
+    case 'workitem.rework_requested': {
+      const p = e.payload;
+      const item = m.workItems.find((w) => w.key === p.itemKey);
+      if (!item) return;
+      item.status = 'rework';
+      item.reworks = p.rework;
+      item.reason = p.reasons.join('\n');
+      // The submitting attempt belongs to the reviewer, not the worker.
+      return;
+    }
+    case 'workitem.merged': {
+      const p = e.payload;
+      const item = m.workItems.find((w) => w.key === p.itemKey);
+      if (!item) return;
+      item.status = 'merged';
+      item.mergeCommitSha = p.mergeCommitSha;
       return;
     }
     case 'workitem.status': {
