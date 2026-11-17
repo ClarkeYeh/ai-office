@@ -7,6 +7,8 @@ import type { SeatTokenStore, SpecStore } from '../../ports/stores.js';
 import type { SpawnEffect } from '@ai-office/engine';
 
 export interface SpawnMaterializerDeps {
+  /** Only restore may rotate a token whose spawn was never issued. */
+  recoverUnissued?: boolean;
   seatTokens: SeatTokenStore;
   specStore: SpecStore;
   /** `<installDir>/apps/cli/dist/main.js` (Q8). */
@@ -22,7 +24,7 @@ const bug = (code: string, message: string, effect: SpawnEffect) =>
 /**
  * Turns a spawn intent into a fully concrete `runtime.spawnAgent` (§11.5, N3):
  * seat token (once per attempt) → SpecBuilder → spec file (0600) → args with
- * its path and sha256. Runs exactly once per commandId, right before
+ * its path and sha256. Finishes before the first issuance of a commandId, at
  * `command.issued`; retries and reconcile reuse the recorded args.
  */
 export const materializeSpawn = (
@@ -44,14 +46,26 @@ export const materializeSpawn = (
   try {
     seatToken = deps.seatTokens.issue(effect.attemptId);
   } catch (error) {
-    // A second issue means a token may already be in a spec: never mint another.
-    if (error instanceof PortError && error.category === 'conflict')
-      return bug(
-        'seat_token_reissue',
-        `Seat token for ${effect.attemptId} was already issued`,
-        effect,
-      );
-    throw error;
+    // Recovery may replace an unexposed token; the store checks the durable ledger.
+    if (!(error instanceof PortError) || error.category !== 'conflict')
+      throw error;
+    if (!deps.recoverUnissued || state.commands[effect.commandId])
+      return bug('seat_token_reissue', 'Spawn command already issued', effect);
+    try {
+      seatToken = deps.seatTokens.rotateUnissued(effect.attemptId);
+    } catch (rotationError) {
+      if (
+        rotationError instanceof PortError &&
+        rotationError.category === 'conflict'
+      )
+        return bug(
+          'seat_token_reissue',
+          'Spawn token cannot be rotated',
+          effect,
+        );
+      throw rotationError;
+    }
+    deps.specStore.removeUnissued(effect.attemptId);
   }
   const spec = buildSpec(state, effect.spec, {
     cliPath: deps.cliPath,

@@ -150,6 +150,12 @@ export class MemorySpecStore implements SpecStore {
     const content = this.files.get(path);
     return content !== undefined && sha256(content) === hash;
   }
+  removeUnissued(attemptId: string): void {
+    this.remove('/data/specs/' + attemptId + '.md');
+  }
+  read(path: string, hash: string): string | null {
+    return this.verify(path, hash) ? this.files.get(path)! : null;
+  }
   remove(path: string): void {
     this.files.delete(path);
   }
@@ -263,7 +269,7 @@ export const harness = (options: HarnessOptions = {}) => {
   const ids = new SeqIdGen();
   const store = options.store ?? new InMemoryEventStore(clock, ids);
   const world = options.world ?? new StubWorld();
-  const seatTokens = options.seatTokens ?? new InMemorySeatTokenStore();
+  const seatTokens = options.seatTokens ?? new InMemorySeatTokenStore(store);
   const specStore = options.specStore ?? new MemorySpecStore();
   const logger = new MemoryLogger();
   const scheduler = new ManualScheduler(clock, (timer) =>

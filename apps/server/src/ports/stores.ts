@@ -35,6 +35,8 @@ export interface ProjectionStore<T = unknown> {
 export interface SeatTokenStore {
   /** Issue once per attempt; repeated issue throws conflict, including after revoke. */
   issue(attemptId: string): string;
+  /** Recovery only: reject if any spawn command was issued for this attempt. */
+  rotateUnissued(attemptId: string): string;
   verify(token: string): string | null;
   revoke(attemptId: string): void;
 }
@@ -60,5 +62,8 @@ export interface SpecStore {
   /** Persist with mode 0600 before command.issued; never regenerate on retry. */
   write(attemptId: string, content: string): { path: string; sha256: string };
   verify(path: string, sha256: string): boolean;
+  /** Remove an unissued attempt spec before recovery writes its rotated token. */
+  removeUnissued(attemptId: string): void;
+  read(path: string, sha256: string): string | null;
   remove(path: string): void;
 }

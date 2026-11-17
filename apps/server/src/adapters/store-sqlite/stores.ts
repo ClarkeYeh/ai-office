@@ -73,6 +73,30 @@ export class SqliteSeatTokenStore implements SeatTokenStore {
       })
       .immediate();
   }
+  rotateUnissued(attemptId: string): string {
+    return this.db
+      .transaction(() => {
+        const issued = this.db
+          .prepare(
+            `SELECT 1 FROM events
+        WHERE json_extract(event_json, '$.type') = 'command.issued'
+        AND json_extract(event_json, '$.payload.kind') = 'runtime.spawnAgent'
+        AND json_extract(event_json, '$.attemptId') = ? LIMIT 1`,
+          )
+          .get(attemptId);
+        if (issued)
+          throw new PortError(
+            'conflict',
+            'seat_token_reissue',
+            'Spawn already issued',
+          );
+        this.db
+          .prepare('DELETE FROM seat_tokens WHERE attempt_id = ?')
+          .run(attemptId);
+        return this.issue(attemptId);
+      })
+      .immediate();
+  }
   verify(token: string): string | null {
     const row = this.db
       .prepare(

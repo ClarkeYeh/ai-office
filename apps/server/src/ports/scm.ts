@@ -26,6 +26,9 @@ export type ScmHealth = {
   rateLimitResetAt: string;
 };
 export interface ScmPort {
+  getPR(
+    ref: PrRef,
+  ): Promise<{ state: 'open' | 'closed' | 'merged'; mergeCommitSha?: string }>;
   health(): Promise<ScmHealth>; // 登入者、rate limit 餘量
   inspectRepo(repo: RepoScmRef): Promise<{
     defaultBranch: string;
