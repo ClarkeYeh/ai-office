@@ -37,6 +37,18 @@ export type FakeRuntimeOptions = {
   localRepos?: Readonly<
     Record<string, Awaited<ReturnType<RuntimePort['inspectLocalRepo']>>>
   >;
+  /**
+   * How an agent reads its spec (`Read the AI Office spec at <path> (sha256 <hex>)`
+   * in the prompt). The text selects the scenario role and carries the seat token.
+   */
+  readSpec?: (path: string, sha256: string) => string | null;
+  /**
+   * What `git fetch` sees: the remote head of a branch, or the commit itself
+   * when given a SHA that exists remotely; null when unknown.
+   */
+  remoteHead?: (ref: string) => Promise<string | null> | string | null;
+  /** A transient submitter failure (backend down) is retried after this delay, like `ai-office submit` exit 2. */
+  submitRetryMs?: number;
 };
 type Agent = {
   ref: AgentRef;
@@ -49,6 +61,7 @@ type Agent = {
   state: 'working' | 'waiting_input' | 'done' | 'stopped' | 'released' | 'lost';
   terminalHandle: string;
   paneKey: string;
+  spec?: string;
 };
 type Scheduled = {
   at: number;
@@ -221,6 +234,11 @@ export class FakeRuntime implements RuntimePort {
     WorkspaceRef,
     { clean: boolean; changedFiles: string[] }
   >();
+  /** Branch and base commit each workspace was created with (pushes target it). */
+  private workspaceBranches = new Map<
+    WorkspaceRef,
+    { branch: string; base?: string }
+  >();
   private commands = new Map<
     string,
     { signature: string; result: unknown; session: SessionRef }
@@ -353,6 +371,7 @@ export class FakeRuntime implements RuntimePort {
       session: agent.session,
       workspace: agent.workspace,
       request: structuredClone(agent.request),
+      ...(agent.spec === undefined ? {} : { spec: agent.spec }),
       turn: agent.turn,
       ...(message ? { message } : {}),
     };
@@ -416,6 +435,7 @@ export class FakeRuntime implements RuntimePort {
   async prepareWorkspace(
     req: Parameters<RuntimePort['prepareWorkspace']>[0],
   ): ReturnType<RuntimePort['prepareWorkspace']> {
+    await this.fetchRemote(req);
     return this.command(
       'prepareWorkspace',
       req.correlation,
@@ -433,6 +453,10 @@ export class FakeRuntime implements RuntimePort {
         const baseSha = this.workspaceBase(req);
         const ref = WorkspaceRefSchema.parse(this.id('workspace'));
         this.workspaces.set(ref, { clean: true, changedFiles: [] });
+        this.workspaceBranches.set(ref, {
+          branch: req.branch,
+          ...(baseSha === undefined ? {} : { base: baseSha }),
+        });
         const prepared = {
           workspace: ref,
           path: `/fake-worktrees/${ref}`,
@@ -445,6 +469,25 @@ export class FakeRuntime implements RuntimePort {
         return prepared;
       },
     );
+  }
+  /** With `remoteHead`, mirror what a fetch would see: the branch head and the pinned commit. */
+  private async fetchRemote(
+    req: Parameters<RuntimePort['prepareWorkspace']>[0],
+  ): Promise<void> {
+    const remoteHead = this.options.remoteHead;
+    if (remoteHead === undefined || req.fetchBranch === undefined) return;
+    const pinned = req.baseSha ?? req.baseBranch;
+    const [head, base] = await Promise.all([
+      remoteHead(req.fetchBranch),
+      /^[0-9a-f]{40}$/.test(pinned) ? remoteHead(pinned) : null,
+    ]);
+    if (base !== null) this.setRemoteBranch(req.repo, req.fetchBranch, base);
+    if (head !== null) this.setRemoteBranch(req.repo, req.fetchBranch, head);
+  }
+  private readSpec(prompt: string): string | undefined {
+    const match = /spec at (\S+) \(sha256 ([0-9a-f]{64})\)/.exec(prompt);
+    if (!match || !this.options.readSpec) return undefined;
+    return this.options.readSpec(match[1]!, match[2]!) ?? undefined;
   }
   async disposeWorkspace(ws: WorkspaceRef): Promise<void> {
     this.before('disposeWorkspace');
@@ -463,10 +506,17 @@ export class FakeRuntime implements RuntimePort {
         !this.workspaces.has(workspace)
       )
         throw fail('unknown_workspace');
-      if (!this.workspaces.has(workspace))
+      if (!this.workspaces.has(workspace)) {
         this.workspaces.set(workspace, { clean: true, changedFiles: [] });
+        if (req.workspace.kind === 'new-worktree')
+          this.workspaceBranches.set(workspace, {
+            branch: req.workspace.branch,
+            base: req.workspace.baseBranch,
+          });
+      }
       const ref = AgentRefSchema.parse(this.id('agent'));
-      const role = this.options.scenario?.role?.(req) ?? req.title;
+      const spec = this.readSpec(req.prompt);
+      const role = this.options.scenario?.role?.(req, spec) ?? req.title;
       const agent: Agent = {
         ref,
         session: req.session,
@@ -478,6 +528,7 @@ export class FakeRuntime implements RuntimePort {
         state: 'working',
         terminalHandle: this.id('terminal'),
         paneKey: this.id('pane'),
+        ...(spec === undefined ? {} : { spec }),
       };
       this.agents.set(ref, agent);
       this.emit(req.session, {
@@ -721,34 +772,56 @@ export class FakeRuntime implements RuntimePort {
       case 'submit': {
         const tokens = [
           ...new Set(
-            a.request.prompt.match(/\baio_seat_[A-Za-z0-9_-]+\b/g) ?? [],
+            `${a.request.prompt}\n${a.spec ?? ''}`.match(
+              /\baio_seat_[A-Za-z0-9_-]+\b/g,
+            ) ?? [],
           ),
         ];
         if (tokens.length !== 1 || !this.options.submitter)
           throw new PortError(
             'validation',
             'missing_submitter_or_token',
-            'Submission requires a submitter and one unique prompt seat token',
+            'Submission requires a submitter and one unique seat token in the prompt or spec',
           );
-        await this.options.submitter({
+        try {
+          await this.options.submitter({
+            agent: a.ref,
+            ...this.identity(a.ref),
+            seatToken: tokens[0]!,
+            submission: structuredClone(action.submission),
+          });
+        } catch (error) {
+          const retryMs = this.options.submitRetryMs;
+          if (
+            retryMs === undefined ||
+            !(error instanceof PortError) ||
+            error.category !== 'transient'
+          )
+            throw error;
+          // The agent retries its `ai-office submit` once the backend is back.
+          this.scheduled.push({
+            at: this.now() + retryMs,
+            order: ++this.sequence,
+            agent: a,
+            generation: a.generation,
+            action,
+          });
+        }
+        break;
+      }
+      case 'push': {
+        if (!this.options.onPush) throw fail('missing_push_handler');
+        // A scenario's branch name is illustrative; agents push their own worktree.
+        const own = this.workspaceBranches.get(a.workspace);
+        await this.options.onPush({
           agent: a.ref,
-          ...this.identity(a.ref),
-          seatToken: tokens[0]!,
-          submission: structuredClone(action.submission),
+          workspace: a.workspace,
+          branch: own?.branch ?? action.branch,
+          headSha: action.headSha,
+          ...(own?.base === undefined ? {} : { base: own.base }),
         });
         break;
       }
-      case 'push':
-        if (!this.options.onPush) throw fail('missing_push_handler');
-        else {
-          await this.options.onPush({
-            agent: a.ref,
-            workspace: a.workspace,
-            branch: action.branch,
-            headSha: action.headSha,
-          });
-          break;
-        }
       case 'ask': {
         const question = QuestionRefSchema.parse(this.id('question'));
         this.questions.set(question, a);

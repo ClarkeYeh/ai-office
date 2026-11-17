@@ -1,5 +1,9 @@
 import type { AgentSubmission } from '@ai-office/contracts/agent-submission';
-import type { RoleBehavior, ScenarioStep } from './scenario.js';
+import type {
+  RoleBehavior,
+  ScenarioContext,
+  ScenarioStep,
+} from './scenario.js';
 const submit = (submission: AgentSubmission): ScenarioStep => ({
   type: 'submit',
   afterMs: 10,
@@ -108,23 +112,47 @@ export const integration: ScenarioStep[] = [
   },
   { type: 'done', afterMs: 30 },
 ];
-export const participant: RoleBehavior = {
-  spawn: statement(1),
-  send: statement(2),
+/**
+ * The round a message asks for: the engine's round body is JSON `{ round }`;
+ * its reminders are prose ("Complete round 2: ...").
+ */
+export const roundOf = (context: ScenarioContext): number => {
+  const body = context.message?.body ?? '';
+  try {
+    const parsed = JSON.parse(body) as { round?: unknown };
+    if (typeof parsed.round === 'number') return parsed.round;
+  } catch {
+    /* prose reminder */
+  }
+  return Number(/round (\d+)/.exec(body)?.[1] ?? 1);
 };
+const asksForConclusion = (context: ScenarioContext) =>
+  /conclusion/i.test(
+    `${context.message?.subject ?? ''} ${context.message?.body ?? ''}`,
+  );
+
+/** Participants wait for the round message, then speak for that round. */
+export const participant: RoleBehavior = {
+  spawn: [done],
+  send: (context) => statement(roundOf(context)),
+};
+/** The facilitator posts the agenda, speaks in rounds, and concludes when asked. */
 export const facilitator: RoleBehavior = {
   spawn: agenda,
   send: (context) =>
-    context.turn <= 3 ? statement(context.turn - 1) : conclusion,
+    asksForConclusion(context) ? conclusion : statement(roundOf(context)),
 };
 
-/** Each send carries the application's current PR/head; rework keeps that PR. */
+/**
+ * Reviews one PR per send. The engine's review body is JSON with `pr` and the
+ * PR's `headSha`; `rework: true` (test stimulus) requests a rework instead.
+ */
 export const mergeQueue: RoleBehavior = {
   spawn: [done],
   send: (context) => {
     const review = JSON.parse(context.message?.body ?? '{}') as {
       pr: number;
-      expectedHeadSha: string;
+      headSha: string;
       rework?: boolean;
     };
     return [
@@ -141,7 +169,7 @@ export const mergeQueue: RoleBehavior = {
               kind: 'merge-request',
               payload: {
                 pr: review.pr,
-                expectedHeadSha: review.expectedHeadSha,
+                expectedHeadSha: review.headSha,
               },
             },
       ),

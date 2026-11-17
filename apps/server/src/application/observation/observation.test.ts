@@ -772,6 +772,14 @@ describe('transactions and lifecycle', () => {
       }),
     ]);
     expect(h.loop.scmInterval(h.runner)).toBe(30000);
+    expect(
+      new ObservationLoop({ ...h.deps, scmIntervalMs: 250 }).scmInterval(
+        h.runner,
+      ),
+    ).toBe(250);
+    expect(() => new ObservationLoop({ ...h.deps, scmIntervalMs: 0 })).toThrow(
+      'Invalid observation interval',
+    );
     await h.runner.append([draft('workflow.cancelled', { reason: 'user' })]);
     await flush();
     expect(h.timers.size).toBe(0);

@@ -5,24 +5,14 @@ import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { SUBMISSION_HEADER_NAMES } from '@ai-office/contracts/agent-submission';
-import type { DomainEvent } from '@ai-office/contracts/events';
 import { PROJECTION_VERSION } from '@ai-office/projection';
 import type { ReadModel } from '@ai-office/projection';
 import { mainlineScenario } from './adapters/runtime-fake/mainline.js';
-import {
-  agenda,
-  conclusion,
-  mergeQueue,
-  statement,
-} from './adapters/runtime-fake/mainline-actions.js';
 import { createFakeRuntime } from './adapters/runtime-fake/index.js';
 import type {
   FakeRuntime,
-  FakePush,
   FakeSubmission,
   RuntimeScenario,
-  ScenarioContext,
-  SpawnRequest,
 } from './adapters/runtime-fake/index.js';
 import { createFakeScm } from './adapters/scm-fake/index.js';
 import type { FakeScm } from './adapters/scm-fake/index.js';
@@ -77,7 +67,7 @@ import {
 } from './config/index.js';
 import type { Settings } from './config/index.js';
 import { PortError } from './ports/errors.js';
-import type { AgentRef, RepoRuntimeRef, RepoScmRef } from './ports/refs.js';
+import type { RepoRuntimeRef, RepoScmRef } from './ports/refs.js';
 import type { RuntimePort } from './ports/runtime.js';
 import type { ScmPort } from './ports/scm.js';
 import type { Logger, Redactor, ScheduledTimer } from './ports/services.js';
@@ -92,67 +82,8 @@ import type { UsagePort } from './ports/usage.js';
  * Nothing accepts requests before reconciliation finishes.
  */
 
-const roundOf = (context: ScenarioContext): number => {
-  const body = context.message?.body ?? '';
-  try {
-    const parsed = JSON.parse(body) as { round?: unknown };
-    if (typeof parsed.round === 'number') return parsed.round;
-  } catch {
-    /* Reminders are prose: "Complete round 2: ..." */
-  }
-  return Number(/round (\d+)/.exec(body)?.[1] ?? 1);
-};
-
-/**
- * The §0.1 mainline behavior, keyed by attempt purpose and answering the
- * engine's actual turns: participants speak when a round's message names the
- * round, the facilitator concludes when asked, and the merge-queue reads the
- * engine's review body (`headSha`).
- */
-const mainline: RuntimeScenario = {
-  roles: {
-    ...mainlineScenario.roles,
-    facilitator: {
-      spawn: agenda,
-      send: (context) =>
-        /conclusion/i.test(
-          `${context.message?.subject ?? ''} ${context.message?.body ?? ''}`,
-        )
-          ? conclusion
-          : statement(roundOf(context)),
-    },
-    participant: {
-      spawn: [{ type: 'done', afterMs: 20 }],
-      send: (context) => statement(roundOf(context)),
-    },
-    'merge-queue': {
-      ...mergeQueue,
-      send: (context) => {
-        const review = JSON.parse(context.message?.body ?? '{}') as {
-          pr?: number;
-          headSha?: string;
-        };
-        const send = mergeQueue.send as Extract<
-          typeof mergeQueue.send,
-          (context: ScenarioContext) => unknown
-        >;
-        return send({
-          ...context,
-          message: {
-            subject: context.message?.subject ?? '',
-            body: JSON.stringify({
-              pr: review.pr,
-              expectedHeadSha: review.headSha,
-            }),
-          },
-        });
-      },
-    },
-  },
-};
-
 export const FAKE_SCENARIOS: Readonly<Record<string, RuntimeScenario>> = {
-  mainline,
+  mainline: mainlineScenario,
 };
 
 /** The repository the fake world knows; registered automatically in fake mode. */
@@ -179,7 +110,7 @@ export interface StartOptions {
   /** `<installDir>/apps/cli/dist/main.js` (Q8). */
   cliPath?: string;
   webDist?: string;
-  /** Fake mode: delay before the simulated human merges the final PR. */
+  /** Fake mode: delay before the simulated owner merges the final PR (§7.6). */
   fakeFinalMergeMs?: number;
   /** Fake mode: reuse a surviving simulated external world (in-process restart). */
   fakeWorld?: FakeWorld;
@@ -213,11 +144,8 @@ export function checkStartOptions(options: StartOptions): void {
     );
 }
 
-/** Agent identity the fake runtime needs but its ports do not carry. */
-type FakeBinding = {
-  submit(request: FakeSubmission): Promise<void>;
-  push(request: FakePush): Promise<void>;
-};
+/** The running backend as fake agents reach it. */
+type FakeBackend = { submit(request: FakeSubmission): Promise<void> };
 
 /**
  * The simulated external world (Orca + GitHub + session logs). It is in
@@ -229,69 +157,34 @@ export interface FakeWorld {
   readonly runtime: FakeRuntime;
   readonly scm: FakeScm;
   readonly usage: FakeUsage;
-  /** Spawned agent → its correlation, recorded when the spawn returns. */
-  readonly agents: Map<AgentRef, { workflowId: string; attemptId: string }>;
-  /** Set by the running backend: role key of a spawn, from its recorded attempt. */
-  roleOf: ((request: SpawnRequest) => string | undefined) | undefined;
-  /** The running backend's endpoints; `bind(undefined)` while it is down. */
-  readonly binding: FakeBinding | undefined;
-  bind(binding: FakeBinding | undefined): void;
+  /** Set while a backend listens; agents retry their submissions meanwhile. */
+  backend: FakeBackend | undefined;
 }
 
-export function createFakeWorld(scenarioName: string): FakeWorld {
-  const scenario = FAKE_SCENARIOS[scenarioName];
-  if (scenario === undefined)
-    throw new StartupError(`Unknown fake scenario "${scenarioName}"`);
+export function createFakeWorld(
+  scenario: string,
+  options: {
+    readSpec: (path: string, sha256: string) => string | null;
+    finalMergeMs?: number;
+  },
+): FakeWorld {
   const clock = new SystemClock();
-  const scm = createFakeScm({ clock });
+  const scm = createFakeScm({
+    clock,
+    autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs ?? 5000,
+  });
   scm.addRepo(FAKE_REPO.github);
-  let binding: FakeBinding | undefined;
-  let waiting: (() => void)[] = [];
-  /**
-   * Like an agent whose `ai-office submit` exits 2 and retries: while the
-   * backend is down (restart), actions wait for the next backend and retry.
-   */
-  const act = async (call: (binding: FakeBinding) => Promise<void>) => {
-    for (;;) {
-      const current = binding;
-      if (current === undefined) {
-        await new Promise<void>((resolve) => waiting.push(resolve));
-        continue;
-      }
-      try {
-        return await call(current);
-      } catch (error) {
-        if (binding === current) throw error;
-      }
-    }
+  const backendDown = (): never => {
+    throw new PortError('transient', 'backend_down', 'Backend not listening');
   };
   const world: FakeWorld = {
-    scenario: scenarioName,
+    scenario,
     scm,
     usage: createFakeUsage({ clock }),
-    agents: new Map(),
-    roleOf: undefined,
-    get binding() {
-      return binding;
-    },
-    bind(next) {
-      binding = next;
-      if (next !== undefined) {
-        const resume = waiting;
-        waiting = [];
-        for (const resolve of resume) resolve();
-      }
-    },
+    backend: undefined,
     runtime: createFakeRuntime({
       clock,
-      scenario: {
-        ...scenario,
-        // Spawn titles are `aio:<commandId>`; the recorded attempt names the role.
-        role: (request) => world.roleOf?.(request) ?? request.title,
-        roles: scenario.roles,
-      },
-      submitter: (request) => act((backend) => backend.submit(request)),
-      onPush: (request) => act((backend) => backend.push(request)),
+      scenario: FAKE_SCENARIOS[scenario]!,
       localRepos: {
         [FAKE_REPO.localPath]: {
           isGitMainWorktree: true,
@@ -299,20 +192,42 @@ export function createFakeWorld(scenarioName: string): FakeWorld {
           runtimeRepoId: FAKE_REPO.runtime.orcaRepoId,
         },
       },
+      readSpec: options.readSpec,
+      remoteHead: async (ref) =>
+        (await scm.compareBranch(FAKE_REPO.github, ref, ref))?.headSha ?? null,
+      onPush: ({ branch, base }) => {
+        scm.pushBranch(FAKE_REPO.github, branch, base);
+      },
+      submitter: (request) => (world.backend ?? backendDown()).submit(request),
+      submitRetryMs: 250,
     }),
   };
   return world;
 }
 
-/** Replaces some methods; every other call still runs on the original object. */
-function override<T extends object>(target: T, methods: Partial<T>): T {
-  return new Proxy(target, {
-    get(object, property) {
-      if (Object.hasOwn(methods, property)) return methods[property as keyof T];
-      const value = Reflect.get(object, property, object) as unknown;
-      return typeof value === 'function' ? value.bind(object) : value;
-    },
-  });
+/** A fake agent's `ai-office submit`: the real gateway over HTTP. */
+async function postSubmission(
+  url: string,
+  request: FakeSubmission,
+): Promise<number> {
+  let response: Response;
+  try {
+    response = await fetch(`${url}/agent/v1/submissions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        [SUBMISSION_HEADER_NAMES.authorization]: `Bearer ${request.seatToken}`,
+        [SUBMISSION_HEADER_NAMES.terminalHandle]: request.terminalHandle,
+        [SUBMISSION_HEADER_NAMES.paneKey]: request.paneKey,
+      },
+      body: JSON.stringify(request.submission),
+    });
+  } catch {
+    throw new PortError('transient', 'backend_unreachable', 'No backend');
+  }
+  if (response.status >= 500)
+    throw new PortError('transient', 'backend_unavailable', 'Backend error');
+  return response.status;
 }
 
 /** Records each adapter call outside the executor (which records its own). */
@@ -460,66 +375,18 @@ async function compose(
   const cliPath =
     options.cliPath ?? resolve(import.meta.dirname, '../../cli/dist/main.js');
 
-  const world = options.fakeWorld ?? createFakeWorld(options.fake!);
+  const world =
+    options.fakeWorld ??
+    createFakeWorld(options.fake!, {
+      readSpec: (path, sha256) => specStore.read(path, sha256),
+      ...(options.fakeFinalMergeMs === undefined
+        ? {}
+        : { finalMergeMs: options.fakeFinalMergeMs }),
+    });
   if (world.scenario !== options.fake)
     throw new StartupError('The surviving fake world runs another scenario');
-  const fakeRuntime = world.runtime;
-
-  // Agent-visible behavior of the fake: it "reads" its spec for the seat
-  // token, and Orca's fetch sees the branch heads GitHub reports.
-  const runtime: RuntimePort = override<RuntimePort>(fakeRuntime, {
-    prepareWorkspace: async (req) => {
-      // Orca's fetch sees what GitHub has now.
-      if (req.fetchBranch !== undefined) {
-        const remote = await world.scm.compareBranch(
-          FAKE_REPO.github,
-          req.fetchBranch,
-          req.fetchBranch,
-        );
-        if (remote !== null)
-          fakeRuntime.setRemoteBranch(
-            FAKE_REPO.runtime,
-            req.fetchBranch,
-            remote.headSha,
-          );
-      }
-      return fakeRuntime.prepareWorkspace(req);
-    },
-    spawnAgent: async (req: Parameters<RuntimePort['spawnAgent']>[0]) => {
-      const spec = /spec at (\S+) \(sha256 ([0-9a-f]{64})\)/.exec(req.prompt);
-      const text = spec === null ? null : specStore.read(spec[1]!, spec[2]!);
-      const token = text?.match(/\baio_seat_[A-Za-z0-9_-]+\b/)?.[0];
-      const agent = await fakeRuntime.spawnAgent(
-        token === undefined
-          ? req
-          : { ...req, prompt: `${req.prompt}\n${token}` },
-      );
-      if (req.correlation.attemptId !== undefined)
-        world.agents.set(agent, {
-          workflowId: req.correlation.workflowId,
-          attemptId: req.correlation.attemptId,
-        });
-      return agent;
-    },
-  });
-  world.roleOf = (request) => {
-    const c = request.correlation;
-    const attempt =
-      c.attemptId === undefined
-        ? undefined
-        : runners.get(c.workflowId)?.state.attempts[c.attemptId];
-    if (attempt === undefined) return undefined;
-    if (attempt.ondemand?.purpose === 'merge') return 'merge-queue';
-    return attempt.purpose;
-  };
-  const scm: ScmPort = override<ScmPort>(world.scm, {
-    compareBranch: async (repo: RepoScmRef, base: string, head: string) => {
-      const result = await world.scm.compareBranch(repo, base, head);
-      if (result !== null)
-        fakeRuntime.setRemoteBranch(FAKE_REPO.runtime, head, result.headSha);
-      return result;
-    },
-  });
+  const runtime: RuntimePort = world.runtime;
+  const scm: ScmPort = world.scm;
   const usage: UsagePort = world.usage;
 
   // One scheduler for domain, retry, health, observation and submission timers.
@@ -613,7 +480,11 @@ async function compose(
     // The fake answers instantly; poll fast so a scenario runs in seconds.
     runtimeIntervalMs: 100,
     usageIntervalMs: 250,
+    scmIntervalMs: 250,
   });
+  const warnRejected = (status: number) => {
+    if (status >= 300) logger.warn({ status }, 'fake submission not accepted');
+  };
   const failed = (what: string) => (error: unknown) =>
     logger.error({ error: toErrorInfo(error) }, `${what} failed`);
   route = (timer) => {
@@ -717,101 +588,17 @@ async function compose(
   port = typeof address === 'object' && address !== null ? address.port : 0;
   const url = `http://127.0.0.1:${port}`;
 
-  // Fake agents act only once the gateway listens; they submit over HTTP.
-  const finalMerges = new Set<ReturnType<typeof setTimeout>>();
-  world.bind({
-    async submit(request) {
-      const response = await fetch(`${url}/agent/v1/submissions`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          [SUBMISSION_HEADER_NAMES.authorization]: `Bearer ${request.seatToken}`,
-          [SUBMISSION_HEADER_NAMES.terminalHandle]: request.terminalHandle,
-          [SUBMISSION_HEADER_NAMES.paneKey]: request.paneKey,
-        },
-        body: JSON.stringify(request.submission),
-      });
-      if (response.status >= 300)
-        logger.warn(
-          { status: response.status, kind: request.submission.kind },
-          'fake submission not accepted',
-        );
-    },
-    async push(request) {
-      const owner = world.agents.get(request.agent);
-      const state =
-        owner === undefined ? undefined : runners.get(owner.workflowId)?.state;
-      const attempt = state?.attempts[owner!.attemptId];
-      const item =
-        attempt?.itemKey === undefined
-          ? undefined
-          : state?.workItems[attempt.itemKey];
-      if (item?.branch === undefined || item.baseSha === undefined)
-        throw new PortError('bug', 'fake_push_unknown_item', 'No item branch');
-      // The scenario's branch name is illustrative; push the attempt's own.
-      if (
-        (await world.scm.compareBranch(
-          FAKE_REPO.github,
-          item.branch,
-          item.branch,
-        )) === null
-      )
-        await world.scm.ensureBranch(
-          FAKE_REPO.github,
-          item.branch,
-          item.baseSha,
-          {
-            workflowId: owner!.workflowId,
-            commandId: `fake-push:${owner!.attemptId}`,
-          },
-        );
-      const headSha = world.scm.pushBranch(FAKE_REPO.github, item.branch);
-      fakeRuntime.setRemoteBranch(FAKE_REPO.runtime, item.branch, headSha);
-    },
-  });
-  cleanup.push(() => {
-    world.bind(undefined);
-  });
-  // The simulated owner merges the final PR on GitHub (§7.6 is a manual merge).
-  const mergeFinalPr = (event: DomainEvent) => {
-    if (
-      event.type !== 'gate.opened' ||
-      event.payload.content.type !== 'final-pr'
-    )
-      return;
-    const pr = event.payload.content.pr;
-    if (pr === undefined) return;
-    const workflowId = event.workflowId;
-    const timer = setTimeout(() => {
-      finalMerges.delete(timer);
-      void world.scm
-        .mergeExternally({ repo: FAKE_REPO.github, number: pr })
-        .then(() => {
-          const runner =
-            workflowId === null ? undefined : runners.get(workflowId);
-          return runner === undefined ? undefined : observation.pollScm(runner);
-        })
-        .catch(failed('fake final merge'));
-    }, options.fakeFinalMergeMs ?? 5000);
-    finalMerges.add(timer);
+  // Fake agents reach this backend through the gateway once it listens.
+  world.backend = {
+    submit: (request) => postSubmission(url, request).then(warnRejected),
   };
-  for (const event of stores.events.read({}))
-    if (event.type === 'gate.opened') {
-      const gate =
-        event.workflowId === null
-          ? undefined
-          : runners.get(event.workflowId)?.state.gates[event.payload.gateId];
-      if (gate?.status === 'open') mergeFinalPr(event);
-    }
-  const unsubscribe = stores.events.subscribe(mergeFinalPr);
   const pump = setInterval(
-    () => void fakeRuntime.runDue().catch(failed('fake runtime step')),
+    () => void world.runtime.runDue().catch(failed('fake runtime step')),
     25,
   );
   cleanup.push(() => {
     clearInterval(pump);
-    unsubscribe();
-    for (const timer of finalMerges) clearTimeout(timer);
+    world.backend = undefined;
   });
 
   // Let in-flight commands settle so their results are recorded before close.

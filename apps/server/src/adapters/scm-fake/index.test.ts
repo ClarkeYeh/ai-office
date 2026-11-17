@@ -157,6 +157,70 @@ describe('FakeScm scenarios', () => {
       )?.ahead,
     ).toBe(0);
   });
+  it('creates a pushed branch from a base commit only when asked', async () => {
+    const scm = new FakeScm();
+    scm.addRepo(repo);
+    const base = (await scm.compareBranch(repo, 'main', 'main'))!.headSha;
+    expect(() => scm.pushBranch(repo, 'ai-office/new')).toThrow(
+      'Unknown branch',
+    );
+    const head = scm.pushBranch(repo, 'ai-office/new', base);
+    expect(await scm.compareBranch(repo, base, 'ai-office/new')).toEqual({
+      ahead: 1,
+      headSha: head,
+    });
+    // An existing branch keeps its own history; `from` is ignored.
+    const next = scm.pushBranch(repo, 'ai-office/new', 'main');
+    expect((await scm.compareBranch(repo, head, 'ai-office/new'))?.ahead).toBe(
+      1,
+    );
+    expect(next).not.toBe(head);
+  });
+  it('lets the owner merge default-branch PRs after a delay, and only those', async () => {
+    let release: () => void = () => {};
+    const delays: number[] = [];
+    const scm = new FakeScm({
+      autoMergeIntoDefaultBranchAfterMs: 5000,
+      delay: (ms) => {
+        delays.push(ms);
+        return new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      },
+    });
+    scm.addRepo(repo);
+    await scm.ensureBranch(repo, 'ai-office/integration', 'main', c);
+    scm.pushBranch(repo, 'ai-office/integration');
+    await scm.ensureBranch(
+      repo,
+      'ai-office/worker',
+      'ai-office/integration',
+      c,
+    );
+    scm.pushBranch(repo, 'ai-office/worker');
+    const worker = await scm.openPR(
+      repo,
+      {
+        title: 'w',
+        body: '',
+        base: 'ai-office/integration',
+        head: 'ai-office/worker',
+      },
+      c,
+    );
+    expect(delays).toEqual([]);
+    const final = await scm.openPR(
+      repo,
+      { title: 'f', body: '', base: 'main', head: 'ai-office/integration' },
+      { ...c, commandId: 'final' },
+    );
+    expect(delays).toEqual([5000]);
+    expect((await scm.getPR(final)).state).toBe('open');
+    release();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect((await scm.getPR(final)).state).toBe('merged');
+    expect((await scm.getPR(worker)).state).toBe('open');
+  });
   it('compares a branch against a pinned commit SHA, as GitHub does', async () => {
     const scm = new FakeScm();
     const repo = { owner: 'o', name: 'r' };

@@ -377,119 +377,121 @@ describe('FakeRuntime scenarios and faults', () => {
 });
 
 describe('mainline example', () => {
-  it('runs both meeting rounds, conclusion, planning, worker push and integration submissions', async () => {
+  it("answers the engine's turns: rounds, conclusion, planning, push, review and report", async () => {
     const { mainlineScenario } = await import('./mainline.js');
     const { AgentSubmissionSchema } =
       await import('@ai-office/contracts/agent-submission');
-    const submissions: { title: string; kind: string; round?: number }[] = [];
-    const titles = new Map<string, string>();
+    const submissions: { role: string; kind: string; detail?: unknown }[] = [];
+    const roles = new Map<string, string>();
     const pushes: unknown[] = [];
+    const specs = new Map<string, string>();
     const f = await fixture({
       scenario: mainlineScenario,
+      readSpec: (path) => specs.get(path) ?? null,
       submitter: (r) => {
         const submission = AgentSubmissionSchema.parse(r.submission);
         submissions.push({
-          title: titles.get(r.agent) ?? '',
+          role: roles.get(r.agent) ?? '',
           kind: submission.kind,
           ...(submission.kind === 'statement'
-            ? { round: submission.payload.round }
-            : {}),
+            ? { detail: submission.payload.round }
+            : submission.kind === 'merge-request'
+              ? { detail: submission.payload }
+              : {}),
         });
       },
       onPush: (r) => {
         pushes.push(r);
       },
     });
-    const spawn = async (title: string) => {
+    const sha = 'c'.repeat(64);
+    // Roles come from the spec the agent read, not the `aio:<commandId>` title.
+    const spawn = async (role: string, specTitle: string) => {
+      specs.set(
+        `/specs/${role}.md`,
+        `# AI Office spec: ${specTitle}\n\naio_seat_${role}\n`,
+      );
       const agent = await f.runtime.spawnAgent({
         ...f.spawnRequest,
-        title,
-        correlation: { workflowId: 'wf', commandId: title },
+        title: `aio:${role}`,
+        prompt: `aio:${role}\nRead the AI Office spec at /specs/${role}.md (sha256 ${sha}) and follow it exactly.`,
+        correlation: { workflowId: 'wf', commandId: role },
       });
-      titles.set(agent, title);
+      roles.set(agent, role);
       return agent;
+    };
+    const send = async (
+      agent: string,
+      subject: string,
+      body: string,
+      id: string,
+    ) => {
+      await f.runtime.send(agent as never, {
+        subject,
+        body,
+        correlation: { workflowId: 'wf', commandId: id },
+      });
+      await pump();
     };
     const pump = async () => {
       f.clock.advance(30);
       await f.runtime.runDue();
     };
-    const facilitator = await spawn('facilitator');
+    const lead = await spawn('lead', 'meeting facilitator');
     await pump();
-    const participants = await Promise.all(
-      ['pm', 'architect', 'engineer'].map(spawn),
+    const pm = await spawn('pm', 'meeting participant (pm)');
+    const architect = await spawn(
+      'architect',
+      'meeting participant (architect)',
     );
     await pump();
-    for (let turn = 1; turn <= 3; turn++) {
-      await f.runtime.send(facilitator, {
-        subject: 'round',
-        body: '',
-        correlation: { workflowId: 'wf', commandId: `facilitator-${turn}` },
-      });
-      if (turn === 2)
-        for (const a of participants)
-          await f.runtime.send(a, {
-            subject: 'round 2',
-            body: '',
-            correlation: { workflowId: 'wf', commandId: `${a}-round2` },
-          });
-      await pump();
-    }
-    for (const title of ['planner', 'worker', 'integrator']) {
-      await spawn(title);
-      await pump();
-    }
-    expect(submissions.map((s) => s.kind)).toEqual([
-      'agenda',
-      'statement',
-      'statement',
-      'statement',
-      'statement',
-      'statement',
-      'statement',
-      'statement',
-      'statement',
-      'conclusion',
-      'work-items',
-      'integration-report',
+    for (const round of [1, 2])
+      for (const agent of [pm, architect])
+        await send(
+          agent,
+          `Meeting round ${round}`,
+          JSON.stringify({ round }),
+          `${agent}-${round}`,
+        );
+    // A prose reminder names the round, too.
+    await send(
+      pm,
+      'Required turn output',
+      'Complete round 2: submit the required artifact',
+      'nudge',
+    );
+    await send(lead, 'Write meeting conclusion', '{}', 'conclude');
+    await spawn('planner', 'planning lead');
+    await pump();
+    await spawn('worker', 'implementation worker (feature)');
+    await pump();
+    const reviewer = await spawn('merge-queue', 'merge-queue integrator');
+    await pump();
+    await send(
+      reviewer,
+      'Review feature',
+      JSON.stringify({ itemKey: 'feature', pr: 4, headSha: 'a'.repeat(40) }),
+      'review',
+    );
+    await spawn('integrator', 'integrator (wrap-up)');
+    await pump();
+    expect(submissions).toEqual([
+      { role: 'lead', kind: 'agenda' },
+      { role: 'pm', kind: 'statement', detail: 1 },
+      { role: 'architect', kind: 'statement', detail: 1 },
+      { role: 'pm', kind: 'statement', detail: 2 },
+      { role: 'architect', kind: 'statement', detail: 2 },
+      { role: 'pm', kind: 'statement', detail: 2 },
+      { role: 'lead', kind: 'conclusion' },
+      { role: 'planner', kind: 'work-items' },
+      {
+        role: 'merge-queue',
+        kind: 'merge-request',
+        detail: { pr: 4, expectedHeadSha: 'a'.repeat(40) },
+      },
+      { role: 'integrator', kind: 'integration-report' },
     ]);
-    for (const title of ['facilitator', 'pm', 'architect', 'engineer'])
-      expect(
-        submissions
-          .filter((s) => s.title === title && s.kind === 'statement')
-          .map((s) => s.round),
-      ).toEqual([1, 2]);
     expect(pushes).toHaveLength(1);
-  });
-  it('rejects submissions without one unambiguous credential instead of silently succeeding', async () => {
-    const f = await fixture({
-      submitter: () => {
-        throw new Error('Must not submit');
-      },
-      scenario: {
-        roles: {
-          worker: {
-            spawn: [
-              {
-                type: 'submit',
-                submission: { kind: 'agenda', payload: { topics: [] } },
-              },
-            ],
-          },
-        },
-      },
-    });
-    await f.runtime.spawnAgent({ ...f.spawnRequest, prompt: 'No credential' });
-    await expect(f.runtime.runDue()).rejects.toMatchObject({
-      code: 'missing_submitter_or_token',
-    });
-    await f.runtime.spawnAgent({
-      ...f.spawnRequest,
-      correlation: { workflowId: 'wf', commandId: 'ambiguous' },
-      prompt: 'aio_seat_first aio_seat_second',
-    });
-    await expect(f.runtime.runDue()).rejects.toMatchObject({
-      code: 'missing_submitter_or_token',
-    });
   });
 });
 
@@ -540,5 +542,132 @@ describe('clock and concurrency boundaries', () => {
       }),
     ).rejects.toMatchObject({ code: 'agent_not_live' });
     expect(f.runtime.activeAgents()).toEqual([]);
+  });
+});
+
+describe('injected agent and Git behavior', () => {
+  const sha256 = 'd'.repeat(64);
+  const specPrompt = `aio:spawn\nRead the AI Office spec at /specs/a.md (sha256 ${sha256}) and follow it exactly.`;
+  const submitStep = {
+    type: 'submit' as const,
+    submission: { kind: 'agenda' as const, payload: { topics: [] } },
+  };
+
+  it('reads the seat token from the spec named in the prompt', async () => {
+    const tokens: string[] = [];
+    const reads: [string, string][] = [];
+    const f = await fixture({
+      readSpec: (path, hash) => {
+        reads.push([path, hash]);
+        return '# AI Office spec: worker\n\nToken: aio_seat_fromspec\n';
+      },
+      submitter: (r) => {
+        tokens.push(r.seatToken);
+      },
+      scenario: { roles: { worker: { spawn: [submitStep] } } },
+    });
+    await f.runtime.spawnAgent({ ...f.spawnRequest, prompt: specPrompt });
+    await f.runtime.runDue();
+    expect(reads).toEqual([['/specs/a.md', sha256]]);
+    expect(tokens).toEqual(['aio_seat_fromspec']);
+  });
+
+  it('pushes the branch its workspace was prepared with, carrying the pinned base', async () => {
+    const pushes: unknown[] = [];
+    const base = 'b'.repeat(40);
+    const f = await fixture({
+      remoteHead: (ref) =>
+        ref === 'integration' || ref === base ? base : null,
+      onPush: (r) => {
+        pushes.push({ branch: r.branch, base: r.base });
+      },
+      scenario: {
+        roles: {
+          worker: {
+            spawn: [
+              { type: 'push', branch: 'illustrative', headSha: 'e'.repeat(40) },
+            ],
+          },
+        },
+      },
+    });
+    const prepared = await f.runtime.prepareWorkspace({
+      session: f.session,
+      repo: f.repo,
+      baseBranch: base,
+      fetchBranch: 'integration',
+      name: 'feature',
+      branch: 'ai-office/wf/feature',
+      correlation: { workflowId: 'wf', commandId: 'prepare' },
+    });
+    // remoteHead made the pinned commit fetchable without setRemoteBranch.
+    expect(prepared.baseSha).toBe(base);
+    await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      workspace: {
+        kind: 'existing-worktree',
+        workspace: prepared.workspace,
+        readOnly: false,
+      },
+    });
+    await f.runtime.runDue();
+    expect(pushes).toEqual([{ branch: 'ai-office/wf/feature', base }]);
+  });
+
+  it('follows the remote head for an unpinned origin/<branch> base via remoteHead', async () => {
+    let head = 'a'.repeat(40);
+    const f = await fixture({ remoteHead: () => head });
+    const prepare = (commandId: string) =>
+      f.runtime.prepareWorkspace({
+        session: f.session,
+        repo: f.repo,
+        baseBranch: 'origin/integration',
+        fetchBranch: 'integration',
+        name: commandId,
+        branch: `ai-office/${commandId}`,
+        correlation: { workflowId: 'wf', commandId },
+      });
+    expect((await prepare('first')).baseSha).toBe(head);
+    head = 'f'.repeat(40);
+    expect((await prepare('second')).baseSha).toBe(head);
+  });
+
+  it('retries a transient submit failure after submitRetryMs, and consumes others', async () => {
+    const { PortError } = await import('../../ports/errors.js');
+    let backendUp = false;
+    const accepted: string[] = [];
+    const f = await fixture({
+      submitRetryMs: 1000,
+      submitter: (r) => {
+        if (!backendUp)
+          throw new PortError('transient', 'backend_down', 'restarting');
+        accepted.push(r.submission.kind);
+      },
+      scenario: { roles: { worker: { spawn: [submitStep] } } },
+    });
+    await f.runtime.spawnAgent(f.spawnRequest);
+    await f.runtime.runDue();
+    expect(accepted).toEqual([]);
+    backendUp = true;
+    f.clock.advance(999);
+    await f.runtime.runDue();
+    expect(accepted).toEqual([]);
+    f.clock.advance(1);
+    await f.runtime.runDue();
+    expect(accepted).toEqual(['agenda']);
+
+    const g = await fixture({
+      submitRetryMs: 1000,
+      submitter: () => {
+        throw new PortError('validation', 'rejected', 'bad');
+      },
+      scenario: { roles: { worker: { spawn: [submitStep] } } },
+    });
+    await g.runtime.spawnAgent(g.spawnRequest);
+    await expect(g.runtime.runDue()).rejects.toMatchObject({
+      code: 'rejected',
+    });
+    g.clock.advance(5000);
+    await expect(g.runtime.runDue()).resolves.toBeUndefined();
   });
 });

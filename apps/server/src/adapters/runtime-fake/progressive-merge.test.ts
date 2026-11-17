@@ -259,7 +259,7 @@ describe('progressive mainline adapter scenario', () => {
     ) => {
       await runtime.send(reviewer, {
         subject: 'Review PR',
-        body: JSON.stringify({ pr: number, expectedHeadSha: sha, rework }),
+        body: JSON.stringify({ pr: number, headSha: sha, rework }),
         correlation: c(id),
       });
       await pump();
