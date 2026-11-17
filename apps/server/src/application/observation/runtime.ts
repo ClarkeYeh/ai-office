@@ -142,12 +142,19 @@ export function ingestRuntime(
             'runtime',
           );
         if (event.role === 'assistant')
-          batch.add(
-            'usage.turns',
-            { attemptId, turns: 1 },
+          // Through decide, so maxTurns alerts fire (§10.2).
+          batch.record(
+            {
+              type: 'RecordUsageTurns',
+              meta: {
+                occurredAt: event.occurredAt,
+                source: 'runtime',
+                provenance: 'observed',
+              },
+              usage: { attemptId, turns: 1 },
+            },
             { ...event, externalKey: `turn:${attemptId}:${event.messageId}` },
-            'runtime',
-            attempt,
+            'usage.turns',
           );
         break;
       }
@@ -187,6 +194,8 @@ export function ingestRuntime(
         break;
       case 'agent.stopped':
       case 'agent.exited': {
+        // Stop then release reports two exits; the attempt exits once.
+        if (attempt.state === 'exited') break;
         const commanded = Object.values(batch.state.commands).some(
           (record) =>
             (record.issued.kind === 'runtime.stop' ||
