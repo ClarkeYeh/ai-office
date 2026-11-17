@@ -8,6 +8,7 @@ import {
   API_ERRORS,
   apiEndpoints,
   AcceptedSubmissionSchema,
+  BudgetBarSchema,
   ErrorResponseSchema,
   GateDecisionRequestSchema,
   GateStatusSchema,
@@ -575,4 +576,16 @@ test('accepted submissions validate the event submission payload and metadata', 
       acceptedSubmissions: { '': accepted },
     }).success,
   ).toBe(false);
+});
+
+test('budget gate IDs survive snapshot round trips and remain optional', () => {
+  const bar = readModel.budgetBars[0]!;
+  const linkedBar = { ...bar, gateId: 'budget-gate-1' };
+  const snapshot = { ...readModel, budgetBars: [linkedBar] };
+  expect(
+    WorkflowReadModelSchema.parse(JSON.parse(JSON.stringify(snapshot)))
+      .budgetBars,
+  ).toEqual([linkedBar]);
+  expect(BudgetBarSchema.parse(JSON.parse(JSON.stringify(bar)))).toEqual(bar);
+  expect(BudgetBarSchema.safeParse({ ...bar, gateId: '' }).success).toBe(false);
 });
