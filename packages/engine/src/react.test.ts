@@ -11,7 +11,10 @@ import {
 } from './test-support/fixtures.js';
 import { Simulator } from './test-support/simulator.js';
 
-const started = () => new Simulator().dispatch(startWorkflow());
+const started = () =>
+  new Simulator({
+    react: createReact(withMeeting({ react: () => [] })),
+  }).dispatch(startWorkflow());
 
 describe('simulator: start → stage started', () => {
   test('opens the session, ensures the integration branch, starts the first stage', () => {
@@ -86,8 +89,8 @@ describe('react dispatcher', () => {
     expect(seen).toHaveLength(7 * sim.events.length);
   });
 
-  test('default stubs produce nothing beyond the lifecycle', () => {
-    const sim = started();
+  test('default module factory matches the exported react function', () => {
+    const sim = new Simulator().dispatch(startWorkflow());
     const stub = new Simulator({ react: createReact(DEFAULT_MODULES) });
     stub.dispatch(startWorkflow());
     expect(stub.events).toEqual(sim.events);

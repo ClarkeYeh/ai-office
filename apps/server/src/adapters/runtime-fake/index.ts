@@ -10,6 +10,7 @@ import type {
   AgentRef,
   SessionRef,
   WorkspaceRef,
+  RepoRuntimeRef,
   QuestionRef,
   RuntimeCursor,
 } from '../../ports/refs.js';
@@ -93,6 +94,61 @@ const fail = (code: string) =>
 /** In-memory port simulator. Raw prompts/output stay transient; no files, processes or logging. */
 export class FakeRuntime implements RuntimePort {
   private sequence = 0;
+  private remoteBranches = new Map<
+    string,
+    { head: string; commits: Set<string> }
+  >();
+  private fetches: { repo: RepoRuntimeRef; branch: string; headSha: string }[] =
+    [];
+  /** Test wiring mirrors SCM changes without importing another adapter. */
+  setRemoteBranch(repo: RepoRuntimeRef, branch: string, headSha: string): void {
+    const key = JSON.stringify([repo.orcaRepoId, repo.localPath, branch]);
+    const commits = this.remoteBranches.get(key)?.commits ?? new Set<string>();
+    commits.add(headSha);
+    this.remoteBranches.set(key, { head: headSha, commits });
+  }
+  fetchedBranches(): {
+    repo: RepoRuntimeRef;
+    branch: string;
+    headSha: string;
+  }[] {
+    return structuredClone(this.fetches);
+  }
+  private workspaceBase(
+    req: Parameters<RuntimePort['prepareWorkspace']>[0],
+  ): string | undefined {
+    const baseSha =
+      req.baseSha ?? (req.fetchBranch ? req.baseBranch : undefined);
+    if (baseSha !== undefined || req.fetchBranch !== undefined) {
+      if (
+        !baseSha ||
+        !req.fetchBranch ||
+        req.baseBranch !== baseSha ||
+        !/^[0-9a-f]{40}$/.test(baseSha)
+      )
+        throw new PortError(
+          'bug',
+          'invalid_workspace_base',
+          'Pinned base requires fetchBranch and matching commit SHA',
+        );
+      const remote = this.remoteBranches.get(
+        JSON.stringify([
+          req.repo.orcaRepoId,
+          req.repo.localPath,
+          req.fetchBranch,
+        ]),
+      );
+      if (!remote) throw fail('remote_branch_not_found');
+      this.fetches.push({
+        repo: structuredClone(req.repo),
+        branch: req.fetchBranch,
+        headSha: remote.head,
+      });
+      if (!remote.commits.has(baseSha)) throw fail('base_sha_unavailable');
+      return baseSha;
+    }
+    return undefined;
+  }
   private sessions = new Map<SessionRef, RuntimeEvent[]>();
   private agents = new Map<AgentRef, Agent>();
   private workspaces = new Map<
@@ -276,7 +332,7 @@ export class FakeRuntime implements RuntimePort {
   }
   async prepareWorkspace(
     req: Parameters<RuntimePort['prepareWorkspace']>[0],
-  ): Promise<WorkspaceRef> {
+  ): ReturnType<RuntimePort['prepareWorkspace']> {
     return this.command(
       'prepareWorkspace',
       req.correlation,
@@ -284,9 +340,14 @@ export class FakeRuntime implements RuntimePort {
       req.session,
       () => {
         this.session(req.session);
+        const baseSha = this.workspaceBase(req);
         const ref = WorkspaceRefSchema.parse(this.id('workspace'));
         this.workspaces.set(ref, { clean: true, changedFiles: [] });
-        return ref;
+        return {
+          workspace: ref,
+          path: `/fake-worktrees/${ref}`,
+          ...(baseSha === undefined ? {} : { baseSha }),
+        };
       },
     );
   }

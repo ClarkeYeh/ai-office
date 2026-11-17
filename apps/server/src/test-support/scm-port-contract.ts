@@ -45,13 +45,20 @@ export function scmPortContract(
         { title: 'Conclusion', body: 'Decision', labels: [] },
         c('issue'),
       );
+      expect(issue.url).toMatch(/^https?:\/\//);
       expect((await f.scm.getIssue(issue)).body).toContain(
         '<!-- ai-office:cmd=issue -->',
       );
-      expect(await f.scm.findByMarker(f.repo, 'issue')).toEqual(issue);
+      expect(await f.scm.findByMarker(f.repo, 'issue')).toEqual({
+        repo: issue.repo,
+        number: issue.number,
+      });
       expect(await f.scm.findByMarker(f.repo, 'issu')).toBeNull();
       await f.scm.comment(issue, 'Approved', c('comment'));
-      expect(await f.scm.findByMarker(f.repo, 'comment')).toEqual(issue);
+      expect(await f.scm.findByMarker(f.repo, 'comment')).toEqual({
+        repo: issue.repo,
+        number: issue.number,
+      });
       await branches();
       const pr = await f.scm.openPR(
         f.repo,
@@ -63,7 +70,11 @@ export function scmPortContract(
         },
         c('pr'),
       );
-      expect(await f.scm.findByMarker(f.repo, 'pr')).toEqual(pr);
+      expect(pr.url).toMatch(/^https?:\/\//);
+      expect(await f.scm.findByMarker(f.repo, 'pr')).toEqual({
+        repo: pr.repo,
+        number: pr.number,
+      });
     });
     it('rejects merging into the default branch and mismatched head SHA', async () => {
       const sha = await branches();
@@ -130,7 +141,7 @@ export function scmPortContract(
         expect.arrayContaining([
           expect.objectContaining({
             type: 'repo.object_created',
-            ref: issue,
+            ref: { repo: issue.repo, number: issue.number },
             hasMarker: true,
           }),
         ]),

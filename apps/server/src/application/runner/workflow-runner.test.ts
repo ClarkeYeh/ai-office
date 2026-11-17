@@ -6,8 +6,9 @@ import { internal, react as engineReact } from '@ai-office/engine';
 import { PortError } from '../../ports/errors.js';
 import { AIO_NAMESPACE } from '../../ports/services.js';
 import { spawnPrompt } from '../commands/executor.js';
-import type { SpawnEffect } from '../commands/spawn-effect.js';
+import type { SpawnEffect } from '@ai-office/engine';
 import {
+  lifecycleReact,
   CLI_PATH,
   flush,
   harness,
@@ -36,7 +37,7 @@ const withExtra =
     extra: (after: WorkflowState, event: DomainEvent) => RunnerEffect[],
   ): RunnerReact =>
   (state, event) => [
-    ...engineReact(state, event),
+    ...lifecycleReact(state, event),
     ...extra(evolve(state, event), event),
   ];
 
@@ -669,4 +670,178 @@ describe('restart and global slot', () => {
     expect(h.store.readCursor('scm', 'repo')).toBe('etag-1');
     expect(runner?.state.workflow?.pausedReasons).toEqual(['anomaly']);
   });
+});
+
+describe('port result metadata', () => {
+  test('preserves the adapter workspace path and SCM URLs in command results', async () => {
+    const h = harness();
+    const commands = [
+      {
+        kind: 'runtime.prepareWorkspace' as const,
+        args: {
+          session: 'session-1',
+          repo: { orcaRepoId: 'repo', localPath: '/repo' },
+          baseBranch: 'main',
+          branch: 'ai-office/worker',
+          name: 'worker',
+        },
+      },
+      {
+        kind: 'scm.createIssue' as const,
+        args: {
+          repo: { owner: 'octo', name: 'demo' },
+          title: 'Issue',
+          body: '',
+          labels: [],
+        },
+      },
+      {
+        kind: 'scm.openPR' as const,
+        args: {
+          repo: { owner: 'octo', name: 'demo' },
+          title: 'PR',
+          body: '',
+          base: 'ai-office/integration',
+          head: 'ai-office/worker',
+        },
+      },
+    ];
+    const results = [];
+    for (const command of commands) {
+      results.push(
+        await h.executor.execute({
+          workflowId: WORKFLOW_ID,
+          commandId: command.kind,
+          command,
+        }),
+      );
+    }
+    expect(results).toMatchObject([
+      {
+        ok: true,
+        result: {
+          kind: 'runtime.prepareWorkspace',
+          result: { workspace: 'ws-1', path: '/worktrees/worker' },
+        },
+      },
+      {
+        ok: true,
+        result: {
+          kind: 'scm.createIssue',
+          result: { issue: 7, url: 'https://scm.example/issues/7' },
+        },
+      },
+      {
+        ok: true,
+        result: {
+          kind: 'scm.openPR',
+          result: { pr: 8, url: 'https://scm.example/pull/8' },
+        },
+      },
+    ]);
+  });
+});
+
+test('production meeting effects materialize through the runner and close with replayable absence', async () => {
+  const h = harness({ react: engineReact });
+  await h.runners.start(startWorkflow());
+  await h.runners.idle();
+  const state = () => h.runners.get(WORKFLOW_ID)!.state;
+  const lead = Object.values(state().attempts).find(
+    (a) => a.purpose === 'facilitator',
+  )!;
+  expect(h.world.callsOf('spawnAgent')).toHaveLength(1);
+  expect(h.specStore.writes).toBe(1);
+  const meta = { occurredAt: START, source: 'runtime' as const };
+  await h.runners.dispatch(WORKFLOW_ID, {
+    type: 'AcceptSubmission',
+    meta,
+    attemptId: lead.attemptId,
+    submissionId: 'agenda',
+    submission: {
+      kind: 'agenda',
+      payload: { topics: [{ id: 'scope', title: 'Scope', focusByRole: {} }] },
+    },
+  });
+  await h.runners.dispatch(WORKFLOW_ID, {
+    type: 'ObserveAttemptStatus',
+    meta,
+    attemptId: lead.attemptId,
+    state: 'done',
+  });
+  await h.runners.idle();
+  const participants = Object.values(state().attempts).filter(
+    (a) => a.purpose === 'participant',
+  );
+  expect(participants).toHaveLength(3);
+  expect(h.specStore.writes).toBe(4);
+  for (const participant of participants)
+    await h.runners.dispatch(WORKFLOW_ID, {
+      type: 'ObserveAttemptStatus',
+      meta,
+      attemptId: participant.attemptId,
+      state: 'done',
+    });
+  await h.runners.idle();
+  expect(payloadsOf(h.events(), 'meeting.round_started')).toHaveLength(1);
+  for (const participant of participants) {
+    if (participant.role !== 'pm')
+      await h.runners.dispatch(WORKFLOW_ID, {
+        type: 'AcceptSubmission',
+        meta,
+        attemptId: participant.attemptId,
+        submissionId: `statement-${participant.role}`,
+        submission: {
+          kind: 'statement',
+          payload: {
+            round: 1,
+            position: 'Proceed',
+            arguments: [],
+            concerns: [],
+            readyToConclude: true,
+          },
+        },
+      });
+    await h.runners.dispatch(WORKFLOW_ID, {
+      type: 'ObserveAttemptStatus',
+      meta,
+      attemptId: participant.attemptId,
+      state: 'done',
+    });
+  }
+  await h.advance(5 * 60_000);
+  await h.runners.idle();
+  const absent = participants.find((a) => a.role === 'pm')!;
+  expect(
+    payloadsOf(h.events(), 'meeting.round_completed')[0]?.absentAttemptIds,
+  ).toEqual([absent.attemptId]);
+  await h.runners.dispatch(WORKFLOW_ID, {
+    type: 'AcceptSubmission',
+    meta: { ...meta, occurredAt: h.clock.now().toISOString() },
+    attemptId: lead.attemptId,
+    submissionId: 'conclusion',
+    submission: {
+      kind: 'conclusion',
+      payload: {
+        summary: 'Approved direction',
+        decisions: [],
+        techDecisions: [],
+        openQuestions: [],
+      },
+    },
+  });
+  await h.runners.dispatch(WORKFLOW_ID, {
+    type: 'ObserveAttemptStatus',
+    meta: { ...meta, occurredAt: h.clock.now().toISOString() },
+    attemptId: lead.attemptId,
+    state: 'done',
+  });
+  await h.runners.idle();
+  expect(payloadsOf(h.events(), 'gate.opened').at(-1)).toMatchObject({
+    kind: 'stage',
+    stageKind: 'meeting',
+  });
+  expect(Object.values(state().attempts).every((a) => a.released)).toBe(true);
+  expect(payloadsOf(h.events(), 'error.recorded')).toEqual([]);
+  expect(replay(h.events())).toEqual({ state: state(), warnings: [] });
 });

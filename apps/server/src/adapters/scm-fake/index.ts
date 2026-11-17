@@ -248,7 +248,7 @@ export class FakeScm implements ScmPort {
     return obj;
   }
   async createIssue(ref: RepoScmRef, draft: IssueDraft, c: Correlation) {
-    return structuredClone(
+    const issue = structuredClone(
       this.create(
         ref,
         { ...draft, body: marked(draft.body, c.commandId) },
@@ -256,6 +256,10 @@ export class FakeScm implements ScmPort {
         this.repo(ref).info.viewerLogin,
       ).ref,
     );
+    return { ...issue, url: this.htmlUrl(issue, 'issues') };
+  }
+  private htmlUrl(ref: IssueRef | PrRef, kind: 'issues' | 'pull'): string {
+    return `https://github.com/${ref.repo.owner}/${ref.repo.name}/${kind}/${ref.number}`;
   }
   async createExternalIssue(
     ref: RepoScmRef,
@@ -323,7 +327,7 @@ export class FakeScm implements ScmPort {
     );
     this.prState(obj);
     this.setChecks(obj.ref, 'none');
-    return structuredClone(obj.ref);
+    return { ...structuredClone(obj.ref), url: this.htmlUrl(obj.ref, 'pull') };
   }
   async updatePR(ref: PrRef, patch: PrPatch) {
     const obj = this.object(ref, 'pr');

@@ -10996,6 +10996,19 @@
                   "minimum": 0,
                   "maximum": 9007199254740991
                 },
+                "p50Ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "p95Ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "failureRate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
                 "lastErrorCategory": {
                   "$ref": "#/components/schemas/ErrorCategory"
                 }

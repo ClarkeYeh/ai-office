@@ -15,6 +15,7 @@ import type { Correlation, RuntimePort } from '../../ports/runtime.js';
 import type { ScmPort } from '../../ports/scm.js';
 import type { Logger, Scheduler } from '../../ports/services.js';
 import type { SpecStore } from '../../ports/stores.js';
+import type { HealthMonitor } from '../health/health-monitor.js';
 import { retryDelay, toErrorInfo } from './errors.js';
 
 type ArgsOf<K extends ExternalCommandKind> = Extract<
@@ -72,12 +73,6 @@ export const spawnPrompt = (
     `Read the AI Office spec at ${args.specPath} (sha256 ${args.specSha256}) and follow it exactly.`,
   ].join('\n');
 
-const issueUrl = (
-  repo: { owner: string; name: string },
-  kind: 'issues' | 'pull',
-  number: number,
-) => `https://github.com/${repo.owner}/${repo.name}/${kind}/${number}`;
-
 /** The default handlers: one RuntimePort / ScmPort call per kind (§11.1, §11.2). */
 export const portHandlers = (ports: {
   runtime: RuntimePort;
@@ -95,13 +90,11 @@ export const portHandlers = (ports: {
       }),
     }),
     'runtime.prepareWorkspace': async (args, { correlation }) => {
-      const workspace = await runtime.prepareWorkspace({
+      return runtime.prepareWorkspace({
         ...args,
         session: args.session as SessionRef,
         correlation,
       });
-      // RuntimePort returns only the opaque ref (gap reported in T23's PR).
-      return { workspace, path: workspace };
     },
     'runtime.disposeWorkspace': async (args) => {
       await runtime.disposeWorkspace(args.workspace as WorkspaceRef);
@@ -179,7 +172,7 @@ export const portHandlers = (ports: {
       const ref = await scm.createIssue(repo, draft, correlation);
       return {
         issue: ref.number,
-        url: issueUrl(ref.repo, 'issues', ref.number),
+        url: ref.url,
       };
     },
     'scm.updateIssue': async (args) => {
@@ -199,7 +192,7 @@ export const portHandlers = (ports: {
     'scm.openPR': async (args, { correlation }) => {
       const { repo, ...draft } = args;
       const ref = await scm.openPR(repo, draft, correlation);
-      return { pr: ref.number, url: issueUrl(ref.repo, 'pull', ref.number) };
+      return { pr: ref.number, url: ref.url };
     },
     'scm.updatePR': async (args) => {
       await scm.updatePR(args.pr, args.patch);
@@ -218,6 +211,7 @@ export const RETRY_TIMER_PREFIX = 'aio-retry:';
 
 export interface CommandExecutorDeps {
   handlers: CommandHandlers;
+  health?: HealthMonitor;
   /** Backoff waits go through the Scheduler, never real time (plan M1-T23). */
   scheduler: Scheduler;
   clock: { now(): Date };
@@ -271,9 +265,18 @@ export class CommandExecutor {
           : { attemptId: issued.attemptId }),
       },
     };
+    const component = issued.command.kind.startsWith('scm.')
+      ? 'scm'
+      : 'runtime';
+    let retry = 0;
     for (let attempt = 1; ; attempt++) {
+      if (this.deps.health !== undefined)
+        await this.deps.health.waitUntilDispatchable();
+      const startedAt = this.deps.clock.now().getTime();
       try {
         const result = await handler(issued.command.args, ctx);
+        if (this.deps.health !== undefined)
+          await this.deps.health.record(component, startedAt);
         return {
           ok: true,
           attempts: attempt,
@@ -281,7 +284,19 @@ export class CommandExecutor {
         };
       } catch (thrown) {
         const error = toErrorInfo(thrown);
-        const delay = retryDelay(error.category, attempt - 1, this.random);
+        if (this.deps.health !== undefined)
+          await this.deps.health.record(component, startedAt, error.category);
+        // An outage leaves the outbox command pending, with its original args/ID.
+        // Recovery starts a fresh retry budget; attempts still counts real calls.
+        if (
+          error.category === 'transient' &&
+          this.deps.health?.dispatchBlocked
+        ) {
+          await this.deps.health.waitUntilDispatchable();
+          retry = 0;
+          continue;
+        }
+        const delay = retryDelay(error.category, retry++, this.random);
         log.warn(
           { kind: issued.command.kind, attempt, error, retryInMs: delay },
           'command attempt failed',

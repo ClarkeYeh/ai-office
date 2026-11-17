@@ -5,6 +5,7 @@ import {
   planning,
   implementation,
   integration,
+  mergeQueue,
 } from './mainline-actions.js';
 
 /** §0.1 agent behavior; application drives rounds, gates, workspace and PR mapping. */
@@ -16,6 +17,7 @@ export const mainlineScenario: RuntimeScenario = {
     engineer: participant,
     planner: { spawn: planning },
     worker: { spawn: implementation },
+    'merge-queue': mergeQueue,
     integrator: { spawn: integration },
   },
 };

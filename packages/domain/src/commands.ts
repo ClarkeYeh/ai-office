@@ -356,7 +356,39 @@ export interface RecordError extends Base<'RecordError'> {
 }
 export type LifecycleCommand = RecordNudge | RecordError;
 
+// Meeting protocol records (M1-T13). Payloads reuse the event contracts.
+export interface StartMeetingRound extends Base<'StartMeetingRound'> {
+  stageId: string;
+  round: number;
+  attemptIds: string[];
+}
+export interface RecordMeetingStatement extends Base<'RecordMeetingStatement'> {
+  stageId: string;
+  submissionId: string;
+}
+export interface CompleteMeetingRound extends Base<'CompleteMeetingRound'> {
+  stageId: string;
+  round: number;
+  absentAttemptIds: string[];
+}
+export interface ConcludeMeeting extends Base<'ConcludeMeeting'> {
+  stageId: string;
+  submissionId: string;
+}
+export interface RecordStageArtifact extends Base<'RecordStageArtifact'> {
+  stageId: string;
+  artifact: EventPayload<'artifact.created'>;
+  commandId?: string;
+}
+export type MeetingCommand =
+  | RecordStageArtifact
+  | StartMeetingRound
+  | RecordMeetingStatement
+  | CompleteMeetingRound
+  | ConcludeMeeting;
+
 export type DomainCommand =
+  | MeetingCommand
   | WorkflowCommand
   | StageCommand
   | SeatCommand

@@ -375,7 +375,9 @@ describe('pre-gate clearing (§8.1)', () => {
   });
 
   test('with no live agents the gate opens at once; unknown builders open nothing', () => {
-    const sim = new Simulator().dispatch(startWorkflow());
+    const sim = new Simulator({
+      react: createReact(withMeeting({ react: () => [] })),
+    }).dispatch(startWorkflow());
     const ctx: ReactContext = {
       workflowId: WORKFLOW_ID,
       event: sim.events.at(-1) as ReactContext['event'],

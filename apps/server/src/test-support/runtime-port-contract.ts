@@ -7,6 +7,9 @@ import { RuntimeEventSchema } from '../ports/runtime-events.js';
 export type RuntimeContractFixture = {
   runtime: RuntimePort;
   session: SessionRef;
+  prepareRequest: Parameters<RuntimePort['prepareWorkspace']>[0] & {
+    baseSha: string;
+  };
   spawnRequest: Parameters<RuntimePort['spawnAgent']>[0];
   advance(ms: number): void | Promise<void>;
   stimulus(
@@ -26,6 +29,25 @@ export function runtimePortContract(
     });
     afterEach(async () => {
       await f.dispose?.();
+    });
+    it('returns the pinned base and a usable workspace path, with stable replay', async () => {
+      const prepared = await f.runtime.prepareWorkspace(f.prepareRequest);
+      expect(prepared.baseSha).toBe(f.prepareRequest.baseSha);
+      expect(prepared.path).toMatch(/^\//);
+      expect(prepared.workspace).toBeTruthy();
+      expect(
+        await f.runtime.prepareWorkspace(structuredClone(f.prepareRequest)),
+      ).toEqual(prepared);
+      expect(await f.runtime.inspectWorkspace(prepared.workspace)).toEqual({
+        clean: true,
+        changedFiles: [],
+      });
+      await expect(
+        f.runtime.prepareWorkspace({
+          ...f.prepareRequest,
+          baseSha: 'f'.repeat(40),
+        }),
+      ).rejects.toMatchObject({ category: 'bug', code: 'request_mismatch' });
     });
     it('replays spawn and finds its correlation without creating another agent', async () => {
       const a = await f.runtime.spawnAgent(f.spawnRequest);

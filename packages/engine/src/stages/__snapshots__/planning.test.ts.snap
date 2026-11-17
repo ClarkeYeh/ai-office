@@ -1,0 +1,48 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`keeps proposed work items private until approval and applies revisions 1`] = `
+[
+  "2026-11-17T00:00:00.000Z stage.started meeting#1",
+  "2026-11-17T00:00:00.000Z command.issued scm.createIssue wf-1/meeting/1/issue",
+  "2026-11-17T00:00:00.000Z command.succeeded scm.createIssue wf-1/meeting/1/issue",
+  "2026-11-17T00:00:00.000Z gate.opened wf-1/meeting/1/gate",
+  "2026-11-17T00:00:00.000Z gate.decided wf-1/meeting/1/gate",
+  "2026-11-17T00:00:00.000Z stage.started breakdown#1",
+  "2026-11-17T00:00:00.000Z workitem.proposed",
+  "2026-11-17T00:00:00.000Z gate.opened wf-1/breakdown/1/gate",
+  "2026-11-17T00:00:00.000Z gate.decided wf-1/breakdown/1/gate",
+  "2026-11-17T00:00:00.000Z stage.started implement#1",
+  "2026-11-17T00:00:00.000Z workitem.approved",
+  "2026-11-17T00:00:00.000Z command.issued scm.createIssue wf-1/breakdown/1/issue/X",
+  "2026-11-17T00:00:00.000Z command.succeeded scm.createIssue wf-1/breakdown/1/issue/X",
+]
+`;
+
+exports[`nudges a planner without output and raises the exception after grace 1`] = `
+[
+  "2026-11-17T00:00:00.000Z stage.started meeting#1",
+  "2026-11-17T00:00:00.000Z command.issued scm.createIssue wf-1/meeting/1/issue",
+  "2026-11-17T00:00:00.000Z command.succeeded scm.createIssue wf-1/meeting/1/issue",
+  "2026-11-17T00:00:00.000Z gate.opened wf-1/meeting/1/gate",
+  "2026-11-17T00:00:00.000Z gate.decided wf-1/meeting/1/gate",
+  "2026-11-17T00:00:00.000Z stage.started breakdown#1",
+  "2026-11-17T00:05:00.000Z gate.opened wf-1/breakdown/1/violation",
+]
+`;
+
+exports[`reruns planning with feedback and fresh single-turn attempt 1`] = `
+[
+  "2026-11-17T00:00:00.000Z stage.started meeting#1",
+  "2026-11-17T00:00:00.000Z command.issued scm.createIssue wf-1/meeting/1/issue",
+  "2026-11-17T00:00:00.000Z command.succeeded scm.createIssue wf-1/meeting/1/issue",
+  "2026-11-17T00:00:00.000Z gate.opened wf-1/meeting/1/gate",
+  "2026-11-17T00:00:00.000Z gate.decided wf-1/meeting/1/gate",
+  "2026-11-17T00:00:00.000Z stage.started breakdown#1",
+  "2026-11-17T00:00:00.000Z workitem.proposed",
+  "2026-11-17T00:00:00.000Z gate.opened wf-1/breakdown/1/gate",
+  "2026-11-17T00:00:00.000Z gate.decided wf-1/breakdown/1/gate",
+  "2026-11-17T00:00:00.000Z stage.started breakdown#2",
+  "2026-11-17T00:00:00.000Z workitem.proposed",
+  "2026-11-17T00:00:00.000Z gate.opened wf-1/breakdown/2/gate",
+]
+`;

@@ -70,20 +70,29 @@ export const planning = [
           role: 'engineer',
           deps: [],
         },
+        {
+          key: 'dependent',
+          title: 'Use the feature',
+          body: 'Build on the merged feature',
+          acceptance: ['Feature is available'],
+          role: 'engineer',
+          deps: ['feature'],
+        },
       ],
     },
   }),
   done,
 ];
 export const implementation: ScenarioStep[] = [
-  { type: 'push', afterMs: 10, branch: 'aio/feature', headSha: 'abcdef0' },
+  {
+    type: 'push',
+    afterMs: 10,
+    branch: 'ai-office/example/feature',
+    headSha: 'a'.repeat(40),
+  },
   done,
 ];
 export const integration: ScenarioStep[] = [
-  submit({
-    kind: 'merge-request',
-    payload: { pr: 1, expectedHeadSha: 'abcdef0' },
-  }),
   {
     type: 'submit',
     afterMs: 20,
@@ -91,7 +100,7 @@ export const integration: ScenarioStep[] = [
       kind: 'integration-report',
       payload: {
         summary: 'Verified',
-        merged: [1],
+        merged: [1, 2],
         verification: [{ command: 'pnpm test', ok: true }],
         risks: [],
       },
@@ -107,4 +116,36 @@ export const facilitator: RoleBehavior = {
   spawn: agenda,
   send: (context) =>
     context.turn <= 3 ? statement(context.turn - 1) : conclusion,
+};
+
+/** Each send carries the application's current PR/head; rework keeps that PR. */
+export const mergeQueue: RoleBehavior = {
+  spawn: [done],
+  send: (context) => {
+    const review = JSON.parse(context.message?.body ?? '{}') as {
+      pr: number;
+      expectedHeadSha: string;
+      rework?: boolean;
+    };
+    return [
+      submit(
+        review.rework
+          ? {
+              kind: 'rework-request',
+              payload: {
+                pr: review.pr,
+                reasons: ['Add the missing regression test'],
+              },
+            }
+          : {
+              kind: 'merge-request',
+              payload: {
+                pr: review.pr,
+                expectedHeadSha: review.expectedHeadSha,
+              },
+            },
+      ),
+      done,
+    ];
+  },
 };
