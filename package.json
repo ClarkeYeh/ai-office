@@ -1,0 +1,34 @@
+{
+  "name": "ai-office",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "lint": "eslint . && prettier --check .",
+    "typecheck": "tsc -b",
+    "format": "prettier --write .",
+    "contracts:gen": "pnpm --filter @ai-office/contracts build && node packages/contracts/scripts/generate.mjs",
+    "contracts:check": "pnpm --filter @ai-office/contracts build && node packages/contracts/scripts/generate.mjs --check",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs .",
+    "depcruise:selftest": "node scripts/depcruise-selftest/index.mjs",
+    "check:bundle": "node scripts/check-web-bundle/index.mjs",
+    "fixtures:scan": "node scripts/fixtures/scan.ts",
+    "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^4.1.12",
+    "@types/node": "^24.10.0",
+    "dependency-cruiser": "^18.8.0"
+  }
+}

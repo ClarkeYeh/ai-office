@@ -1,0 +1,27 @@
+{
+  "name": "@ai-office/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/server"
+  },
+  "dependencies": {
+    "@ai-office/contracts": "workspace:*",
+    "@ai-office/projection": "workspace:*",
+    "@ai-office/domain": "workspace:*",
+    "@ai-office/engine": "workspace:*",
+    "@ai-office/templates": "workspace:*",
+    "fastify": "^5.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0"
+  }
+}

@@ -1,0 +1,210 @@
+[
+  {
+    "file": "packages/contracts/src/bad.ts",
+    "rules": ["contracts-allowed-dependencies"]
+  },
+  {
+    "file": "packages/projection/src/bad.ts",
+    "rules": ["projection-allowed-dependencies"]
+  },
+  {
+    "file": "packages/domain/src/bad.ts",
+    "rules": ["domain-allowed-dependencies"]
+  },
+  {
+    "file": "packages/domain/src/side-effect.ts",
+    "rules": ["domain-allowed-dependencies"]
+  },
+  {
+    "file": "packages/engine/src/bad.ts",
+    "rules": ["engine-allowed-dependencies"]
+  },
+  {
+    "file": "packages/domain/src/node.ts",
+    "rules": ["no-node-in-packages-or-web", "domain-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/ports/bad.ts",
+    "rules": ["ports-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/application/bad.ts",
+    "rules": ["application-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-orca/bad.ts",
+    "rules": ["no-adapter-to-adapter", "adapters-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/api/bad.ts",
+    "rules": ["api-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/agent-gateway/bad.ts",
+    "rules": ["agent-gateway-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/config/bad.ts",
+    "rules": ["config-allowed-dependencies"]
+  },
+  {
+    "file": "apps/cli/src/bad.ts",
+    "rules": ["cli-allowed-dependencies"]
+  },
+  {
+    "file": "apps/web/src/bad.ts",
+    "rules": ["no-web-to-server", "web-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/application/root.ts",
+    "rules": ["contracts-subpaths-only"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-orca/fastify.ts",
+    "rules": ["fastify-only-in-inbound"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-orca/octokit.ts",
+    "rules": ["octokit-only-in-scm-github"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-orca/sqlite.ts",
+    "rules": ["sqlite-only-in-store-sqlite"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-fake/process.ts",
+    "rules": ["process-only-in-runtime-config-cli-start"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-orca/pino.ts",
+    "rules": ["pino-only-in-logger-or-main"]
+  },
+  {
+    "file": "apps/server/src/main.test.ts",
+    "rules": ["templates-only-in-template-fs-or-main"]
+  },
+  {
+    "file": "apps/web/src/features/office/ui/bad.ts",
+    "rules": ["ui-no-api-or-realtime"]
+  },
+  {
+    "file": "apps/web/src/features/office/scene/bad.ts",
+    "rules": ["scene-only-own-view-model"]
+  },
+  {
+    "file": "apps/web/src/features/office/scene/value.ts",
+    "rules": ["scene-only-type-imports"]
+  },
+  {
+    "file": "apps/web/src/features/office/cross.ts",
+    "rules": ["cross-feature-through-index"]
+  },
+  {
+    "file": "apps/server/src/application/a.ts",
+    "rules": ["no-circular"]
+  },
+  {
+    "file": "apps/server/src/application/b.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/application/orphan.ts",
+    "rules": ["no-orphans"]
+  },
+  {
+    "file": "apps/server/src/application/missing.ts",
+    "rules": ["not-to-unresolvable"]
+  },
+  {
+    "file": "apps/server/src/application/helper.test.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/application/test-support/helper.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/application/test-import.ts",
+    "rules": ["no-production-to-tests"]
+  },
+  {
+    "file": "packages/domain/src/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/ports/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/application/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/application/good.test.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-orca/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/scm-github/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/store-sqlite/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/logger-pino/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/template-fs/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/api/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/agent-gateway/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/config/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/main.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/cli/src/start.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/cli/src/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/features/office/scene/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/features/office/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/good.ts",
+    "rules": []
+  },
+  {
+    "file": "packages/domain/src/agent-submission.ts",
+    "rules": ["domain-allowed-dependencies"]
+  },
+  {
+    "file": "packages/domain/src/stream.ts",
+    "rules": ["domain-allowed-dependencies"]
+  }
+]
