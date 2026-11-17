@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env*
+# Local planning docs (contain private context); sanitized docs are added explicitly later.
+/docs/
