@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "commandId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "runtime.openSession",
+        "runtime.prepareWorkspace",
+        "runtime.disposeWorkspace",
+        "runtime.inspectWorkspace",
+        "runtime.spawnAgent",
+        "runtime.send",
+        "runtime.answer",
+        "runtime.stop",
+        "runtime.release",
+        "scm.ensureLabels",
+        "scm.ensureBranch",
+        "scm.deleteBranch",
+        "scm.createIssue",
+        "scm.updateIssue",
+        "scm.comment",
+        "scm.setLabels",
+        "scm.openPR",
+        "scm.updatePR",
+        "scm.mergePR"
+      ]
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": [
+            "transient",
+            "rate_limited",
+            "auth",
+            "identity",
+            "hijacked",
+            "contract_mismatch",
+            "permanent",
+            "bug",
+            "conflict",
+            "validation",
+            "guard"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "category",
+        "code",
+        "message",
+        "retryable"
+      ]
+    },
+    "attempts": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "commandId",
+    "kind",
+    "error",
+    "attempts"
+  ]
+}

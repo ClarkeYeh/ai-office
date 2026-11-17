@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "gateId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "revise",
+        "reject",
+        "option",
+        "answer"
+      ]
+    },
+    "by": {
+      "type": "string",
+      "enum": [
+        "user",
+        "auto"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "optionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "comment": {
+      "type": "string"
+    },
+    "edits": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "conclusion"
+            },
+            "conclusion": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                },
+                "decisions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "rationale": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "rationale"
+                    ]
+                  }
+                },
+                "techDecisions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "topic": {
+                        "type": "string"
+                      },
+                      "options": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "chosen": {
+                        "type": "string"
+                      },
+                      "rationale": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "topic",
+                      "options",
+                      "chosen",
+                      "rationale"
+                    ]
+                  }
+                },
+                "openQuestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "summary",
+                "decisions",
+                "techDecisions",
+                "openQuestions"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "conclusion"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "work-items"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "acceptance": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "agent": {
+                    "type": "string",
+                    "enum": [
+                      "claude-code",
+                      "codex"
+                    ]
+                  },
+                  "deps": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                    }
+                  }
+                },
+                "required": [
+                  "key",
+                  "title",
+                  "body",
+                  "acceptance",
+                  "role",
+                  "deps"
+                ]
+              }
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ]
+        }
+      ]
+    },
+    "approvedSnapshot": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "github",
+            "ai-office"
+          ]
+        },
+        "body": {
+          "type": "string"
+        },
+        "bodyHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "githubUpdatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "structured": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string"
+                },
+                "decisions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "rationale": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "rationale"
+                    ]
+                  }
+                },
+                "techDecisions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "topic": {
+                        "type": "string"
+                      },
+                      "options": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "chosen": {
+                        "type": "string"
+                      },
+                      "rationale": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "topic",
+                      "options",
+                      "chosen",
+                      "rationale"
+                    ]
+                  }
+                },
+                "openQuestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "summary",
+                "decisions",
+                "techDecisions",
+                "openQuestions"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "body",
+        "bodyHash",
+        "structured"
+      ]
+    },
+    "additionalTokens": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "agent": {
+      "type": "string",
+      "enum": [
+        "claude-code",
+        "codex"
+      ]
+    }
+  },
+  "required": [
+    "gateId",
+    "decision",
+    "by",
+    "version"
+  ]
+}

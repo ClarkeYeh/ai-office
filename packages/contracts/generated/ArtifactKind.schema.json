@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string",
+  "enum": [
+    "agenda",
+    "statement",
+    "conclusion",
+    "work-items",
+    "integration-report",
+    "issue",
+    "branch",
+    "pr"
+  ]
+}

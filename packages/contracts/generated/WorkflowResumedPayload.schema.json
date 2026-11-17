@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "reason": {
+      "type": "string",
+      "enum": [
+        "runtime_unhealthy",
+        "scm_unhealthy",
+        "store_unhealthy",
+        "anomaly",
+        "budget",
+        "auth",
+        "identity",
+        "hijacked",
+        "contract_mismatch",
+        "bug"
+      ]
+    }
+  },
+  "required": [
+    "reason"
+  ]
+}

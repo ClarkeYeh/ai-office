@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "reason": {
+      "type": "string",
+      "enum": [
+        "max_reruns_exceeded",
+        "stage_failed",
+        "other"
+      ]
+    },
+    "stageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "detail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "reason"
+  ]
+}

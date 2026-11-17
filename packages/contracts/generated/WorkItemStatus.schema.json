@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string",
+  "enum": [
+    "proposed",
+    "approved",
+    "dispatched",
+    "in_progress",
+    "pushed",
+    "pr_open",
+    "merged",
+    "needs_attention",
+    "skipped",
+    "failed"
+  ]
+}

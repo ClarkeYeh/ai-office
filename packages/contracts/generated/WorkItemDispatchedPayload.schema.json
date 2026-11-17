@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "itemKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "agent": {
+      "type": "string",
+      "enum": [
+        "claude-code",
+        "codex"
+      ]
+    },
+    "branch": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^ai-office\\/.*"
+    },
+    "workspaceName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retryOf": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "itemKey",
+    "attemptId",
+    "attempt",
+    "agent",
+    "branch",
+    "workspaceName"
+  ]
+}

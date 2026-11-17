@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "stageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "meeting",
+        "planning",
+        "implement",
+        "integrate",
+        "final-pr"
+      ]
+    },
+    "attempt": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "initial",
+        "rerun",
+        "revision"
+      ]
+    },
+    "feedback": {
+      "type": "string"
+    },
+    "agentOverride": {
+      "type": "string",
+      "enum": [
+        "claude-code",
+        "codex"
+      ]
+    }
+  },
+  "required": [
+    "stageId",
+    "kind",
+    "attempt",
+    "mode"
+  ]
+}

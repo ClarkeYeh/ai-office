@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "commandId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "runtime.openSession",
+        "runtime.prepareWorkspace",
+        "runtime.disposeWorkspace",
+        "runtime.inspectWorkspace",
+        "runtime.spawnAgent",
+        "runtime.send",
+        "runtime.answer",
+        "runtime.stop",
+        "runtime.release",
+        "scm.ensureLabels",
+        "scm.ensureBranch",
+        "scm.deleteBranch",
+        "scm.createIssue",
+        "scm.updateIssue",
+        "scm.comment",
+        "scm.setLabels",
+        "scm.openPR",
+        "scm.updatePR",
+        "scm.mergePR"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "found",
+        "redone",
+        "gave_up"
+      ]
+    },
+    "detail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "commandId",
+    "kind",
+    "outcome"
+  ]
+}

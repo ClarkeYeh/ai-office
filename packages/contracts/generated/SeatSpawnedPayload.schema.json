@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "seatId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "stageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "type": "string",
+      "enum": [
+        "claude-code",
+        "codex"
+      ]
+    },
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "facilitator",
+        "participant",
+        "planner",
+        "worker",
+        "integrator",
+        "oncall"
+      ]
+    },
+    "oncall": {
+      "type": "boolean"
+    },
+    "keepOpen": {
+      "type": "boolean"
+    },
+    "itemKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    },
+    "retryOf": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effort": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "spawnCommandId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "seatId",
+    "attemptId",
+    "attempt",
+    "stageId",
+    "role",
+    "agent",
+    "purpose",
+    "oncall",
+    "keepOpen",
+    "spawnCommandId"
+  ]
+}

@@ -4,7 +4,7 @@
   "properties": {
     "key": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
     },
     "title": {
       "type": "string"
@@ -32,7 +32,8 @@
     "deps": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
       }
     }
   },

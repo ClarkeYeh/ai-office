@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "transient",
+        "rate_limited",
+        "auth",
+        "identity",
+        "hijacked",
+        "contract_mismatch",
+        "permanent",
+        "bug",
+        "conflict",
+        "validation",
+        "guard"
+      ]
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "message": {
+      "type": "string"
+    },
+    "commandId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "detail": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "category",
+    "code",
+    "message"
+  ]
+}

@@ -79,14 +79,9 @@ const envelope = {
   provenance: 'observed',
   schemaVersion: 1,
 };
-test('all 63 domain event variants round-trip and reject runtime-only events', () => {
+// Per-type payload examples live in events/events.test.ts.
+test('domain events reject runtime-only types and invalid envelopes', () => {
   expect(DomainEventSchema.options).toHaveLength(63);
-  for (const option of DomainEventSchema.options)
-    roundTrip(DomainEventSchema, {
-      ...envelope,
-      type: option.shape.type.value,
-      payload: { futureField: true },
-    });
   expect(
     DomainEventSchema.safeParse({
       ...envelope,
@@ -247,7 +242,7 @@ const submissions = [
     },
   },
   { kind: 'answer-question', payload: { questionId: 'q1', body: 'Yes' } },
-  { kind: 'merge-request', payload: { pr: 1, expectedHeadSha: 'abc' } },
+  { kind: 'merge-request', payload: { pr: 1, expectedHeadSha: 'abc1234' } },
   {
     kind: 'decision-request',
     payload: { reason: 'other', question: 'Which?', options: ['A'] },
@@ -292,7 +287,11 @@ test('SSE data, resync, and comment frames round-trip', () => {
     {
       event: 'domain',
       id: '1',
-      data: { ...envelope, type: 'health.changed', payload: {} },
+      data: {
+        ...envelope,
+        type: 'health.changed',
+        payload: { component: 'runtime', status: 'healthy' },
+      },
     },
     { event: 'resync_required' },
     { event: 'keepalive', comment: 'keepalive' },

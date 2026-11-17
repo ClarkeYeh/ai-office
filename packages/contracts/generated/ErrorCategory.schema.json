@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string",
+  "enum": [
+    "transient",
+    "rate_limited",
+    "auth",
+    "identity",
+    "hijacked",
+    "contract_mismatch",
+    "permanent",
+    "bug",
+    "conflict",
+    "validation",
+    "guard"
+  ]
+}
