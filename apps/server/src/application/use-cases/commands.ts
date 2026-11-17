@@ -382,6 +382,7 @@ export class CommandUseCases {
         if (
           record.issued.kind === 'runtime.prepareWorkspace' &&
           record.result?.kind === 'runtime.prepareWorkspace' &&
+          record.result.result !== null &&
           'workspace' in record.result.result
         ) {
           workspaces.add(record.result.result.workspace);
