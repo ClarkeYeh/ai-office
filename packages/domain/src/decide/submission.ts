@@ -164,6 +164,11 @@ export const decideSubmission = (
         kind: submission.kind,
         submission,
         ...defined({ artifactId: command.artifactId }),
+        ...(command.agentSession !== undefined &&
+        (command.agentSession.provider !== attempt.agentSession?.provider ||
+          command.agentSession.id !== attempt.agentSession?.id)
+          ? { agentSession: command.agentSession }
+          : {}),
       },
     ),
   );
