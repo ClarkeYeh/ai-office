@@ -877,3 +877,129 @@ const T6_ROWS: TransitionRow[] = [
 describe('M1-T6 transitions', () => {
   runTransitionRows(T6_ROWS);
 });
+
+const t9Open: DomainCommand = {
+  type: 'OpenGate',
+  meta: meta(),
+  noLiveAttempts: true,
+  gate: {
+    kind: 'stage',
+    gateId: 'g',
+    stageId: 'meeting',
+    stageKind: 'meeting',
+    templateGateId: 'conclusion',
+    optional: true,
+    title: 'Conclusion',
+    options: [],
+    content: {
+      type: 'conclusion',
+      artifactId: 'a',
+      renderedHash: 'a'.repeat(64),
+    },
+  },
+};
+const t9Ready: Step[] = [...inMeeting, completeStage('meeting')];
+const t9Decision: DomainCommand = {
+  type: 'DecideGate',
+  meta: meta(),
+  gateId: 'g',
+  expectedVersion: 1,
+  by: 'user',
+  decision: 'reject',
+  comment: 'try again',
+};
+describe('M1-T9 transitions', () => {
+  runTransitionRows([
+    {
+      name: 'completed stage opens gate',
+      given: t9Ready,
+      when: t9Open,
+      then: ['gate.opened'],
+    },
+    {
+      name: 'disabled optional gate opens then auto approves',
+      given: [
+        startCommand({ gateToggles: { conclusion: false } }),
+        startStage('meeting'),
+        completeStage('meeting'),
+      ],
+      when: t9Open,
+      then: ['gate.opened', 'gate.decided'],
+    },
+    {
+      name: 'reject requests stage rerun',
+      given: [...t9Ready, t9Open],
+      when: t9Decision,
+      then: ['gate.decided', 'stage.rerun_requested'],
+    },
+    {
+      name: 'reject over max reruns fails workflow',
+      given: [
+        startCommand({
+          template: {
+            ...template(),
+            defaults: { ...template().defaults, maxReruns: 0 },
+          },
+        }),
+        startStage('meeting'),
+        completeStage('meeting'),
+        t9Open,
+      ],
+      when: t9Decision,
+      then: ['gate.decided', 'workflow.failed'],
+    },
+    {
+      name: 'content update bumps version',
+      given: [...t9Ready, t9Open],
+      when: {
+        type: 'UpdateGateContent',
+        meta: meta(),
+        update: { gateId: 'g', source: 'user', artifactId: 'new' },
+      },
+      then: ['gate.content_updated'],
+      check: (h) => expect(h.state.gates.g?.version).toBe(2),
+    },
+    {
+      name: 'close superseded gate',
+      given: [...t9Ready, t9Open],
+      when: {
+        type: 'CloseGate',
+        meta: meta(),
+        gateId: 'g',
+        reason: 'superseded',
+      },
+      then: ['gate.closed'],
+    },
+    {
+      name: 'participant statement accepted',
+      given: withAttempt,
+      when: {
+        type: 'AcceptSubmission',
+        meta: meta(),
+        attemptId: 'att-1',
+        submissionId: 's',
+        submission: {
+          kind: 'statement',
+          payload: {
+            round: 1,
+            position: 'yes',
+            arguments: [],
+            concerns: [],
+            readyToConclude: true,
+          },
+        },
+      },
+      then: ['submission.accepted'],
+    },
+    {
+      name: 'rejection recorded',
+      given: withAttempt,
+      when: {
+        type: 'RejectSubmission',
+        meta: meta(),
+        rejection: { reason: 'not_allowed' },
+      },
+      then: ['submission.rejected'],
+    },
+  ]);
+});

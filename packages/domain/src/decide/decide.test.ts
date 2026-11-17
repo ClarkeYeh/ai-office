@@ -186,50 +186,6 @@ describe('integration branch naming', () => {
 describe('dispatcher', () => {
   const notYet: DomainCommand[] = [
     {
-      type: 'OpenGate',
-      meta: meta(),
-      noLiveAttempts: true,
-      gate: {
-        kind: 'exception',
-        exceptionKind: 'anomaly',
-        gateId: 'g',
-        stageId: 'meeting',
-        title: 't',
-        options: [],
-        content: { type: 'exception', summary: 's' },
-      },
-    },
-    {
-      type: 'DecideGate',
-      meta: meta(),
-      gateId: 'g',
-      decision: 'approve',
-      by: 'user',
-      expectedVersion: 1,
-    },
-    {
-      type: 'UpdateGateContent',
-      meta: meta(),
-      update: { gateId: 'g', source: 'user' },
-    },
-    { type: 'CloseGate', meta: meta(), gateId: 'g', reason: 'superseded' },
-    {
-      type: 'AcceptSubmission',
-      meta: meta(),
-      submissionId: 's',
-      attemptId: 'a',
-      submission: { kind: 'agenda', payload: { topics: [] } },
-    },
-    { type: 'RejectSubmission', meta: meta(), rejection: { reason: 'schema' } },
-    {
-      type: 'ProposeWorkItems',
-      meta: meta(),
-      stageId: 'breakdown',
-      submissionId: 's',
-      items: [],
-    },
-    { type: 'ApproveWorkItems', meta: meta(), gateId: 'g', items: [] },
-    {
       type: 'RecordUsageTokens',
       meta: meta(),
       usage: {
