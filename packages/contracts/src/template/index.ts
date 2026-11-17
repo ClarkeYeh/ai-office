@@ -3,9 +3,13 @@ import { z } from 'zod';
 export const AgentKindSchema = z.enum(['claude-code', 'codex']);
 export const RoleSchema = z.object({
   agent: AgentKindSchema,
+  scope: z.string().optional(),
   effort: z.enum(['low', 'medium', 'high']).optional(),
 });
-export const RoleOverridesSchema = z.record(z.string().min(1), RoleSchema);
+export const RoleOverridesSchema = z.record(
+  z.string().min(1),
+  RoleSchema.omit({ scope: true }),
+);
 const positive = z.number().int().positive();
 export const BudgetSchema = z.object({
   tokens: positive,

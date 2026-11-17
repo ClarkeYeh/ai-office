@@ -291,6 +291,9 @@
                                     "codex"
                                   ]
                                 },
+                                "scope": {
+                                  "type": "string"
+                                },
                                 "effort": {
                                   "type": "string",
                                   "enum": [
@@ -983,6 +986,9 @@
                                     "claude-code",
                                     "codex"
                                   ]
+                                },
+                                "scope": {
+                                  "type": "string"
                                 },
                                 "effort": {
                                   "type": "string",
@@ -14954,6 +14960,74 @@
       }
     },
     "schemas": {
+      "ConclusionSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "rationale"
+              ]
+            }
+          },
+          "techDecisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "topic": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "chosen": {
+                  "type": "string"
+                },
+                "rationale": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "topic",
+                "options",
+                "chosen",
+                "rationale"
+              ]
+            }
+          },
+          "openQuestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "summary",
+          "decisions",
+          "techDecisions",
+          "openQuestions"
+        ]
+      },
       "DomainEventSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "oneOf": [
@@ -20899,6 +20973,53 @@
           "schemaVersion"
         ]
       },
+      "WorkItemDraftSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "acceptance": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "agent": {
+            "type": "string",
+            "enum": [
+              "claude-code",
+              "codex"
+            ]
+          },
+          "deps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "body",
+          "acceptance",
+          "role",
+          "deps"
+        ]
+      },
       "AgentKindSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "string",
@@ -21020,6 +21141,9 @@
               "claude-code",
               "codex"
             ]
+          },
+          "scope": {
+            "type": "string"
           },
           "effort": {
             "type": "string",
@@ -21569,6 +21693,9 @@
                     "claude-code",
                     "codex"
                   ]
+                },
+                "scope": {
+                  "type": "string"
                 },
                 "effort": {
                   "type": "string",
@@ -28473,6 +28600,9 @@
                           "claude-code",
                           "codex"
                         ]
+                      },
+                      "scope": {
+                        "type": "string"
                       },
                       "effort": {
                         "type": "string",
@@ -35473,74 +35603,6 @@
           }
         ]
       },
-      "ConclusionSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "summary": {
-            "type": "string"
-          },
-          "decisions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "title": {
-                  "type": "string"
-                },
-                "rationale": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "title",
-                "rationale"
-              ]
-            }
-          },
-          "techDecisions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "topic": {
-                  "type": "string"
-                },
-                "options": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "chosen": {
-                  "type": "string"
-                },
-                "rationale": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "topic",
-                "options",
-                "chosen",
-                "rationale"
-              ]
-            }
-          },
-          "openQuestions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "summary",
-          "decisions",
-          "techDecisions",
-          "openQuestions"
-        ]
-      },
       "SubmissionResponseSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "anyOf": [
@@ -35575,53 +35637,6 @@
               "pr"
             ]
           }
-        ]
-      },
-      "WorkItemDraftSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "minLength": 1
-          },
-          "title": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
-          },
-          "acceptance": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "role": {
-            "type": "string",
-            "minLength": 1
-          },
-          "agent": {
-            "type": "string",
-            "enum": [
-              "claude-code",
-              "codex"
-            ]
-          },
-          "deps": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "key",
-          "title",
-          "body",
-          "acceptance",
-          "role",
-          "deps"
         ]
       }
     }

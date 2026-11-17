@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { DomainEventSchema } from './events/index.js';
+import {
+  DomainEventSchema,
+  ConclusionSchema,
+  WorkItemDraftSchema,
+} from './events/index.js';
 import { WorkflowTemplateSchema } from './template/index.js';
 import {
   AgentSubmissionSchema,
@@ -267,4 +271,27 @@ test('package exposes only the five allowed subpaths', () => {
     './template',
   ]);
   expect(Object.keys(pkg.dependencies)).toEqual(['zod']);
+});
+
+test('template roles preserve optional free-text scope', () => {
+  const value = WorkflowTemplateSchema.parse(template());
+  for (const role of Object.values(value.roles))
+    expect(role.scope?.length).toBeGreaterThan(0);
+  const withoutScopes = template();
+  for (const role of Object.values(withoutScopes.roles) as { scope?: string }[])
+    delete role.scope;
+  expect(WorkflowTemplateSchema.safeParse(withoutScopes).success).toBe(true);
+});
+
+test('submissions reuse the shared event payload schemas', () => {
+  const conclusion = AgentSubmissionSchema.options.find(
+    (option) => option.shape.kind.value === 'conclusion',
+  );
+  const workItems = AgentSubmissionSchema.options.find(
+    (option) => option.shape.kind.value === 'work-items',
+  );
+  expect(conclusion?.shape.payload).toBe(ConclusionSchema);
+  expect(workItems?.shape.payload.shape.items.element).toBe(
+    WorkItemDraftSchema,
+  );
 });

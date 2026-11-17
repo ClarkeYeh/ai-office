@@ -35,6 +35,9 @@
                     "codex"
                   ]
                 },
+                "scope": {
+                  "type": "string"
+                },
                 "effort": {
                   "type": "string",
                   "enum": [

@@ -1,28 +1,8 @@
 import { z } from 'zod';
-import { AgentKindSchema } from '../template/index.js';
+import { ConclusionSchema, WorkItemDraftSchema } from '../events/index.js';
+export { ConclusionSchema, WorkItemDraftSchema } from '../events/index.js';
+export type { Conclusion, WorkItemDraft } from '../events/index.js';
 
-export const ConclusionSchema = z.object({
-  summary: z.string(),
-  decisions: z.array(z.object({ title: z.string(), rationale: z.string() })),
-  techDecisions: z.array(
-    z.object({
-      topic: z.string(),
-      options: z.array(z.string()),
-      chosen: z.string(),
-      rationale: z.string(),
-    }),
-  ),
-  openQuestions: z.array(z.string()),
-});
-export const WorkItemDraftSchema = z.object({
-  key: z.string().min(1),
-  title: z.string(),
-  body: z.string(),
-  acceptance: z.array(z.string()),
-  role: z.string().min(1),
-  agent: AgentKindSchema.optional(),
-  deps: z.array(z.string()),
-});
 export const AgentSubmissionSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('agenda'),
@@ -102,5 +82,3 @@ export const SubmissionResponseSchema = z.union([
 ]);
 export type AgentSubmission = z.infer<typeof AgentSubmissionSchema>;
 export type SubmissionKind = AgentSubmission['kind'];
-export type Conclusion = z.infer<typeof ConclusionSchema>;
-export type WorkItemDraft = z.infer<typeof WorkItemDraftSchema>;

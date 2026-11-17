@@ -2,11 +2,31 @@ apiVersion: ai-office/v1alpha1
 id: feature-to-pr
 name: 需求到 PR
 roles: # 角色＝流程中的職責，不是頭銜
-  lead: { agent: claude-code, effort: high }
-  pm: { agent: claude-code }
-  architect: { agent: claude-code }
-  engineer: { agent: codex } # 預設實作者
-  integrator: { agent: claude-code }
+  lead:
+    {
+      agent: claude-code,
+      effort: high,
+      scope: '主持討論、整理結論與拆分工作，依核准範圍回答提問；不代替人類決策。',
+    }
+  pm:
+    {
+      agent: claude-code,
+      scope: '釐清需求、使用情境與驗收條件；不擅自擴大核准範圍。',
+    }
+  architect:
+    {
+      agent: claude-code,
+      scope: '提出架構與技術選型及其取捨，維護模組邊界；不繞過結論關卡。',
+    }
+  engineer: {
+      agent: codex,
+      scope: '依核准工作項目實作與測試，回報風險；不自行合併最終 PR。',
+    } # 預設實作者
+  integrator:
+    {
+      agent: claude-code,
+      scope: '整合工作分支、驗證結果並提出合併請求；不自行合併最終 PR。',
+    }
 defaults:
   integrationBranch: 'ai-office/{shortId}-{slug}'
   maxReruns: 2 # 關卡退回後重跑同一階段的上限
