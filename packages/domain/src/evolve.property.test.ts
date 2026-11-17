@@ -51,9 +51,16 @@ const plausibleEvent: fc.Arbitrary<Omit<DomainEvent, 'seq' | 'id'>> = fc
       null,
     ),
     second: fc.integer({ min: 0, max: 10_000 }),
-    extra: fc.dictionary(fc.string({ maxLength: 4 }), fc.jsonValue(), {
-      maxKeys: 2,
-    }),
+    extra: fc.dictionary(
+      fc.string({ maxLength: 4 }),
+      // Normalise values JSON cannot represent (e.g. -0) so stored events are realistic.
+      fc
+        .jsonValue()
+        .map((value) => JSON.parse(JSON.stringify(value)) as unknown),
+      {
+        maxKeys: 2,
+      },
+    ),
   })
   .map(({ type, ids, workflowId, second, extra }) => {
     const draft = eventDraft(type, samplePayloads(ids)[type] as never, {
