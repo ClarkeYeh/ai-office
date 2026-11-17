@@ -1,0 +1,20 @@
+{
+  "name": "@ai-office/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/engine"
+  },
+  "dependencies": {
+    "@ai-office/domain": "workspace:*",
+    "@ai-office/contracts": "workspace:*"
+  }
+}

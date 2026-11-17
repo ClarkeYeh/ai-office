@@ -1,0 +1,23 @@
+{
+  "name": "@ai-office/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b && vite build",
+    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/web",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ai-office/contracts": "workspace:*",
+    "@ai-office/projection": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "vite": "^7.3.8"
+  }
+}

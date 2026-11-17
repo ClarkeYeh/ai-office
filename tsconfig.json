@@ -1,0 +1,29 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./packages/projection"
+    },
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/engine"
+    },
+    {
+      "path": "./packages/templates"
+    },
+    {
+      "path": "./apps/server"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./apps/cli"
+    }
+  ]
+}
