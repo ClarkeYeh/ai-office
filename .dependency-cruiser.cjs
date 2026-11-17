@@ -3,6 +3,8 @@
  * subjects/fakes, but npm placement and production-to-test rules still apply.
  */
 const test = '(^|/)(test-support|__tests__)/|\\.(test|spec)\\.[cm]?[jt]sx?$';
+// Package build tooling (e.g. contracts generation) runs in Node and never ships.
+const tooling = '^packages/[^/]+/scripts/';
 const server = 'apps/server/src/';
 const contracts =
   'packages/contracts/(src|dist)/(api|events|stream|template|agent-submission)/';
@@ -10,7 +12,7 @@ const coreContracts = 'packages/contracts/(src|dist)/(events|template)/';
 const npm = '(^|/)node_modules/';
 const rule = (name, from, to) => ({ name, severity: 'error', from, to });
 const boundary = (name, from, allowed) =>
-  rule(name, { path: from, pathNot: test }, { pathNot: allowed });
+  rule(name, { path: from, pathNot: [test, tooling] }, { pathNot: allowed });
 const packagePath = (name) => `(^|/)(node_modules/)?${name}(/|$)`;
 const placement = (name, target, allowed) =>
   rule(name, { path: '^(apps|packages)/', pathNot: allowed }, { path: target });
@@ -119,7 +121,7 @@ const config = {
     ),
     rule(
       'no-node-in-packages-or-web',
-      { path: '^(packages/|apps/web/)' },
+      { path: '^(packages/|apps/web/)', pathNot: [test, tooling] },
       { dependencyTypes: ['core'] },
     ),
     placement(
