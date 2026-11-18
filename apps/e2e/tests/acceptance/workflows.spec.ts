@@ -182,3 +182,15 @@ test('a running workflow is cancelled from the list (I-17)', async ({
     0,
   );
 });
+
+test('an expired session sends the app back to the sign-in explanation (I-01)', async ({
+  page,
+  context,
+}) => {
+  await office().login(page, '/');
+  await expect(page.getByTestId('home-link')).toBeVisible();
+  await context.clearCookies();
+  // The next API call (client-side navigation) answers 401.
+  await page.getByTestId('nav-templates').click();
+  await expect(page.getByTestId('auth-required')).toBeVisible();
+});

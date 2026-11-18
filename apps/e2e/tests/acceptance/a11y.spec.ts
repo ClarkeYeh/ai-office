@@ -107,10 +107,37 @@ async function keyboardApprove(page: Page, gate: GateView, testId: string) {
   );
 }
 
+test('phone width: no office, but needs and a gate decision work (I-21, D8)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const gate = await openGate('meeting');
+  await office().login(page, path());
+  await expect(page.getByTestId('office-scene')).toHaveCount(0);
+  await expect(page.getByTestId('mobile-office-message')).toBeVisible();
+  await page.getByTestId(`need-${gate.gateId}`).click();
+  await expect(page.getByTestId(`gate-page-${gate.gateId}`)).toBeVisible();
+  await expectNoBlockingAxe(page, 'meeting gate, phone width');
+  // Nothing scrolls sideways at phone width.
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.getByTestId('gate-approve').click();
+  await until(
+    async () =>
+      (await readModel(office(), workflowId)).gates.find(
+        (g) => g.gateId === gate.gateId,
+      )?.status,
+    (status) => status !== 'open',
+    'meeting gate decided at phone width',
+  );
+});
+
 test('stage gates: axe clean and approved with the keyboard alone (I-08, D6)', async ({
   page,
 }) => {
-  await keyboardApprove(page, await openGate('meeting'), 'gate-approve');
   await keyboardApprove(page, await openGate('planning'), 'tasks-approve');
   const final = await openGate('final-pr');
   await office().login(page, `/gates/${encodeURIComponent(final.gateId)}`);

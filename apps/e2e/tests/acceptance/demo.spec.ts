@@ -11,6 +11,7 @@ import {
   useOffice,
 } from '../../test-support/index.js';
 import {
+  dropStream,
   RECORD_SSE,
   sampleQuiet,
   seatStates,
@@ -284,6 +285,49 @@ test('seat message: a live worker gets the instruction as an event (I-10)', asyn
     ).catch(() => false);
   }
   expect(sent).toBe(true);
+});
+
+test('the live tab drops offline mid-run and resumes with Last-Event-ID (I-22)', async () => {
+  test.setTimeout(60_000);
+  const seq = async () =>
+    observer.evaluate(
+      () => (window as unknown as { __aioSse: { seq: number } }).__aioSse.seq,
+    );
+  await observerContext.setOffline(true);
+  await dropStream(observer);
+  // A dead stream is reported; reconnects fail while offline.
+  await expect(observer.getByTestId('banner-connection')).toBeVisible({
+    timeout: 30_000,
+  });
+  const before = await seq();
+  // Events keep happening while the tab is away.
+  await until(
+    () => readModel(office(), workflowId),
+    (model) => model.lastSeq > before + 5,
+    'events while offline',
+  );
+  const resumed = observer.waitForRequest(
+    (request) =>
+      request.url().includes('afterSeq=') &&
+      new URL(request.url()).searchParams.get('afterSeq') === String(before),
+    { timeout: 30_000 },
+  );
+  await observerContext.setOffline(false);
+  // The app reconnects from its cursor (its Last-Event-ID): afterSeq = last seen.
+  await resumed;
+  await expect(observer.getByTestId('banner-connection')).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  await expect.poll(seq, { timeout: 15_000 }).toBeGreaterThan(before + 5);
+  // No gap and no repeat across the drop (one workflow: global seqs are dense).
+  const seqs = await observer.evaluate(
+    () => (window as unknown as { __aioSse: { seqs: number[] } }).__aioSse.seqs,
+  );
+  const across = seqs.slice(seqs.indexOf(before));
+  expect(across.length).toBeGreaterThan(5);
+  expect(across).toEqual(
+    Array.from({ length: across.length }, (_, i) => before + i),
+  );
 });
 
 test('board: same read model, five columns and seat lanes (I-11)', async ({

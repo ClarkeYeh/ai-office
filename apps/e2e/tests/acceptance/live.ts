@@ -7,7 +7,12 @@ import type { Page } from '@playwright/test';
  * enough for the store and React to have applied every delivered event.
  */
 export const RECORD_SSE = () => {
-  const state = { seq: 0, at: 0 };
+  const state = {
+    seq: 0,
+    at: 0,
+    sources: [] as EventSource[],
+    seqs: [] as number[],
+  };
   Object.defineProperty(window, '__aioSse', { value: state });
   const add = EventSource.prototype.addEventListener;
   EventSource.prototype.addEventListener = function (
@@ -18,6 +23,7 @@ export const RECORD_SSE = () => {
   ) {
     if (type !== 'domain' || typeof listener !== 'function')
       return add.call(this, type, listener, options);
+    state.sources.push(this);
     return add.call(
       this,
       type,
@@ -28,6 +34,7 @@ export const RECORD_SSE = () => {
               seq?: unknown;
             }
           ).seq;
+          if (typeof seq === 'number') state.seqs.push(seq);
           if (typeof seq === 'number' && seq > state.seq) {
             state.seq = seq;
             state.at = performance.now();
@@ -93,4 +100,20 @@ export async function sampleQuiet(
   );
   if (after !== before || !Object.keys(states).length) return null;
   return { seq: before, states };
+}
+
+/**
+ * Drops the page's live stream the way a network failure does: the source is
+ * closed and its `error` fires, so the app runs its own reconnect.
+ */
+export async function dropStream(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const sse = (window as unknown as { __aioSse: { sources: EventSource[] } })
+      .__aioSse;
+    for (const source of sse.sources) {
+      if (source.readyState === EventSource.CLOSED) continue;
+      source.close();
+      source.dispatchEvent(new Event('error'));
+    }
+  });
 }
