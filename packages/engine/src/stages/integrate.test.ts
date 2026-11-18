@@ -216,6 +216,17 @@ describe('wrap-up and final PR', () => {
     expect(sim.state.workflow?.finalPr).toBeUndefined();
     expect(sim.liveAgents()).toBe(1);
   });
+  it('wraps up a report accepted while paused once the workflow resumes', () => {
+    const sim = setup();
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    report(sim);
+    expect(sim.liveAgents()).toBe(1);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    expect(sim.liveAgents()).toBe(0);
+    expect(sim.state.stages.integrate?.status).toBe('done');
+    expect(sim.state.workflow?.finalPr).toBe(2);
+    expect(sim.rejections).toEqual([]);
+  });
 });
 
 it('keeps the final gate closed for a lost on-demand attempt arriving during publication', () => {

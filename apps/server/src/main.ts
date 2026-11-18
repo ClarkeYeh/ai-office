@@ -532,6 +532,10 @@ async function compose(
     await delay(Math.min(1000 * pass, 5000));
   }
   await runners.idle();
+  // Publish each component's actual state before serving (FX5): the fake
+  // runtime is up once composed, so its identity counts as probed here.
+  await health.runtimeIdentityVerified((await runtime.health()).verified);
+  await health.publishInitial();
 
   const projections = new ProjectionService(
     stores.events,
@@ -729,8 +733,10 @@ async function main(argv: readonly string[]): Promise<void> {
       .then((server) => server?.close())
       .finally(() => process.exit(process.exitCode ?? 0));
   };
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
+  // `on`, not `once`: a repeated signal must hit the no-op guard above rather
+  // than the default action, which would kill us before runtime.json is removed.
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
   if ((await starting) === undefined) {
     process.off('SIGINT', stop);
     process.off('SIGTERM', stop);

@@ -130,6 +130,23 @@ test('scene selection fills inspector; whiteboard opens board; integer resize; d
   );
   expect(screen.getByTestId('office-timeline-slot')).toBeTruthy();
 });
+test('inspector slot receives the URL selection, including none', () => {
+  const { wrapper } = setup();
+  const inspector = vi.fn((seatId: string | null) => (
+    <p data-testid="slot">{seatId ?? 'none'}</p>
+  ));
+  render(
+    <>
+      <OfficePage />
+      <OfficeRightColumn inspector={inspector} />
+    </>,
+    { wrapper },
+  );
+  expect(screen.getByTestId('slot').textContent).toBe('none');
+  fireEvent.click(screen.getByTestId('seat-wf1:architect'));
+  expect(screen.getByTestId('slot').textContent).toBe('wf1:architect');
+  expect(screen.queryByTestId('office-seat-summary')).toBeNull();
+});
 test('board tolerates a queued item without PR, retains needs and selectable attempt lanes', () => {
   const log = createLog();
   log.stage('implement', 'implement');

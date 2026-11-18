@@ -1,12 +1,17 @@
+import {
+  WorkflowsPage,
+  StartWorkflowPage,
+} from '../features/workflows/index.js';
+import { TemplatesPage } from '../features/templates/index.js';
+import { ReposPage } from '../features/repos/index.js';
 import { TimelinePage } from '../features/timeline/index.js';
 import { OfficePage, OfficeBoardPage } from '../features/office/index.js';
 import type { ComponentType } from 'react';
 import type { ApiClient } from '../api/index.js';
 import type { RouteMatch, RouteName } from './router.js';
 import { t, type MessageKey } from '../shared/lib/i18n/index.js';
-import { Link, PixelFrame } from '../shared/ui/index.js';
-import { useWebState } from '../realtime/index.js';
-import { GatePage } from '../features/gates/index.js';
+import { PixelFrame } from '../shared/ui/index.js';
+import { GatePage, QuestionPage } from '../features/gates/index.js';
 
 /** Feature entry components receive dependencies here; never import app/ from a feature. */
 export interface RoutePageProps {
@@ -27,37 +32,6 @@ function PendingPage() {
     </PixelFrame>
   );
 }
-function HomePage() {
-  const workflows = useWebState((state) => state.overview.workflows);
-  return (
-    <PixelFrame>
-      <Link
-        href="/workflows/new"
-        aria-label={t('app.newWorkflow')}
-        data-testid="new-workflow"
-      >
-        {t('app.newWorkflow')}
-      </Link>
-      {workflows.length ? (
-        <ul>
-          {workflows.map((workflow) => (
-            <li key={workflow.workflowId}>
-              <Link
-                href={`/workflows/${encodeURIComponent(workflow.workflowId)}`}
-                aria-label={workflow.requirement}
-                data-testid={`workflow-${workflow.workflowId}`}
-              >
-                {workflow.requirement}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>{t('app.noWorkflows')}</p>
-      )}
-    </PixelFrame>
-  );
-}
 function NotFoundPage() {
   return (
     <PixelFrame>
@@ -67,8 +41,8 @@ function NotFoundPage() {
 }
 /** Replace the relevant Page with a feature's public index export as it lands. */
 export const routes: readonly RouteDefinition[] = [
-  { name: 'home', title: 'app.home', Page: HomePage },
-  { name: 'newWorkflow', title: 'app.newWorkflow', Page: PendingPage },
+  { name: 'home', title: 'app.home', Page: WorkflowsPage },
+  { name: 'newWorkflow', title: 'app.newWorkflow', Page: StartWorkflowPage },
   {
     name: 'workflow',
     title: 'app.office',
@@ -78,9 +52,9 @@ export const routes: readonly RouteDefinition[] = [
   { name: 'board', title: 'app.board', Page: OfficeBoardPage },
   { name: 'timeline', title: 'app.timeline', Page: TimelinePage },
   { name: 'gate', title: 'app.gate', Page: GatePage },
-  { name: 'question', title: 'app.question', Page: PendingPage },
-  { name: 'templates', title: 'app.templates', Page: PendingPage },
-  { name: 'template', title: 'app.templates', Page: PendingPage },
-  { name: 'repos', title: 'app.repos', Page: PendingPage },
+  { name: 'question', title: 'app.question', Page: QuestionPage },
+  { name: 'templates', title: 'app.templates', Page: TemplatesPage },
+  { name: 'template', title: 'app.templates', Page: TemplatesPage },
+  { name: 'repos', title: 'app.repos', Page: ReposPage },
   { name: 'notFound', title: 'app.notFound', Page: NotFoundPage },
 ];

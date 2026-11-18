@@ -3,6 +3,7 @@ import {
   OfficeLegend,
   needsOf,
 } from '../features/office/index.js';
+import { SeatInspector } from '../features/seats/index.js';
 import { useEffect, useState } from 'react';
 import {
   useDisplayedModel,
@@ -142,7 +143,9 @@ function RoutedApp() {
       view={view}
       rightColumn={
         current && (route.name === 'workflow' || route.name === 'board') ? (
-          <OfficeRightColumn />
+          <OfficeRightColumn
+            inspector={(seatId) => <SeatInspector seatId={seatId} api={api} />}
+          />
         ) : undefined
       }
       legend={<OfficeLegend />}
@@ -168,6 +171,7 @@ function RoutedApp() {
       }
       banners={
         <Banners
+          gateActions
           pausedReasons={current?.pausedReasons ?? []}
           health={overview.health}
           degraded={current?.seats.some((seat) => seat.degraded) ?? false}

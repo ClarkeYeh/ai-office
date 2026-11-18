@@ -5,8 +5,8 @@ import {
   type ApiBody,
   type ApiClient,
 } from '../../../api/index.js';
-import { useWebState } from '../../../realtime/index.js';
 import { t, type MessageKey } from '../../../shared/lib/i18n/index.js';
+import { useRealtime, useWebState } from '../../../realtime/index.js';
 import type { GateView } from '../model/index.js';
 
 export type DecisionBody = Omit<ApiBody<'decideGate'>, 'expectedVersion'>;
@@ -28,9 +28,8 @@ const CONFLICTS = new Set(['gate_content_changed', 'version_conflict']);
 function errorNotice(error: ApiError): string {
   if (error.code === 'gate_content_changed')
     return t('gates.error.contentChanged');
-  if (error.code === 'version_conflict')
-    return t('gates.error.versionConflict');
   if (error.code === 'gate_not_open') return t('gates.error.notOpen');
+  if (error.status === 409) return t('gates.error.versionConflict');
   if (error.code === 'scm_unavailable') return t('gates.error.scm');
   if (error.status === 0 && error.category === 'transient')
     return t('gates.error.network');
@@ -49,16 +48,23 @@ export function useGateDecision(
   api: ApiClient,
   refetch: () => void,
 ): GateDecisionState {
+  const realtime = useRealtime();
+  const replaying = useWebState((state) => state.replay !== null);
+  const busy = useRef(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<GateNoticeState | null>(null);
   const [conflicts, setConflicts] = useState(0);
   const action = useRef<{ fingerprint: string; key: string } | null>(null);
-  const replaying = useWebState((state) => state.replay !== null);
   const { gateId, version } = gate;
   const decide = useCallback(
     async (body: DecisionBody, success: MessageKey) => {
-      // Never decide from a historical state (T14 replay).
-      if (replaying) return false;
+      if (
+        realtime.store.getState().replay !== null ||
+        busy.current ||
+        gate.status !== 'open'
+      )
+        return false;
+      busy.current = true;
       const request = { ...body, expectedVersion: version };
       const fingerprint = JSON.stringify([gateId, request]);
       const key =
@@ -87,16 +93,22 @@ export function useGateDecision(
         setNotice({ tone: 'error', text: errorNotice(apiError) });
         // Keep the key only for an uncertain transport failure (a resend is the same action).
         if (apiError.status !== 0) action.current = null;
-        if (CONFLICTS.has(apiError.code) || apiError.code === 'gate_not_open') {
-          if (CONFLICTS.has(apiError.code)) setConflicts((n) => n + 1);
+        if (
+          apiError.status === 409 ||
+          CONFLICTS.has(apiError.code) ||
+          apiError.code === 'gate_not_open'
+        ) {
+          if (apiError.status === 409 || CONFLICTS.has(apiError.code))
+            setConflicts((n) => n + 1);
           refetch();
         }
         return false;
       } finally {
+        busy.current = false;
         setPending(false);
       }
     },
-    [api, gateId, version, refetch, replaying],
+    [api, gateId, version, refetch, realtime, gate.status],
   );
-  return { pending, notice, conflicts, decide };
+  return { pending: pending || replaying, notice, conflicts, decide };
 }

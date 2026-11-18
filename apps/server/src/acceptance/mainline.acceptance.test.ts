@@ -41,6 +41,39 @@ describe(
       );
     });
 
+    it('records each worker PR once as an artifact, so the read model links items to their PRs (FX2)', async () => {
+      const o = await office();
+      const workflowId = await o.start();
+      await o.drive(workflowId, isEnded);
+      // Let the observation loop ingest the last SCM polls.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      const events = await o.events(workflowId);
+      const workerPrs = of(events, 'artifact.created')
+        .map((e) => e.payload)
+        .filter((p) => p.kind === 'pr' && p.purpose === 'worker');
+      const queued = of(events, 'workitem.merge_queued').map((e) => e.payload);
+      expect(queued).toHaveLength(2);
+      expect(workerPrs.map((p) => [p.itemKey, p.number])).toEqual(
+        queued.map((p) => [p.itemKey, p.pr]),
+      );
+      const model = await o.readModel(workflowId);
+      expect(
+        (model.workItems as Json[]).map((i) => [
+          i.key,
+          (i.pr as Json | undefined)?.number,
+        ]),
+      ).toEqual(queued.map((p) => [p.itemKey, p.pr]));
+      for (const p of workerPrs)
+        expect(model.prs as Json[]).toContainEqual(
+          expect.objectContaining({
+            number: p.number,
+            purpose: 'worker',
+            itemKey: p.itemKey,
+            url: p.url,
+          }),
+        );
+    });
+
     it("dispatches the dependent only after its dependency merged, from a base containing the dependency's merge commit", async () => {
       const o = await office();
       const workflowId = await o.start();

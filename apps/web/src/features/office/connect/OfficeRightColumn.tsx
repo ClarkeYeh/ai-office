@@ -12,11 +12,11 @@ const subscribe = (listener: () => void) => {
   media.addEventListener('change', listener);
   return () => media.removeEventListener('change', listener);
 };
-/** T10 supplies its connected inspector through this slot. */
+/** T10 supplies its connected inspector through this slot; it handles empty and missing seats. */
 export function OfficeRightColumn({
   inspector,
 }: {
-  inspector?: (seatId: string) => ReactNode;
+  inspector?: (seatId: string | null) => ReactNode;
 }) {
   const mobile = useSyncExternalStore(
     subscribe,
@@ -31,8 +31,8 @@ export function OfficeRightColumn({
   if (mobile) return null;
   return (
     <div data-testid="office-inspector-slot">
-      {seat && inspector ? (
-        inspector(seat.seatId)
+      {inspector ? (
+        inspector(selectedSeatId)
       ) : (
         <PixelFrame data-testid="office-seat-summary">
           <h2>{t('office.page.inspector')}</h2>

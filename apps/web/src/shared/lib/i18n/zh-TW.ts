@@ -1,9 +1,15 @@
+import { workflowsMessagesZhTW } from './workflows.js';
+import { templatesMessagesZhTW } from './templates.js';
+import { reposMessagesZhTW } from './repos.js';
 import { gatesMessagesZhTW } from './gates.js';
 import { officeMessagesZhTW } from './office.js';
 
 import { timelineMessagesZhTW } from './timeline.js';
 
 export const zhTW = {
+  ...workflowsMessagesZhTW,
+  ...templatesMessagesZhTW,
+  ...reposMessagesZhTW,
   ...timelineMessagesZhTW,
   ...officeMessagesZhTW,
   ...gatesMessagesZhTW,
