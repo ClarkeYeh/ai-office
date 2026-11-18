@@ -624,6 +624,7 @@ describe('command allowlist', () => {
       'worker-show',
       'worker-read',
       'run-show',
+      'run-list',
       'task-list',
       'request-show',
     ].map((cmd) => ['orchestration', cmd]),

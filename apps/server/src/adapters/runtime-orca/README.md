@@ -34,8 +34,8 @@ id; question = message id. Cursor encoding is base64url UTF-8 JSON
 `{"v":1,"data":<T6 payload>}`; decoding requires T6's payload schema.
 
 T4 owns identity implementation; T5 owns methods and RuntimePort composition;
-T6 owns observation and cursor payload. No production RuntimePort is claimed by
-this foundation. `orcaSubprocessPolicy` is exported for T10's composition-root
+T6 owns observation and cursor payload. T5 now exports the RuntimePort factory
+with observation explicitly injected. `orcaSubprocessPolicy` is exported for T10's composition-root
 migration; main.ts is outside T3's file ownership. No contracts registry additions.
 
 Real CLI-only validation must be run by the coordinator under M2 §1.4. Workers
@@ -82,3 +82,49 @@ responsible for bootstrap/reclaim identity policy.
   honours `orca.shim.closeOnExit`.
 - `RunOptions.terminal` (additive) carries the native `terminal show|read|close`
   target; `argsFor` only permits closing shims this class matched by title.
+
+## Runtime methods (M2-T5)
+
+`createOrcaRuntime` composes the methods with an injected T6 observer, sharing
+`DispatchLedger`, `ShimCoordinatorIdentity`, `OrcaCli`, `GitCli`, and adapter
+state. T10 supplies the system `IdGen.orcaRequestId` (UUIDv5 of the original
+command ID), logger, data directory, version monitor, and optional CLI metrics.
+All identity recovery runs through `withIdentity`; the one identity retry keeps
+the exact request ID. Native workspace creation is recovered by its name and
+`aio:` comment because Orca has no request receipts for it.
+
+Workspace preparation fetches before resolving a base SHA. Explicit SHAs require
+a fetch branch; `origin/<branch>` resolves after fetch; unfetched local branches
+are rejected. Legacy `spawnAgent(new-worktree)` branch names are normalized to
+fetch plus `origin/<name>` (the engine's planning caller still needs that update).
+Checkout-existing pre-creates local W with `--no-track`, or uses guarded `branch
+-f` for an unoccupied branch with no unpushed commits. Receipt branch names are
+normalized from `refs/heads/`; paths always come from the receipt. A suffix is
+removed before the temporary-branch / `checkout -B` fallback. Cleanup explicitly
+removes only unchanged adapter-created branches, including branches Orca kept.
+
+Before `worker-start`, the pending ledger and workspace association are durable.
+Unknown outcomes query the same request ID, then rebuild from task markers;
+failed starts recover their marked dispatch and release residual terminals.
+Cleanup failures remain retryable, and never launch a replacement worker.
+The private `orca-specs` files contain only the supplied launch prompt, not a
+transcript; command fingerprints, markers and results contain no prompt text.
+Non-terminal receipt modes add `chat_worker_identity_degraded` to health without
+changing Orca settings. Follow-up sends put `aio:` in the subject and keep the original AgentRef while
+targeting the latest resource owner. Worker lists are paginated. Reply-marker
+recovery also checks scoped dispatch inboxes: the day-1 fixtures show that
+replies are delivered there, rather than to the run inbox.
+
+`release(removeWorkspace:false)` always preserves the workspace. With `true`,
+both new-worktree and existing-worktree launches may remove a workspace, but
+only when adapter state plus its exact `aio:` marker prove this backend prepared
+it, no other unreleased ledger agent references it, and the dirty/unpushed guards
+pass. Shared or externally supplied workspaces are preserved. A release can
+succeed while cleanup returns `guard{workspace_in_use}` or `unpushed_commits`;
+retrying cleanup is safe and never discards local commits. This ownership rule
+was confirmed by the coordinator for prepared implement/on-call/wrap-up worktrees.
+
+No public contracts or §8.4 registry names are added. Coordinator-approved scope
+extensions are the additive Git helpers and read-only `orchestration run-list`
+allowlist entry. The integrator must run CLI-only real-Orca workspace tests on
+the approved test repository; this worker uses replay Exec tests only.
