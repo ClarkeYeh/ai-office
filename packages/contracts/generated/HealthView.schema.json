@@ -76,6 +76,22 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "binPath": {
+          "type": "string"
+        },
+        "supportedRange": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cpuSecondsPerMinute": {
+          "type": "number",
+          "minimum": 0
         }
       },
       "required": [
@@ -114,6 +130,9 @@
         "login": {
           "type": "string",
           "minLength": 1
+        },
+        "ghBinPath": {
+          "type": "string"
         },
         "rateLimit": {
           "type": "object",
@@ -216,6 +235,9 @@
                 "type": "string"
               },
               "available": {
+                "type": "boolean"
+              },
+              "formatVerified": {
                 "type": "boolean"
               }
             },

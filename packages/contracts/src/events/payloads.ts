@@ -42,7 +42,13 @@ export const AppliedBudgetsSchema = z.object({
   hardLimitMultiplier: z.number().min(1),
 });
 /** Runtime limits snapshotted at start (Q9); config changes never affect a running workflow. */
-export const WorkflowLimitsSchema = z.object({ globalAgents: positiveInt });
+export const WorkflowLimitsSchema = z.object({
+  globalAgents: positiveInt,
+  /** Snapshot of `engine.spawnStallMs` (§7.1); absent in older events, read as 600000. */
+  spawnStallMs: positiveInt.optional(),
+  /** Snapshot of `[budget] enforcement` (S25, §10.1); absent in older events, read as `'on'`. */
+  budgetEnforcement: z.enum(['on', 'off']).optional(),
+});
 export const WorkflowStartedPayloadSchema = z.object({
   templateSnapshot: WorkflowTemplateSchema,
   repo: RepoSnapshotSchema,
@@ -150,6 +156,8 @@ export const ExceptionKindSchema = z.enum([
   'merge-blocked',
   'rework-limit',
   'merge-review-failed',
+  // rev2.11.1 spawn stall (§7.1, §8.3).
+  'spawn-stall',
 ]);
 /** `input` tells the UI which extra value the option needs (§8.3: budget top-up, reassignment). */
 export const GateOptionSchema = z.object({
@@ -286,10 +294,21 @@ export const SeatSpawnedPayloadSchema = z.object({
   effort: z.enum(['low', 'medium', 'high']).optional(),
   spawnCommandId: id,
 });
+/**
+ * S26 provider rate limit (provisional). Named `rateLimited` so it is not confused with
+ * the GitHub `rate_limited` error category.
+ */
+const seatRateLimit = z.object({
+  since: isoDateTime,
+  evidence: z.enum(['worker-show', 'transcript']),
+  resetsAt: isoDateTime.optional(),
+});
 export const SeatStatusPayloadSchema = z.object({
   attemptId: id,
   state: AttemptStateSchema,
   waitingSince: isoDateTime.optional(),
+  /** Object: rate limit entered; `null`: lifted; absent: unchanged (S26, provisional). */
+  rateLimited: seatRateLimit.nullable().optional(),
 });
 export const SeatActivityPayloadSchema = z.object({
   attemptId: id,
