@@ -1160,60 +1160,6 @@
     "recordedAt": "1970-01-01T00:00:46.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "meeting",
-    "seatId": "00000000000000000000000001:pm",
-    "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
-      "state": "working"
-    },
-    "id": "00000000000000000000000047"
-  },
-  {
-    "seq": 48,
-    "occurredAt": "1970-01-01T00:00:47.000Z",
-    "recordedAt": "1970-01-01T00:00:47.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "meeting",
-    "seatId": "00000000000000000000000001:architect",
-    "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
-      "state": "working"
-    },
-    "id": "00000000000000000000000048"
-  },
-  {
-    "seq": 49,
-    "occurredAt": "1970-01-01T00:00:48.000Z",
-    "recordedAt": "1970-01-01T00:00:48.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "meeting",
-    "seatId": "00000000000000000000000001:engineer",
-    "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
-      "state": "working"
-    },
-    "id": "00000000000000000000000049"
-  },
-  {
-    "seq": 50,
-    "occurredAt": "1970-01-01T00:00:49.000Z",
-    "recordedAt": "1970-01-01T00:00:49.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "meeting",
     "seatId": "00000000000000000000000001:engineer",
     "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
     "source": "agent",
@@ -1235,12 +1181,12 @@
         }
       }
     },
-    "id": "00000000000000000000000050"
+    "id": "00000000000000000000000047"
   },
   {
-    "seq": 51,
-    "occurredAt": "1970-01-01T00:00:50.000Z",
-    "recordedAt": "1970-01-01T00:00:50.000Z",
+    "seq": 48,
+    "occurredAt": "1970-01-01T00:00:47.000Z",
+    "recordedAt": "1970-01-01T00:00:47.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "meeting",
     "source": "engine",
@@ -1253,12 +1199,12 @@
       "submissionId": "00000000000000000000000009",
       "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer"
     },
-    "id": "00000000000000000000000051"
+    "id": "00000000000000000000000048"
   },
   {
-    "seq": 52,
-    "occurredAt": "1970-01-01T00:00:51.000Z",
-    "recordedAt": "1970-01-01T00:00:51.000Z",
+    "seq": 49,
+    "occurredAt": "1970-01-01T00:00:48.000Z",
+    "recordedAt": "1970-01-01T00:00:48.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "meeting",
     "source": "engine",
@@ -1277,6 +1223,60 @@
         "concerns": [],
         "readyToConclude": true
       }
+    },
+    "id": "00000000000000000000000049"
+  },
+  {
+    "seq": 50,
+    "occurredAt": "1970-01-01T00:00:49.000Z",
+    "recordedAt": "1970-01-01T00:00:49.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "meeting",
+    "seatId": "00000000000000000000000001:pm",
+    "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
+      "state": "working"
+    },
+    "id": "00000000000000000000000050"
+  },
+  {
+    "seq": 51,
+    "occurredAt": "1970-01-01T00:00:50.000Z",
+    "recordedAt": "1970-01-01T00:00:50.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "meeting",
+    "seatId": "00000000000000000000000001:architect",
+    "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
+      "state": "working"
+    },
+    "id": "00000000000000000000000051"
+  },
+  {
+    "seq": 52,
+    "occurredAt": "1970-01-01T00:00:51.000Z",
+    "recordedAt": "1970-01-01T00:00:51.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "meeting",
+    "seatId": "00000000000000000000000001:engineer",
+    "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
+      "state": "working"
     },
     "id": "00000000000000000000000052"
   },
@@ -2562,7 +2562,7 @@
       "attemptId": "00000000000000000000000001/implement/one/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-127",
+          "messageId": "fake-message-128",
           "tool": "read",
           "category": "read",
           "inputLen": 2,
@@ -2607,7 +2607,7 @@
       "attemptId": "00000000000000000000000001/implement/two/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-129",
+          "messageId": "fake-message-130",
           "tool": "read",
           "category": "read",
           "inputLen": 2,
@@ -2652,7 +2652,7 @@
       "attemptId": "00000000000000000000000001/implement/three/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-131",
+          "messageId": "fake-message-132",
           "tool": "read",
           "category": "read",
           "inputLen": 2,
@@ -2697,7 +2697,7 @@
       "attemptId": "00000000000000000000000001/implement/four/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-133",
+          "messageId": "fake-message-134",
           "tool": "read",
           "category": "read",
           "inputLen": 2,
@@ -2922,7 +2922,7 @@
       "attemptId": "00000000000000000000000001/implement/one/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-144",
+          "messageId": "fake-message-145",
           "tool": "bash",
           "category": "shell",
           "inputLen": 2,
@@ -2967,7 +2967,7 @@
       "attemptId": "00000000000000000000000001/implement/two/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-146",
+          "messageId": "fake-message-147",
           "tool": "bash",
           "category": "shell",
           "inputLen": 2,
@@ -3012,7 +3012,7 @@
       "attemptId": "00000000000000000000000001/implement/three/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-148",
+          "messageId": "fake-message-149",
           "tool": "bash",
           "category": "shell",
           "inputLen": 2,
@@ -3057,7 +3057,7 @@
       "attemptId": "00000000000000000000000001/implement/four/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-150",
+          "messageId": "fake-message-151",
           "tool": "bash",
           "category": "shell",
           "inputLen": 2,
@@ -3419,12 +3419,16 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "workitem.status",
+    "type": "artifact.created",
     "payload": {
-      "itemKey": "one",
-      "status": "pr_open",
-      "attemptId": "00000000000000000000000001/implement/one/1/attempt",
-      "pr": 7
+      "artifactId": "00000000000000000000000001/implement/one/1/pr",
+      "kind": "pr",
+      "number": 7,
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/pull/7",
+      "purpose": "worker",
+      "head": "ai-office/b2",
+      "base": "ai-office/b1",
+      "itemKey": "one"
     },
     "id": "00000000000000000000000149"
   },
@@ -3437,12 +3441,12 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "workitem.merge_queued",
+    "type": "workitem.status",
     "payload": {
       "itemKey": "one",
+      "status": "pr_open",
       "attemptId": "00000000000000000000000001/implement/one/1/attempt",
-      "pr": 7,
-      "headSha": "0000000000000000000000001100000000000002"
+      "pr": 7
     },
     "id": "00000000000000000000000150"
   },
@@ -3455,11 +3459,12 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "ondemand.queue_changed",
+    "type": "workitem.merge_queued",
     "payload": {
-      "stageId": "implement",
-      "purpose": "merge",
-      "queue": ["one"]
+      "itemKey": "one",
+      "attemptId": "00000000000000000000000001/implement/one/1/attempt",
+      "pr": 7,
+      "headSha": "0000000000000000000000001100000000000002"
     },
     "id": "00000000000000000000000151"
   },
@@ -3472,12 +3477,11 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "workitem.status",
+    "type": "ondemand.queue_changed",
     "payload": {
-      "itemKey": "two",
-      "status": "pr_open",
-      "attemptId": "00000000000000000000000001/implement/two/1/attempt",
-      "pr": 8
+      "stageId": "implement",
+      "purpose": "merge",
+      "queue": ["one"]
     },
     "id": "00000000000000000000000152"
   },
@@ -3490,12 +3494,16 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "workitem.merge_queued",
+    "type": "artifact.created",
     "payload": {
-      "itemKey": "two",
-      "attemptId": "00000000000000000000000001/implement/two/1/attempt",
-      "pr": 8,
-      "headSha": "0000000000000000000000001100000000000003"
+      "artifactId": "00000000000000000000000001/implement/two/1/pr",
+      "kind": "pr",
+      "number": 8,
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/pull/8",
+      "purpose": "worker",
+      "head": "ai-office/b3",
+      "base": "ai-office/b1",
+      "itemKey": "two"
     },
     "id": "00000000000000000000000153"
   },
@@ -3508,11 +3516,12 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "ondemand.queue_changed",
+    "type": "workitem.status",
     "payload": {
-      "stageId": "implement",
-      "purpose": "merge",
-      "queue": ["one", "two"]
+      "itemKey": "two",
+      "status": "pr_open",
+      "attemptId": "00000000000000000000000001/implement/two/1/attempt",
+      "pr": 8
     },
     "id": "00000000000000000000000154"
   },
@@ -3525,12 +3534,12 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "workitem.status",
+    "type": "workitem.merge_queued",
     "payload": {
-      "itemKey": "three",
-      "status": "pr_open",
-      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
-      "pr": 9
+      "itemKey": "two",
+      "attemptId": "00000000000000000000000001/implement/two/1/attempt",
+      "pr": 8,
+      "headSha": "0000000000000000000000001100000000000003"
     },
     "id": "00000000000000000000000155"
   },
@@ -3543,12 +3552,11 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "workitem.merge_queued",
+    "type": "ondemand.queue_changed",
     "payload": {
-      "itemKey": "three",
-      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
-      "pr": 9,
-      "headSha": "0000000000000000000000001100000000000004"
+      "stageId": "implement",
+      "purpose": "merge",
+      "queue": ["one", "two"]
     },
     "id": "00000000000000000000000156"
   },
@@ -3561,11 +3569,16 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "ondemand.queue_changed",
+    "type": "artifact.created",
     "payload": {
-      "stageId": "implement",
-      "purpose": "merge",
-      "queue": ["one", "two", "three"]
+      "artifactId": "00000000000000000000000001/implement/three/1/pr",
+      "kind": "pr",
+      "number": 9,
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/pull/9",
+      "purpose": "worker",
+      "head": "ai-office/b4",
+      "base": "ai-office/b1",
+      "itemKey": "three"
     },
     "id": "00000000000000000000000157"
   },
@@ -3580,10 +3593,10 @@
     "schemaVersion": 1,
     "type": "workitem.status",
     "payload": {
-      "itemKey": "four",
+      "itemKey": "three",
       "status": "pr_open",
-      "attemptId": "00000000000000000000000001/implement/four/1/attempt",
-      "pr": 10
+      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
+      "pr": 9
     },
     "id": "00000000000000000000000158"
   },
@@ -3598,10 +3611,10 @@
     "schemaVersion": 1,
     "type": "workitem.merge_queued",
     "payload": {
-      "itemKey": "four",
-      "attemptId": "00000000000000000000000001/implement/four/1/attempt",
-      "pr": 10,
-      "headSha": "0000000000000000000000001100000000000005"
+      "itemKey": "three",
+      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
+      "pr": 9,
+      "headSha": "0000000000000000000000001100000000000004"
     },
     "id": "00000000000000000000000159"
   },
@@ -3618,7 +3631,7 @@
     "payload": {
       "stageId": "implement",
       "purpose": "merge",
-      "queue": ["one", "two", "three", "four"]
+      "queue": ["one", "two", "three"]
     },
     "id": "00000000000000000000000160"
   },
@@ -3626,6 +3639,81 @@
     "seq": 161,
     "occurredAt": "1970-01-01T00:02:40.000Z",
     "recordedAt": "1970-01-01T00:02:40.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "artifact.created",
+    "payload": {
+      "artifactId": "00000000000000000000000001/implement/four/1/pr",
+      "kind": "pr",
+      "number": 10,
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/pull/10",
+      "purpose": "worker",
+      "head": "ai-office/b5",
+      "base": "ai-office/b1",
+      "itemKey": "four"
+    },
+    "id": "00000000000000000000000161"
+  },
+  {
+    "seq": 162,
+    "occurredAt": "1970-01-01T00:02:41.000Z",
+    "recordedAt": "1970-01-01T00:02:41.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "workitem.status",
+    "payload": {
+      "itemKey": "four",
+      "status": "pr_open",
+      "attemptId": "00000000000000000000000001/implement/four/1/attempt",
+      "pr": 10
+    },
+    "id": "00000000000000000000000162"
+  },
+  {
+    "seq": 163,
+    "occurredAt": "1970-01-01T00:02:42.000Z",
+    "recordedAt": "1970-01-01T00:02:42.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "workitem.merge_queued",
+    "payload": {
+      "itemKey": "four",
+      "attemptId": "00000000000000000000000001/implement/four/1/attempt",
+      "pr": 10,
+      "headSha": "0000000000000000000000001100000000000005"
+    },
+    "id": "00000000000000000000000163"
+  },
+  {
+    "seq": 164,
+    "occurredAt": "1970-01-01T00:02:43.000Z",
+    "recordedAt": "1970-01-01T00:02:43.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "ondemand.queue_changed",
+    "payload": {
+      "stageId": "implement",
+      "purpose": "merge",
+      "queue": ["one", "two", "three", "four"]
+    },
+    "id": "00000000000000000000000164"
+  },
+  {
+    "seq": 165,
+    "occurredAt": "1970-01-01T00:02:44.000Z",
+    "recordedAt": "1970-01-01T00:02:44.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -3648,12 +3736,12 @@
       "keepOpen": true,
       "spawnCommandId": "00000000000000000000000001/implement/1/ondemand/merge/1/spawn"
     },
-    "id": "00000000000000000000000161"
+    "id": "00000000000000000000000165"
   },
   {
-    "seq": 162,
-    "occurredAt": "1970-01-01T00:02:41.000Z",
-    "recordedAt": "1970-01-01T00:02:41.000Z",
+    "seq": 166,
+    "occurredAt": "1970-01-01T00:02:45.000Z",
+    "recordedAt": "1970-01-01T00:02:45.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -3665,12 +3753,12 @@
       "purpose": "merge",
       "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt"
     },
-    "id": "00000000000000000000000162"
+    "id": "00000000000000000000000166"
   },
   {
-    "seq": 163,
-    "occurredAt": "1970-01-01T00:02:42.000Z",
-    "recordedAt": "1970-01-01T00:02:42.000Z",
+    "seq": 167,
+    "occurredAt": "1970-01-01T00:02:46.000Z",
+    "recordedAt": "1970-01-01T00:02:46.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -3683,12 +3771,12 @@
       "queue": ["two", "three", "four"],
       "current": "one"
     },
-    "id": "00000000000000000000000163"
+    "id": "00000000000000000000000167"
   },
   {
-    "seq": 164,
-    "occurredAt": "1970-01-01T00:02:43.000Z",
-    "recordedAt": "1970-01-01T00:02:43.000Z",
+    "seq": 168,
+    "occurredAt": "1970-01-01T00:02:47.000Z",
+    "recordedAt": "1970-01-01T00:02:47.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -3699,82 +3787,6 @@
       "itemKey": "one",
       "status": "in_review"
     },
-    "id": "00000000000000000000000164"
-  },
-  {
-    "seq": 165,
-    "occurredAt": "1970-01-01T00:02:44.000Z",
-    "recordedAt": "1970-01-01T00:02:44.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:one",
-    "attemptId": "00000000000000000000000001/implement/one/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/one/1/attempt",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000165"
-  },
-  {
-    "seq": 166,
-    "occurredAt": "1970-01-01T00:02:45.000Z",
-    "recordedAt": "1970-01-01T00:02:45.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:two",
-    "attemptId": "00000000000000000000000001/implement/two/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/two/1/attempt",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000166"
-  },
-  {
-    "seq": 167,
-    "occurredAt": "1970-01-01T00:02:46.000Z",
-    "recordedAt": "1970-01-01T00:02:46.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:three",
-    "attemptId": "00000000000000000000000001/implement/three/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000167"
-  },
-  {
-    "seq": 168,
-    "occurredAt": "1970-01-01T00:02:47.000Z",
-    "recordedAt": "1970-01-01T00:02:47.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:four",
-    "attemptId": "00000000000000000000000001/implement/four/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/four/1/attempt",
-      "reason": "stopped",
-      "expected": true
-    },
     "id": "00000000000000000000000168"
   },
   {
@@ -3782,16 +3794,17 @@
     "occurredAt": "1970-01-01T00:02:48.000Z",
     "recordedAt": "1970-01-01T00:02:48.000Z",
     "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:integrator",
-    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-    "source": "runtime",
+    "source": "scm",
     "provenance": "observed",
     "schemaVersion": 1,
-    "type": "seat.status",
+    "type": "pr.status",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-      "state": "working"
+      "pr": 7,
+      "state": "open",
+      "base": "ai-office/b1",
+      "head": "ai-office/b2",
+      "headSha": "0000000000000000000000001100000000000002",
+      "mergeable": true
     },
     "id": "00000000000000000000000169"
   },
@@ -3800,16 +3813,18 @@
     "occurredAt": "1970-01-01T00:02:49.000Z",
     "recordedAt": "1970-01-01T00:02:49.000Z",
     "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:integrator",
-    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-    "source": "runtime",
+    "source": "scm",
     "provenance": "observed",
     "schemaVersion": 1,
-    "type": "seat.status",
+    "type": "pr.status",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-      "state": "working"
+      "pr": 7,
+      "state": "open",
+      "base": "ai-office/b1",
+      "head": "ai-office/b2",
+      "headSha": "0000000000000000000000001100000000000002",
+      "mergeable": true,
+      "checks": "none"
     },
     "id": "00000000000000000000000170"
   },
@@ -3823,11 +3838,11 @@
     "schemaVersion": 1,
     "type": "pr.status",
     "payload": {
-      "pr": 7,
+      "pr": 8,
       "state": "open",
       "base": "ai-office/b1",
-      "head": "ai-office/b2",
-      "headSha": "0000000000000000000000001100000000000002",
+      "head": "ai-office/b3",
+      "headSha": "0000000000000000000000001100000000000003",
       "mergeable": true
     },
     "id": "00000000000000000000000171"
@@ -3842,11 +3857,11 @@
     "schemaVersion": 1,
     "type": "pr.status",
     "payload": {
-      "pr": 7,
+      "pr": 8,
       "state": "open",
       "base": "ai-office/b1",
-      "head": "ai-office/b2",
-      "headSha": "0000000000000000000000001100000000000002",
+      "head": "ai-office/b3",
+      "headSha": "0000000000000000000000001100000000000003",
       "mergeable": true,
       "checks": "none"
     },
@@ -3862,11 +3877,11 @@
     "schemaVersion": 1,
     "type": "pr.status",
     "payload": {
-      "pr": 8,
+      "pr": 9,
       "state": "open",
       "base": "ai-office/b1",
-      "head": "ai-office/b3",
-      "headSha": "0000000000000000000000001100000000000003",
+      "head": "ai-office/b4",
+      "headSha": "0000000000000000000000001100000000000004",
       "mergeable": true
     },
     "id": "00000000000000000000000173"
@@ -3881,11 +3896,11 @@
     "schemaVersion": 1,
     "type": "pr.status",
     "payload": {
-      "pr": 8,
+      "pr": 9,
       "state": "open",
       "base": "ai-office/b1",
-      "head": "ai-office/b3",
-      "headSha": "0000000000000000000000001100000000000003",
+      "head": "ai-office/b4",
+      "headSha": "0000000000000000000000001100000000000004",
       "mergeable": true,
       "checks": "none"
     },
@@ -3901,11 +3916,11 @@
     "schemaVersion": 1,
     "type": "pr.status",
     "payload": {
-      "pr": 9,
+      "pr": 10,
       "state": "open",
       "base": "ai-office/b1",
-      "head": "ai-office/b4",
-      "headSha": "0000000000000000000000001100000000000004",
+      "head": "ai-office/b5",
+      "headSha": "0000000000000000000000001100000000000005",
       "mergeable": true
     },
     "id": "00000000000000000000000175"
@@ -3920,11 +3935,11 @@
     "schemaVersion": 1,
     "type": "pr.status",
     "payload": {
-      "pr": 9,
+      "pr": 10,
       "state": "open",
       "base": "ai-office/b1",
-      "head": "ai-office/b4",
-      "headSha": "0000000000000000000000001100000000000004",
+      "head": "ai-office/b5",
+      "headSha": "0000000000000000000000001100000000000005",
       "mergeable": true,
       "checks": "none"
     },
@@ -3934,45 +3949,6 @@
     "seq": 177,
     "occurredAt": "1970-01-01T00:02:56.000Z",
     "recordedAt": "1970-01-01T00:02:56.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 10,
-      "state": "open",
-      "base": "ai-office/b1",
-      "head": "ai-office/b5",
-      "headSha": "0000000000000000000000001100000000000005",
-      "mergeable": true
-    },
-    "id": "00000000000000000000000177"
-  },
-  {
-    "seq": 178,
-    "occurredAt": "1970-01-01T00:02:57.000Z",
-    "recordedAt": "1970-01-01T00:02:57.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 10,
-      "state": "open",
-      "base": "ai-office/b1",
-      "head": "ai-office/b5",
-      "headSha": "0000000000000000000000001100000000000005",
-      "mergeable": true,
-      "checks": "none"
-    },
-    "id": "00000000000000000000000178"
-  },
-  {
-    "seq": 179,
-    "occurredAt": "1970-01-01T00:02:58.000Z",
-    "recordedAt": "1970-01-01T00:02:58.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -3993,12 +3969,12 @@
         }
       }
     },
-    "id": "00000000000000000000000179"
+    "id": "00000000000000000000000177"
   },
   {
-    "seq": 180,
-    "occurredAt": "1970-01-01T00:02:59.000Z",
-    "recordedAt": "1970-01-01T00:02:59.000Z",
+    "seq": 178,
+    "occurredAt": "1970-01-01T00:02:57.000Z",
+    "recordedAt": "1970-01-01T00:02:57.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4011,12 +3987,12 @@
       "mergeCommitSha": "0000000000000000000000001100000000000006",
       "commandId": "00000000000000000000000001/ondemand/merge/00000000000000000000000013"
     },
-    "id": "00000000000000000000000180"
+    "id": "00000000000000000000000178"
   },
   {
-    "seq": 181,
-    "occurredAt": "1970-01-01T00:03:00.000Z",
-    "recordedAt": "1970-01-01T00:03:00.000Z",
+    "seq": 179,
+    "occurredAt": "1970-01-01T00:02:58.000Z",
+    "recordedAt": "1970-01-01T00:02:58.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4028,12 +4004,12 @@
       "purpose": "merge",
       "queue": ["two", "three", "four"]
     },
-    "id": "00000000000000000000000181"
+    "id": "00000000000000000000000179"
   },
   {
-    "seq": 182,
-    "occurredAt": "1970-01-01T00:03:01.000Z",
-    "recordedAt": "1970-01-01T00:03:01.000Z",
+    "seq": 180,
+    "occurredAt": "1970-01-01T00:02:59.000Z",
+    "recordedAt": "1970-01-01T00:02:59.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4046,12 +4022,12 @@
       "queue": ["three", "four"],
       "current": "two"
     },
-    "id": "00000000000000000000000182"
+    "id": "00000000000000000000000180"
   },
   {
-    "seq": 183,
-    "occurredAt": "1970-01-01T00:03:02.000Z",
-    "recordedAt": "1970-01-01T00:03:02.000Z",
+    "seq": 181,
+    "occurredAt": "1970-01-01T00:03:00.000Z",
+    "recordedAt": "1970-01-01T00:03:00.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4062,12 +4038,12 @@
       "itemKey": "two",
       "status": "in_review"
     },
-    "id": "00000000000000000000000183"
+    "id": "00000000000000000000000181"
   },
   {
-    "seq": 184,
-    "occurredAt": "1970-01-01T00:03:03.000Z",
-    "recordedAt": "1970-01-01T00:03:03.000Z",
+    "seq": 182,
+    "occurredAt": "1970-01-01T00:03:01.000Z",
+    "recordedAt": "1970-01-01T00:03:01.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:one",
@@ -4080,12 +4056,12 @@
       "attemptId": "00000000000000000000000001/implement/one/1/attempt",
       "removeWorkspace": true
     },
-    "id": "00000000000000000000000184"
+    "id": "00000000000000000000000182"
   },
   {
-    "seq": 185,
-    "occurredAt": "1970-01-01T00:03:04.000Z",
-    "recordedAt": "1970-01-01T00:03:04.000Z",
+    "seq": 183,
+    "occurredAt": "1970-01-01T00:03:02.000Z",
+    "recordedAt": "1970-01-01T00:03:02.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4101,12 +4077,12 @@
       "workspaceName": "aio-000000000001-dependent",
       "baseSha": "0000000000000000000000001100000000000006"
     },
-    "id": "00000000000000000000000185"
+    "id": "00000000000000000000000183"
   },
   {
-    "seq": 186,
-    "occurredAt": "1970-01-01T00:03:05.000Z",
-    "recordedAt": "1970-01-01T00:03:05.000Z",
+    "seq": 184,
+    "occurredAt": "1970-01-01T00:03:03.000Z",
+    "recordedAt": "1970-01-01T00:03:03.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:dependent",
@@ -4127,12 +4103,12 @@
       "itemKey": "dependent",
       "spawnCommandId": "00000000000000000000000001/implement/dependent/1/spawn"
     },
-    "id": "00000000000000000000000186"
+    "id": "00000000000000000000000184"
   },
   {
-    "seq": 187,
-    "occurredAt": "1970-01-01T00:03:06.000Z",
-    "recordedAt": "1970-01-01T00:03:06.000Z",
+    "seq": 185,
+    "occurredAt": "1970-01-01T00:03:04.000Z",
+    "recordedAt": "1970-01-01T00:03:04.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4144,12 +4120,160 @@
       "status": "in_progress",
       "attemptId": "00000000000000000000000001/implement/dependent/1/attempt"
     },
+    "id": "00000000000000000000000185"
+  },
+  {
+    "seq": 186,
+    "occurredAt": "1970-01-01T00:03:05.000Z",
+    "recordedAt": "1970-01-01T00:03:05.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:one",
+    "attemptId": "00000000000000000000000001/implement/one/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/one/1/attempt",
+      "reason": "stopped",
+      "expected": true
+    },
+    "id": "00000000000000000000000186"
+  },
+  {
+    "seq": 187,
+    "occurredAt": "1970-01-01T00:03:06.000Z",
+    "recordedAt": "1970-01-01T00:03:06.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:two",
+    "attemptId": "00000000000000000000000001/implement/two/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/two/1/attempt",
+      "reason": "stopped",
+      "expected": true
+    },
     "id": "00000000000000000000000187"
   },
   {
     "seq": 188,
     "occurredAt": "1970-01-01T00:03:07.000Z",
     "recordedAt": "1970-01-01T00:03:07.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:three",
+    "attemptId": "00000000000000000000000001/implement/three/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
+      "reason": "stopped",
+      "expected": true
+    },
+    "id": "00000000000000000000000188"
+  },
+  {
+    "seq": 189,
+    "occurredAt": "1970-01-01T00:03:08.000Z",
+    "recordedAt": "1970-01-01T00:03:08.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:four",
+    "attemptId": "00000000000000000000000001/implement/four/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/four/1/attempt",
+      "reason": "stopped",
+      "expected": true
+    },
+    "id": "00000000000000000000000189"
+  },
+  {
+    "seq": 190,
+    "occurredAt": "1970-01-01T00:03:09.000Z",
+    "recordedAt": "1970-01-01T00:03:09.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:integrator",
+    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+      "state": "working"
+    },
+    "id": "00000000000000000000000190"
+  },
+  {
+    "seq": 191,
+    "occurredAt": "1970-01-01T00:03:10.000Z",
+    "recordedAt": "1970-01-01T00:03:10.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:integrator",
+    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+      "state": "working"
+    },
+    "id": "00000000000000000000000191"
+  },
+  {
+    "seq": 192,
+    "occurredAt": "1970-01-01T00:03:11.000Z",
+    "recordedAt": "1970-01-01T00:03:11.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:integrator",
+    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+      "state": "working"
+    },
+    "id": "00000000000000000000000192"
+  },
+  {
+    "seq": 193,
+    "occurredAt": "1970-01-01T00:03:12.000Z",
+    "recordedAt": "1970-01-01T00:03:12.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:dependent",
+    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+      "state": "working"
+    },
+    "id": "00000000000000000000000193"
+  },
+  {
+    "seq": 194,
+    "occurredAt": "1970-01-01T00:03:13.000Z",
+    "recordedAt": "1970-01-01T00:03:13.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -4170,12 +4294,12 @@
         }
       }
     },
-    "id": "00000000000000000000000188"
+    "id": "00000000000000000000000194"
   },
   {
-    "seq": 189,
-    "occurredAt": "1970-01-01T00:03:08.000Z",
-    "recordedAt": "1970-01-01T00:03:08.000Z",
+    "seq": 195,
+    "occurredAt": "1970-01-01T00:03:14.000Z",
+    "recordedAt": "1970-01-01T00:03:14.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4188,12 +4312,12 @@
       "mergeCommitSha": "0000000000000000000000001100000000000007",
       "commandId": "00000000000000000000000001/ondemand/merge/00000000000000000000000014"
     },
-    "id": "00000000000000000000000189"
+    "id": "00000000000000000000000195"
   },
   {
-    "seq": 190,
-    "occurredAt": "1970-01-01T00:03:09.000Z",
-    "recordedAt": "1970-01-01T00:03:09.000Z",
+    "seq": 196,
+    "occurredAt": "1970-01-01T00:03:15.000Z",
+    "recordedAt": "1970-01-01T00:03:15.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4205,12 +4329,12 @@
       "purpose": "merge",
       "queue": ["three", "four"]
     },
-    "id": "00000000000000000000000190"
+    "id": "00000000000000000000000196"
   },
   {
-    "seq": 191,
-    "occurredAt": "1970-01-01T00:03:10.000Z",
-    "recordedAt": "1970-01-01T00:03:10.000Z",
+    "seq": 197,
+    "occurredAt": "1970-01-01T00:03:16.000Z",
+    "recordedAt": "1970-01-01T00:03:16.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4223,12 +4347,12 @@
       "queue": ["four"],
       "current": "three"
     },
-    "id": "00000000000000000000000191"
+    "id": "00000000000000000000000197"
   },
   {
-    "seq": 192,
-    "occurredAt": "1970-01-01T00:03:11.000Z",
-    "recordedAt": "1970-01-01T00:03:11.000Z",
+    "seq": 198,
+    "occurredAt": "1970-01-01T00:03:17.000Z",
+    "recordedAt": "1970-01-01T00:03:17.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4239,12 +4363,12 @@
       "itemKey": "three",
       "status": "in_review"
     },
-    "id": "00000000000000000000000192"
+    "id": "00000000000000000000000198"
   },
   {
-    "seq": 193,
-    "occurredAt": "1970-01-01T00:03:12.000Z",
-    "recordedAt": "1970-01-01T00:03:12.000Z",
+    "seq": 199,
+    "occurredAt": "1970-01-01T00:03:18.000Z",
+    "recordedAt": "1970-01-01T00:03:18.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:two",
@@ -4257,121 +4381,6 @@
       "attemptId": "00000000000000000000000001/implement/two/1/attempt",
       "removeWorkspace": true
     },
-    "id": "00000000000000000000000193"
-  },
-  {
-    "seq": 194,
-    "occurredAt": "1970-01-01T00:03:13.000Z",
-    "recordedAt": "1970-01-01T00:03:13.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:integrator",
-    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-      "state": "working"
-    },
-    "id": "00000000000000000000000194"
-  },
-  {
-    "seq": 195,
-    "occurredAt": "1970-01-01T00:03:14.000Z",
-    "recordedAt": "1970-01-01T00:03:14.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:dependent",
-    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "state": "working"
-    },
-    "id": "00000000000000000000000195"
-  },
-  {
-    "seq": 196,
-    "occurredAt": "1970-01-01T00:03:15.000Z",
-    "recordedAt": "1970-01-01T00:03:15.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:integrator",
-    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-      "state": "working"
-    },
-    "id": "00000000000000000000000196"
-  },
-  {
-    "seq": 197,
-    "occurredAt": "1970-01-01T00:03:16.000Z",
-    "recordedAt": "1970-01-01T00:03:16.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:integrator",
-    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-    "source": "agent",
-    "provenance": "decided",
-    "schemaVersion": 1,
-    "type": "submission.accepted",
-    "payload": {
-      "submissionId": "00000000000000000000000015",
-      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-      "kind": "merge-request",
-      "submission": {
-        "kind": "merge-request",
-        "payload": {
-          "pr": 9,
-          "expectedHeadSha": "0000000000000000000000001100000000000004"
-        }
-      }
-    },
-    "id": "00000000000000000000000197"
-  },
-  {
-    "seq": 198,
-    "occurredAt": "1970-01-01T00:03:17.000Z",
-    "recordedAt": "1970-01-01T00:03:17.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
-    "schemaVersion": 1,
-    "type": "workitem.merged",
-    "payload": {
-      "itemKey": "three",
-      "pr": 9,
-      "mergeCommitSha": "0000000000000000000000001100000000000008",
-      "commandId": "00000000000000000000000001/ondemand/merge/00000000000000000000000015"
-    },
-    "id": "00000000000000000000000198"
-  },
-  {
-    "seq": 199,
-    "occurredAt": "1970-01-01T00:03:18.000Z",
-    "recordedAt": "1970-01-01T00:03:18.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
-    "schemaVersion": 1,
-    "type": "ondemand.queue_changed",
-    "payload": {
-      "stageId": "implement",
-      "purpose": "merge",
-      "queue": ["four"]
-    },
     "id": "00000000000000000000000199"
   },
   {
@@ -4380,15 +4389,15 @@
     "recordedAt": "1970-01-01T00:03:19.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
+    "seatId": "00000000000000000000000001:integrator",
+    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
     "schemaVersion": 1,
-    "type": "ondemand.queue_changed",
+    "type": "seat.status",
     "payload": {
-      "stageId": "implement",
-      "purpose": "merge",
-      "queue": [],
-      "current": "four"
+      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+      "state": "working"
     },
     "id": "00000000000000000000000200"
   },
@@ -4398,13 +4407,24 @@
     "recordedAt": "1970-01-01T00:03:20.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
+    "seatId": "00000000000000000000000001:engineer:dependent",
+    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
     "schemaVersion": 1,
-    "type": "workitem.status",
+    "type": "seat.activity",
     "payload": {
-      "itemKey": "four",
-      "status": "in_review"
+      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+      "activity": [
+        {
+          "messageId": "fake-message-200",
+          "tool": "read",
+          "category": "read",
+          "inputLen": 2,
+          "outputLen": 0,
+          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
+        }
+      ]
     },
     "id": "00000000000000000000000201"
   },
@@ -4414,15 +4434,15 @@
     "recordedAt": "1970-01-01T00:03:21.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:three",
-    "attemptId": "00000000000000000000000001/implement/three/1/attempt",
+    "seatId": "00000000000000000000000001:engineer:dependent",
+    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
     "source": "runtime",
     "provenance": "observed",
     "schemaVersion": 1,
-    "type": "seat.released",
+    "type": "usage.turns",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
-      "removeWorkspace": true
+      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+      "turns": 1
     },
     "id": "00000000000000000000000202"
   },
@@ -4442,9 +4462,9 @@
       "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-200",
-          "tool": "read",
-          "category": "read",
+          "messageId": "fake-message-202",
+          "tool": "edit",
+          "category": "edit",
           "inputLen": 2,
           "outputLen": 0,
           "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
@@ -4477,24 +4497,23 @@
     "recordedAt": "1970-01-01T00:03:24.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:dependent",
-    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
+    "seatId": "00000000000000000000000001:integrator",
+    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+    "source": "agent",
+    "provenance": "decided",
     "schemaVersion": 1,
-    "type": "seat.activity",
+    "type": "submission.accepted",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "activity": [
-        {
-          "messageId": "fake-message-202",
-          "tool": "edit",
-          "category": "edit",
-          "inputLen": 2,
-          "outputLen": 0,
-          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
+      "submissionId": "00000000000000000000000015",
+      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+      "kind": "merge-request",
+      "submission": {
+        "kind": "merge-request",
+        "payload": {
+          "pr": 9,
+          "expectedHeadSha": "0000000000000000000000001100000000000004"
         }
-      ]
+      }
     },
     "id": "00000000000000000000000205"
   },
@@ -4504,15 +4523,15 @@
     "recordedAt": "1970-01-01T00:03:25.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:dependent",
-    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
+    "source": "engine",
+    "provenance": "decided",
     "schemaVersion": 1,
-    "type": "usage.turns",
+    "type": "workitem.merged",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "turns": 1
+      "itemKey": "three",
+      "pr": 9,
+      "mergeCommitSha": "0000000000000000000000001100000000000008",
+      "commandId": "00000000000000000000000001/ondemand/merge/00000000000000000000000015"
     },
     "id": "00000000000000000000000206"
   },
@@ -4522,15 +4541,14 @@
     "recordedAt": "1970-01-01T00:03:26.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:integrator",
-    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
+    "source": "engine",
+    "provenance": "decided",
     "schemaVersion": 1,
-    "type": "seat.status",
+    "type": "ondemand.queue_changed",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-      "state": "working"
+      "stageId": "implement",
+      "purpose": "merge",
+      "queue": ["four"]
     },
     "id": "00000000000000000000000207"
   },
@@ -4540,24 +4558,15 @@
     "recordedAt": "1970-01-01T00:03:27.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:dependent",
-    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
+    "source": "engine",
+    "provenance": "decided",
     "schemaVersion": 1,
-    "type": "seat.activity",
+    "type": "ondemand.queue_changed",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "activity": [
-        {
-          "messageId": "fake-message-208",
-          "tool": "bash",
-          "category": "shell",
-          "inputLen": 2,
-          "outputLen": 0,
-          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
-        }
-      ]
+      "stageId": "implement",
+      "purpose": "merge",
+      "queue": [],
+      "current": "four"
     },
     "id": "00000000000000000000000208"
   },
@@ -4567,15 +4576,13 @@
     "recordedAt": "1970-01-01T00:03:28.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:dependent",
-    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
+    "source": "engine",
+    "provenance": "decided",
     "schemaVersion": 1,
-    "type": "usage.turns",
+    "type": "workitem.status",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "turns": 1
+      "itemKey": "four",
+      "status": "in_review"
     },
     "id": "00000000000000000000000209"
   },
@@ -4583,6 +4590,90 @@
     "seq": 210,
     "occurredAt": "1970-01-01T00:03:29.000Z",
     "recordedAt": "1970-01-01T00:03:29.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:three",
+    "attemptId": "00000000000000000000000001/implement/three/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.released",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/three/1/attempt",
+      "removeWorkspace": true
+    },
+    "id": "00000000000000000000000210"
+  },
+  {
+    "seq": 211,
+    "occurredAt": "1970-01-01T00:03:30.000Z",
+    "recordedAt": "1970-01-01T00:03:30.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 7,
+      "state": "merged",
+      "base": "ai-office/b1",
+      "head": "ai-office/b2",
+      "headSha": "0000000000000000000000001100000000000002",
+      "mergeable": true,
+      "checks": "none",
+      "mergedBy": "ai-office-fake",
+      "mergeCommitSha": "0000000000000000000000001100000000000006"
+    },
+    "id": "00000000000000000000000211"
+  },
+  {
+    "seq": 212,
+    "occurredAt": "1970-01-01T00:03:31.000Z",
+    "recordedAt": "1970-01-01T00:03:31.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 8,
+      "state": "merged",
+      "base": "ai-office/b1",
+      "head": "ai-office/b3",
+      "headSha": "0000000000000000000000001100000000000003",
+      "mergeable": true,
+      "checks": "none",
+      "mergedBy": "ai-office-fake",
+      "mergeCommitSha": "0000000000000000000000001100000000000007"
+    },
+    "id": "00000000000000000000000212"
+  },
+  {
+    "seq": 213,
+    "occurredAt": "1970-01-01T00:03:32.000Z",
+    "recordedAt": "1970-01-01T00:03:32.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 9,
+      "state": "merged",
+      "base": "ai-office/b1",
+      "head": "ai-office/b4",
+      "headSha": "0000000000000000000000001100000000000004",
+      "mergeable": true,
+      "checks": "none",
+      "mergedBy": "ai-office-fake",
+      "mergeCommitSha": "0000000000000000000000001100000000000008"
+    },
+    "id": "00000000000000000000000213"
+  },
+  {
+    "seq": 214,
+    "occurredAt": "1970-01-01T00:03:33.000Z",
+    "recordedAt": "1970-01-01T00:03:33.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -4603,12 +4694,12 @@
         }
       }
     },
-    "id": "00000000000000000000000210"
+    "id": "00000000000000000000000214"
   },
   {
-    "seq": 211,
-    "occurredAt": "1970-01-01T00:03:30.000Z",
-    "recordedAt": "1970-01-01T00:03:30.000Z",
+    "seq": 215,
+    "occurredAt": "1970-01-01T00:03:34.000Z",
+    "recordedAt": "1970-01-01T00:03:34.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4621,12 +4712,12 @@
       "mergeCommitSha": "0000000000000000000000001100000000000009",
       "commandId": "00000000000000000000000001/ondemand/merge/00000000000000000000000016"
     },
-    "id": "00000000000000000000000211"
+    "id": "00000000000000000000000215"
   },
   {
-    "seq": 212,
-    "occurredAt": "1970-01-01T00:03:31.000Z",
-    "recordedAt": "1970-01-01T00:03:31.000Z",
+    "seq": 216,
+    "occurredAt": "1970-01-01T00:03:35.000Z",
+    "recordedAt": "1970-01-01T00:03:35.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4638,12 +4729,12 @@
       "purpose": "merge",
       "queue": []
     },
-    "id": "00000000000000000000000212"
+    "id": "00000000000000000000000216"
   },
   {
-    "seq": 213,
-    "occurredAt": "1970-01-01T00:03:32.000Z",
-    "recordedAt": "1970-01-01T00:03:32.000Z",
+    "seq": 217,
+    "occurredAt": "1970-01-01T00:03:36.000Z",
+    "recordedAt": "1970-01-01T00:03:36.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:four",
@@ -4656,94 +4747,6 @@
       "attemptId": "00000000000000000000000001/implement/four/1/attempt",
       "removeWorkspace": true
     },
-    "id": "00000000000000000000000213"
-  },
-  {
-    "seq": 214,
-    "occurredAt": "1970-01-01T00:03:33.000Z",
-    "recordedAt": "1970-01-01T00:03:33.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 7,
-      "state": "merged",
-      "base": "ai-office/b1",
-      "head": "ai-office/b2",
-      "headSha": "0000000000000000000000001100000000000002",
-      "mergeable": true,
-      "checks": "none",
-      "mergedBy": "ai-office-fake",
-      "mergeCommitSha": "0000000000000000000000001100000000000006"
-    },
-    "id": "00000000000000000000000214"
-  },
-  {
-    "seq": 215,
-    "occurredAt": "1970-01-01T00:03:34.000Z",
-    "recordedAt": "1970-01-01T00:03:34.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 8,
-      "state": "merged",
-      "base": "ai-office/b1",
-      "head": "ai-office/b3",
-      "headSha": "0000000000000000000000001100000000000003",
-      "mergeable": true,
-      "checks": "none",
-      "mergedBy": "ai-office-fake",
-      "mergeCommitSha": "0000000000000000000000001100000000000007"
-    },
-    "id": "00000000000000000000000215"
-  },
-  {
-    "seq": 216,
-    "occurredAt": "1970-01-01T00:03:35.000Z",
-    "recordedAt": "1970-01-01T00:03:35.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 9,
-      "state": "merged",
-      "base": "ai-office/b1",
-      "head": "ai-office/b4",
-      "headSha": "0000000000000000000000001100000000000004",
-      "mergeable": true,
-      "checks": "none",
-      "mergedBy": "ai-office-fake",
-      "mergeCommitSha": "0000000000000000000000001100000000000008"
-    },
-    "id": "00000000000000000000000216"
-  },
-  {
-    "seq": 217,
-    "occurredAt": "1970-01-01T00:03:36.000Z",
-    "recordedAt": "1970-01-01T00:03:36.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 10,
-      "state": "merged",
-      "base": "ai-office/b1",
-      "head": "ai-office/b5",
-      "headSha": "0000000000000000000000001100000000000005",
-      "mergeable": true,
-      "checks": "none",
-      "mergedBy": "ai-office-fake",
-      "mergeCommitSha": "0000000000000000000000001100000000000009"
-    },
     "id": "00000000000000000000000217"
   },
   {
@@ -4752,24 +4755,15 @@
     "recordedAt": "1970-01-01T00:03:37.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:dependent",
-    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+    "seatId": "00000000000000000000000001:integrator",
+    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
     "source": "runtime",
     "provenance": "observed",
     "schemaVersion": 1,
-    "type": "seat.activity",
+    "type": "seat.status",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "activity": [
-        {
-          "messageId": "fake-message-212",
-          "tool": "git",
-          "category": "git",
-          "inputLen": 24,
-          "outputLen": 0,
-          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
-        }
-      ]
+      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+      "state": "working"
     },
     "id": "00000000000000000000000218"
   },
@@ -4784,10 +4778,19 @@
     "source": "runtime",
     "provenance": "observed",
     "schemaVersion": 1,
-    "type": "usage.turns",
+    "type": "seat.activity",
     "payload": {
       "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "turns": 1
+      "activity": [
+        {
+          "messageId": "fake-message-209",
+          "tool": "bash",
+          "category": "shell",
+          "inputLen": 2,
+          "outputLen": 0,
+          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
+        }
+      ]
     },
     "id": "00000000000000000000000219"
   },
@@ -4797,15 +4800,15 @@
     "recordedAt": "1970-01-01T00:03:39.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "seatId": "00000000000000000000000001:integrator",
-    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+    "seatId": "00000000000000000000000001:engineer:dependent",
+    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
     "source": "runtime",
     "provenance": "observed",
     "schemaVersion": 1,
-    "type": "seat.status",
+    "type": "usage.turns",
     "payload": {
-      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
-      "state": "done"
+      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+      "turns": 1
     },
     "id": "00000000000000000000000220"
   },
@@ -4820,10 +4823,19 @@
     "source": "runtime",
     "provenance": "observed",
     "schemaVersion": 1,
-    "type": "seat.status",
+    "type": "seat.activity",
     "payload": {
       "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "state": "done"
+      "activity": [
+        {
+          "messageId": "fake-message-211",
+          "tool": "git",
+          "category": "git",
+          "inputLen": 24,
+          "outputLen": 0,
+          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
+        }
+      ]
     },
     "id": "00000000000000000000000221"
   },
@@ -4833,15 +4845,15 @@
     "recordedAt": "1970-01-01T00:03:41.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
+    "seatId": "00000000000000000000000001:engineer:dependent",
+    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
     "schemaVersion": 1,
-    "type": "workitem.status",
+    "type": "usage.turns",
     "payload": {
-      "itemKey": "dependent",
-      "status": "pushed",
       "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "headSha": "000000000000000000000000110000000000000a"
+      "turns": 1
     },
     "id": "00000000000000000000000222"
   },
@@ -4851,15 +4863,15 @@
     "recordedAt": "1970-01-01T00:03:42.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
+    "seatId": "00000000000000000000000001:integrator",
+    "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
     "schemaVersion": 1,
-    "type": "workitem.status",
+    "type": "seat.status",
     "payload": {
-      "itemKey": "dependent",
-      "status": "pr_open",
-      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "pr": 11
+      "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
+      "state": "done"
     },
     "id": "00000000000000000000000223"
   },
@@ -4869,15 +4881,15 @@
     "recordedAt": "1970-01-01T00:03:43.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
+    "seatId": "00000000000000000000000001:engineer:dependent",
+    "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
     "schemaVersion": 1,
-    "type": "workitem.merge_queued",
+    "type": "seat.status",
     "payload": {
-      "itemKey": "dependent",
       "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
-      "pr": 11,
-      "headSha": "000000000000000000000000110000000000000a"
+      "state": "done"
     },
     "id": "00000000000000000000000224"
   },
@@ -4890,11 +4902,12 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "ondemand.queue_changed",
+    "type": "workitem.status",
     "payload": {
-      "stageId": "implement",
-      "purpose": "merge",
-      "queue": ["dependent"]
+      "itemKey": "dependent",
+      "status": "pushed",
+      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+      "headSha": "000000000000000000000000110000000000000a"
     },
     "id": "00000000000000000000000225"
   },
@@ -4907,12 +4920,16 @@
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
-    "type": "ondemand.queue_changed",
+    "type": "artifact.created",
     "payload": {
-      "stageId": "implement",
-      "purpose": "merge",
-      "queue": [],
-      "current": "dependent"
+      "artifactId": "00000000000000000000000001/implement/dependent/1/pr",
+      "kind": "pr",
+      "number": 11,
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/pull/11",
+      "purpose": "worker",
+      "head": "ai-office/b6",
+      "base": "ai-office/b1",
+      "itemKey": "dependent"
     },
     "id": "00000000000000000000000226"
   },
@@ -4928,7 +4945,9 @@
     "type": "workitem.status",
     "payload": {
       "itemKey": "dependent",
-      "status": "in_review"
+      "status": "pr_open",
+      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+      "pr": 11
     },
     "id": "00000000000000000000000227"
   },
@@ -4936,6 +4955,75 @@
     "seq": 228,
     "occurredAt": "1970-01-01T00:03:47.000Z",
     "recordedAt": "1970-01-01T00:03:47.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "workitem.merge_queued",
+    "payload": {
+      "itemKey": "dependent",
+      "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
+      "pr": 11,
+      "headSha": "000000000000000000000000110000000000000a"
+    },
+    "id": "00000000000000000000000228"
+  },
+  {
+    "seq": 229,
+    "occurredAt": "1970-01-01T00:03:48.000Z",
+    "recordedAt": "1970-01-01T00:03:48.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "ondemand.queue_changed",
+    "payload": {
+      "stageId": "implement",
+      "purpose": "merge",
+      "queue": ["dependent"]
+    },
+    "id": "00000000000000000000000229"
+  },
+  {
+    "seq": 230,
+    "occurredAt": "1970-01-01T00:03:49.000Z",
+    "recordedAt": "1970-01-01T00:03:49.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "ondemand.queue_changed",
+    "payload": {
+      "stageId": "implement",
+      "purpose": "merge",
+      "queue": [],
+      "current": "dependent"
+    },
+    "id": "00000000000000000000000230"
+  },
+  {
+    "seq": 231,
+    "occurredAt": "1970-01-01T00:03:50.000Z",
+    "recordedAt": "1970-01-01T00:03:50.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "workitem.status",
+    "payload": {
+      "itemKey": "dependent",
+      "status": "in_review"
+    },
+    "id": "00000000000000000000000231"
+  },
+  {
+    "seq": 232,
+    "occurredAt": "1970-01-01T00:03:51.000Z",
+    "recordedAt": "1970-01-01T00:03:51.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -4956,12 +5044,12 @@
         }
       }
     },
-    "id": "00000000000000000000000228"
+    "id": "00000000000000000000000232"
   },
   {
-    "seq": 229,
-    "occurredAt": "1970-01-01T00:03:48.000Z",
-    "recordedAt": "1970-01-01T00:03:48.000Z",
+    "seq": 233,
+    "occurredAt": "1970-01-01T00:03:52.000Z",
+    "recordedAt": "1970-01-01T00:03:52.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -4974,12 +5062,12 @@
       "mergeCommitSha": "000000000000000000000000110000000000000b",
       "commandId": "00000000000000000000000001/ondemand/merge/00000000000000000000000017"
     },
-    "id": "00000000000000000000000229"
+    "id": "00000000000000000000000233"
   },
   {
-    "seq": 230,
-    "occurredAt": "1970-01-01T00:03:49.000Z",
-    "recordedAt": "1970-01-01T00:03:49.000Z",
+    "seq": 234,
+    "occurredAt": "1970-01-01T00:03:53.000Z",
+    "recordedAt": "1970-01-01T00:03:53.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:dependent",
@@ -4992,12 +5080,12 @@
       "attemptId": "00000000000000000000000001/implement/dependent/1/attempt",
       "removeWorkspace": true
     },
-    "id": "00000000000000000000000230"
+    "id": "00000000000000000000000234"
   },
   {
-    "seq": 231,
-    "occurredAt": "1970-01-01T00:03:50.000Z",
-    "recordedAt": "1970-01-01T00:03:50.000Z",
+    "seq": 235,
+    "occurredAt": "1970-01-01T00:03:54.000Z",
+    "recordedAt": "1970-01-01T00:03:54.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -5010,12 +5098,12 @@
       "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
       "removeWorkspace": true
     },
-    "id": "00000000000000000000000231"
+    "id": "00000000000000000000000235"
   },
   {
-    "seq": 232,
-    "occurredAt": "1970-01-01T00:03:51.000Z",
-    "recordedAt": "1970-01-01T00:03:51.000Z",
+    "seq": 236,
+    "occurredAt": "1970-01-01T00:03:55.000Z",
+    "recordedAt": "1970-01-01T00:03:55.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -5028,12 +5116,12 @@
       "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
       "reason": "stage_ended"
     },
-    "id": "00000000000000000000000232"
+    "id": "00000000000000000000000236"
   },
   {
-    "seq": 233,
-    "occurredAt": "1970-01-01T00:03:52.000Z",
-    "recordedAt": "1970-01-01T00:03:52.000Z",
+    "seq": 237,
+    "occurredAt": "1970-01-01T00:03:56.000Z",
+    "recordedAt": "1970-01-01T00:03:56.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -5044,12 +5132,12 @@
       "stageId": "implement",
       "attempt": 1
     },
-    "id": "00000000000000000000000233"
+    "id": "00000000000000000000000237"
   },
   {
-    "seq": 234,
-    "occurredAt": "1970-01-01T00:03:53.000Z",
-    "recordedAt": "1970-01-01T00:03:53.000Z",
+    "seq": 238,
+    "occurredAt": "1970-01-01T00:03:57.000Z",
+    "recordedAt": "1970-01-01T00:03:57.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "source": "engine",
@@ -5062,12 +5150,12 @@
       "attempt": 1,
       "mode": "initial"
     },
-    "id": "00000000000000000000000234"
+    "id": "00000000000000000000000238"
   },
   {
-    "seq": 235,
-    "occurredAt": "1970-01-01T00:03:54.000Z",
-    "recordedAt": "1970-01-01T00:03:54.000Z",
+    "seq": 239,
+    "occurredAt": "1970-01-01T00:03:58.000Z",
+    "recordedAt": "1970-01-01T00:03:58.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "seatId": "00000000000000000000000001:integrator",
@@ -5087,12 +5175,12 @@
       "keepOpen": false,
       "spawnCommandId": "00000000000000000000000001/integrate/1/spawn/integrator"
     },
-    "id": "00000000000000000000000235"
+    "id": "00000000000000000000000239"
   },
   {
-    "seq": 236,
-    "occurredAt": "1970-01-01T00:03:55.000Z",
-    "recordedAt": "1970-01-01T00:03:55.000Z",
+    "seq": 240,
+    "occurredAt": "1970-01-01T00:03:59.000Z",
+    "recordedAt": "1970-01-01T00:03:59.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:dependent",
@@ -5106,12 +5194,12 @@
       "reason": "stopped",
       "expected": true
     },
-    "id": "00000000000000000000000236"
+    "id": "00000000000000000000000240"
   },
   {
-    "seq": 237,
-    "occurredAt": "1970-01-01T00:03:56.000Z",
-    "recordedAt": "1970-01-01T00:03:56.000Z",
+    "seq": 241,
+    "occurredAt": "1970-01-01T00:04:00.000Z",
+    "recordedAt": "1970-01-01T00:04:00.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -5124,12 +5212,12 @@
       "attemptId": "00000000000000000000000001/implement/1/ondemand/merge/1/attempt",
       "state": "working"
     },
-    "id": "00000000000000000000000237"
+    "id": "00000000000000000000000241"
   },
   {
-    "seq": 238,
-    "occurredAt": "1970-01-01T00:03:57.000Z",
-    "recordedAt": "1970-01-01T00:03:57.000Z",
+    "seq": 242,
+    "occurredAt": "1970-01-01T00:04:01.000Z",
+    "recordedAt": "1970-01-01T00:04:01.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:integrator",
@@ -5143,12 +5231,12 @@
       "reason": "stopped",
       "expected": true
     },
-    "id": "00000000000000000000000238"
+    "id": "00000000000000000000000242"
   },
   {
-    "seq": 239,
-    "occurredAt": "1970-01-01T00:03:58.000Z",
-    "recordedAt": "1970-01-01T00:03:58.000Z",
+    "seq": 243,
+    "occurredAt": "1970-01-01T00:04:02.000Z",
+    "recordedAt": "1970-01-01T00:04:02.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "seatId": "00000000000000000000000001:integrator",
@@ -5161,12 +5249,95 @@
       "attemptId": "00000000000000000000000001/integrate/1/attempt/integrator",
       "state": "working"
     },
-    "id": "00000000000000000000000239"
+    "id": "00000000000000000000000243"
   },
   {
-    "seq": 240,
-    "occurredAt": "1970-01-01T00:03:59.000Z",
-    "recordedAt": "1970-01-01T00:03:59.000Z",
+    "seq": 244,
+    "occurredAt": "1970-01-01T00:04:03.000Z",
+    "recordedAt": "1970-01-01T00:04:03.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 10,
+      "state": "merged",
+      "base": "ai-office/b1",
+      "head": "ai-office/b5",
+      "headSha": "0000000000000000000000001100000000000005",
+      "mergeable": true,
+      "checks": "none",
+      "mergedBy": "ai-office-fake",
+      "mergeCommitSha": "0000000000000000000000001100000000000009"
+    },
+    "id": "00000000000000000000000244"
+  },
+  {
+    "seq": 245,
+    "occurredAt": "1970-01-01T00:04:04.000Z",
+    "recordedAt": "1970-01-01T00:04:04.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 11,
+      "state": "open",
+      "base": "ai-office/b1",
+      "head": "ai-office/b6",
+      "headSha": "000000000000000000000000110000000000000a",
+      "mergeable": true
+    },
+    "id": "00000000000000000000000245"
+  },
+  {
+    "seq": 246,
+    "occurredAt": "1970-01-01T00:04:05.000Z",
+    "recordedAt": "1970-01-01T00:04:05.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 11,
+      "state": "open",
+      "base": "ai-office/b1",
+      "head": "ai-office/b6",
+      "headSha": "000000000000000000000000110000000000000a",
+      "mergeable": true,
+      "checks": "none"
+    },
+    "id": "00000000000000000000000246"
+  },
+  {
+    "seq": 247,
+    "occurredAt": "1970-01-01T00:04:06.000Z",
+    "recordedAt": "1970-01-01T00:04:06.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 11,
+      "state": "merged",
+      "base": "ai-office/b1",
+      "head": "ai-office/b6",
+      "headSha": "000000000000000000000000110000000000000a",
+      "mergeable": true,
+      "checks": "none",
+      "mergedBy": "ai-office-fake",
+      "mergeCommitSha": "000000000000000000000000110000000000000b"
+    },
+    "id": "00000000000000000000000247"
+  },
+  {
+    "seq": 248,
+    "occurredAt": "1970-01-01T00:04:07.000Z",
+    "recordedAt": "1970-01-01T00:04:07.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "seatId": "00000000000000000000000001:integrator",
@@ -5194,12 +5365,12 @@
         }
       }
     },
-    "id": "00000000000000000000000240"
+    "id": "00000000000000000000000248"
   },
   {
-    "seq": 241,
-    "occurredAt": "1970-01-01T00:04:00.000Z",
-    "recordedAt": "1970-01-01T00:04:00.000Z",
+    "seq": 249,
+    "occurredAt": "1970-01-01T00:04:08.000Z",
+    "recordedAt": "1970-01-01T00:04:08.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "source": "engine",
@@ -5212,12 +5383,12 @@
       "submissionId": "00000000000000000000000018",
       "attemptId": "00000000000000000000000001/integrate/1/attempt/integrator"
     },
-    "id": "00000000000000000000000241"
+    "id": "00000000000000000000000249"
   },
   {
-    "seq": 242,
-    "occurredAt": "1970-01-01T00:04:01.000Z",
-    "recordedAt": "1970-01-01T00:04:01.000Z",
+    "seq": 250,
+    "occurredAt": "1970-01-01T00:04:09.000Z",
+    "recordedAt": "1970-01-01T00:04:09.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "seatId": "00000000000000000000000001:integrator",
@@ -5230,12 +5401,12 @@
       "attemptId": "00000000000000000000000001/integrate/1/attempt/integrator",
       "removeWorkspace": true
     },
-    "id": "00000000000000000000000242"
+    "id": "00000000000000000000000250"
   },
   {
-    "seq": 243,
-    "occurredAt": "1970-01-01T00:04:02.000Z",
-    "recordedAt": "1970-01-01T00:04:02.000Z",
+    "seq": 251,
+    "occurredAt": "1970-01-01T00:04:10.000Z",
+    "recordedAt": "1970-01-01T00:04:10.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "source": "engine",
@@ -5246,12 +5417,12 @@
       "stageId": "integrate",
       "attempt": 1
     },
-    "id": "00000000000000000000000243"
+    "id": "00000000000000000000000251"
   },
   {
-    "seq": 244,
-    "occurredAt": "1970-01-01T00:04:03.000Z",
-    "recordedAt": "1970-01-01T00:04:03.000Z",
+    "seq": 252,
+    "occurredAt": "1970-01-01T00:04:11.000Z",
+    "recordedAt": "1970-01-01T00:04:11.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "final-pr",
     "source": "engine",
@@ -5264,12 +5435,12 @@
       "attempt": 1,
       "mode": "initial"
     },
-    "id": "00000000000000000000000244"
+    "id": "00000000000000000000000252"
   },
   {
-    "seq": 245,
-    "occurredAt": "1970-01-01T00:04:04.000Z",
-    "recordedAt": "1970-01-01T00:04:04.000Z",
+    "seq": 253,
+    "occurredAt": "1970-01-01T00:04:12.000Z",
+    "recordedAt": "1970-01-01T00:04:12.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "final-pr",
     "source": "engine",
@@ -5285,12 +5456,12 @@
       "head": "ai-office/b1",
       "base": "main"
     },
-    "id": "00000000000000000000000245"
+    "id": "00000000000000000000000253"
   },
   {
-    "seq": 246,
-    "occurredAt": "1970-01-01T00:04:05.000Z",
-    "recordedAt": "1970-01-01T00:04:05.000Z",
+    "seq": 254,
+    "occurredAt": "1970-01-01T00:04:13.000Z",
+    "recordedAt": "1970-01-01T00:04:13.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "final-pr",
     "source": "engine",
@@ -5301,12 +5472,12 @@
       "stageId": "final-pr",
       "attempt": 1
     },
-    "id": "00000000000000000000000246"
+    "id": "00000000000000000000000254"
   },
   {
-    "seq": 247,
-    "occurredAt": "1970-01-01T00:04:06.000Z",
-    "recordedAt": "1970-01-01T00:04:06.000Z",
+    "seq": 255,
+    "occurredAt": "1970-01-01T00:04:14.000Z",
+    "recordedAt": "1970-01-01T00:04:14.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "final-pr",
     "source": "engine",
@@ -5342,112 +5513,12 @@
       "stageKind": "final-pr",
       "optional": false
     },
-    "id": "00000000000000000000000247"
+    "id": "00000000000000000000000255"
   },
   {
-    "seq": 248,
-    "occurredAt": "1970-01-01T00:04:07.000Z",
-    "recordedAt": "1970-01-01T00:04:07.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 11,
-      "state": "open",
-      "base": "ai-office/b1",
-      "head": "ai-office/b6",
-      "headSha": "000000000000000000000000110000000000000a",
-      "mergeable": true
-    },
-    "id": "00000000000000000000000248"
-  },
-  {
-    "seq": 249,
-    "occurredAt": "1970-01-01T00:04:08.000Z",
-    "recordedAt": "1970-01-01T00:04:08.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 11,
-      "state": "open",
-      "base": "ai-office/b1",
-      "head": "ai-office/b6",
-      "headSha": "000000000000000000000000110000000000000a",
-      "mergeable": true,
-      "checks": "none"
-    },
-    "id": "00000000000000000000000249"
-  },
-  {
-    "seq": 250,
-    "occurredAt": "1970-01-01T00:04:09.000Z",
-    "recordedAt": "1970-01-01T00:04:09.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 11,
-      "state": "merged",
-      "base": "ai-office/b1",
-      "head": "ai-office/b6",
-      "headSha": "000000000000000000000000110000000000000a",
-      "mergeable": true,
-      "checks": "none",
-      "mergedBy": "ai-office-fake",
-      "mergeCommitSha": "000000000000000000000000110000000000000b"
-    },
-    "id": "00000000000000000000000250"
-  },
-  {
-    "seq": 251,
-    "occurredAt": "1970-01-01T00:04:10.000Z",
-    "recordedAt": "1970-01-01T00:04:10.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 12,
-      "state": "open",
-      "base": "main",
-      "head": "ai-office/b1",
-      "headSha": "000000000000000000000000110000000000000b",
-      "mergeable": true
-    },
-    "id": "00000000000000000000000251"
-  },
-  {
-    "seq": 252,
-    "occurredAt": "1970-01-01T00:04:11.000Z",
-    "recordedAt": "1970-01-01T00:04:11.000Z",
-    "workflowId": "00000000000000000000000001",
-    "source": "scm",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "pr.status",
-    "payload": {
-      "pr": 12,
-      "state": "open",
-      "base": "main",
-      "head": "ai-office/b1",
-      "headSha": "000000000000000000000000110000000000000b",
-      "mergeable": true,
-      "checks": "none"
-    },
-    "id": "00000000000000000000000252"
-  },
-  {
-    "seq": 253,
-    "occurredAt": "1970-01-01T00:04:12.000Z",
-    "recordedAt": "1970-01-01T00:04:12.000Z",
+    "seq": 256,
+    "occurredAt": "1970-01-01T00:04:15.000Z",
+    "recordedAt": "1970-01-01T00:04:15.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "integrate",
     "seatId": "00000000000000000000000001:integrator",
@@ -5461,12 +5532,51 @@
       "reason": "stopped",
       "expected": true
     },
-    "id": "00000000000000000000000253"
+    "id": "00000000000000000000000256"
   },
   {
-    "seq": 254,
-    "occurredAt": "1970-01-01T00:04:13.000Z",
-    "recordedAt": "1970-01-01T00:04:13.000Z",
+    "seq": 257,
+    "occurredAt": "1970-01-01T00:04:16.000Z",
+    "recordedAt": "1970-01-01T00:04:16.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 12,
+      "state": "open",
+      "base": "main",
+      "head": "ai-office/b1",
+      "headSha": "000000000000000000000000110000000000000b",
+      "mergeable": true
+    },
+    "id": "00000000000000000000000257"
+  },
+  {
+    "seq": 258,
+    "occurredAt": "1970-01-01T00:04:17.000Z",
+    "recordedAt": "1970-01-01T00:04:17.000Z",
+    "workflowId": "00000000000000000000000001",
+    "source": "scm",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "pr.status",
+    "payload": {
+      "pr": 12,
+      "state": "open",
+      "base": "main",
+      "head": "ai-office/b1",
+      "headSha": "000000000000000000000000110000000000000b",
+      "mergeable": true,
+      "checks": "none"
+    },
+    "id": "00000000000000000000000258"
+  },
+  {
+    "seq": 259,
+    "occurredAt": "1970-01-01T00:04:18.000Z",
+    "recordedAt": "1970-01-01T00:04:18.000Z",
     "workflowId": "00000000000000000000000001",
     "source": "scm",
     "provenance": "observed",
@@ -5483,12 +5593,12 @@
       "mergedBy": "ai-office-fake",
       "mergeCommitSha": "000000000000000000000000110000000000000c"
     },
-    "id": "00000000000000000000000254"
+    "id": "00000000000000000000000259"
   },
   {
-    "seq": 255,
-    "occurredAt": "1970-01-01T00:04:14.000Z",
-    "recordedAt": "1970-01-01T00:04:14.000Z",
+    "seq": 260,
+    "occurredAt": "1970-01-01T00:04:19.000Z",
+    "recordedAt": "1970-01-01T00:04:19.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "final-pr",
     "source": "engine",
@@ -5499,12 +5609,12 @@
       "gateId": "00000000000000000000000001/final-pr/gate/1",
       "reason": "merged"
     },
-    "id": "00000000000000000000000255"
+    "id": "00000000000000000000000260"
   },
   {
-    "seq": 256,
-    "occurredAt": "1970-01-01T00:04:15.000Z",
-    "recordedAt": "1970-01-01T00:04:15.000Z",
+    "seq": 261,
+    "occurredAt": "1970-01-01T00:04:20.000Z",
+    "recordedAt": "1970-01-01T00:04:20.000Z",
     "workflowId": "00000000000000000000000001",
     "source": "engine",
     "provenance": "decided",
@@ -5514,6 +5624,6 @@
       "finalPr": 12,
       "mergeCommitSha": "000000000000000000000000110000000000000c"
     },
-    "id": "00000000000000000000000256"
+    "id": "00000000000000000000000261"
   }
 ]
