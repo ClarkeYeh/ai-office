@@ -420,5 +420,13 @@
   {
     "file": "apps/web/src/realtime/other.ts",
     "rules": ["realtime-react-only-in-bridge"]
+  },
+  {
+    "file": "apps/server/src/api/dev-fake/auth-good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/api/dev-fake/internal-bad.ts",
+    "rules": ["dev-fake-api-allowed"]
   }
 ]

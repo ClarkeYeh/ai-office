@@ -1,5 +1,6 @@
+import { launcherSession, autoMergeFinal } from './auto-merge.mjs';
 import { setTimeout, clearTimeout } from 'node:timers';
-import { access, mkdir, mkdtemp } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, copyFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createServer } from 'node:net';
@@ -22,24 +23,32 @@ async function freePort() {
 
 /** @param {string[]} args */
 export function parseOptions(args) {
-  let fake = 'mainline';
+  let fake = 'demo';
+  let autoMergeFinalSeconds;
   let open = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--') continue;
     if (args[i] === '--open') open = true;
+    else if (args[i] === '--auto-merge-final')
+      autoMergeFinalSeconds = Number(args[++i] ?? NaN);
     else if (args[i] === '--fake') fake = args[++i] ?? '';
     else throw new Error(`Unknown option: ${args[i]}`);
   }
-  if (fake !== 'mainline')
-    throw new Error(
-      'T0 supports only --fake mainline; additional scenarios arrive in M4-T7.',
-    );
-  return { fake, open };
+  if (
+    !['mainline', 'demo', 'parallel', 'trouble', 'load-10', 'stall'].includes(
+      fake,
+    )
+  )
+    throw new Error('Unknown fake scenario');
+  autoMergeFinalSeconds ??= fake === 'demo' ? 8 : 0;
+  if (!Number.isFinite(autoMergeFinalSeconds) || autoMergeFinalSeconds < 0)
+    throw new Error('Invalid final merge delay');
+  return { fake, open, autoMergeFinalSeconds };
 }
 
 /** @param {string[]} args */
 export async function devOffice(args) {
-  const { fake, open } = parseOptions(args);
+  const { fake, open, autoMergeFinalSeconds } = parseOptions(args);
   const root = resolve(import.meta.dirname, '../..');
   for (const file of ['apps/server/dist/main.js', 'apps/cli/dist/main.js']) {
     try {
@@ -52,6 +61,16 @@ export async function devOffice(args) {
   await mkdir(homeRoot, { recursive: true });
   // Unique per invocation so concurrent workers never share a lock or database.
   const home = await mkdtemp(join(homeRoot, `${fake}-`));
+  if (fake !== 'mainline') {
+    await mkdir(join(home, 'templates'), { recursive: true });
+    await copyFile(
+      join(root, 'fixtures/web/templates', fake + '.yaml'),
+      join(home, 'templates', fake + '.yaml'),
+    );
+  }
+  const autoMergeAbort = new globalThis.AbortController();
+  if (fake === 'load-10')
+    await writeFile(join(home, 'config.toml'), '[limits]\nglobalAgents = 12\n');
   const vitePort = await freePort();
   const origin = `http://localhost:${vitePort}`;
   const backend = spawn(
@@ -83,6 +102,7 @@ export async function devOffice(args) {
   const stop = () => {
     if (stopping) return;
     stopping = true;
+    autoMergeAbort.abort();
     vite?.kill('SIGTERM');
     backend.kill('SIGTERM');
     force = setTimeout(() => {
@@ -120,6 +140,21 @@ export async function devOffice(args) {
     if (port === '4319') {
       fail(new Error('Refusing reserved backend port 4319; retry.'));
       return;
+    }
+    if (autoMergeFinalSeconds > 0) {
+      const url = 'http://127.0.0.1:' + port;
+      void launcherSession(home, url)
+        .then((cookie) =>
+          autoMergeFinal(
+            url,
+            cookie,
+            autoMergeFinalSeconds,
+            autoMergeAbort.signal,
+          ),
+        )
+        .catch((error) => {
+          if (!stopping) fail(error);
+        });
     }
     const bootstrap = new URL(/** @type {string} */ (match[1]));
     const login = origin + bootstrap.pathname + bootstrap.search;

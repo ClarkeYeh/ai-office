@@ -331,6 +331,9 @@ const config = {
     rule('no-import-e2e', { pathNot: '^apps/e2e/' }, { path: '^apps/e2e/' }),
     boundary('dev-fake-api-allowed', '^apps/server/src/api/dev-fake/', [
       '^apps/server/src/api/dev-fake/',
+      '^apps/server/src/api/auth/index\\.ts$',
+      '^apps/server/src/api/errors\\.ts$',
+      packagePath('@fastify/cookie'),
       packagePath('fastify'),
     ]),
     rule(
