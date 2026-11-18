@@ -190,6 +190,15 @@ export class OrcaObserver {
   close(): void {
     for (const st of this.sessions.values()) st.inflight?.controller.abort();
   }
+  /** Await actual long-poll termination before installing a replacement observer. */
+  async closeAndDrain(): Promise<void> {
+    this.close();
+    await Promise.allSettled(
+      [...this.sessions.values()].flatMap((st) =>
+        st.inflight ? [st.inflight.promise] : [],
+      ),
+    );
+  }
   metrics() {
     return { escalations: this.escalations };
   }
