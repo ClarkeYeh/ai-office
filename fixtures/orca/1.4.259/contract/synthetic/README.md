@@ -35,7 +35,6 @@ To deliberately regenerate after reviewing a protocol change (no live calls):
 
 ```sh
 AIO_T9_UPDATE=1 pnpm exec vitest run apps/server/src/adapters/runtime-orca/contract.test.ts
-pnpm exec prettier --write fixtures/orca/1.4.259/contract/synthetic
 pnpm exec vitest run apps/server/src/adapters/runtime-orca/contract.test.ts
 pnpm fixtures:scan
 ```
