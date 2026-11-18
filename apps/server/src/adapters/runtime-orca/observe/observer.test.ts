@@ -688,6 +688,82 @@ describe('OrcaObserver: mapping', () => {
     expect(lost.isPendingTitle(title)).toBe(false);
   });
 
+  it("adopts Orca's own follow-up turn of a kept-open worker, never unmanaged (M2-T17 D10)", async () => {
+    // Implement #5: mail woke the kept-open on-call lead; Orca opened its own
+    // follow-up dispatch titled "New messages", linked only by its origin.
+    spawned(r, 'ctx_a');
+    r.world.tasks.push({ id: 'task_n', title: 'New messages' });
+    r.world.workers.push({
+      dispatchId: 'ctx_n',
+      taskId: 'task_n',
+      origin: 'ctx_a',
+      workerState: 'succeeded',
+    });
+    const first = await r.observe(null);
+    expect(ofType(first.events, 'agent.unmanaged')).toEqual([]);
+    expect(r.ledger.agentFor('ctx_n')).toBe('ctx_a');
+    // A rebuilt (lost) ledger recovers the same link from the same terminal.
+    const rows = (origin: string, terminal: string) => ({
+      workers: [
+        {
+          dispatchId: 'ctx_n',
+          taskId: 'task_n',
+          runId: RUN,
+          agentTerminalHandle: terminal,
+          resource: { originDispatchId: origin },
+        },
+        {
+          dispatchId: 'ctx_a',
+          taskId: 'task_ctx_a',
+          runId: RUN,
+          agentTerminalHandle: 'term_x',
+        },
+      ],
+    });
+    const titles = {
+      tasks: [
+        { id: 'task_n', title: 'New messages' },
+        { id: 'task_ctx_a', title: 'aio:cmd-ctx_a work' },
+      ],
+    };
+    const lost = () =>
+      new DispatchLedger({ read: () => null, write: () => {} });
+    const same = lost();
+    same.rebuild(RUN, rows('ctx_a', 'term_x'), titles);
+    expect(same.agentFor('ctx_n')).toBe('ctx_a');
+    // Another terminal never inherits, even when it names our dispatch.
+    const other = lost();
+    other.rebuild(RUN, rows('ctx_a', 'term_other'), titles);
+    expect(other.agentFor('ctx_n')).toBeUndefined();
+    // No chains: an adopted follow-up is never itself a trusted origin.
+    expect(
+      r.ledger.adopt('ctx_chain', 'ctx_n', {
+        run: RUN,
+        terminal: 'term_x',
+        originTerminal: 'term_x',
+      }),
+    ).toBeUndefined();
+    // Nor across runs.
+    expect(
+      r.ledger.adopt('ctx_run', 'ctx_a', {
+        run: 'run_other',
+        terminal: 'term_x',
+        originTerminal: 'term_x',
+      }),
+    ).toBeUndefined();
+    // A marker-less row whose origin is not ours is still flagged.
+    r.world.tasks.push({ id: 'task_x', title: 'New messages' });
+    r.world.workers.push({
+      dispatchId: 'ctx_x',
+      taskId: 'task_x',
+      origin: 'ctx_foreign',
+    });
+    const next = await r.observe(first.cursor);
+    expect(
+      ofType(next.events, 'agent.unmanaged').map((e) => e.dispatch),
+    ).toEqual(['ctx_x']);
+  });
+
   it('persists only the id of a held question and refetches its body on release', async () => {
     r.ledger.pending({ commandId: 'cmd-s', run: RUN, keepOpen: false });
     r.world.tasks.push({ id: 'task_s', title: 'aio:cmd-s implement' });

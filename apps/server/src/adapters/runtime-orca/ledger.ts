@@ -19,6 +19,8 @@ const WorkerSchema = z.object({
   taskId: z.string(),
   runId: z.string(),
   followUpOf: z.string().nullish(),
+  agentTerminalHandle: z.string().nullish(),
+  terminal: z.string().nullish(),
   resource: z
     .object({
       originDispatchId: z.string().nullish(),
@@ -34,6 +36,29 @@ const TaskSchema = z.object({
 export const LedgerWorkersSchema = z.object({ workers: z.array(WorkerSchema) });
 export const LedgerTasksSchema = z.object({ tasks: z.array(TaskSchema) });
 /** Cache only: lost stoppedByBackend is reconstructed by application command history. */
+/**
+ * A follow-up may only inherit from a dispatch AI Office started itself (not
+ * from another adopted follow-up: no chains of untrusted links), in the run.
+ */
+const trustedOrigin = (
+  parent: LedgerEntry | undefined,
+  run: string,
+): parent is LedgerEntry =>
+  parent !== undefined &&
+  parent.state === 'started' &&
+  parent.run === run &&
+  !parent.commandId.startsWith('orca:');
+/** Ledger entry for an Orca-native follow-up of a managed dispatch (D10). */
+const native = (dispatch: string, parent: LedgerEntry): LedgerEntry => ({
+  commandId: `orca:${dispatch}`,
+  run: parent.run,
+  state: 'started',
+  dispatch,
+  agent: parent.agent ?? parent.dispatch ?? dispatch,
+  keepOpen: parent.keepOpen,
+  stoppedByBackend: false,
+  ...(parent.attemptId ? { attemptId: parent.attemptId } : {}),
+});
 export class DispatchLedger {
   private entries: LedgerEntry[];
   constructor(private readonly store: AdapterState) {
@@ -108,6 +133,32 @@ export class DispatchLedger {
     );
     return structuredClone(started);
   }
+  /**
+   * M2-T17 D10: when mail reaches a kept-open worker, Orca wakes it with its
+   * own follow-up turn (task "New messages", no aio: title), linked to our
+   * dispatch by followUpOf / resource.originDispatchId. It is the same agent.
+   */
+  adopt(
+    dispatch: string,
+    parentDispatch: string,
+    seen: {
+      run: string;
+      terminal: string | null | undefined;
+      originTerminal: string | null | undefined;
+    },
+  ) {
+    const parent = this.byDispatch(parentDispatch);
+    if (
+      !trustedOrigin(parent, seen.run) ||
+      dispatch === parentDispatch ||
+      !seen.terminal ||
+      seen.terminal !== seen.originTerminal
+    )
+      return undefined;
+    if (!this.byDispatch(dispatch))
+      this.commit([...this.entries, native(dispatch, parent)]);
+    return this.agentFor(dispatch);
+  }
   stopped(dispatch: string): void {
     if (!this.byDispatch(dispatch)) throw guard('ledger_dispatch_unknown');
     this.commit(
@@ -165,6 +216,19 @@ export class DispatchLedger {
         const parent = next.find(
           (e) => e.dispatch === parentId && e.run === run,
         );
+        // An Orca-native follow-up has no aio: title; inherit its origin
+        // only from our own dispatch, same run and same terminal (D10).
+        const terminal = worker.agentTerminalHandle ?? worker.terminal;
+        const origin = candidates.find(
+          (c) => c.worker.dispatchId === parentId,
+        )?.worker;
+        if (
+          !entry &&
+          trustedOrigin(parent, run) &&
+          terminal &&
+          terminal === (origin?.agentTerminalHandle ?? origin?.terminal)
+        )
+          next.push(native(worker.dispatchId, parent!));
         if (entry && parent && entry !== parent) {
           entry.agent = parent.agent ?? parent.dispatch!;
           if (parent.attemptId) entry.attemptId = parent.attemptId;
