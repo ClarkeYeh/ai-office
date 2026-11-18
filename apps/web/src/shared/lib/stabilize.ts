@@ -30,16 +30,17 @@ function share(prev: unknown, next: unknown): unknown {
   }
   if (isPlain(prev) && isPlain(next)) {
     const keys = Object.keys(next);
-    const out: Plain = {};
     let same = keys.length === Object.keys(prev).length;
-    for (const key of keys) {
+    const entries = keys.map((key) => {
       const value = Object.hasOwn(prev, key)
         ? share(prev[key], next[key])
         : next[key];
-      out[key] = value;
       if (!Object.hasOwn(prev, key) || value !== prev[key]) same = false;
-    }
-    return same ? prev : out;
+      return [key, value] as const;
+    });
+    // fromEntries defines own data properties, so keys such as `__proto__`
+    // (work-item keys come from agents) round-trip instead of hitting the setter.
+    return same ? prev : Object.fromEntries(entries);
   }
   return next;
 }

@@ -56,6 +56,26 @@ describe('stabilize', () => {
     expect(stabilize(bare, { a: 1 })).toBe(bare);
   });
 
+  test('own keys such as __proto__ and constructor round-trip exactly', () => {
+    // JSON.parse creates `__proto__` as an own key, like agent-supplied item keys.
+    const prev = JSON.parse(
+      '{"__proto__":{"a":1},"constructor":1,"x":[1]}',
+    ) as Record<string, unknown>;
+    const next = JSON.parse(
+      '{"__proto__":{"a":2},"constructor":1,"x":[1]}',
+    ) as Record<string, unknown>;
+    const out = stabilize(prev, next);
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(Object.keys(out)).toEqual(['__proto__', 'constructor', 'x']);
+    expect(Object.getOwnPropertyDescriptor(out, '__proto__')?.value).toEqual({
+      a: 2,
+    });
+    expect(out.constructor).toBe(1);
+    expect(out.x).toBe(prev.x);
+    expect(out).toStrictEqual(next);
+    expect(stabilize(prev, structuredClone(prev))).toBe(prev);
+  });
+
   test('property: the result always deep-equals next and never mutates prev', () => {
     fc.assert(
       fc.property(fc.jsonValue(), fc.jsonValue(), (prev, next) => {
