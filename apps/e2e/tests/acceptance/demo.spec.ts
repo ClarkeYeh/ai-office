@@ -1,10 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import {
-  expect,
-  test,
-  type BrowserContext,
-  type Page,
-} from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import type { GateView, WorkflowReadModel } from '@ai-office/contracts/api';
 import {
   finalPrNumber,
@@ -15,7 +10,12 @@ import {
   until,
   useOffice,
 } from '../../test-support/index.js';
-import { RECORD_SSE, sampleQuiet, seatStates, type SeatStates } from './live.js';
+import {
+  RECORD_SSE,
+  sampleQuiet,
+  seatStates,
+  type SeatStates,
+} from './live.js';
 
 /**
  * M4-T16 acceptance on the `demo` scenario, end to end through the UI
@@ -45,17 +45,25 @@ const openGate = async (
   stageKind: GateView['stageKind'],
   timeoutMs = 60_000,
 ): Promise<GateView> =>
-  (await until(
-    () => gates(office(), workflowId),
-    (list) =>
-      list.some((gate) => gate.stageKind === stageKind && gate.status === 'open'),
-    `${stageKind} gate`,
-    timeoutMs,
-  )).find((gate) => gate.stageKind === stageKind && gate.status === 'open')!;
+  (
+    await until(
+      () => gates(office(), workflowId),
+      (list) =>
+        list.some(
+          (gate) => gate.stageKind === stageKind && gate.status === 'open',
+        ),
+      `${stageKind} gate`,
+      timeoutMs,
+    )
+  ).find((gate) => gate.stageKind === stageKind && gate.status === 'open')!;
 
 const gateDetail = async (gateId: string) =>
-  (await office().api<GateView>('GET', `/api/v1/gates/${encodeURIComponent(gateId)}`))
-    .body;
+  (
+    await office().api<GateView>(
+      'GET',
+      `/api/v1/gates/${encodeURIComponent(gateId)}`,
+    )
+  ).body;
 
 /** A gate open means the office is quiet: remember its seq for the replay check. */
 async function markGateSeq(): Promise<void> {
@@ -79,7 +87,10 @@ test.beforeAll(async ({ browser }) => {
   });
   await observerContext.addInitScript(RECORD_SSE);
   observer = await observerContext.newPage();
-  await office().login(observer, `/workflows/${encodeURIComponent(workflowId)}`);
+  await office().login(
+    observer,
+    `/workflows/${encodeURIComponent(workflowId)}`,
+  );
   await expect(observer.getByTestId('office-scene')).toBeVisible();
   sampling = (async () => {
     while (!stopSampling) {
@@ -134,7 +145,8 @@ test('conclusion gate: GitHub edit shows in the diff, 409 refetches, approve sen
   await markGateSeq();
   const model = await readModel(office(), workflowId);
   const issue = model.artifacts.find(
-    (artifact) => artifact.kind === 'issue' && artifact.purpose === 'conclusion',
+    (artifact) =>
+      artifact.kind === 'issue' && artifact.purpose === 'conclusion',
   )!;
   expect(issue?.number).toBeDefined();
   const body = (await gateDetail(gate.gateId)).conclusion!.githubBody!;
@@ -149,6 +161,16 @@ test('conclusion gate: GitHub edit shows in the diff, 409 refetches, approve sen
   await page.getByTestId(`stage-gate-${gate.gateId}`).click();
   await expect(page.getByTestId(`gate-page-${gate.gateId}`)).toBeVisible();
   await expect(page.getByTestId('conclusion-issue-link')).toBeVisible();
+  // Three views: GitHub now, the AI Office original, and the diff.
+  await page.getByTestId('conclusion-view-github').click();
+  // The GitHub view renders the parsed sections of the current issue body.
+  await expect(page.getByTestId('conclusion-panel-github')).toContainText(
+    'Deliver the office demo',
+  );
+  await page.getByTestId('conclusion-view-original').click();
+  const original = page.getByTestId('conclusion-panel-original');
+  await expect(original).toContainText('Deliver the office demo');
+  await expect(original).not.toContainText('Owner note');
   await expect(page.getByTestId('gate-fact-reruns')).toBeAttached();
   await page.getByTestId('conclusion-view-diff').click();
   const added = page.locator(
@@ -201,7 +223,9 @@ test('task split gate: dependency precheck, then an edited title is submitted (I
   await expect(page.getByRole('alert')).toContainText('nowhere');
   await expect(page.getByTestId('tasks-approve')).toBeDisabled();
   await page.getByTestId('item-dependent-deps').fill('feature');
-  await page.getByTestId('item-feature-title').fill('Implement feature (edited)');
+  await page
+    .getByTestId('item-feature-title')
+    .fill('Implement feature (edited)');
   await page.getByTestId('tasks-approve').click();
   await expect
     .poll(async () => (await gateDetail(gate.gateId)).status)
@@ -276,7 +300,9 @@ test('board: same read model, five columns and seat lanes (I-11)', async ({
   const model = await readModel(office(), workflowId);
   for (const item of model.workItems)
     await expect(page.getByTestId(`board-card-${item.key}`)).toHaveCount(1);
-  await expect(page.locator('[data-testid^="board-lane-"]').first()).toBeVisible();
+  await expect(
+    page.locator('[data-testid^="board-lane-"]').first(),
+  ).toBeVisible();
 });
 
 test('final PR: request changes, then the explicit owner merge opens the door with one confetti (I-14, I-06)', async ({
@@ -314,7 +340,9 @@ test('final PR: request changes, then the explicit owner merge opens the door wi
   );
 
   // Watch the merge happen live on the office (no reduced motion here).
-  await page.goto(office().url + `/workflows/${encodeURIComponent(workflowId)}`);
+  await page.goto(
+    office().url + `/workflows/${encodeURIComponent(workflowId)}`,
+  );
   await expect(page.getByTestId('office-door')).toHaveAttribute(
     'data-open',
     'false',
@@ -355,8 +383,9 @@ test('final PR: request changes, then the explicit owner merge opens the door wi
     timeout: 15_000,
   });
   const mounts = await page.evaluate(
-    () => (window as unknown as { __aioMounts: Record<string, number> })
-      .__aioMounts,
+    () =>
+      (window as unknown as { __aioMounts: Record<string, number> })
+        .__aioMounts,
   );
   expect(mounts).toMatchObject({ 'effect-door': 1, 'effect-confetti': 1 });
 
@@ -392,7 +421,8 @@ test('replay equals live at ≥ 10 seqs, including every gate opening (I-20)', a
   stopSampling = true;
   await sampling;
   const seqs = [...live.keys()].sort((a, b) => a - b);
-  for (const seq of gateSeqs) expect(live.has(seq), `gate seq ${seq}`).toBe(true);
+  for (const seq of gateSeqs)
+    expect(live.has(seq), `gate seq ${seq}`).toBe(true);
   // Every gate opening plus an even spread of the rest.
   const others = seqs.filter((seq) => !gateSeqs.has(seq));
   const step = Math.max(1, Math.floor(others.length / 10));

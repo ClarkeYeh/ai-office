@@ -23,9 +23,11 @@ export const RECORD_SSE = () => {
       type,
       (event: Event) => {
         try {
-          const seq = (JSON.parse(String((event as MessageEvent).data)) as {
-            seq?: unknown;
-          }).seq;
+          const seq = (
+            JSON.parse(String((event as MessageEvent).data)) as {
+              seq?: unknown;
+            }
+          ).seq;
           if (typeof seq === 'number' && seq > state.seq) {
             state.seq = seq;
             state.at = performance.now();
@@ -75,23 +77,19 @@ export async function sampleQuiet(
   page: Page,
   quietMs = 600,
 ): Promise<{ seq: number; states: SeatStates } | null> {
-  const before = await page.evaluate(
-    async (quiet) => {
-      const sse = (window as unknown as { __aioSse: { seq: number; at: number } })
-        .__aioSse;
-      if (!sse.seq || performance.now() - sse.at < quiet) return null;
-      await new Promise((done) =>
-        requestAnimationFrame(() => requestAnimationFrame(done)),
-      );
-      return sse.seq;
-    },
-    quietMs,
-  );
+  const before = await page.evaluate(async (quiet) => {
+    const sse = (window as unknown as { __aioSse: { seq: number; at: number } })
+      .__aioSse;
+    if (!sse.seq || performance.now() - sse.at < quiet) return null;
+    await new Promise((done) =>
+      requestAnimationFrame(() => requestAnimationFrame(done)),
+    );
+    return sse.seq;
+  }, quietMs);
   if (before === null) return null;
   const states = await seatStates(page);
   const after = await page.evaluate(
-    () =>
-      (window as unknown as { __aioSse: { seq: number } }).__aioSse.seq,
+    () => (window as unknown as { __aioSse: { seq: number } }).__aioSse.seq,
   );
   if (after !== before || !Object.keys(states).length) return null;
   return { seq: before, states };

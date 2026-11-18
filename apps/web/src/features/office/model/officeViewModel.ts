@@ -536,7 +536,10 @@ function whiteboard({ rm, t }: Ctx): Whiteboard {
   return {
     title,
     lines,
-    ariaLabel: t('office.whiteboard.aria'),
+    // The label contains the visible text (WCAG 2.5.3, axe label-content-name-mismatch).
+    ariaLabel: t('office.whiteboard.aria', {
+      text: [title, ...lines].join(' '),
+    }),
     testId: 'office-whiteboard',
   };
 }
@@ -583,7 +586,11 @@ function yourDesk({ rm, t, now }: Ctx, needs: Need[]): YourDesk {
     const elapsed = formatElapsed(t, first.since, now, true);
     const status =
       waiting.length > 1
-        ? t('office.desk.more', { title: first.title, n: waiting.length })
+        ? t('office.desk.more', {
+            title: first.title,
+            elapsed,
+            n: waiting.length,
+          })
         : t('office.desk.waiting', { title: first.title, elapsed });
     return {
       lamp: 'amber',

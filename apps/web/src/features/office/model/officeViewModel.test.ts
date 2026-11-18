@@ -494,7 +494,7 @@ describe('needs, your desk, hush and door', () => {
     expect(vm.yourDesk).toMatchObject({
       lamp: 'amber',
       nameplate: { title: 'Decide', tone: 'need' },
-      ariaLabel: '你的桌：Decide等 2 件在等你',
+      ariaLabel: '你的桌：Decide 等你 20 秒，共 2 件在等你',
     });
   });
 
