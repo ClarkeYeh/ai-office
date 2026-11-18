@@ -6,6 +6,7 @@ import {
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { PortError } from '../../../ports/errors.js';
+import { subprocessEnv } from '../env-allowlist.js';
 import { guard, orcaError } from '../errors.js';
 import type { AdapterState } from '../state.js';
 import type { Exec, ExecRequest, ExecResult } from './types.js';
@@ -167,4 +168,35 @@ export class SpawnExec implements Exec {
       });
     });
   }
+}
+
+/** Production startup hook; keeping ps/kill here preserves subprocess placement. */
+export async function cleanupOrphanProcesses(
+  groups: ProcessGroups,
+  options: {
+    exec: Exec;
+    cwdGuard: import('./cwd.js').CwdGuard;
+    env: NodeJS.ProcessEnv;
+    kill?: (pgid: number) => void;
+  },
+): Promise<number> {
+  const cwd = await options.cwdGuard.check();
+  return groups.cleanup(
+    async (pgid) => {
+      const result = await options.exec.run({
+        bin: '/bin/ps',
+        args: ['-o', 'pid=,command=', '-g', String(pgid)],
+        cwd,
+        env: subprocessEnv(options.env),
+        timeoutMs: 5000,
+      });
+      if (result.exitCode !== 0 && result.exitCode !== 1)
+        throw guard('process_inspection_failed');
+      return result.stdout;
+    },
+    options.kill ??
+      ((pgid) => {
+        process.kill(-pgid, 'SIGTERM');
+      }),
+  );
 }

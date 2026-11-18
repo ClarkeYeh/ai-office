@@ -5,6 +5,7 @@ export type CliPriority =
 export interface RunOptions {
   kind: CommandKind;
   run?: string;
+  mailbox?: { kind: 'run' | 'dispatch'; id: string };
   priority: CliPriority;
   requestId?: string;
   timeoutMs?: number;

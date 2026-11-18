@@ -19,6 +19,7 @@ import { orcaError } from './errors.js';
 import { ProcessGroups } from './cli/process.js';
 import type { ExecRequest, ExecResult } from './cli/types.js';
 import type { AdapterState } from './state.js';
+import type { CoordinatorIdentity } from './coordinator-identity/index.js';
 const dirs: string[] = [];
 async function directory() {
   const dir = await mkdtemp(join(tmpdir(), 'aio-runtime-'));
@@ -485,4 +486,99 @@ it('delays call 121 until the oldest start leaves the sliding window', async () 
   await Promise.all(calls);
   expect(work).toHaveBeenCalledTimes(121);
   scheduler.close();
+});
+
+it('rejects mutation commands disguised as reads', async () => {
+  const f = await fixture();
+  await expect(
+    f.cli.run(['orchestration', 'worker-start'], {
+      kind: 'read',
+      priority: 'identity',
+    }),
+  ).rejects.toMatchObject({ code: 'command_kind_mismatch' });
+  expect(f.run).not.toHaveBeenCalled();
+});
+
+it('refreshes expired inventory outside a saturated CLI slot without spending a phantom call', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  const scheduler = new CliScheduler(2, 1);
+  // Mock only filesystem guard work; its refresh uses the same scheduler as calls.
+  let freshUntil = 60_000;
+  const cwdGuard = new CwdGuard(await directory(), async () => []);
+  const { CwdInventoryExpired } = await import('./errors.js');
+  vi.spyOn(cwdGuard, 'check').mockImplementation(async (refresh = true) => {
+    if (Date.now() >= freshUntil) {
+      if (!refresh) throw new CwdInventoryExpired();
+      await scheduler.schedule('identity', async () => {
+        freshUntil = Date.now() + 60_000;
+      });
+    }
+    return '/safe/cli-cwd';
+  });
+  const run = vi.fn(async () => ({
+    stdout: '{"ok":true,"result":{}}',
+    exitCode: 0,
+  }));
+  const cli = new DefaultOrcaCli({
+    bin: 'orca',
+    env: {},
+    cwdGuard,
+    scheduler,
+    exec: { run },
+    identity: { argsFor: async () => [] },
+  });
+  await cli.run(['status'], { kind: 'read', priority: 'identity' });
+  await cli.run(['status'], { kind: 'read', priority: 'identity' });
+  const delayed = cli.run(['status'], { kind: 'read', priority: 'identity' });
+  await vi.advanceTimersByTimeAsync(60_000);
+  await delayed;
+  expect(run).toHaveBeenCalledTimes(3);
+  expect(scheduler.callsPerMinute()).toBe(2);
+  scheduler.close();
+});
+
+it('routes inbox mailbox targets through identity and respects native non-request commands', async () => {
+  const f = await fixture();
+  const argsFor = vi.fn<CoordinatorIdentity['argsFor']>(
+    async (_kind, _run, context) =>
+      context?.mailbox
+        ? ['--terminal', `${context.mailbox.kind}:${context.mailbox.id}`]
+        : [],
+  );
+  const cli = new DefaultOrcaCli({
+    bin: 'orca',
+    env,
+    cwdGuard: f.cwdGuard,
+    exec: { run: f.run },
+    identity: { argsFor },
+  });
+  await cli.run(['orchestration', 'inbox', '--full'], {
+    kind: 'read',
+    run: 'r',
+    mailbox: { kind: 'run', id: 'r' },
+    priority: 'consume',
+  });
+  expect(f.requests[0]?.args).toEqual([
+    'orchestration',
+    'inbox',
+    '--full',
+    '--terminal',
+    'run:r',
+    '--json',
+  ]);
+  await expect(
+    cli.run(['orchestration', 'inbox'], { kind: 'read', priority: 'consume' }),
+  ).rejects.toMatchObject({ code: 'inbox_target_required' });
+  await cli.run(['worktree', 'create', '--name', 'aio-test'], {
+    kind: 'mutate',
+    priority: 'mutate',
+  });
+  expect(f.requests[1]?.args).toEqual([
+    'worktree',
+    'create',
+    '--name',
+    'aio-test',
+    '--json',
+  ]);
 });

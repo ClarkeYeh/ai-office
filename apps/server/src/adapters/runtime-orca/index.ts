@@ -3,7 +3,11 @@ export { DefaultOrcaCli } from './cli/index.js';
 export type * from './cli/types.js';
 export { CwdGuard } from './cli/cwd.js';
 export { CliScheduler, CliMetrics } from './cli/scheduler.js';
-export { SpawnExec, ProcessGroups } from './cli/process.js';
+export {
+  SpawnExec,
+  ProcessGroups,
+  cleanupOrphanProcesses,
+} from './cli/process.js';
 export { VersionMonitor } from './cli/version.js';
 export { DefaultGitCli, type GitCli } from './git/index.js';
 export { DispatchLedger } from './ledger.js';

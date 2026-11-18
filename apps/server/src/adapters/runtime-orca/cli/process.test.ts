@@ -39,8 +39,8 @@ it('spawns a detached non-shell process and parses only stdout despite stderr ke
   const result = f.exec.run(f.request);
   f.child.emit('spawn');
   expect(f.saved()).toEqual([{ pgid: 123, digest: expect.any(String) }]);
-  f.child.stderr.write('keepalive: still waiting\n');
-  f.child.stdout.write('{"ok":true,"result":{}}');
+  f.child.stderr.emit('data', Buffer.from('keepalive: still waiting\n'));
+  f.child.stdout.emit('data', Buffer.from('{"ok":true,"result":{}}'));
   f.child.emit('close', 1);
   expect(await result).toEqual({
     stdout: '{"ok":true,"result":{}}',
@@ -73,7 +73,7 @@ it('terminates the entire process group on timeout, then escalates to SIGKILL', 
 it('rejects aborted and oversized subprocesses without retaining output in errors', async () => {
   const f = fixture(4);
   const result = f.exec.run(f.request);
-  f.child.stdout.write('private-output');
+  f.child.stdout.emit('data', Buffer.from('private-output'));
   f.child.emit('close', null);
   await expect(result).rejects.toMatchObject({
     category: 'guard',

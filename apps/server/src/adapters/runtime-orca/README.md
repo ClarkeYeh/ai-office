@@ -41,3 +41,13 @@ migration; main.ts is outside T3's file ownership. No contracts registry additio
 Real CLI-only validation must be run by the coordinator under M2 §1.4. Workers
 run injected subprocess tests only. `GitCli.createBranch` is the additive local
 branch operation required by day-1 P8's pre-create-at-SHA primary path.
+
+`argsFor` has an additive optional context argument carrying command words and
+an optional mailbox target. T4 uses it to generate `inbox --terminal run:<id>`
+(or diagnostic dispatch targets) without permitting caller-supplied identity
+flags. Unscoped inbox calls are rejected. Native commands such as `worktree
+create` and initial `terminal create` do not support orchestration request
+receipts: only orchestration mutate/consume commands receive `--full` and
+`--retry-request`, and require a shim identity. This resolves the general T3
+wording against SPEC §6.5's explicit native-command exception; T4 remains
+responsible for bootstrap/reclaim identity policy.

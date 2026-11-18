@@ -1,4 +1,4 @@
-import { guard } from '../errors.js';
+import { CwdInventoryExpired, guard } from '../errors.js';
 import type { CliPriority } from './types.js';
 const order: CliPriority[] = [
   'mutate',
@@ -9,7 +9,7 @@ const order: CliPriority[] = [
 ];
 interface Job {
   priority: CliPriority;
-  start(): void;
+  start(at: number): void;
   reject(reason: unknown): void;
 }
 /** One budget for every Orca process, including discovery and long polls. */
@@ -43,10 +43,16 @@ export class CliScheduler {
       this.queue.push({
         priority,
         reject,
-        start: () => {
+        start: (at) => {
           void Promise.resolve()
             .then(execute)
-            .then(resolve, reject)
+            .then(resolve, (error: unknown) => {
+              if (error instanceof CwdInventoryExpired) {
+                const reserved = this.starts.indexOf(at);
+                if (reserved >= 0) this.starts.splice(reserved, 1);
+              }
+              reject(error);
+            })
             .finally(() => {
               this.active--;
               this.drain();
@@ -81,7 +87,7 @@ export class CliScheduler {
     const job = this.queue.shift()!;
     this.active++;
     this.starts.push(this.now());
-    job.start();
+    job.start(this.now());
     this.drain();
   }
 }

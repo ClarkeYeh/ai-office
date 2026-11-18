@@ -1,6 +1,6 @@
 import { mkdir, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { guard } from '../errors.js';
+import { CwdInventoryExpired, guard } from '../errors.js';
 /** Discovery is injected: its global read-only worktree-list uses the shared CLI budget. */
 export class CwdGuard {
   readonly cwd: string;
@@ -17,7 +17,7 @@ export class CwdGuard {
   async check(refresh = true): Promise<string> {
     await mkdir(this.cwd, { recursive: true });
     if (this.now() - this.checkedAt >= 60_000) {
-      if (!refresh) throw guard('cwd_inventory_expired');
+      if (!refresh) throw new CwdInventoryExpired();
       this.refresh ??= this.listPaths()
         .then((paths) => {
           this.paths = paths;

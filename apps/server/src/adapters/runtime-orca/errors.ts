@@ -36,3 +36,6 @@ export function contractMismatch(): PortError {
     'Runtime response does not match its contract',
   );
 }
+
+/** Internal scheduling signal; never delivered as an application error. */
+export class CwdInventoryExpired extends Error {}
