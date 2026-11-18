@@ -73,8 +73,10 @@ export function resolveExecutable(
   return found;
 }
 
-/** Conservative until T16 supplies the P5a matrix: only unfiltered inheritance
- * is known safe. Never return config contents or parser diagnostics. */
+/** M2-T16 P5a matrix (codex-cli 0.167.1): `inherit` other than "all", any
+ * `exclude`, or `include_only` drops ORCA_*; `ignore_default_excludes = false`
+ * drops ORCA_PANE_KEY (default *KEY* exclusion); `set` only adds variables.
+ * Never return config contents or parser diagnostics. */
 export function codexEnvironmentWarnings(
   env: NodeJS.ProcessEnv = process.env,
 ): 'codex_env_filtered'[] {
@@ -92,7 +94,7 @@ export function codexEnvironmentWarnings(
       (p.exclude !== undefined &&
         (!Array.isArray(p.exclude) || p.exclude.length > 0)) ||
       p.include_only !== undefined ||
-      p.set !== undefined
+      p.ignore_default_excludes === false
     )
       return ['codex_env_filtered'];
     return [];
