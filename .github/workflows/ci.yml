@@ -33,7 +33,7 @@ jobs:
         run: pnpm test
       - name: Test build and validation scripts
         run: pnpm test:scripts
-      - name: Check pure-package coverage
+      - name: Check pure-package and web pure-layer coverage
         run: pnpm test:coverage
       - name: Smoke-test native SQLite on Node 24
         run: pnpm vitest run --project @ai-office/server native.test.ts
