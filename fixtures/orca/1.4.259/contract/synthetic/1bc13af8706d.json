@@ -135,7 +135,7 @@
         "--setup",
         "skip",
         "--comment",
-        "aio:prepare base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "--json"
       ],
       "exitCode": 0,
@@ -149,7 +149,7 @@
             "branch": "refs/heads/ai-office/worker",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "worker"
           }
         },
@@ -173,7 +173,7 @@
             "branch": "refs/heads/ai-office/worker",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "worker"
           }
         }
@@ -237,7 +237,7 @@
               "branch": "refs/heads/ai-office/worker",
               "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "repoId": "repo_contract",
-              "comment": "aio:prepare base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "displayName": "worker"
             }
           ]
@@ -276,7 +276,7 @@
             "branch": "refs/heads/ai-office/worker",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "worker"
           }
         }

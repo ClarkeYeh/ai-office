@@ -10,6 +10,8 @@ import {
 import { CliScheduler, CwdGuard, DefaultOrcaCli } from '../index.js';
 import type { ExecRequest } from '../cli/types.js';
 import { DispatchLedger } from '../ledger.js';
+import { ORCA_TITLE_MAX } from '../marker.js';
+import { marker } from '../methods/context.js';
 import type { AdapterState } from '../state.js';
 import { decodeCursor, questionRef } from '../refs.js';
 import { CursorPayloadSchema, firstCheckId, nextCheckId } from './cursor.js';
@@ -644,6 +646,46 @@ describe('OrcaObserver: mapping', () => {
     ]);
     expect(ofType(released.events, 'agent.unmanaged')).toEqual([]);
     expect(decodeCursor(released.cursor, CursorPayloadSchema).held).toEqual([]);
+  });
+
+  it('holds a long engine send id in flight from its 80-char Orca title, never unmanaged (M2-T17 D7)', async () => {
+    // Real engine send ids reach ~100 chars; Orca 1.4.259 cuts titles at 80.
+    const id =
+      '01M7Q3TBDBCY4F0ZFFB9ENP03P/meeting/1/round/1/send/01M7Q3TBDBCY4F0ZFFB9ENP03P/meeting/1/attempt/engineer';
+    const full = `${marker(id)} Meeting round 1`;
+    const title =
+      full.length > ORCA_TITLE_MAX
+        ? `${full.slice(0, ORCA_TITLE_MAX - 3)}...`
+        : full;
+    expect(title.length).toBeLessThanOrEqual(ORCA_TITLE_MAX);
+    expect(title.startsWith(`${marker(id)} `)).toBe(true);
+    // The legacy raw marker could never fit: it is longer than the cap.
+    expect(`aio:${id}`.length).toBeGreaterThan(ORCA_TITLE_MAX);
+    r.ledger.pending({ commandId: id, run: RUN, keepOpen: true });
+    r.world.tasks.push({ id: 'task_f', title });
+    r.world.workers.push({ dispatchId: 'ctx_f', taskId: 'task_f' });
+    r.world.post({
+      id: 'msg_f',
+      type: 'question',
+      dispatch: 'ctx_f',
+      task: 'task_f',
+    });
+    const held = await r.observe(null);
+    expect(ofType(held.events, 'agent.unmanaged')).toEqual([]);
+    expect(decodeCursor(held.cursor, CursorPayloadSchema).held).toHaveLength(1);
+    r.ledger.started(id, 'ctx_f');
+    const released = await r.observe(held.cursor);
+    expect(ofType(released.events, 'agent.unmanaged')).toEqual([]);
+    expect(decodeCursor(released.cursor, CursorPayloadSchema).held).toEqual([]);
+    // A ledger rebuilt from that title alone still matches the full id.
+    const lost = new DispatchLedger({ read: () => null, write: () => {} });
+    lost.rebuild(
+      RUN,
+      { workers: [{ dispatchId: 'ctx_f', taskId: 'task_f', runId: RUN }] },
+      { tasks: [{ id: 'task_f', title }] },
+    );
+    expect(lost.byCommand(id)?.dispatch).toBe('ctx_f');
+    expect(lost.isPendingTitle(title)).toBe(false);
   });
 
   it('persists only the id of a held question and refetches its body on release', async () => {

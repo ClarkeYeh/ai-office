@@ -91,7 +91,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:spawn Contract",
+        "aio:a04afb368a4946b0 Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -198,7 +198,7 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -323,7 +323,7 @@
         "--to",
         "dispatch:ctx_1",
         "--subject",
-        "aio:follow-up follow-up",
+        "aio:d3f5c230ecc7599c follow-up",
         "--body",
         "<redacted:test-input>",
         "--from",

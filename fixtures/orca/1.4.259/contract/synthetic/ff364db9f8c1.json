@@ -91,7 +91,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:spawn Contract",
+        "aio:a04afb368a4946b0 Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -195,7 +195,7 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -304,7 +304,7 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -575,7 +575,7 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -684,7 +684,7 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -899,7 +899,7 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }

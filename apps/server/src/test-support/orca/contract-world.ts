@@ -36,6 +36,9 @@ type Worker = {
   doneAt?: number;
   wait?: unknown;
 };
+/** Orca 1.4.259 stores task titles cut to 80 characters with "..." (M2-T17 D7). */
+const orcaTitle = (title: string) =>
+  title.length > 80 ? `${title.slice(0, 77)}...` : title;
 export class ContractWorld implements Exec {
   readonly clock = new FakeClock('2026-11-18T06:00:00Z');
   get now() {
@@ -340,7 +343,7 @@ export class ContractWorld implements Exec {
           this.workers.push({
             dispatchId: id,
             taskId: `task_${this.seq}`,
-            title: flag(a, '--task-title'),
+            title: orcaTitle(flag(a, '--task-title')),
             keepOpen: a.includes('--keep-open'),
             workerState: 'ready',
             terminalState: 'retained',
@@ -448,7 +451,7 @@ export class ContractWorld implements Exec {
             ...previous,
             dispatchId: id,
             taskId: `task_${this.seq}`,
-            title: flag(a, '--subject'),
+            title: orcaTitle(flag(a, '--subject')),
             activity: 'working',
             workerState: 'ready',
           });

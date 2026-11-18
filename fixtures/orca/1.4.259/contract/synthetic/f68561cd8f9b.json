@@ -159,7 +159,7 @@
         "--setup",
         "skip",
         "--comment",
-        "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "--json"
       ],
       "exitCode": 0,
@@ -173,7 +173,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         },
@@ -197,7 +197,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -244,7 +244,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -265,7 +265,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -309,7 +309,7 @@
         "--worktree",
         "path:/fixture/w1",
         "--task-title",
-        "aio:first Contract",
+        "aio:a7937b64b8caa58f Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -413,7 +413,7 @@
             {
               "id": "task_2",
               "status": "dispatched",
-              "title": "aio:first Contract"
+              "title": "aio:a7937b64b8caa58f Contract"
             }
           ]
         }
@@ -522,7 +522,7 @@
             {
               "id": "task_2",
               "status": "dispatched",
-              "title": "aio:first Contract"
+              "title": "aio:a7937b64b8caa58f Contract"
             }
           ]
         }
@@ -568,7 +568,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -598,7 +598,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -619,7 +619,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -638,7 +638,7 @@
         "--worktree",
         "path:/fixture/w1",
         "--task-title",
-        "aio:second Contract",
+        "aio:16367aacb67a4a01 Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -696,7 +696,7 @@
               "branch": "refs/heads/ai-office/rework",
               "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "repoId": "repo_contract",
-              "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "displayName": "rework-r1"
             }
           ]
@@ -860,12 +860,12 @@
             {
               "id": "task_2",
               "status": "dispatched",
-              "title": "aio:first Contract"
+              "title": "aio:a7937b64b8caa58f Contract"
             },
             {
               "id": "task_3",
               "status": "dispatched",
-              "title": "aio:second Contract"
+              "title": "aio:16367aacb67a4a01 Contract"
             }
           ]
         }
@@ -1003,12 +1003,12 @@
             {
               "id": "task_2",
               "status": "dispatched",
-              "title": "aio:first Contract"
+              "title": "aio:a7937b64b8caa58f Contract"
             },
             {
               "id": "task_3",
               "status": "dispatched",
-              "title": "aio:second Contract"
+              "title": "aio:16367aacb67a4a01 Contract"
             }
           ]
         }
@@ -1054,7 +1054,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -1167,12 +1167,12 @@
             {
               "id": "task_2",
               "status": "dispatched",
-              "title": "aio:first Contract"
+              "title": "aio:a7937b64b8caa58f Contract"
             },
             {
               "id": "task_3",
               "status": "dispatched",
-              "title": "aio:second Contract"
+              "title": "aio:16367aacb67a4a01 Contract"
             }
           ]
         }
@@ -1193,7 +1193,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -1450,7 +1450,7 @@
         "--setup",
         "skip",
         "--comment",
-        "aio:r2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "--json"
       ],
       "exitCode": 0,
@@ -1464,7 +1464,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:r2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r2"
           }
         },
@@ -1488,7 +1488,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:r2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r2"
           }
         }
@@ -1535,7 +1535,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:r2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r2"
           }
         }
@@ -1556,7 +1556,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:r2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r2"
           }
         }
@@ -1575,7 +1575,7 @@
         "--worktree",
         "path:/fixture/w4",
         "--task-title",
-        "aio:third Contract",
+        "aio:b1e99324505bd32d Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",

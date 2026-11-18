@@ -11,6 +11,7 @@ import type { Logger } from '../../../ports/services.js';
 import type { OrcaCli, RunOptions } from '../cli/types.js';
 import type { CoordinatorIdentity } from '../coordinator-identity/index.js';
 import { guard } from '../errors.js';
+import { markerToken } from '../marker.js';
 import type { DispatchLedger } from '../ledger.js';
 import { decodeCursor, encodeCursor, questionRef } from '../refs.js';
 import {
@@ -118,7 +119,6 @@ interface Batch {
   rebuilt: boolean;
   mismatched: Set<string>;
 }
-const AIO = /^aio:([^\s]+)(?:\s|$)/;
 const MAX_INBOX = 2000;
 const READ_CONCURRENCY = 4;
 
@@ -582,12 +582,13 @@ export class OrcaObserver {
     if (worker && worker.projection.parent != null)
       return { kind: 'unmanaged' };
     const title = taskId ? await this.title(b, taskId) : undefined;
-    const commandId = title ? AIO.exec(title)?.[1] : undefined;
-    if (!commandId)
+    const token = title ? markerToken(title) : undefined;
+    if (!token)
       return title === undefined
         ? { kind: 'unmanaged' }
         : { kind: 'unmanaged', title };
-    const entry = ledger.byCommand(commandId);
+    const entry = ledger.byCommand(token);
+    const commandId = entry?.commandId ?? token;
     if (entry?.state === 'pending' && entry.run === b.run)
       return { kind: 'held', commandId };
     if (this.options.ownsCommand && !this.options.ownsCommand(commandId))

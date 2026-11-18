@@ -10,6 +10,7 @@ import type { GitCli } from '../git/index.js';
 import type { DispatchLedger } from '../ledger.js';
 import type { AdapterState } from '../state.js';
 import { contractMismatch, guard } from '../errors.js';
+import { markerTag } from '../marker.js';
 
 export interface MethodOptions {
   cli: OrcaCli;
@@ -40,10 +41,13 @@ export const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const marker = (id: string) => {
   if (!id || /\s/.test(id)) throw guard('invalid_command_marker');
-  return `aio:${id}`;
+  return `aio:${markerTag(id)}`;
 };
 export const hasMarker = (value: string, id: string) =>
-  value.split(/\s+/).includes(marker(id));
+  // Legacy raw-id markers (before M2-T17 D7) stay readable.
+  value
+    .split(/\s+/)
+    .some((token) => token === marker(id) || token === `aio:${id}`);
 export const transient = (code: string) =>
   new PortError(
     'transient',

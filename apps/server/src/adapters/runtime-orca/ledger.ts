@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AdapterState } from './state.js';
 import { contractMismatch, guard } from './errors.js';
 import { agentRef } from './refs.js';
+import { markerToken, sameCommand } from './marker.js';
 const EntrySchema = z.object({
   commandId: z.string().min(1),
   state: z.enum(['pending', 'started']),
@@ -44,7 +45,8 @@ export class DispatchLedger {
     return structuredClone(this.entries);
   }
   byCommand(commandId: string): LedgerEntry | undefined {
-    return this.all().find((entry) => entry.commandId === commandId);
+    // Full id, its Orca marker digest, or an entry recovered from a digest (D7).
+    return this.all().find((entry) => sameCommand(entry.commandId, commandId));
   }
   byDispatch(dispatch: string): LedgerEntry | undefined {
     return this.all().find((entry) => entry.dispatch === dispatch);
@@ -56,7 +58,7 @@ export class DispatchLedger {
       : undefined;
   }
   isPendingTitle(title: string): boolean {
-    const commandId = /^aio:([^\s]+)(?:\s|$)/.exec(title)?.[1];
+    const commandId = markerToken(title);
     return (
       commandId !== undefined && this.byCommand(commandId)?.state === 'pending'
     );
@@ -128,17 +130,18 @@ export class DispatchLedger {
         );
         return {
           worker,
-          commandId: task && /^aio:([^\s]+)(?:\s|$)/.exec(task.title)?.[1],
+          commandId: task && markerToken(task.title),
         };
       });
     // First recover every command, then resolve links (worker-list is newest first).
     for (const { worker, commandId } of candidates) {
       if (!commandId) continue;
-      const previous = next.find((e) => e.commandId === commandId);
+      const previous = next.find((e) => sameCommand(e.commandId, commandId));
       if (previous && previous.run !== run)
         throw guard('ledger_command_mismatch');
       const recovered: LedgerEntry = {
-        commandId,
+        // Keep the full id when known; a digest-only entry still matches it.
+        commandId: previous?.commandId ?? commandId,
         run,
         state: 'started',
         dispatch: worker.dispatchId,
@@ -149,7 +152,7 @@ export class DispatchLedger {
         stoppedByBackend: previous?.stoppedByBackend ?? false,
         ...(previous?.attemptId ? { attemptId: previous.attemptId } : {}),
       };
-      const index = next.findIndex((e) => e.commandId === commandId);
+      const index = next.findIndex((e) => sameCommand(e.commandId, commandId));
       if (index < 0) next.push(recovered);
       else next[index] = recovered;
     }

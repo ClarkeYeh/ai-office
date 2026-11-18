@@ -91,7 +91,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:spawn Contract",
+        "aio:a04afb368a4946b0 Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -160,7 +160,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:lost-spawn Contract",
+        "aio:6c042c2ce45bcf0c Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -367,7 +367,7 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -498,12 +498,12 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             },
             {
               "id": "task_2",
               "status": "dispatched",
-              "title": "aio:lost-spawn Contract"
+              "title": "aio:6c042c2ce45bcf0c Contract"
             }
           ]
         }
@@ -637,12 +637,12 @@
             {
               "id": "task_1",
               "status": "dispatched",
-              "title": "aio:spawn Contract"
+              "title": "aio:a04afb368a4946b0 Contract"
             },
             {
               "id": "task_2",
               "status": "dispatched",
-              "title": "aio:lost-spawn Contract"
+              "title": "aio:6c042c2ce45bcf0c Contract"
             }
           ]
         }

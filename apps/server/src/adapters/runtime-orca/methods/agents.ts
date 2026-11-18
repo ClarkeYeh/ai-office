@@ -20,6 +20,7 @@ import {
   text,
   transient,
 } from './context.js';
+import { markerToken, sameCommand } from '../marker.js';
 import { Workspaces } from './workspaces.js';
 
 const Worker = z.looseObject({
@@ -132,8 +133,12 @@ export class Agents {
       run,
     );
     const visibleTasks = tasks.tasks.filter((task) => {
-      const id = /^aio:([^\s]+)/.exec(task.title)?.[1];
-      return !id || !this.activeSpawns.has(id) || id === settleCommand;
+      const id = markerToken(task.title);
+      return (
+        !id ||
+        ![...this.activeSpawns].some((spawn) => sameCommand(spawn, id)) ||
+        (settleCommand !== undefined && sameCommand(settleCommand, id))
+      );
     });
     this.c.options.ledger.rebuild(run, { workers }, { tasks: visibleTasks });
     return workers;

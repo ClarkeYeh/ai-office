@@ -17,6 +17,7 @@ import {
   encodeCursor,
 } from '../refs.js';
 import type { GitCli } from '../git/index.js';
+import { marker } from './context.js';
 import type { MethodOptions } from './context.js';
 import type { Worktree } from './workspaces.js';
 import { PortError } from '../../../ports/errors.js';
@@ -634,7 +635,7 @@ it('maps follow-up dispatches to the original agent and keeps replay targets sta
     1,
   );
   expect(f.calls.find((r) => command(r, 'orchestration send'))?.args).toContain(
-    'aio:send next',
+    `${marker('send')} next`,
   );
   await f.runtime.stop(agentRef('ctx'));
   expect(
@@ -710,7 +711,7 @@ it('answers only a known run question and leaves a recoverable marker', async ()
   );
   await f.runtime.answer(questionRef('q'), 'Approved', correlation);
   const reply = f.calls.find((r) => command(r, 'orchestration reply'))!;
-  expect(reply.args).toContain('aio:command\nApproved');
+  expect(reply.args).toContain(`${marker('command')}\nApproved`);
   expect(await f.runtime.findCommandByMarker('command')).toEqual({
     kind: 'runtime.answer',
     result: {},
