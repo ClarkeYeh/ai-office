@@ -9,3 +9,6 @@ coverage/
 
 # Isolated fake development data.
 .dev-home/
+
+# Python bytecode from running the sprite sources.
+__pycache__/

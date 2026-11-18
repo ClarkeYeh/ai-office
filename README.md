@@ -87,3 +87,21 @@ The check fails on missing metadata, server/Octokit/SQLite/Node module IDs, or
 `node --test scripts/check-web-bundle/index.test.mjs` to exercise rejection cases.
 Import rules cannot inspect the arguments passed to process APIs: config's
 `gh auth token` limitation and CLI start behavior still require code review.
+
+## Pixel-office sprites
+
+The office art is drawn in code: `apps/web/src/features/office/scene/sprites/` holds
+the palette, ASCII sprite maps and the floor plan as pure TypeScript data.
+`pnpm sprites` exports them to `apps/web/src/features/office/scene/assets/` (three
+atlas sheets, four background strips and `atlas.json`); a PNG is rewritten only when
+its decoded pixels change. `pnpm sprites:check` (also in CI) fails when the committed
+output is stale, when a pixel is outside the palette, when amber or red appears
+outside the sprites allowed to use them, or when the atlas layout is invalid.
+`pnpm sprites --sheet <dir>` writes a `sprites-sheet.html` review page. The original
+Python sources and mock-up screenshots are kept in `tools/sprites-src/`.
+
+### Acknowledgements
+
+- The scene uses only the [Endesga 32](https://lospec.com/palette-list/endesga-32)
+  palette by Endesga.
+- All characters, props and effects are drawn for this project.
