@@ -140,3 +140,10 @@ Repo-list recordings keep only rows whose exact path matches AIO_TEST_REPO_PATH
 or HOME/.ai-office/orca-home; unrelated rows and inventory metadata are discarded
 before normalization or persistence. `gitUsername` is redacted. Fixture scanning
 rejects absolute home paths, including already-redacted and JSON-escaped paths.
+
+Closed terminal rows (`exitCause` non-null or `connected: false`) are not live
+leftovers, even while Orca still lists them. After cleanup, live shim-only
+leftovers are rescanned for up to three seconds (at most 12 retries); persistent
+shims still fail. Other resource leaks fail immediately. We retain pane-only
+close: although `--tab` waits for durable persistence, it can also close other
+panes in that tab, beyond the ledger-owned shim.

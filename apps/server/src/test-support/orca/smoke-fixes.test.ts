@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assertCommand } from './command-gate.js';
 import { emptyLedger } from './ledger.js';
-import { scanResources } from './scan.js';
+import { scanResources, assertScanClean } from './scan.js';
 import { RecordingExec, Normalizer } from './recording.js';
 
 function owned() {
@@ -190,4 +190,64 @@ it('filters unrelated repos before recording and masks gitUsername', async () =>
   expect(new Normalizer().value({ gitUsername: 'someone' })).toEqual({
     gitUsername: '<redacted>',
   });
+});
+
+it.each([
+  { connected: false, writable: false, exitCause: { kind: 'operator_close' } },
+  { connected: true, writable: false, exitCause: { kind: 'operator_close' } },
+  { connected: false, writable: true, exitCause: null },
+])('ignores closed terminal inventory entries: %j', async (liveness) => {
+  const resources = await scanResources(
+    '/spike',
+    '/shim',
+    async (kind, args) => {
+      if (kind === 'git') return { exitCode: 0, stdout: '' };
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          ok: true,
+          result:
+            args[0] === 'worktree'
+              ? { worktrees: [] }
+              : {
+                  terminals: [
+                    { handle: 'closed', title: 'aio-test-shim', ...liveness },
+                    {
+                      handle: 'live',
+                      title: 'aio-test-shim',
+                      connected: true,
+                      writable: false,
+                      exitCause: null,
+                    },
+                  ],
+                },
+        }),
+      };
+    },
+  );
+  expect(resources.map((r) => r.id)).toEqual(['live']);
+});
+it('briefly retries stale live listings, and bounds retries for a real leak', async () => {
+  const shim = { kind: 'shim' as const, id: 'shim', name: 'aio-test-shim' };
+  let scans = 0,
+    waits = 0;
+  await assertScanClean(
+    async () => (++scans < 3 ? [shim] : []),
+    async () => {
+      waits++;
+    },
+  );
+  expect(scans).toBe(3);
+  expect(waits).toBe(2);
+  scans = 0;
+  await expect(
+    assertScanClean(
+      async () => {
+        scans++;
+        return [shim];
+      },
+      async () => {},
+    ),
+  ).rejects.toThrow('Scanned resources remain');
+  expect(scans).toBe(13);
 });
