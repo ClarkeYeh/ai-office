@@ -25,13 +25,6 @@ export interface RouteDefinition {
   /** Office content goes in Shell.office, never Shell.children. */
   office?: boolean;
 }
-function PendingPage() {
-  return (
-    <PixelFrame>
-      <p>{t('app.pagePending')}</p>
-    </PixelFrame>
-  );
-}
 function NotFoundPage() {
   return (
     <PixelFrame>
