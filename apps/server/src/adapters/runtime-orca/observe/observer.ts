@@ -561,7 +561,16 @@ export class OrcaObserver {
     }
     if (message.type !== 'question' && message.type !== 'worker_done') return;
     const dispatch = dispatchOf(message);
-    if (!dispatch) return;
+    if (!dispatch) {
+      // M2-FX12 D11: the cursor commits past this message with the batch, so
+      // a silent drop loses it for good. Pause visibly instead (§11.5).
+      this.log(
+        { run: b.run, message: message.id, type: message.type },
+        'Mail without a dispatch',
+      );
+      this.mismatch(b, 'orchestration mail payload', ['dispatchId: missing']);
+      return;
+    }
     const resolved = await this.resolve(b, dispatch, payloadOf(message).taskId);
     if (resolved.kind === 'unmanaged') {
       this.log({ run: b.run, dispatch }, 'Mail from an unmanaged dispatch');
@@ -823,11 +832,13 @@ export class OrcaObserver {
     const listed = await this.listWorkers(b);
     if (!listed.ok) return this.recover(b, listed.error);
     const groups = new Map<AgentRef, Worker[]>();
-    for (const worker of listed.data.workers)
-      b.terminals.set(
-        worker.dispatchId,
-        worker.agentTerminalHandle ?? worker.terminal,
-      );
+    for (const worker of listed.data.workers) {
+      const terminal = worker.agentTerminalHandle ?? worker.terminal;
+      b.terminals.set(worker.dispatchId, terminal);
+      // D10 adoption needs it after Orca's own turn takes the resource.
+      if (worker.runId === b.run)
+        this.options.ledger.noteTerminal(worker.dispatchId, terminal);
+    }
     for (const worker of listed.data.workers) {
       if (worker.runId !== b.run) continue;
       if (p.seen[worker.dispatchId] === 'unmanaged') continue;
@@ -874,9 +885,13 @@ export class OrcaObserver {
         (q) =>
           (this.options.ledger.agentFor(q.dispatch) ?? q.dispatch) === agent,
       );
+      const stopped =
+        this.options.ledger.byDispatch(worker.dispatchId)?.stoppedByBackend ===
+        true;
       let state = workerState(
         worker,
         questions.length > 0 || st.agentWait.get(agent) === true,
+        stopped,
       );
       if (state !== 'exited') active = true;
       const progress = st.progressAt.get(worker.dispatchId) ?? this.now();
@@ -904,7 +919,7 @@ export class OrcaObserver {
         const waiting = await this.probe(b, agent, worker.dispatchId);
         if (waiting !== undefined) {
           st.agentWait.set(agent, waiting);
-          state = workerState(worker, questions.length > 0 || waiting);
+          state = workerState(worker, questions.length > 0 || waiting, stopped);
         }
       }
       if (state !== previous)

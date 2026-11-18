@@ -397,6 +397,8 @@ export class FakeRuntime implements RuntimePort {
   }[] = [];
   private connected = true;
   private pumping = false;
+  /** Releases held by `releaseLagMs`, completed by `runDue` once due. */
+  private lagging: { at: number; resolve: () => void }[] = [];
   private executing: Scheduled | undefined;
   constructor(private readonly options: FakeRuntimeOptions) {}
   /** JSON data only; behavior functions and spec credentials are reloaded locally. */
@@ -459,7 +461,12 @@ export class FakeRuntime implements RuntimePort {
   restore(state: ReturnType<FakeRuntime['snapshot']>): void {
     if (state.version !== 1)
       throw new Error('Unsupported fake runtime snapshot version');
-    if (this.pumping || this.pendingDeliveries.size || this.pendingSpawns.size)
+    if (
+      this.pumping ||
+      this.pendingDeliveries.size ||
+      this.pendingSpawns.size ||
+      this.lagging.length
+    )
       throw new Error('Cannot restore an active fake runtime');
     const data = structuredClone(state);
     this.sequence = data.sequence;
@@ -905,6 +912,11 @@ export class FakeRuntime implements RuntimePort {
         'Fake runtime: stop not settled',
         true,
       );
+    const lag = agent.behavior.releaseLagMs;
+    if (lag !== undefined && lag > 0 && agent.state !== 'released')
+      await new Promise<void>((resolve) =>
+        this.lagging.push({ at: this.now() + lag, resolve }),
+      );
     this.releaseAgent(agent, this.now());
     if (opts.removeWorkspace) this.removeWorkspace(agent.workspace);
     this.after('release');
@@ -1088,6 +1100,9 @@ export class FakeRuntime implements RuntimePort {
     if (this.pumping) return;
     this.pumping = true;
     try {
+      const due = this.lagging.filter((l) => l.at <= this.now());
+      this.lagging = this.lagging.filter((l) => l.at > this.now());
+      for (const { resolve } of due) resolve();
       while (true) {
         this.scheduled.sort((a, b) => a.at - b.at || a.order - b.order);
         const job = this.scheduled[0];

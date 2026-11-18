@@ -30,6 +30,11 @@ type Mail = {
   task?: string;
   thread?: string;
   outcome?: string;
+  /** Sender handle; default `dispatch:<id>` (worker_done comes from the terminal). */
+  from?: string;
+  filesModified?: unknown;
+  /** Raw payload override, for malformed shapes. */
+  payload?: string;
   sequence: number;
   read: boolean;
 };
@@ -45,6 +50,8 @@ type W = {
   origin?: string | null;
   parent?: unknown;
   provider?: string;
+  /** Agent terminal handle; default `term_x`, null once the resource moved. */
+  terminal?: string | null;
 };
 type TxMessage = { id: string; role: string; text: string };
 const ok = (result: unknown) => JSON.stringify({ ok: true, result });
@@ -82,22 +89,27 @@ class World {
     return {
       id: m.id,
       run_id: RUN,
-      from_handle: m.dispatch ? `dispatch:${m.dispatch}` : 'run:' + RUN,
+      from_handle:
+        m.from ?? (m.dispatch ? `dispatch:${m.dispatch}` : 'run:' + RUN),
       to_handle: m.to,
       subject: 'aio subject',
       body: m.type === 'question' ? 'raw question body' : 'body',
       type: m.type,
       thread_id: m.thread ?? (m.type === 'question' ? m.id : null),
       payload:
-        m.type === 'status'
+        m.payload ??
+        (m.type === 'status'
           ? null
           : JSON.stringify({
               taskId: m.task,
               dispatchId: m.dispatch,
               ...(m.outcome ? { outcome: m.outcome } : {}),
+              ...(m.filesModified === undefined
+                ? {}
+                : { filesModified: m.filesModified }),
               ...(m.type === 'question' ? { question: `Q ${m.id}?` } : {}),
               ...(m.type === 'escalation' ? { stopReason: 'finished' } : {}),
-            }),
+            })),
       created_at: '2026-11-18T05:50:51Z',
       delivered_at: null,
       ...(withSeq ? { read: m.read ? 1 : 0, sequence: m.sequence } : {}),
@@ -198,7 +210,8 @@ class World {
             runId: RUN,
             workerState: w.workerState ?? 'ready',
             dispatchStatus: 'dispatched',
-            agentTerminalHandle: 'term_x',
+            agentTerminalHandle:
+              w.terminal === undefined ? 'term_x' : w.terminal,
             terminalState: w.terminalState ?? 'retained',
             coordinatedFrom: null,
             resource:
@@ -625,6 +638,22 @@ describe('OrcaObserver: mapping', () => {
     expect(ofType(after.events, 'agent.exited')).toEqual([]);
   });
 
+  it('observes our stop of an already-settled worker once (M2-FX12 rework)', async () => {
+    // Live FX12 run: worker-stop on a succeeded dispatch answers
+    // alreadySettled / processAction none and the row stays `succeeded`.
+    spawned(r, 'ctx_a');
+    r.world.workers[0]!.workerState = 'succeeded';
+    const first = await r.observe(null);
+    expect(ofType(first.events, 'agent.stopped')).toEqual([]);
+    r.ledger.stopped('ctx_a');
+    const next = await r.observe(first.cursor);
+    expect(ofType(next.events, 'agent.stopped')).toEqual([
+      expect.objectContaining({ agent: 'ctx_a' }),
+    ]);
+    const after = await r.observe(next.cursor);
+    expect(ofType(after.events, 'agent.stopped')).toEqual([]);
+  });
+
   it('maps worker-list stopped to agent.stopped', async () => {
     spawned(r, 'ctx_a');
     const first = await r.observe(null);
@@ -774,6 +803,44 @@ describe('OrcaObserver: mapping', () => {
     expect(
       ofType(next.events, 'agent.unmanaged').map((e) => e.dispatch),
     ).toEqual(['ctx_x']);
+  });
+
+  it("adopts Orca's own turn after the origin row lost its terminal (M2-FX12 D10)", async () => {
+    // Live FX12 run: once Orca's "New messages" turn owns the resource, the
+    // on-call row reports resource null and no terminal.
+    spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    const origin = r.world.workers[0]!;
+    origin.owner = null;
+    origin.terminal = null;
+    origin.workerState = 'succeeded';
+    r.world.tasks.push({ id: 'task_n', title: 'New messages' });
+    r.world.workers.push({
+      dispatchId: 'ctx_n',
+      taskId: 'task_n',
+      origin: 'ctx_a',
+    });
+    r.world.tasks.push({ id: 'task_x', title: 'New messages' });
+    r.world.workers.push({
+      dispatchId: 'ctx_x',
+      taskId: 'task_x',
+      origin: 'ctx_a',
+      terminal: 'term_other',
+    });
+    const next = await r.observe(first.cursor);
+    expect(
+      ofType(next.events, 'agent.unmanaged').map((e) => e.dispatch),
+    ).toEqual(['ctx_x']);
+    expect(r.ledger.agentFor('ctx_n')).toBe('ctx_a');
+    // The remembered terminal survives a rebuild of the same ledger.
+    r.ledger.rebuild(
+      RUN,
+      {
+        workers: [{ dispatchId: 'ctx_a', taskId: 'task_ctx_a', runId: RUN }],
+      },
+      { tasks: [{ id: 'task_ctx_a', title: 'aio:cmd-ctx_a work' }] },
+    );
+    expect(r.ledger.byDispatch('ctx_a')?.terminal).toBe('term_x');
   });
 
   it('persists only the id of a held question and refetches its body on release', async () => {
@@ -975,6 +1042,59 @@ describe('OrcaObserver: mapping', () => {
     expect(ofType(answered.events, 'agent.status')).toEqual([
       expect.objectContaining({ state: 'working' }),
     ]);
+  });
+
+  it('lands a Codex worker_done with a files-modified list after an answered question (M2-FX12 D11)', async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const asked = await r.observe(first.cursor);
+    r.observer.markAnswered(questionRef('msg_q'));
+    const working = await r.observe(asked.cursor);
+    // Live shape (run inbox seq 954): sent from the worker's terminal handle,
+    // `--files-modified` recorded as a path list.
+    r.world.post({
+      id: 'msg_done',
+      type: 'worker_done',
+      dispatch: 'ctx_a',
+      task,
+      outcome: 'succeeded',
+      from: 'term_00000000-0000-4000-8000-0000000000aa',
+      filesModified: ['t17/greeting.txt'],
+    });
+    const done = await r.observe(working.cursor);
+    expect(ofType(done.events, 'agent.done')).toEqual([
+      expect.objectContaining({
+        agent: 'ctx_a',
+        externalKey: 'orca:msg:msg_done',
+        outcome: 'success',
+        filesModified: 1,
+      }),
+    ]);
+    expect(decodeCursor(done.cursor, CursorPayloadSchema).lastSeq).toBe(
+      r.world.seq,
+    );
+  });
+
+  it('never advances past unroutable mail silently: one contract_mismatch, no values (M2-FX12 D11)', async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({
+      id: 'msg_bad',
+      type: 'worker_done',
+      task,
+      from: 'term_00000000-0000-4000-8000-0000000000aa',
+      payload: JSON.stringify({ dispatchId: 42, outcome: 'secret-value' }),
+    });
+    const batch = await r.observe(first.cursor);
+    expect(ofType(batch.events, 'agent.done')).toEqual([]);
+    expect(ofType(batch.events, 'runtime.contract_mismatch')).toEqual([
+      expect.objectContaining({
+        command: 'orchestration mail payload',
+        issues: ['dispatchId: missing'],
+      }),
+    ]);
+    expect(JSON.stringify(batch.events)).not.toContain('secret-value');
   });
 
   it('markAnswered clears waiting_input without an inbox read', async () => {

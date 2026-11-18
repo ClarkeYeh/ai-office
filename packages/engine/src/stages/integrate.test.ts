@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createReact, DEFAULT_MODULES } from '../react.js';
-import { Simulator, cooperativeWorld } from '../test-support/simulator.js';
+import {
+  Simulator,
+  cooperativeWorld,
+  laggingReleases,
+  unreleasedAtStageGates,
+} from '../test-support/simulator.js';
 import type { World } from '../test-support/simulator.js';
 import { startWorkflow } from '../test-support/fixtures.js';
 
@@ -72,6 +77,22 @@ const finalGate = (sim: Simulator) =>
     .at(-1)!;
 
 describe('wrap-up and final PR', () => {
+  it('opens the final-PR gate only after the integrator release succeeded (M2-FX12)', () => {
+    const lag = laggingReleases(cooperativeWorld);
+    const sim = report(setup(lag.world));
+    const finalGates = () =>
+      sim.eventsOf('gate.opened').filter((g) => g.payload.kind === 'stage');
+    while (lag.held()) {
+      const opened = finalGates().length;
+      sim.advance(2_000);
+      expect(finalGates()).toHaveLength(opened);
+      lag.flush(sim);
+    }
+    expect(finalGate(sim).status).toBe('open');
+    expect(unreleasedAtStageGates(sim)).toEqual([]);
+    expect(sim.liveAgents()).toBe(0);
+    expect(sim.rejections).toEqual([]);
+  });
   it('prepares the remote integration branch, publishes after stop, and completes only on observed merge', () => {
     const sim = report(setup());
     expect(

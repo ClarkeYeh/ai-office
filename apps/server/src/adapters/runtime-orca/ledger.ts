@@ -12,6 +12,8 @@ const EntrySchema = z.object({
   attemptId: z.string().optional(),
   keepOpen: z.boolean(),
   stoppedByBackend: z.boolean(),
+  /** Last terminal Orca reported for this dispatch (M2-FX12 D10 follow-up). */
+  terminal: z.string().optional(),
 });
 export type LedgerEntry = z.infer<typeof EntrySchema>;
 const WorkerSchema = z.object({
@@ -202,6 +204,17 @@ export class DispatchLedger {
     return structuredClone(started);
   }
   /**
+   * M2-FX12 (b): a send delivered into a working dispatch starts no dispatch,
+   * so its pending entry would hold matching mail forever. Only a pending,
+   * dispatchless entry is removed; a later marker-titled follow-up is still
+   * recovered by `rebuild`.
+   */
+  discard(commandId: string): void {
+    const entry = this.byCommand(commandId);
+    if (entry?.state !== 'pending' || entry.dispatch) return;
+    this.commit(this.entries.filter((e) => e.commandId !== entry.commandId));
+  }
+  /**
    * M2-T17 D10: when mail reaches a kept-open worker, Orca wakes it with its
    * own follow-up turn (task "New messages", no aio: title), linked to our
    * dispatch by followUpOf / resource.originDispatchId. It is the same agent.
@@ -216,16 +229,28 @@ export class DispatchLedger {
     },
   ) {
     const parent = this.byDispatch(parentDispatch);
+    // Once Orca's turn owns the resource, the origin row reports no
+    // terminal: fall back to the one it reported while it owned it.
     if (
       !trustedOrigin(parent, seen.run) ||
       dispatch === parentDispatch ||
       !seen.terminal ||
-      seen.terminal !== seen.originTerminal
+      seen.terminal !== (seen.originTerminal ?? parent.terminal)
     )
       return undefined;
     if (!this.byDispatch(dispatch))
       this.commit([...this.entries, native(dispatch, parent)]);
     return this.agentFor(dispatch);
+  }
+  /** Remember the terminal Orca reports for one of our dispatches. */
+  noteTerminal(dispatch: string, terminal: string | null | undefined): void {
+    const entry = this.byDispatch(dispatch);
+    if (!terminal || !entry || entry.terminal === terminal) return;
+    this.commit(
+      this.entries.map((e) =>
+        e.dispatch === dispatch ? { ...e, terminal } : e,
+      ),
+    );
   }
   stopped(dispatch: string): void {
     if (!this.byDispatch(dispatch)) throw guard('ledger_dispatch_unknown');
@@ -270,6 +295,7 @@ export class DispatchLedger {
           worker.resource?.retainedReason === 'user_requested',
         stoppedByBackend: previous?.stoppedByBackend ?? false,
         ...(previous?.attemptId ? { attemptId: previous.attemptId } : {}),
+        ...(previous?.terminal ? { terminal: previous.terminal } : {}),
       };
       const index = next.findIndex((e) => sameCommand(e.commandId, commandId));
       if (index < 0) next.push(recovered);
@@ -281,9 +307,11 @@ export class DispatchLedger {
           (e) => e.dispatch === worker.dispatchId && e.run === run,
         );
         const parentId = worker.followUpOf ?? worker.resource?.originDispatchId;
-        const parent = next.find(
-          (e) => e.dispatch === parentId && e.run === run,
-        );
+        // M2-FX12 (a): no parent id must not match a dispatchless pending
+        // entry (undefined === undefined) and inherit its attempt.
+        const parent = parentId
+          ? next.find((e) => e.dispatch === parentId && e.run === run)
+          : undefined;
         // An Orca-native follow-up has no aio: title; inherit its origin
         // only from our own dispatch, same run and same terminal (D10).
         const terminal = worker.agentTerminalHandle ?? worker.terminal;
@@ -294,7 +322,10 @@ export class DispatchLedger {
           !entry &&
           trustedOrigin(parent, run) &&
           terminal &&
-          terminal === (origin?.agentTerminalHandle ?? origin?.terminal)
+          terminal ===
+            (origin?.agentTerminalHandle ??
+              origin?.terminal ??
+              parent!.terminal)
         )
           next.push(native(worker.dispatchId, parent!));
         if (entry && parent && entry !== parent) {
