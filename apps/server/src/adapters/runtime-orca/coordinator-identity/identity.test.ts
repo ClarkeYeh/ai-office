@@ -33,6 +33,8 @@ interface World {
   created: number;
   /** Responses by command words, consumed before the world's own behaviour. */
   failures: Record<string, string[]>;
+  /** Command words whose effect applies but whose response is lost (crash). */
+  crashAfter?: string;
 }
 const ok = (result: unknown) => JSON.stringify({ ok: true, result });
 const err = (code: string) => JSON.stringify({ ok: false, error: { code } });
@@ -112,7 +114,10 @@ async function setup(
     exec: {
       run: async (request) => {
         requests.push(request);
-        return { exitCode: 0, stdout: respond(world, request.args) };
+        const stdout = respond(world, request.args);
+        if (world.crashAfter === request.args.slice(0, 2).join(' '))
+          throw new Error('process died before reading the receipt');
+        return { exitCode: 0, stdout };
       },
     },
   });
@@ -424,12 +429,32 @@ describe('CoordinatorIdentity ownership and reclaim', () => {
     );
     expect(identity.drainEvents()).toEqual([]);
   });
-  it('detects a generation change on our own handle as a hijack', async () => {
-    const { identity, world, handle } = await owned();
+  it('records a new generation on our own handle as owned', async () => {
+    const { identity, world, handle, advance } = await owned();
     world.runs[RUN] = { coordinator_handle: handle, consumer_generation: 5 };
-    expect(await identity.checkOwnership(RUN, { force: true })).toBe(
-      'hijacked',
+    expect(await identity.checkOwnership(RUN, { force: true })).toBe('owned');
+    expect(identity.drainEvents()).toEqual([]);
+    advance(30_000);
+    expect(await identity.checkOwnership(RUN)).toBe('owned');
+  });
+  it('a crash between run-use and record() does not raise identity_hijacked', async () => {
+    const { identity, world, calls, restart, handle: old } = await owned();
+    world.terminals = [];
+    world.crashAfter = 'orchestration run-use';
+    await expect(identity.ensure({ force: true })).rejects.toBeInstanceOf(
+      PortError,
     );
+    // Orca applied run-use (new shim, generation 2); our record still says 1.
+    expect(calls('orchestration run-use')).toHaveLength(1);
+    expect(world.runs[RUN]!.coordinator_handle).not.toBe(old);
+    expect(world.runs[RUN]!.consumer_generation).toBe(2);
+    const after = restart();
+    expect(await after.checkOwnership(RUN, { force: true })).toBe('owned');
+    expect(after.drainEvents()).toEqual([]);
+    expect(after.health().ownership).toBe('owned');
+    await after.ensure({ force: true });
+    expect(calls('orchestration run-use')).toHaveLength(1);
+    expect(after.drainEvents()).toEqual([]);
   });
   it('throttles ownership checks per run', async () => {
     const { identity, calls, advance } = await owned();

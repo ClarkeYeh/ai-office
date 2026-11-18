@@ -169,10 +169,9 @@ export class ShimCoordinatorIdentity implements CoordinatorIdentity {
     const owner = await this.show(run);
     const state = this.load();
     const current = state.runs[run];
-    const ours =
-      owner.coordinator_handle === state.handle &&
-      (!current || current.generation === owner.consumer_generation);
-    if (ours) {
+    // Bound to our shim is owned at any generation: a crash between run-use
+    // and record() leaves the generation stale, and that is not a hijack.
+    if (owner.coordinator_handle === state.handle) {
       this.record(run, owner, false);
       return 'owned';
     }
