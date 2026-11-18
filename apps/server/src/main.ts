@@ -733,8 +733,10 @@ async function main(argv: readonly string[]): Promise<void> {
       .then((server) => server?.close())
       .finally(() => process.exit(process.exitCode ?? 0));
   };
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
+  // `on`, not `once`: a repeated signal must hit the no-op guard above rather
+  // than the default action, which would kill us before runtime.json is removed.
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
   if ((await starting) === undefined) {
     process.off('SIGINT', stop);
     process.off('SIGTERM', stop);
