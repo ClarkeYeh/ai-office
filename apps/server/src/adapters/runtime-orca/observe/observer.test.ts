@@ -30,6 +30,11 @@ type Mail = {
   task?: string;
   thread?: string;
   outcome?: string;
+  /** Sender handle; default `dispatch:<id>` (worker_done comes from the terminal). */
+  from?: string;
+  filesModified?: unknown;
+  /** Raw payload override, for malformed shapes. */
+  payload?: string;
   sequence: number;
   read: boolean;
 };
@@ -82,22 +87,27 @@ class World {
     return {
       id: m.id,
       run_id: RUN,
-      from_handle: m.dispatch ? `dispatch:${m.dispatch}` : 'run:' + RUN,
+      from_handle:
+        m.from ?? (m.dispatch ? `dispatch:${m.dispatch}` : 'run:' + RUN),
       to_handle: m.to,
       subject: 'aio subject',
       body: m.type === 'question' ? 'raw question body' : 'body',
       type: m.type,
       thread_id: m.thread ?? (m.type === 'question' ? m.id : null),
       payload:
-        m.type === 'status'
+        m.payload ??
+        (m.type === 'status'
           ? null
           : JSON.stringify({
               taskId: m.task,
               dispatchId: m.dispatch,
               ...(m.outcome ? { outcome: m.outcome } : {}),
+              ...(m.filesModified === undefined
+                ? {}
+                : { filesModified: m.filesModified }),
               ...(m.type === 'question' ? { question: `Q ${m.id}?` } : {}),
               ...(m.type === 'escalation' ? { stopReason: 'finished' } : {}),
-            }),
+            })),
       created_at: '2026-11-18T05:50:51Z',
       delivered_at: null,
       ...(withSeq ? { read: m.read ? 1 : 0, sequence: m.sequence } : {}),
@@ -919,6 +929,59 @@ describe('OrcaObserver: mapping', () => {
     expect(ofType(answered.events, 'agent.status')).toEqual([
       expect.objectContaining({ state: 'working' }),
     ]);
+  });
+
+  it('lands a Codex worker_done with a files-modified list after an answered question (M2-FX12 D11)', async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const asked = await r.observe(first.cursor);
+    r.observer.markAnswered(questionRef('msg_q'));
+    const working = await r.observe(asked.cursor);
+    // Live shape (run inbox seq 954): sent from the worker's terminal handle,
+    // `--files-modified` recorded as a path list.
+    r.world.post({
+      id: 'msg_done',
+      type: 'worker_done',
+      dispatch: 'ctx_a',
+      task,
+      outcome: 'succeeded',
+      from: 'term_00000000-0000-4000-8000-0000000000aa',
+      filesModified: ['t17/greeting.txt'],
+    });
+    const done = await r.observe(working.cursor);
+    expect(ofType(done.events, 'agent.done')).toEqual([
+      expect.objectContaining({
+        agent: 'ctx_a',
+        externalKey: 'orca:msg:msg_done',
+        outcome: 'success',
+        filesModified: 1,
+      }),
+    ]);
+    expect(decodeCursor(done.cursor, CursorPayloadSchema).lastSeq).toBe(
+      r.world.seq,
+    );
+  });
+
+  it('never advances past unroutable mail silently: one contract_mismatch, no values (M2-FX12 D11)', async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({
+      id: 'msg_bad',
+      type: 'worker_done',
+      task,
+      from: 'term_00000000-0000-4000-8000-0000000000aa',
+      payload: JSON.stringify({ dispatchId: 42, outcome: 'secret-value' }),
+    });
+    const batch = await r.observe(first.cursor);
+    expect(ofType(batch.events, 'agent.done')).toEqual([]);
+    expect(ofType(batch.events, 'runtime.contract_mismatch')).toEqual([
+      expect.objectContaining({
+        command: 'orchestration mail payload',
+        issues: ['dispatchId: missing'],
+      }),
+    ]);
+    expect(JSON.stringify(batch.events)).not.toContain('secret-value');
   });
 
   it('markAnswered clears waiting_input without an inbox read', async () => {

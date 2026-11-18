@@ -134,6 +134,17 @@ export class DispatchLedger {
     return structuredClone(started);
   }
   /**
+   * M2-FX12 (b): a send delivered into a working dispatch starts no dispatch,
+   * so its pending entry would hold matching mail forever. Only a pending,
+   * dispatchless entry is removed; a later marker-titled follow-up is still
+   * recovered by `rebuild`.
+   */
+  discard(commandId: string): void {
+    const entry = this.byCommand(commandId);
+    if (entry?.state !== 'pending' || entry.dispatch) return;
+    this.commit(this.entries.filter((e) => e.commandId !== entry.commandId));
+  }
+  /**
    * M2-T17 D10: when mail reaches a kept-open worker, Orca wakes it with its
    * own follow-up turn (task "New messages", no aio: title), linked to our
    * dispatch by followUpOf / resource.originDispatchId. It is the same agent.
@@ -213,9 +224,11 @@ export class DispatchLedger {
           (e) => e.dispatch === worker.dispatchId && e.run === run,
         );
         const parentId = worker.followUpOf ?? worker.resource?.originDispatchId;
-        const parent = next.find(
-          (e) => e.dispatch === parentId && e.run === run,
-        );
+        // M2-FX12 (a): no parent id must not match a dispatchless pending
+        // entry (undefined === undefined) and inherit its attempt.
+        const parent = parentId
+          ? next.find((e) => e.dispatch === parentId && e.run === run)
+          : undefined;
         // An Orca-native follow-up has no aio: title; inherit its origin
         // only from our own dispatch, same run and same terminal (D10).
         const terminal = worker.agentTerminalHandle ?? worker.terminal;

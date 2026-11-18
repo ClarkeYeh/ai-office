@@ -644,6 +644,23 @@ it('maps follow-up dispatches to the original agent and keeps replay targets sta
   await f.runtime.release(agentRef('ctx'), { removeWorkspace: true });
   expect(f.calls.some((r) => command(r, 'worktree rm'))).toBe(false);
 });
+it('settles a send delivered into a working dispatch without leaving it pending (M2-FX12 b)', async () => {
+  const f = await fixture();
+  await f.runtime.spawnAgent(f.spawn);
+  f.setCustom(async (r) =>
+    command(r, 'orchestration send')
+      ? { result: { state: 'ready', dispatchId: 'ctx' } }
+      : undefined,
+  );
+  await f.runtime.send(agentRef('ctx'), {
+    subject: 'forward',
+    body: 'Question for you',
+    correlation: { ...correlation, commandId: 'forward' },
+  });
+  expect(f.ledger.byCommand('forward')).toBeUndefined();
+  expect(f.ledger.all().some((e) => e.state === 'pending')).toBe(false);
+  expect(f.ledger.agentFor('ctx')).toBe('ctx');
+});
 it('guards unmanaged and auto-released dispatches', async () => {
   const f = await fixture();
   await expect(

@@ -371,6 +371,52 @@ describe('ledger and references', () => {
     );
     expect(() => ledger.started('c1', 'different')).toThrow();
   });
+  it('never links a dispatch without a parent id to a dispatchless pending entry (M2-FX12 a, b)', () => {
+    const ledger = new DispatchLedger(memory());
+    for (const [id, attemptId] of [
+      ['meeting/spawn', 'meeting/attempt'],
+      ['oncall/spawn', 'oncall/attempt'],
+    ] as const) {
+      ledger.pending({ commandId: id, run: 'r', keepOpen: true, attemptId });
+      ledger.started(id, id === 'meeting/spawn' ? 'd-meet' : 'd-call');
+    }
+    // A send into a working dispatch (no follow-up) stays pending, dispatchless.
+    ledger.pending({
+      commandId: 'oncall/send',
+      run: 'r',
+      keepOpen: true,
+      attemptId: 'oncall/attempt',
+    });
+    ledger.rebuild(
+      'r',
+      {
+        workers: [
+          { dispatchId: 'd-call', taskId: 't2', runId: 'r' },
+          // Released meeting rows report no resource and no followUpOf.
+          { dispatchId: 'd-meet', taskId: 't1', runId: 'r' },
+        ],
+      },
+      {
+        tasks: [
+          { id: 't1', title: 'aio:meeting/spawn lead' },
+          { id: 't2', title: 'aio:oncall/spawn lead' },
+        ],
+      },
+    );
+    expect(ledger.byDispatch('d-meet')).toMatchObject({
+      agent: 'd-meet',
+      attemptId: 'meeting/attempt',
+    });
+    expect(ledger.byDispatch('d-call')).toMatchObject({
+      agent: 'd-call',
+      attemptId: 'oncall/attempt',
+    });
+    ledger.discard('oncall/send');
+    expect(ledger.byCommand('oncall/send')).toBeUndefined();
+    // Only pending, dispatchless entries are discarded.
+    ledger.discard('meeting/spawn');
+    expect(ledger.byDispatch('d-meet')?.state).toBe('started');
+  });
   it('uses pure dispatch ids and versioned base64url JSON with a caller-owned schema', () => {
     expect(agentRef('ctx-123')).toBe('ctx-123');
     const schema = z.object({ lastSeq: z.number() });

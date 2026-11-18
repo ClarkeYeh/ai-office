@@ -527,7 +527,16 @@ export class OrcaObserver {
     }
     if (message.type !== 'question' && message.type !== 'worker_done') return;
     const dispatch = dispatchOf(message);
-    if (!dispatch) return;
+    if (!dispatch) {
+      // M2-FX12 D11: the cursor commits past this message with the batch, so
+      // a silent drop loses it for good. Pause visibly instead (§11.5).
+      this.log(
+        { run: b.run, message: message.id, type: message.type },
+        'Mail without a dispatch',
+      );
+      this.mismatch(b, 'orchestration mail payload', ['dispatchId: missing']);
+      return;
+    }
     const resolved = await this.resolve(b, dispatch, payloadOf(message).taskId);
     if (resolved.kind === 'unmanaged') {
       this.log({ run: b.run, dispatch }, 'Mail from an unmanaged dispatch');

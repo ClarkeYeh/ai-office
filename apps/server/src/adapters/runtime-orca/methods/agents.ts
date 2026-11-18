@@ -519,7 +519,7 @@ export class Agents {
       const root = ledger.byDispatch(ledger.agentFor(follow.dispatchId)!);
       if (root)
         this.c.options.state.write(`orca:released:${root.commandId}`, false);
-    }
+    } else ledger.discard(id);
     this.c.save(id, { kind: 'runtime.send', result: {} });
   }
   async answer(question: QuestionRef, body: string, correlation: Correlation) {
