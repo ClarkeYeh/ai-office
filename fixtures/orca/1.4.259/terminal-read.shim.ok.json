@@ -17,9 +17,7 @@
       "terminal": {
         "handle": "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
         "status": "running",
-        "tail": [
-          "❯ exec cat > /dev/null"
-        ],
+        "tail": ["❯ exec cat > /dev/null"],
         "truncated": false,
         "limited": false,
         "oldestCursor": "0",

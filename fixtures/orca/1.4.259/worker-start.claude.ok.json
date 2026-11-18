@@ -87,10 +87,7 @@
       ],
       "prompt": {
         "requestId": "fa1c1a84-66af-4d62-bdd0-a6e8dfeb226b",
-        "stages": [
-          "input_accepted",
-          "turn_started"
-        ],
+        "stages": ["input_accepted", "turn_started"],
         "provider": "claude",
         "observation": "supported",
         "processIncarnation": "01a251d8-9790-4a72-8c48-f07038cfb76f",

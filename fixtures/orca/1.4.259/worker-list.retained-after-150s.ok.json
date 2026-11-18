@@ -88,9 +88,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "root_completion"
-              ],
+              "categories": ["root_completion"],
               "requiresAction": false
             }
           }
@@ -167,9 +165,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "root_completion"
-              ],
+              "categories": ["root_completion"],
               "requiresAction": false
             }
           }
@@ -242,9 +238,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "root_completion"
-              ],
+              "categories": ["root_completion"],
               "requiresAction": false
             }
           }

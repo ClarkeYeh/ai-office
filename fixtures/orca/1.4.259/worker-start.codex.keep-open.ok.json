@@ -88,10 +88,7 @@
       ],
       "prompt": {
         "requestId": "949812fb-96a3-48b0-9b90-19408b8f7d43",
-        "stages": [
-          "input_accepted",
-          "turn_started"
-        ],
+        "stages": ["input_accepted", "turn_started"],
         "provider": "codex",
         "observation": "supported",
         "processIncarnation": "4b5d3d9c-052b-49a8-8c16-53371c4187b3",

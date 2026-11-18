@@ -84,10 +84,7 @@
       ],
       "prompt": {
         "requestId": "ctx_344f220389d5",
-        "stages": [
-          "input_accepted",
-          "turn_started"
-        ],
+        "stages": ["input_accepted", "turn_started"],
         "provider": "codex",
         "observation": "supported",
         "processIncarnation": "4b5d3d9c-052b-49a8-8c16-53371c4187b3",

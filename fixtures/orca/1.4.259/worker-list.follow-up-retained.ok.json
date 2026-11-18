@@ -88,9 +88,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "root_completion"
-              ],
+              "categories": ["root_completion"],
               "requiresAction": false
             }
           }
@@ -167,9 +165,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "root_completion"
-              ],
+              "categories": ["root_completion"],
               "requiresAction": false
             }
           }
@@ -222,10 +218,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "unverifiable",
-                "root_completion"
-              ],
+              "categories": ["unverifiable", "root_completion"],
               "requiresAction": true
             }
           }
@@ -278,10 +271,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "unverifiable",
-                "root_completion"
-              ],
+              "categories": ["unverifiable", "root_completion"],
               "requiresAction": true
             }
           }
@@ -354,9 +344,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "root_completion"
-              ],
+              "categories": ["root_completion"],
               "requiresAction": false
             }
           }

@@ -89,9 +89,7 @@
               "argv": []
             },
             "attention": {
-              "categories": [
-                "root_completion"
-              ],
+              "categories": ["root_completion"],
               "requiresAction": false
             }
           }

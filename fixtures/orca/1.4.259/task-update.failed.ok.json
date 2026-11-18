@@ -1,0 +1,31 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T06:06:48Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "task-update",
+    "--id",
+    "task_f3f9b2d65501",
+    "--status",
+    "failed",
+    "--result",
+    "cancelled (M2-T1 test cleanup)",
+    "--run",
+    "run_3d70ed17e5de",
+    "--from",
+    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "--retry-request",
+    "0b6f1cb7-8005-40d1-bed8-ab04805b0a20",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "ok": true,
+    "result": {
+      "taskId": "task_f3f9b2d65501",
+      "status": "failed"
+    }
+  },
+  "stderrLines": []
+}

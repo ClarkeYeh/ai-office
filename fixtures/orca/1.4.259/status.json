@@ -1,11 +1,7 @@
 {
   "orcaVersion": "1.4.259",
   "recordedAt": "2026-11-18T05:56:30Z",
-  "argv": [
-    "orca",
-    "status",
-    "--json"
-  ],
+  "argv": ["orca", "status", "--json"],
   "exitCode": 0,
   "response": {
     "id": "local-status",

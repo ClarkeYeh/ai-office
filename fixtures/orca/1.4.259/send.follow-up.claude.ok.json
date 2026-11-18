@@ -84,10 +84,7 @@
       ],
       "prompt": {
         "requestId": "ctx_89eb9ce72392",
-        "stages": [
-          "input_accepted",
-          "turn_started"
-        ],
+        "stages": ["input_accepted", "turn_started"],
         "provider": "claude",
         "observation": "supported",
         "processIncarnation": "4a8ed956-7c2f-4b72-bcc6-4cb210bb65f8",

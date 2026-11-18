@@ -1,14 +1,7 @@
 {
   "orcaVersion": "1.4.259",
   "recordedAt": "2026-11-18T05:54:53Z",
-  "argv": [
-    "orca",
-    "terminal",
-    "close",
-    "--terminal",
-    "<redacted>",
-    "--json"
-  ],
+  "argv": ["orca", "terminal", "close", "--terminal", "<redacted>", "--json"],
   "exitCode": 1,
   "response": {
     "id": "bd539322-353a-4677-aab0-93395f11a424",

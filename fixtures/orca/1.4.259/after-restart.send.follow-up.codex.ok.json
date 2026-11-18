@@ -1,0 +1,115 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T06:05:59Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "send",
+    "--run",
+    "run_3d70ed17e5de",
+    "--from",
+    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "--to",
+    "dispatch:ctx_344f220389d5",
+    "--subject",
+    "aio:p2a round 4",
+    "--body",
+    "<redacted:test-input>",
+    "--retry-request",
+    "16373889-2156-49bc-9ee5-55b97d9be518",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "be31810c-2c1b-4170-892d-ea85cd2784a6",
+    "ok": true,
+    "result": {
+      "state": "ready",
+      "runId": "run_3d70ed17e5de",
+      "taskId": "task_16f577c95ebb",
+      "dispatchId": "ctx_83ee3694f71d",
+      "stage": "input_accepted",
+      "turnStart": "observed",
+      "setup": {
+        "requested": "not_applicable",
+        "effective": "not_applicable",
+        "source": "existing_worktree",
+        "hookFound": false,
+        "startupPolicy": "start-immediately",
+        "state": "not_applicable"
+      },
+      "launch": {
+        "requested": {
+          "agent": null,
+          "model": null,
+          "effort": null
+        },
+        "effective": {
+          "agent": null,
+          "model": null,
+          "effort": null
+        }
+      },
+      "mode": {
+        "mode": "terminal",
+        "preferred": "terminal",
+        "reason": "user_default",
+        "detail": "Started a terminal agent worker, the default for new agent tabs in your settings."
+      },
+      "timeoutMs": 60000,
+      "effects": [
+        {
+          "kind": "worktree",
+          "action": "reused",
+          "id": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>"
+        },
+        {
+          "kind": "setup",
+          "action": "not_applicable",
+          "state": "not_applicable"
+        },
+        {
+          "kind": "terminal",
+          "role": "agent",
+          "action": "reused",
+          "id": "term_360b2633-9a7e-4e35-83aa-52680205c87e"
+        },
+        {
+          "kind": "dispatch_input",
+          "role": "agent",
+          "id": "term_360b2633-9a7e-4e35-83aa-52680205c87e",
+          "state": "accepted"
+        }
+      ],
+      "prompt": {
+        "requestId": "ctx_83ee3694f71d",
+        "stages": ["input_accepted", "turn_started"],
+        "provider": "codex",
+        "observation": "supported",
+        "processIncarnation": "4b5d3d9c-052b-49a8-8c16-53371c4187b3",
+        "generation": 11,
+        "baselineWorkingSequence": 0,
+        "baselineExplicitWorkingStartedAt": null,
+        "baselinePermissionSequence": 0
+      },
+      "residualResources": [],
+      "next": "Orca wakes you when workers report; end your turn when you're done.",
+      "run": {
+        "id": "run_3d70ed17e5de",
+        "objective": "aio-test p1 aio:p1",
+        "created": false
+      },
+      "delivery": "follow_up",
+      "followUpOf": "ctx_344f220389d5",
+      "mutation": {
+        "requestId": "16373889-2156-49bc-9ee5-55b97d9be518",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "20f39d2e-be5c-4530-bd9a-880f4e4a08a5"
+    }
+  },
+  "stderrLines": []
+}
