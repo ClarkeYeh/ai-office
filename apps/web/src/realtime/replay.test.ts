@@ -246,3 +246,29 @@ test('10 000 events: no main-thread task over 50 ms while loading', async () => 
   expect(store.getState().replay!.eventCount).toBe(10_000);
   expect(longest).toBeLessThan(50);
 });
+
+test('event snapshots are stable and read-only, notify only on log changes, and unsubscribe', async () => {
+  const events = workflowEvents(5);
+  const { controller } = setup(events);
+  const listener = vi.fn();
+  const unsubscribe = controller.subscribeEvents(listener);
+  const empty = controller.getEvents();
+  expect(controller.getEvents()).toBe(empty);
+  await controller.open('wf1');
+  const snapshot = controller.getEvents();
+  expect(snapshot).toEqual(events);
+  expect(Object.isFrozen(snapshot)).toBe(true);
+  listener.mockClear();
+  controller.seek(2);
+  controller.onLive(events[4]!);
+  expect(controller.getEvents()).toBe(snapshot);
+  expect(listener).not.toHaveBeenCalled();
+  controller.onLive(usageTokens(6, 'a1'));
+  expect(listener).toHaveBeenCalledOnce();
+  expect(snapshot).toHaveLength(5);
+  expect(controller.getEvents()).toHaveLength(6);
+  unsubscribe();
+  controller.exit();
+  expect(listener).toHaveBeenCalledOnce();
+  expect(controller.getEvents()).toEqual([]);
+});

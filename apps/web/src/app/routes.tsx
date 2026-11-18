@@ -1,3 +1,4 @@
+import { TimelinePage } from '../features/timeline/index.js';
 import type { ComponentType } from 'react';
 import type { ApiClient } from '../api/index.js';
 import type { RouteMatch, RouteName } from './router.js';
@@ -69,7 +70,7 @@ export const routes: readonly RouteDefinition[] = [
   { name: 'newWorkflow', title: 'app.newWorkflow', Page: PendingPage },
   { name: 'workflow', title: 'app.office', Page: PendingPage, office: true },
   { name: 'board', title: 'app.board', Page: PendingPage },
-  { name: 'timeline', title: 'app.timeline', Page: PendingPage },
+  { name: 'timeline', title: 'app.timeline', Page: TimelinePage },
   { name: 'gate', title: 'app.gate', Page: GatePage },
   { name: 'question', title: 'app.question', Page: QuestionPage },
   { name: 'templates', title: 'app.templates', Page: PendingPage },

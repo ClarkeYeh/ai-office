@@ -1,7 +1,10 @@
 import { gatesMessagesZhTW } from './gates.js';
 import { officeMessagesZhTW } from './office.js';
 
+import { timelineMessagesZhTW } from './timeline.js';
+
 export const zhTW = {
+  ...timelineMessagesZhTW,
   ...officeMessagesZhTW,
   ...gatesMessagesZhTW,
   'app.name': 'AI Office',

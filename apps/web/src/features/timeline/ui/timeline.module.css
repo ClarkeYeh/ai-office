@@ -1,0 +1,107 @@
+.timeline {
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.header h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+}
+.header p,
+.hint {
+  color: var(--slate);
+  margin: 0;
+}
+.controls,
+.markers {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.segments {
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 3px solid var(--ink);
+  gap: 3px;
+}
+.segment {
+  flex-basis: 0;
+  min-width: 110px;
+  padding: 16px 10px;
+  border: 0;
+  background: var(--mist);
+  color: var(--ink);
+  cursor: pointer;
+}
+.segment:nth-child(even) {
+  background: var(--ui-bg);
+}
+.position {
+  font-variant-numeric: tabular-nums;
+}
+.scrubber {
+  width: 100%;
+  margin: 0;
+  height: 28px;
+  accent-color: var(--ink);
+  cursor: ew-resize;
+}
+.marker {
+  font-size: 13px;
+}
+.messages {
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.messages li {
+  border-top: 1px solid var(--mist);
+}
+.messages button {
+  width: 100%;
+  padding: 14px 8px;
+  display: flex;
+  gap: 24px;
+  text-align: left;
+  border: 0;
+  color: var(--ink);
+  background: var(--ui-paper);
+  cursor: pointer;
+}
+.messages time {
+  color: var(--slate);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 700px) {
+  .timeline {
+    padding: 16px;
+  }
+  .header {
+    align-items: start;
+    flex-direction: column;
+  }
+  .messages button {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+.markerRail {
+  position: relative;
+  height: 24px;
+  margin: 0 8px;
+  border-bottom: 1px solid var(--mist);
+}
+.markerRail span {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--ink);
+}
