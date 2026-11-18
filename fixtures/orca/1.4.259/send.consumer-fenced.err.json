@@ -1,0 +1,56 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:53:54Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "send",
+    "--run",
+    "run_3d70ed17e5de",
+    "--from",
+    "term_00000000-0000-4000-8000-000000000023",
+    "--to",
+    "dispatch:ctx_89eb9ce72392",
+    "--subject",
+    "aio:fenced probe",
+    "--body",
+    "<redacted:test-input>",
+    "--retry-request",
+    "00000000-0000-4000-8000-000000000035",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 1,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000036",
+    "ok": false,
+    "error": {
+      "code": "consumer_fenced",
+      "message": "worker-start needs the coordinator bound to the Run, or a worker on an active Dispatch in it. Orchestration mutation request ID: 00000000-0000-4000-8000-000000000035.",
+      "data": {
+        "orchestrationRequestId": "00000000-0000-4000-8000-000000000035",
+        "originalCommand": [
+          "orca",
+          "orchestration",
+          "send",
+          "--run",
+          "run_3d70ed17e5de",
+          "--from",
+          "term_00000000-0000-4000-8000-000000000023",
+          "--to",
+          "dispatch:ctx_89eb9ce72392",
+          "--subject",
+          "aio:fenced probe",
+          "--body",
+          "should be refused",
+          "--json",
+          "--full"
+        ]
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

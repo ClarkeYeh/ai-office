@@ -1,0 +1,26 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:53:48Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "run-create",
+    "--objective",
+    "<redacted:test-input>",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 1,
+  "response": {
+    "id": "local",
+    "ok": false,
+    "error": {
+      "code": "no_active_sender_terminal",
+      "message": "Could not determine the calling terminal for this orchestration command. Pass --from with your own terminal's handle — another pane's handle would act on its mailbox — or run the command inside a live Orca terminal with ORCA_TERMINAL_HANDLE set."
+    },
+    "_meta": {
+      "runtimeId": null
+    }
+  },
+  "stderrLines": []
+}
