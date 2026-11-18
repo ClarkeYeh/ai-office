@@ -1,0 +1,251 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-18T00:00:00Z"
+  },
+  "title": "AI Office M4 草圖",
+  "launch": {
+    "view": "canvas",
+    "page": "v3"
+  },
+  "pages": [
+    {
+      "id": "v3",
+      "name": "v3 像素"
+    },
+    {
+      "id": "v2",
+      "name": "v2 辦公室"
+    },
+    {
+      "id": "v1",
+      "name": "v1 線框"
+    }
+  ],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "title": "方向 A：平面辦公室",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "DirB.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "title": "方向 B：辦公室縮成條帶＋看板泳道",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "DirC.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 1040,
+      "title": "方向 C：辦公室＋指揮對話分割",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "Gate.dc.html": {
+      "x": 0,
+      "y": 1423,
+      "w": 1440,
+      "h": 1080,
+      "title": "關卡：結論定案",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "Setup.dc.html": {
+      "x": 1520,
+      "y": 1423,
+      "w": 1440,
+      "h": 1240,
+      "title": "流程與角色設定",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "Implement.dc.html": {
+      "x": 3040,
+      "y": 1423,
+      "w": 1440,
+      "h": 1080,
+      "title": "實作詳情：DAG、合併佇列、rework",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "Exceptions.dc.html": {
+      "x": 4560,
+      "y": 1423,
+      "w": 1440,
+      "h": 1000,
+      "title": "例外：升級提問、預算、接管／暫停",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "Replay.dc.html": {
+      "x": 6080,
+      "y": 1423,
+      "w": 1440,
+      "h": 900,
+      "title": "回放／時間軸",
+      "expand": "fill",
+      "page": "v1"
+    },
+    "V2Office.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 980,
+      "title": "v2 主畫面：辦公室（實作中，淺色）",
+      "expand": "fill",
+      "page": "v2"
+    },
+    "V2OfficeDark.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 980,
+      "title": "v2 主畫面：辦公室（深色）",
+      "expand": "fill",
+      "page": "v2"
+    },
+    "V2Meeting.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 980,
+      "title": "v2 會議中",
+      "expand": "fill",
+      "page": "v2"
+    },
+    "V2Gate.dc.html": {
+      "x": 0,
+      "y": 1363,
+      "w": 1440,
+      "h": 1660,
+      "title": "v2 關卡：結論定案",
+      "expand": "fill",
+      "page": "v2"
+    },
+    "V2Style.dc.html": {
+      "x": 1520,
+      "y": 1363,
+      "w": 1440,
+      "h": 1520,
+      "title": "v2 樣式板",
+      "expand": "fill",
+      "page": "v2"
+    },
+    "V3Office.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1150,
+      "title": "v3 主畫面：像素辦公室（實作中）",
+      "expand": "fill",
+      "page": "v3"
+    },
+    "V3Meeting.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 980,
+      "title": "v3 會議中",
+      "expand": "fill",
+      "page": "v3"
+    },
+    "V3Gate.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 1650,
+      "title": "v3 關卡：結論定案",
+      "expand": "fill",
+      "page": "v3"
+    },
+    "V3Sprites.dc.html": {
+      "x": 0,
+      "y": 2033,
+      "w": 1440,
+      "h": 2250,
+      "title": "v3 精靈圖與樣式表",
+      "expand": "fill",
+      "page": "v3"
+    }
+  },
+  "order": [
+    "V3Office.dc.html",
+    "V3Meeting.dc.html",
+    "V3Gate.dc.html",
+    "V3Sprites.dc.html",
+    "V2Office.dc.html",
+    "V2OfficeDark.dc.html",
+    "V2Meeting.dc.html",
+    "V2Gate.dc.html",
+    "V2Style.dc.html",
+    "Main.dc.html",
+    "DirB.dc.html",
+    "DirC.dc.html",
+    "Gate.dc.html",
+    "Setup.dc.html",
+    "Implement.dc.html",
+    "Exceptions.dc.html",
+    "Replay.dc.html"
+  ],
+  "notes": {
+    "row1-title": {
+      "kind": "title1",
+      "x": 0,
+      "y": -263,
+      "maxW": 4480,
+      "text": "主畫面三個方向（同一時刻：實作階段）",
+      "page": "v1"
+    },
+    "row2-title": {
+      "kind": "title1",
+      "x": 0,
+      "y": 1160,
+      "maxW": 7520,
+      "text": "關鍵畫面（以方向 A 繪製）",
+      "page": "v1"
+    },
+    "v2-title": {
+      "kind": "title1",
+      "x": 0,
+      "y": -263,
+      "maxW": 4480,
+      "text": "v2：真的辦公室（實作中、深色、會議中）",
+      "page": "v2"
+    },
+    "v2-row2": {
+      "kind": "title1",
+      "x": 0,
+      "y": 1100,
+      "maxW": 2960,
+      "text": "關卡頁與樣式板",
+      "page": "v2"
+    },
+    "v3-title": {
+      "kind": "title1",
+      "x": 0,
+      "y": -263,
+      "maxW": 4480,
+      "text": "v3：像素辦公室（實作中、會議中、關卡）",
+      "page": "v3"
+    },
+    "v3-row2": {
+      "kind": "title1",
+      "x": 0,
+      "y": 1770,
+      "maxW": 1440,
+      "text": "精靈圖與樣式表",
+      "page": "v3"
+    }
+  },
+  "designSystems": []
+}
