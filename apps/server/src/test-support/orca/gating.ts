@@ -5,7 +5,7 @@ export interface RealOrcaOptions {
   disruptive?: boolean;
 }
 
-/** Flag gate only; M2-T8 adds test-repo validation and resource ownership checks. */
+/** Collection gate; the harness additionally verifies the actual origin before execution. */
 export function realOrcaSkipReason(
   options: RealOrcaOptions,
   env: NodeJS.ProcessEnv = process.env,
@@ -15,7 +15,8 @@ export function realOrcaSkipReason(
   if (options.agents && env.AIO_REAL_AGENTS !== '1')
     return 'requires AIO_REAL_AGENTS=1';
   if (options.disruptive)
-    return 'disruptive tests are not available until M2-T8';
+    return 'disruptive tests require the interactive orca:p2 prepare command';
+  if (!env.AIO_TEST_REPO_PATH) return 'requires AIO_TEST_REPO_PATH';
   return undefined;
 }
 

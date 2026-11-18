@@ -1,32 +1,91 @@
-# Real Orca test support (M2)
+# Real Orca harness
 
-T0 supplies only the env-flag gate and test-selection guards. M2-T8 extends this
-folder with the harness, test-repository origin safety gate, recording/replay,
-resource ledger, cleanup and interactive two-phase restart verification.
+Only an integrator/coordinator runs live tests. CI and dev workers use replay.
+The harness never restarts Orca, upgrades it, changes settings, or registers a repo.
 
-## Test selection and opt-in
+## Offline API
 
-- Ordinary tests and sanitized replay tests use `*.test.ts` and run in CI.
-- Live tests use `*.orca.test.ts`, selected only by `@ai-office/server-orca`.
-  `pnpm test` and `pnpm test:coverage` exclude this project; the default server
-  project also excludes these files.
-- Wrap every live suite in `realOrcaSuite(name, { agents?, disruptive? }, fn)`.
-  Missing `AIO_REAL_ORCA=1`, or missing `AIO_REAL_AGENTS=1` for agent suites,
-  registers `describe.skip` and prints the reason. Any nonempty `CI` always skips.
-  Keep IO in hooks/test bodies: skipped describe callbacks still collect tests.
-- `pnpm test:orca` opts into CLI-only suites and explicitly disables agent suites,
-  even if the parent environment has agent opt-in enabled.
-  `pnpm test:orca:agents` opts into both. Neither flag authorizes a worker to run
-  these commands: the coordinator/integrator runs live validation under M2 §1.4.
-- `test:orca:disruptive`, `orca:record`, `orca:recheck`, and `orca:janitor` fail with
-  `not available until M2-T8`. Disruptive suites also remain skipped. T8 must add
-  interactive authorization and persisted prepare/verify phases; an environment
-  variable never constitutes permission to restart Orca.
+- `RecordingExec` decorates the T3 `Exec` boundary (usable beneath both OrcaCli and
+  GitCli). It holds raw responses only in memory and writes sanitized recordings
+  with mode 0600 outside the working repository. `responseEncoding: "text"` is used
+  for git output; JSON receipts retain the day-1 envelope and exit code.
+- `ReplayExec({ default: recordings, stimulusName: recordings })` matches ordered
+  argv, binds UUID placeholders, rehydrates summarized bodies, and refuses unused
+  calls before `stimulus(name)`. T1 individual JSON envelopes can be loaded directly.
+- `FixtureNormalizer` in redaction maps UUIDs consistently to valid UUIDs, including
+  handles/pane keys/repo ids, and home paths to `<home>`. Short Orca ids remain intact.
+  Input argv is removed and bodies become byte length plus SHA-256. Instantiate once
+  for a whole recording session. The fixture sanitizer CLI uses the same class.
 
-The flag gate is not the full safety harness. Before live tests are introduced,
-T8 must validate `AIO_TEST_REPO_PATH` and the exact configured test-repo origin,
-and restrict mutations to resources in its ledger. No unfiltered inbox, resets,
-settings changes, upgrades or autonomous restarts are permitted.
+## CLI-only smoke (integrator)
+
+Set `AIO_REAL_ORCA=1`, `AIO_TEST_REPO_PATH` to the spike clone,
+`AIO_ORCA_BIN` to an absolute executable, and `AIO_TEST_BASE_SHA` to a fetched commit.
+`AIO_TEST_REPO_URL` defaults to the dedicated spike URL. Both HTTPS and GitHub SSH
+origins identify the same repository; lookalike hosts/repos are rejected.
+The owner-approved `~/.ai-office/orca-home` folder must already be registered.
+
+Run `pnpm test:orca --maxWorkers=2` or `pnpm orca:record smoke`. The lifecycle is
+shim → run → pre-created local branch → worktree → cleanup. No agent is launched.
+Each file/session has its own private temporary dataDir; set `AI_OFFICE_HOME` to
+`harness.ledger.dataDir` when launching a test backend. Do not mutate global env
+in concurrent test files. Runs remain in Orca because it has no delete-run API.
+
+`pnpm orca:record custom --scenario /absolute/compiled-scenario.js` loads a trusted
+module exporting `run(harness)`. Agent scenarios additionally need
+`AIO_REAL_AGENTS=1`. Use `harness.command` (owned resources, strict flags), not raw
+Orca execution. Register extra SCM branches in the private ledger before creating
+those resources. `worker-start`/`send` receipts automatically add dispatches and tasks.
+Use `installCleanup(afterAll)` in test suites, including assertion-failure cleanup.
+`collectDispatchUsage` connects the T7 session-log adapter and deduplicates cumulative samples; `collectUsage(read)` takes a usage-sessionlog reader returning numeric provider
+usage totals and persists calibration samples without imposing token limits.
+`detectRateLimitPause` delegates recognition to the pure detector supplied by T6;
+transcript tails are passed only in memory.
+
+## Cleanup and recovery
+
+`pnpm orca:janitor --ledger /private/dataDir/resources.json` prints a residual count.
+Add `--apply` to clean. The configured clone must match the ledger and its origin is
+rechecked before every operation. Cleanup stops/releases only recorded dispatches,
+removes marked test worktrees, marks tasks failed while the shim is still available,
+closes the shim, then deletes recorded remote and local test branches. Local
+`aio-test-*` branches are also accepted for legacy cleanup. It never sweeps all
+prefix-matching resources belonging to another concurrent harness.
+
+Successful steps are persisted atomically, so cleanup is resumable. An unresolved
+create receipt remains a pending intent and blocks destructive cleanup: inspect the
+private ledger, reconcile the receipt/resource, then resume. Never retry a timed-out
+mutation under a new request ID. Malformed/suffixed worktree receipts fail closed.
+The normal self-test must leave zero residual resources; pending intents count as
+residuals. Raw terminal output, credentials and transcripts are never journaled.
+
+## Restart verification (T16 scenario extension)
+
+`pnpm orca:p2 prepare --scenario /absolute/p2-scenario.js` requires a live input and
+output TTY and exact typed confirmation that the coordinator found no other workers
+and the owner checked for pending updates in Orca's UI. `status.remoteUpdateSupport`
+only reports capability, so it cannot replace that check. An environment variable
+alone cannot authorize this step. `test:orca:disruptive` routes to the same entry.
+
+The T16 module exports `prepare(harness, confirmation)` and uses `prepareP2` to
+write its observed version, run, shim, generation, cursor, lastSeq, recent request
+IDs, dispatch states, backend pid/dataDir and ledger to a new 0600 state file inside
+its private dataDir. It must complete observations and return the state file path. The command
+then exits; restart is performed separately by the owner or authorized coordinator.
+
+After coordinator recovery, run `pnpm orca:p2 verify --resume /private/p2.json
+--scenario /absolute/p2-scenario.js`. The module's `verify(harness, state)` supplies
+T16 assertions for identity recovery, receipts, mailbox dedupe, worker survival and
+backend resume; the runner cleans in `finally`. No generic “restart passed” assertion
+is substituted for these scenario-specific checks.
+
+## Recheck after a natural upgrade
+
+Record the same scenario with the new version, then run `pnpm orca:recheck
+--previous /old/recordings --current /new/recordings` to compare response structure.
+Re-run contract replay and CLI-only smoke before proposing a supportedRange change.
+The harness never changes supportedRange automatically. Review sanitized fixtures
+before copying them into `fixtures/orca/<version>`; run `pnpm fixtures:scan`.
 
 ## Dependency placement
 

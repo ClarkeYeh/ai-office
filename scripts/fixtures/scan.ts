@@ -22,6 +22,12 @@ function scan(
     else {
       const data = readFileSync(path);
       const text = data.toString('utf8');
+      if (
+        /term_(?!00000000-0000-4000-8000-)[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}/i.test(
+          text,
+        )
+      )
+        failures++;
       if (!Buffer.from(text).equals(data) || text.includes('\0')) {
         failures++;
         continue;

@@ -57,6 +57,7 @@ describe('fixture command-line tools', () => {
 
   it.each([
     ['sample.json', '{"value":"test@example.com"}'],
+    ['sample.json', '{"handle":"term_12345678-1234-4234-8234-123456789abc"}'],
     ['sample.json', '{"output":"ordinary tool output"}'],
     ['sample.json', '{"value":"\\u0074est@example.com"}'],
     ['sample.json', '{invalid'],
@@ -145,7 +146,7 @@ describe('replay fidelity', () => {
     const parsed = JSON.parse(result.stdout) as typeof raw;
     expect(parsed.result).toMatchObject({
       runId: raw.result.runId,
-      terminalHandle: raw.result.terminalHandle,
+      terminalHandle: 'term_00000000-0000-4000-8000-000000000001',
       dispatchId: raw.result.dispatchId,
       taskId: raw.result.taskId,
       messages: [
