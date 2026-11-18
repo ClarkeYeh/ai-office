@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { PixelFrame } from '../../../shared/ui/index.js';
 import { GateLayout, type GateLayoutProps } from './GateLayout.js';
 import styles from './forms.module.css';
 export type BodyLayout = Omit<GateLayoutProps, 'children' | 'decision'>;
@@ -12,7 +13,11 @@ export function DecisionSections({
   actions: ReactNode;
   children: ReactNode;
 }) {
-  const content = <section className={styles.stack}>{children}</section>;
+  const content = (
+    <PixelFrame>
+      <section className={styles.stack}>{children}</section>
+    </PixelFrame>
+  );
   const decision = <div className={styles.stack}>{actions}</div>;
   return layout ? (
     <GateLayout {...layout} decision={decision}>

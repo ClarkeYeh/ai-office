@@ -14,6 +14,7 @@ import { ApiError, createApiClient } from '../../../api/index.js';
 import { createRealtime, RealtimeProvider } from '../../../realtime/index.js';
 import { useGateDecision } from './useGateDecision.js';
 import { QuestionPage } from './QuestionPage.js';
+import { GateBannerActions } from './GateBannerActions.js';
 const gate: GateView = {
   gateId: 'g',
   workflowId: 'wf',
@@ -157,4 +158,38 @@ test('question route answers through the answer endpoint and refetches conflicts
     { idempotencyKey: expect.any(String) },
   );
   expect(api.decideGate).not.toHaveBeenCalled();
+});
+
+test('banner CTAs navigate to open exceptions and hide the live inbox during replay', () => {
+  const { realtime, wrapper } = setup();
+  realtime.store.setState((state) => ({
+    overview: {
+      ...state.overview,
+      gates: [
+        {
+          ...gate,
+          kind: 'exception',
+          exceptionKind: 'hijacked',
+          gateId: 'wf/gate',
+        },
+      ],
+    },
+  }));
+  render(<GateBannerActions />, { wrapper });
+  expect(
+    screen.getByTestId('gate-banner-link-wf/gate').getAttribute('href'),
+  ).toBe('/gates/wf%2Fgate');
+  act(() =>
+    realtime.store.setState({
+      replay: {
+        workflowId: 'wf',
+        eventCount: 0,
+        seq: 0,
+        model: null,
+        loading: true,
+        progress: 0,
+      },
+    }),
+  );
+  expect(screen.queryByTestId('gate-banner-link-wf/gate')).toBeNull();
 });

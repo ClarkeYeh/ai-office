@@ -151,6 +151,8 @@ export function TaskSplitGate({
                 : `gates.tasks.${field}`,
             );
             const value = item[field];
+            const Control =
+              field === 'body' || field === 'acceptance' ? 'textarea' : 'input';
             return (
               <label className={styles.field} key={field}>
                 {label}
@@ -169,7 +171,7 @@ export function TaskSplitGate({
                     <option value="codex">{t('office.vendor.codex')}</option>
                   </select>
                 ) : (
-                  <textarea
+                  <Control
                     aria-label={`${item.key}: ${label}`}
                     data-testid={`item-${item.key}-${field}`}
                     disabled={disabled || !editable.has(field)}

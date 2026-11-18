@@ -9,7 +9,15 @@ export function GateBannerActions() {
   const replaying = useWebState((state) => state.replay !== null);
   const gates = model?.gates ?? (replaying ? [] : overview);
   const rateLimited =
-    model?.seats.flatMap((seat) => seat.attempts).filter(isRateLimited) ?? [];
+    model?.seats
+      .flatMap((seat) => seat.attempts)
+      .filter(
+        (attempt) =>
+          !attempt.released &&
+          attempt.state !== 'exited' &&
+          attempt.state !== 'lost' &&
+          isRateLimited(attempt),
+      ) ?? [];
   return (
     <>
       {gates
