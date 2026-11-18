@@ -162,7 +162,8 @@
   font-family: 'DotGothic16', ui-monospace, monospace;
   font-size: 10px;
   line-height: 1.2;
-  color: #262b44;
+  /* night: 5.6:1 on sky (CC), 8.4:1 on leaf (CX); ink was 4.35:1 on sky. */
+  color: #181425;
 }
 
 .badge[data-badge='CC'] {
@@ -376,8 +377,8 @@
     -4px 4px 0 #262b44;
 }
 
-/* The still gate thumbnail (2×) keeps its plates readable; vendor badges,
-   speech and tooltips are live-office detail and stay off the crop. */
-.frame[data-still] :is(.badge, .bubble, .tooltip) {
+/* The still gate thumbnail (2×) keeps its plates and badges readable; speech
+   and tooltips are live-office detail and stay off the crop. */
+.frame[data-still] :is(.bubble, .tooltip) {
   display: none;
 }
