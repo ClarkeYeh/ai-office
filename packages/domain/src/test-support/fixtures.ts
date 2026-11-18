@@ -282,8 +282,9 @@ export const approveGate = (
 export const throughStage = (
   harness: Harness,
   last: 'meeting' | 'breakdown' | 'implement' | 'integrate',
+  start: StartWorkflow = startCommand(),
 ): Harness => {
-  harness.given(startCommand());
+  harness.given(start);
   const steps: [string, Step[]][] = [
     ['meeting', approveGate('conclusion', 'meeting', 'meeting')],
     ['breakdown', approveGate('task-split', 'breakdown', 'planning')],

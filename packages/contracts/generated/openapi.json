@@ -14347,6 +14347,23 @@
             "properties": {
               "purpose": {
                 "type": "string",
+                "const": "rate-limit-lift"
+              },
+              "attemptId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "purpose",
+              "attemptId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "purpose": {
+                "type": "string",
                 "const": "wallclock-hard-limit"
               },
               "stageId": {

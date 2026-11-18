@@ -1172,3 +1172,75 @@ describe('M2-T14 spawn-stall transitions', () => {
     },
   ]);
 });
+
+const rateLimit = (
+  rateLimited: Extract<
+    DomainCommand,
+    { type: 'ObserveAttemptStatus' }
+  >['rateLimited'],
+): DomainCommand =>
+  cmd('ObserveAttemptStatus', {
+    attemptId: 'att-1',
+    state: 'starting',
+    rateLimited,
+  });
+const enter = rateLimit({
+  since: '2026-11-17T00:00:09.000Z',
+  evidence: 'worker-show',
+});
+const meetingTurns: DomainCommand = cmd('RecordUsageTurns', {
+  usage: { attemptId: 'att-1', turns: 500 },
+});
+describe('M2-T19 S25 / S26 transitions', () => {
+  runTransitionRows([
+    {
+      name: 'rate limit entry keeps the attempt state',
+      given: withAttempt,
+      when: enter,
+      then: ['seat.status'],
+      check: (h) =>
+        expect(h.state.attempts['att-1']).toMatchObject({
+          state: 'starting',
+          rateLimited: { evidence: 'worker-show' },
+        }),
+    },
+    {
+      name: 'rate limit evidence refresh',
+      given: [...withAttempt, enter],
+      when: enter,
+      then: ['seat.status'],
+    },
+    {
+      name: 'rate limit lift',
+      given: [...withAttempt, enter],
+      when: rateLimit(null),
+      then: ['seat.status'],
+      check: (h) =>
+        expect(h.state.attempts['att-1']?.rateLimited).toBeUndefined(),
+    },
+    {
+      name: 'rate limit lift without a limit',
+      given: withAttempt,
+      when: rateLimit(null),
+      then: [],
+    },
+    {
+      name: 'budget enforcement on: turns over budget alert',
+      given: withAttempt,
+      when: meetingTurns,
+      then: ['usage.turns', 'budget.exceeded', 'budget.hard_limit'],
+    },
+    {
+      name: 'budget enforcement off: usage only',
+      given: [
+        startCommand({
+          limits: { globalAgents: 10, budgetEnforcement: 'off' },
+        }),
+        startStage('meeting'),
+        spawn('att-1', 'pm'),
+      ],
+      when: meetingTurns,
+      then: ['usage.turns'],
+    },
+  ]);
+});

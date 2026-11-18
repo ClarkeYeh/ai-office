@@ -727,6 +727,8 @@ export const TimerPayloadSchema = z.discriminatedUnion('purpose', [
     attemptId: id,
     phase: z.enum(['nudge', 'gate']),
   }),
+  // M2-T19 (S26, §7.1): lifts a provider rate limit at its reset time or after 30 quiet minutes.
+  z.object({ purpose: z.literal('rate-limit-lift'), attemptId: id }),
   z.object({
     purpose: z.literal('wallclock-hard-limit'),
     stageId: id,
