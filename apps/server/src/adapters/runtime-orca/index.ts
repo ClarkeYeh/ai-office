@@ -24,3 +24,5 @@ export type {
 } from './coordinator-identity/shim.js';
 export type * from './observe/index.js';
 export type { AdapterState } from './state.js';
+export { createOrcaRuntime } from './methods/index.js';
+export type { OrcaRuntimeOptions, MethodOptions } from './methods/index.js';

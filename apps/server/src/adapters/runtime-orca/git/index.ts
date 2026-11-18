@@ -10,6 +10,13 @@ export interface GitWorktree {
   head?: string;
 }
 export interface GitCli {
+  resetBranch(repo: string, branch: string, sha: string): Promise<void>;
+  checkoutBranch(path: string, branch: string, sha: string): Promise<void>;
+  deleteCreatedBranch(
+    repo: string,
+    branch: string,
+    expectedSha: string,
+  ): Promise<void>;
   fetch(repo: string, branch: string): Promise<void>;
   revParse(repo: string, ref: string): Promise<string>;
   localBranch(repo: string, branch: string): Promise<string | null>;
@@ -73,12 +80,15 @@ export class DefaultGitCli implements GitCli {
       bin: this.options.bin ?? 'git',
       args: ['-C', repo, ...args],
       cwd: await this.options.cwdGuard.check(),
-      env: subprocessEnv(
-        this.options.env,
-        fetch
-          ? (this.options.passthrough ?? ['GH_CONFIG_DIR', 'XDG_CONFIG_HOME'])
-          : [],
-      ),
+      env: {
+        ...subprocessEnv(
+          this.options.env,
+          fetch
+            ? (this.options.passthrough ?? ['GH_CONFIG_DIR', 'XDG_CONFIG_HOME'])
+            : [],
+        ),
+        GIT_TERMINAL_PROMPT: '0',
+      },
       timeoutMs: 60_000,
     });
     if (result.exitCode === null || !accepted.includes(result.exitCode))
@@ -198,9 +208,55 @@ export class DefaultGitCli implements GitCli {
       throw guard('branch_unpushed');
     await this.execute(repo, ['branch', '-D', branch]);
   }
+  /** Reset only an unoccupied branch whose commits are all on the fetched remote. */
+  async resetBranch(repo: string, branch: string, sha: string): Promise<void> {
+    branchName(branch);
+    if (!/^[0-9a-f]{40}$/.test(sha)) throw guard('invalid_git_sha');
+    await this.unoccupied(repo, branch);
+    if (!(await this.isAncestor(repo, branch, 'refs/remotes/origin/' + branch)))
+      throw guard('unpushed_commits');
+    await this.execute(repo, ['branch', '-f', branch, sha]);
+  }
+  async checkoutBranch(
+    path: string,
+    branch: string,
+    sha: string,
+  ): Promise<void> {
+    branchName(branch);
+    if (!/^[0-9a-f]{40}$/.test(sha)) throw guard('invalid_git_sha');
+    await this.unoccupied(path, branch);
+    const local = await this.localBranch(path, branch);
+    if (
+      local &&
+      !(await this.isAncestor(path, branch, 'refs/remotes/origin/' + branch))
+    )
+      throw guard('unpushed_commits');
+    await this.execute(path, ['checkout', '-B', branch, sha]);
+  }
+  /** Receipt-proven adapter branch: delete only if its tip has not changed. */
+  async deleteCreatedBranch(
+    repo: string,
+    branch: string,
+    expectedSha: string,
+  ): Promise<void> {
+    branchName(branch);
+    await this.unoccupied(repo, branch);
+    const local = await this.localBranch(repo, branch);
+    if (!local) return;
+    if (local !== expectedSha) throw guard('unpushed_commits');
+    await this.execute(repo, ['branch', '-D', branch]);
+  }
+  private async unoccupied(repo: string, branch: string): Promise<void> {
+    if (
+      (await this.worktrees(repo)).some(
+        (w) => w.branch === 'refs/heads/' + branch,
+      )
+    )
+      throw guard('branch_in_use');
+  }
   /** Day-1 P8 primary path: pre-create local W at the pinned SHA. No force. */
   async createBranch(repo: string, branch: string, sha: string): Promise<void> {
     if (!/^[0-9a-f]{40}$/.test(sha)) throw guard('invalid_git_sha');
-    await this.execute(repo, ['branch', branchName(branch), sha]);
+    await this.execute(repo, ['branch', '--no-track', branchName(branch), sha]);
   }
 }
