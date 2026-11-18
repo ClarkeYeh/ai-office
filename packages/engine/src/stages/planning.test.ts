@@ -159,3 +159,37 @@ it('proposes work items submitted while paused once the workflow resumes', () =>
   });
   expect(sim.rejections).toEqual([]);
 });
+
+it('holds a stage timeout that elapses during a hijack pause until resume (FX8)', () => {
+  const sim = runMeeting({}, true);
+  const stageTimer = Object.values(sim.state.timers).find(
+    (t) =>
+      t.payload.purpose === 'stage-timeout' &&
+      t.payload.stageId === 'breakdown',
+  )!;
+  const fired = () =>
+    sim
+      .eventsOf('timer.fired')
+      .filter((e) => e.payload.timerId === stageTimer.id);
+  // Other safety nets (e.g. spawn stall) may nudge too; follow the stage's.
+  const reminders = () =>
+    sim
+      .eventsOf('message.nudge')
+      .filter((e) => e.payload.reason === 'missing-submission');
+  sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+  sim.advance(40 * 60_000);
+  expect(fired()).toHaveLength(0);
+  expect(reminders()).toHaveLength(0);
+  sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+  expect(fired()).toHaveLength(1);
+  expect(reminders().map((e) => e.payload.attemptId)).toEqual([
+    expect.stringContaining('/breakdown/'),
+  ]);
+  sim.advance(5 * 60_000);
+  expect(fired()).toHaveLength(1);
+  expect(sim.eventsOf('gate.opened').at(-1)?.payload).toMatchObject({
+    kind: 'exception',
+    stageId: 'breakdown',
+  });
+  expect(sim.rejections).toEqual([]);
+});
