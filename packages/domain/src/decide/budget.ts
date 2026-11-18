@@ -7,7 +7,7 @@ import { accept, reject } from '../errors.js';
 import type { DecideResult } from '../errors.js';
 import { budgetAlertKey, stageKey } from '../state/index.js';
 import type { WorkflowState } from '../state/index.js';
-import { questionWaitMilliseconds } from './question.js';
+import { suspendedMilliseconds } from './question.js';
 import { draft } from './support.js';
 
 type Alert = EventPayload<'budget.exceeded'>;
@@ -121,7 +121,7 @@ export const decideBudget = (
           0,
           Math.floor(
             command.usedMinutes -
-              questionWaitMilliseconds(
+              suspendedMilliseconds(
                 state,
                 attempt.attemptId,
                 command.meta.occurredAt,
