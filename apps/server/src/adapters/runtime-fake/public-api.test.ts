@@ -53,6 +53,8 @@ type RoleBehavior = {
   ignoreStop?: boolean;
   /** T14 additive spawn-stall scenario option. */
   silent?: boolean;
+  /** M2-T17 (D8): optional, additive. */
+  stopSettleMs?: number;
 };
 type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */

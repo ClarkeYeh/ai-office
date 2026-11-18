@@ -59,6 +59,12 @@ export type RoleBehavior = {
    * (the §7.1 spawn-stall case). Stop and release still end it.
    */
   silent?: boolean;
+  /**
+   * Real Orca (M2-T17 D8): a stop settles this many ms later; a release
+   * arriving before then fails transiently (the adapter's
+   * `release_pending_stop`) and is retried. Off when absent.
+   */
+  stopSettleMs?: number;
 };
 export type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */

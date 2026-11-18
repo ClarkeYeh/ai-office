@@ -63,6 +63,8 @@ type Agent = {
   terminalHandle: string;
   paneKey: string;
   spec?: string;
+  /** Optional D8 model: a release before this time is refused transiently. */
+  stopSettlesAt?: number;
 };
 type Scheduled = {
   at: number;
@@ -884,6 +886,8 @@ export class FakeRuntime implements RuntimePort {
     ) {
       agent.state = 'stopped';
       agent.generation++;
+      if (agent.behavior.stopSettleMs !== undefined)
+        agent.stopSettlesAt = this.now() + agent.behavior.stopSettleMs;
       this.emit(agent.session, { type: 'agent.stopped', agent: ref });
     }
     this.after('stop');
@@ -894,6 +898,13 @@ export class FakeRuntime implements RuntimePort {
   ): Promise<void> {
     this.before('release');
     const agent = this.agent(ref);
+    if (agent.stopSettlesAt !== undefined && this.now() < agent.stopSettlesAt)
+      throw new PortError(
+        'transient',
+        'release_pending_stop',
+        'Fake runtime: stop not settled',
+        true,
+      );
     this.releaseAgent(agent, this.now());
     if (opts.removeWorkspace) this.removeWorkspace(agent.workspace);
     this.after('release');

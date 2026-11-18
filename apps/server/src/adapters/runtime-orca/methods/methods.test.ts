@@ -1027,3 +1027,52 @@ it('targets the latest resource owner after a follow-up receipt was lost and wor
     f.calls.find((r) => command(r, 'orchestration worker-stop'))?.args,
   ).toContain('follow');
 });
+it('retries a release that raced a stop under a fresh request id, and accepts a settled dispatch (M2-T17 D8)', async () => {
+  const f = await fixture();
+  await f.runtime.spawnAgent(f.spawn);
+  // Still stopping: Orca refuses the release and the worker is not settled.
+  f.workers.push({
+    dispatchId: 'ctx',
+    taskId: 'task',
+    runId: 'run',
+    workerState: 'ready',
+    terminalState: 'retained',
+  });
+  let refusals = 1;
+  f.setCustom(async (r) =>
+    command(r, 'orchestration worker-release') && refusals-- > 0
+      ? { error: 'dispatch_inactive' }
+      : undefined,
+  );
+  await expect(
+    f.runtime.release(agentRef('ctx'), { removeWorkspace: false }),
+  ).rejects.toMatchObject({
+    category: 'transient',
+    code: 'release_pending_stop',
+  });
+  // The retry carries a new request key (`release:ctx#1`), so Orca cannot
+  // replay the stored refusal; it then succeeds once the stop has settled.
+  expect(f.state.read('orca:release-retry:ctx')).toBe(1);
+  await f.runtime.release(agentRef('ctx'), { removeWorkspace: false });
+  expect(
+    f.calls.filter((r) => command(r, 'orchestration worker-release')),
+  ).toHaveLength(2);
+  // Already settled with its terminal released: the refusal means released.
+  const g = await fixture();
+  await g.runtime.spawnAgent(g.spawn);
+  g.workers.push({
+    dispatchId: 'ctx',
+    taskId: 'task',
+    runId: 'run',
+    workerState: 'stopped',
+    terminalState: 'released',
+  });
+  g.setCustom(async (r) =>
+    command(r, 'orchestration worker-release')
+      ? { error: 'dispatch_inactive' }
+      : undefined,
+  );
+  await expect(
+    g.runtime.release(agentRef('ctx'), { removeWorkspace: false }),
+  ).resolves.toBeUndefined();
+});
