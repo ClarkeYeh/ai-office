@@ -699,11 +699,13 @@ async function composeOrca(
     );
     ledger.rebuild(run, { workers }, tasks);
   }
+  // The runtime identity probe succeeded (FX5: runtimeVerified may be published).
   return {
     runtime,
     close,
     stopObservation: sleepRuntime.stopObservation,
     forceRecheck: sleepRuntime.forceRecheck,
+    identityEnsured: true,
   };
 }
 
@@ -852,8 +854,15 @@ async function compose(
   cleanup.push(() => projectionScheduler.close());
 
   const runtimeMetadata = { mode: runtimeMode, ...(await runtime.health()) };
+  // FX5: runtimeVerified is published only after the runtime identity probe
+  // succeeded: the fake runtime is up once composed; orca mode needs
+  // CoordinatorIdentity ensure() (composeOrca).
+  const identityProbed = orca === undefined || orca.identityEnsured;
   const refreshRuntimeHealth = async () => {
     Object.assign(runtimeMetadata, await runtime.health());
+    // Version re-reads can turn the runtime unverified (§19); publish changes.
+    if (identityProbed)
+      await health.runtimeIdentityVerified(runtimeMetadata.verified);
     if (!runtimeMetadata.available)
       throw new PortError(
         'transient',
@@ -985,6 +994,10 @@ async function compose(
     await delay(Math.min(1000 * pass, 5000));
   }
   await runners.idle();
+  // Publish each component's actual state before serving (FX5).
+  if (identityProbed)
+    await health.runtimeIdentityVerified(runtimeMetadata.verified);
+  await health.publishInitial();
 
   const projections = new ProjectionService(
     stores.events,

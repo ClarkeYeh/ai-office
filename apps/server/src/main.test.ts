@@ -14,6 +14,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FAKE_REPO,
@@ -480,6 +481,49 @@ describe('hybrid composition', () => {
     await server.close();
     expect(replay.calls.at(-1)).toBe('terminal close');
     expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
+  });
+
+  it('publishes runtimeVerified only after CoordinatorIdentity ensure() succeeds (FX5)', async () => {
+    const directory = home();
+    hybridConfig(directory);
+    replayHybrid(directory);
+    const ensure = vi.spyOn(ShimCoordinatorIdentity.prototype, 'ensure');
+    const verified = vi.spyOn(
+      HealthMonitor.prototype,
+      'runtimeIdentityVerified',
+    );
+    const server = await hybrid(directory);
+    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(verified).toHaveBeenCalledWith(true);
+    expect(verified.mock.invocationCallOrder[0]).toBeGreaterThan(
+      ensure.mock.invocationCallOrder[0]!,
+    );
+    const ui = await browser(server);
+    const health = (await ui.call('GET', '/api/v1/health')).body;
+    expect(health.runtime.verified).toBe(true);
+    await server.close();
+    const db = new DatabaseSync(join(directory, 'data/ai-office.sqlite'));
+    const published = (
+      db
+        .prepare('SELECT event_json FROM events WHERE workflow_id IS NULL')
+        .all() as { event_json: string }[]
+    )
+      .map((row) => JSON.parse(row.event_json))
+      .filter((event) => event.type === 'health.changed')
+      .map((event) => event.payload);
+    db.close();
+    expect(published).toContainEqual({
+      component: 'runtime',
+      status: 'healthy',
+      breaker: 'closed',
+      runtimeVerified: true,
+    });
+    expect(published.map((p) => p.component).sort()).toEqual([
+      'runtime',
+      'scm',
+      'store',
+      'usage',
+    ]);
   });
 
   it('uses the injected ScmPort only in hybrid mode and closes observer before identity and CLI', async () => {
