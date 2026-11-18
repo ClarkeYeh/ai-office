@@ -48,6 +48,8 @@ export function applyUsage(m: ReadModel, e: DomainEvent): void {
 /** Budgets use only recorded usage/time; never wall-clock time during replay. */
 export function refreshBudgets(m: ReadModel, e: DomainEvent): void {
   const bars: BudgetBar[] = [];
+  // S25: absent in older snapshots, which keep their bars unchanged.
+  const enforcement = m.limits.budgetEnforcement;
   const bar = (
     scope: BudgetBar['scope'],
     metric: BudgetBar['metric'],
@@ -66,6 +68,8 @@ export function refreshBudgets(m: ReadModel, e: DomainEvent): void {
     budget = previous?.budget ?? budget;
     used = Math.max(used, previous?.used ?? 0);
     const hardLimit = Math.ceil(budget * m.budgets.hardLimitMultiplier);
+    // Wallclock bars are stage-contract timeouts (§7.1) and are always enforced.
+    const off = enforcement === 'off' && metric !== 'wallclock';
     bars.push({
       scope,
       metric,
@@ -73,8 +77,16 @@ export function refreshBudgets(m: ReadModel, e: DomainEvent): void {
       budget,
       hardLimit,
       ...(previous?.gateId === undefined ? {} : { gateId: previous.gateId }),
-      level:
-        used >= hardLimit ? 'hard_limit' : used >= budget ? 'exceeded' : 'ok',
+      level: off
+        ? 'ok'
+        : used >= hardLimit
+          ? 'hard_limit'
+          : used >= budget
+            ? 'exceeded'
+            : 'ok',
+      ...(enforcement === undefined || metric === 'wallclock'
+        ? {}
+        : { enforcement }),
       ...(stageId === undefined ? {} : { stageId }),
       ...(itemKey === undefined ? {} : { itemKey }),
     });
