@@ -35,13 +35,6 @@ export class DefaultOrcaCli implements OrcaCli {
     opts: RunOptions,
     schema?: z.ZodType<T>,
   ): Promise<ParsedResult<T>> {
-    if (
-      !args.length ||
-      args.some((arg) =>
-        /^(--from|--terminal|--run|--retry-request)(=|$)/.test(arg),
-      )
-    )
-      throw guard('caller_identity_or_request_flag');
     const readCommands = new Set([
       'status',
       'repo list',
@@ -60,6 +53,35 @@ export class DefaultOrcaCli implements OrcaCli {
       'orchestration inbox',
     ]);
     const command = args.slice(0, args[0] === 'status' ? 1 : 2).join(' ');
+    const mutateCommands = new Set([
+      'orchestration worker-start',
+      'orchestration send',
+      'orchestration reply',
+      'orchestration worker-stop',
+      'orchestration worker-release',
+      'orchestration run-create',
+      'orchestration run-use',
+      'orchestration task-update',
+      'worktree create',
+      'worktree rm',
+      'terminal create',
+      'terminal close',
+    ]);
+    if (
+      (!readCommands.has(command) &&
+        !mutateCommands.has(command) &&
+        command !== 'orchestration check') ||
+      (command === 'terminal close' &&
+        args.some((arg) => /^--all(?:=|$)/.test(arg)))
+    )
+      throw guard('command_not_allowed');
+    if (
+      !args.length ||
+      args.some((arg) =>
+        /^(--from|--terminal|--run|--retry-request)(=|$)/.test(arg),
+      )
+    )
+      throw guard('caller_identity_or_request_flag');
     const expectedKind =
       command === 'orchestration check'
         ? 'consume'
@@ -87,6 +109,13 @@ export class DefaultOrcaCli implements OrcaCli {
     if (command === 'orchestration inbox' && !identity.includes('--terminal'))
       throw guard('inbox_target_required');
     const argv = [...args, ...identity];
+    if (command === 'terminal close') {
+      // Only a single explicit terminal handle, never an implicit or bulk target.
+      const target = argv.slice(2).filter((arg) => arg !== '--json');
+      if (target[0] === '--terminal') target.shift();
+      if (target.length !== 1 || !/^term_[^\s]+$/.test(target[0]!))
+        throw guard('command_not_allowed');
+    }
     if (
       opts.run &&
       command !== 'orchestration inbox' &&

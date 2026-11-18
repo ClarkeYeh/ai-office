@@ -582,3 +582,144 @@ it('routes inbox mailbox targets through identity and respects native non-reques
     '--json',
   ]);
 });
+
+describe('command allowlist', () => {
+  const mutations = [
+    'worker-start',
+    'send',
+    'reply',
+    'worker-stop',
+    'worker-release',
+    'run-create',
+    'run-use',
+    'task-update',
+  ];
+  it.each(mutations)(
+    'allows orchestration %s with the existing mutation guards',
+    async (command) => {
+      const f = await fixture({
+        exitCode: 0,
+        stdout:
+          '{"ok":true,"result":{"state":"ready","dispatchId":"ctx-test"}}',
+      });
+      await f.cli.run(['orchestration', command], {
+        kind: 'mutate',
+        priority: 'mutate',
+        requestId: uuid,
+      });
+      expect(f.run).toHaveBeenCalledOnce();
+    },
+  );
+  it.each([
+    ['status'],
+    ['repo', 'list'],
+    ['repo', 'show'],
+    ['worktree', 'list'],
+    ['worktree', 'show'],
+    ['terminal', 'list'],
+    ['terminal', 'show'],
+    ['terminal', 'read'],
+    ...[
+      'worker-list',
+      'worker-show',
+      'worker-read',
+      'run-show',
+      'task-list',
+      'request-show',
+    ].map((cmd) => ['orchestration', cmd]),
+  ])('preserves read command %j', async (...args) => {
+    const f = await fixture();
+    await f.cli.run(args, { kind: 'read', priority: 'identity' });
+    expect(f.run).toHaveBeenCalledOnce();
+  });
+  it.each([
+    ['worktree', 'create'],
+    ['worktree', 'rm'],
+    ['terminal', 'create'],
+  ])('allows native mutation %s %s', async (...args) => {
+    const f = await fixture();
+    await f.cli.run(args, { kind: 'mutate', priority: 'mutate' });
+    expect(f.run).toHaveBeenCalledOnce();
+  });
+  it.each([
+    ['orchestration', 'reset'],
+    ['repo', 'add'],
+    ['repo', 'hide'],
+    ['repo', 'rm'],
+    ['worktree', 'set'],
+    ['account', 'list'],
+    ['account', 'login'],
+    ['account', 'unknown'],
+    ['serve'],
+    ['unknown'],
+    [],
+    ['terminal', 'close', '--all'],
+    ['terminal', 'close', '--all=true'],
+    ['terminal', 'close', 'term-one', '--all'],
+    ['--json', 'orchestration', 'reset'],
+  ])(
+    'blocks unsupported command %j before identity or subprocess work',
+    async (...args) => {
+      const f = await fixture();
+      const identity = { argsFor: vi.fn(async () => []) };
+      const check = vi.spyOn(f.cwdGuard, 'check');
+      const cli = new DefaultOrcaCli({
+        bin: 'orca',
+        env,
+        cwdGuard: f.cwdGuard,
+        exec: { run: f.run },
+        identity,
+      });
+      for (const kind of ['mutate', 'consume', 'read'] as const) {
+        await expect(
+          cli.run(args, { kind, priority: 'mutate', requestId: uuid }),
+        ).rejects.toMatchObject({
+          category: 'guard',
+          code: 'command_not_allowed',
+        });
+      }
+      expect(identity.argsFor).not.toHaveBeenCalled();
+      expect(check).not.toHaveBeenCalled();
+      expect(f.run).not.toHaveBeenCalled();
+    },
+  );
+  it('allows one explicit terminal handle and rejects implicit, multiple or identity-injected bulk targets', async () => {
+    const f = await fixture();
+    const argsFor = vi.fn<CoordinatorIdentity['argsFor']>(async () => []);
+    const cli = new DefaultOrcaCli({
+      bin: 'orca',
+      env,
+      cwdGuard: f.cwdGuard,
+      exec: { run: f.run },
+      identity: { argsFor },
+    });
+    await cli.run(['terminal', 'close', 'term_test'], {
+      kind: 'mutate',
+      priority: 'mutate',
+    });
+    argsFor.mockResolvedValue(['--terminal', 'term_test']);
+    await cli.run(['terminal', 'close'], {
+      kind: 'mutate',
+      priority: 'mutate',
+    });
+    for (const identity of [
+      [],
+      ['--terminal', 'term_one', '--terminal', 'term_two'],
+      ['--all'],
+      ['--terminal', 'term_test', '--all'],
+    ]) {
+      argsFor.mockResolvedValue(identity);
+      await expect(
+        cli.run(['terminal', 'close'], { kind: 'mutate', priority: 'mutate' }),
+      ).rejects.toMatchObject({ code: 'command_not_allowed' });
+    }
+    argsFor.mockResolvedValue([]);
+    await expect(
+      cli.run(['terminal', 'close', 'term_one', 'term_two'], {
+        kind: 'mutate',
+        priority: 'mutate',
+      }),
+    ).rejects.toMatchObject({ code: 'command_not_allowed' });
+    expect(f.run).toHaveBeenCalledTimes(2);
+  });
+});
