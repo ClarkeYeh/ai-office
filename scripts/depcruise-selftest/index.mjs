@@ -26,6 +26,7 @@ try {
     'fastify-type-provider-zod',
     'fastify',
     '@fastify/cors',
+    '@fastify/cookie',
     'octokit',
     '@octokit/core',
     'better-sqlite3',

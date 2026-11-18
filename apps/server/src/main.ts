@@ -1,3 +1,10 @@
+import {
+  demoScenario,
+  parallelScenario,
+  troubleScenario,
+  load10Scenario,
+  stallScenario,
+} from './adapters/runtime-fake/scenarios/index.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -85,6 +92,11 @@ import type { UsagePort } from './ports/usage.js';
 
 export const FAKE_SCENARIOS: Readonly<Record<string, RuntimeScenario>> = {
   mainline: mainlineScenario,
+  demo: demoScenario,
+  parallel: parallelScenario,
+  trouble: troubleScenario,
+  'load-10': load10Scenario,
+  stall: stallScenario,
 };
 
 /** The repository the fake world knows; registered automatically in fake mode. */
@@ -575,6 +587,16 @@ async function compose(
   await registerApi(app, apiDeps);
   if (options.dev === true && fake)
     await registerDevFakeRoutes(app, apiDeps, {
+      editIssueBody: (number, body) =>
+        world.scm.editIssueBody({ repo: FAKE_REPO.github, number }, body),
+      setPrStatus: (number, status) => {
+        const ref = { repo: FAKE_REPO.github, number };
+        if (status.mergeable !== undefined)
+          world.scm.setMergeable(ref, status.mergeable);
+        if (status.checks !== undefined)
+          world.scm.setChecks(ref, status.checks);
+      },
+      setRuntimeConnected: (connected) => world.runtime.setConnected(connected),
       mergeOwner: (number) =>
         world.scm.mergeOwner({ repo: FAKE_REPO.github, number }),
     });
