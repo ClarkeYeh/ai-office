@@ -503,6 +503,66 @@ describe('exception and pause handling', () => {
     expect(sim.state.workflow!.pausedReasons).toEqual([]);
     expect(sim.rejections).toEqual([]);
   });
+  it('a worker run-use of another run stops only that worker, once, beside the hijack gate', () => {
+    const sim = setup();
+    agent(sim, 'a');
+    agent(sim, 'b');
+    // Detection of the takeover itself has no attempt, so it stops nothing.
+    sim.inject('runtime.identity_hijacked', {
+      run: 'session-1',
+      coordinatorHandle: 'other',
+      consumerGeneration: 1,
+    });
+    expect(stops(sim)).toEqual([]);
+    const runUse = (messageId: string) =>
+      sim.dispatch({
+        type: 'EvaluateAnomaly',
+        observation: {
+          kind: 'policy-hits',
+          attemptId: 'a',
+          hits: [
+            // Severity-independent: a downgraded rule still stops.
+            { rule: 'orca-run-use', severity: 'medium', messageId },
+          ],
+        },
+      });
+    runUse('m1');
+    runUse('m2');
+    expect(stops(sim)).toEqual(['a']);
+    expect(
+      sim.issued.find((e) => e.command.kind === 'runtime.stop')!.commandId,
+    ).toBe(`${WORKFLOW_ID}/stop/a/run-use`);
+    // The hijack gate keeps its own reclaim path.
+    const hijacked = Object.values(sim.state.gates).find(
+      (g) => g.kind === 'exception' && g.exceptionKind === 'hijacked',
+    )!;
+    expect(hijacked.status).toBe('open');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('run-use stops wait for the agent ref and other hits do not use the run-use fuse', () => {
+    const sim = setup();
+    const a = agent(sim, 'a');
+    delete a.agentRef;
+    const hit = {
+      rule: 'orca-run-use' as const,
+      messageId: 'm',
+      severity: 'high' as const,
+    };
+    expect(
+      exceptionsPolicy(
+        context(sim, 'seat.policy_violation', { attemptId: 'a', hits: [hit] }),
+      ),
+    ).toEqual([]);
+    a.agentRef = 'agent:a';
+    expect(
+      exceptionsPolicy(
+        context(sim, 'seat.policy_violation', {
+          attemptId: 'a',
+          hits: [{ ...hit, rule: 'orca-dispatch' }],
+        }),
+      ),
+    ).toMatchObject([{ commandId: `${WORKFLOW_ID}/stop/a/policy/trigger` }]);
+  });
   it('finish sends an explicit wrap-up and item skip stops only the chosen item', () => {
     const sim = setup();
     agent(sim, 'a');

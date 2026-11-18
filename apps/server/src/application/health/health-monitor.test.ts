@@ -28,6 +28,7 @@ function setup(
   handlers: CommandHandlers = {},
   react: RunnerReact = () => [],
   store = new InMemoryEventStore(),
+  probeTimeoutMs?: number,
 ) {
   const clock = new FakeClock();
   const probes = {
@@ -47,6 +48,7 @@ function setup(
     probes,
     workflows: () => runners.all(),
     runtime: { mode: 'fake', verified: true },
+    ...(probeTimeoutMs === undefined ? {} : { probeTimeoutMs }),
   });
   const executor = new CommandExecutor({
     handlers,
@@ -66,6 +68,7 @@ function setup(
     seatTokens: new InMemorySeatTokenStore(),
     specStore: new MemorySpecStore(),
     cliPath: '/app/cli.js',
+    dataDir: '/app/home',
     react,
   });
   return {
@@ -450,6 +453,48 @@ describe('HealthMonitor', () => {
         { component: 'scm', status: 'degraded', breaker: 'closed' },
         { component: 'scm', status: 'healthy', breaker: 'closed' },
       ]);
+    });
+
+    it('publishes a hung initial probe as degraded after its timeout and still finishes startup', async () => {
+      const h = setup(undefined, undefined, undefined, 20);
+      h.probes.scm.mockImplementationOnce(() => new Promise<void>(() => {}));
+      await h.health.publishInitial();
+      expect(healthEvents(h.store)).toEqual([
+        { component: 'runtime', status: 'healthy', breaker: 'closed' },
+        { component: 'scm', status: 'degraded', breaker: 'closed' },
+        { component: 'store', status: 'healthy', breaker: 'closed' },
+        { component: 'usage', status: 'healthy', breaker: 'closed' },
+      ]);
+      const scm = h.health.snapshot().adapters.find((a) => a.adapter === 'scm');
+      expect(scm).toMatchObject({
+        failures: 1,
+        lastErrorCategory: 'transient',
+      });
+      expect(h.health.dispatchBlocked).toBe(false);
+    });
+
+    it('re-opens the breaker when the half-open probe hangs', async () => {
+      const h = setup(undefined, undefined, undefined, 20);
+      await h.fail('runtime');
+      h.probes.runtime.mockImplementationOnce(
+        () => new Promise<void>(() => {}),
+      );
+      h.clock.advance(10_000);
+      h.scheduler.runDue();
+      await vi.waitFor(() => {
+        expect(h.probes.runtime).toHaveBeenCalledTimes(1);
+        expect(
+          h.store
+            .read({})
+            .filter(
+              (e) =>
+                e.type === 'health.changed' &&
+                e.payload.component === 'runtime',
+            )
+            .map((e) => e.type === 'health.changed' && e.payload.breaker),
+        ).toEqual(['open', 'half_open', 'open']);
+      });
+      expect(h.health.dispatchBlocked).toBe(true);
     });
 
     it('still publishes a breaker trip as unhealthy (degraded for usage) after the initial publication', async () => {

@@ -7,6 +7,7 @@ import type {
 import type { Clock, ScheduledTimer, Scheduler } from '../../ports/services.js';
 import type { EventStore } from '../../ports/stores.js';
 import type { DomainCommand, WorkflowState } from '@ai-office/domain';
+import { PortError } from '../../ports/errors.js';
 
 export interface HealthWorkflow {
   readonly state: WorkflowState;
@@ -15,6 +16,8 @@ export interface HealthWorkflow {
 import { toErrorInfo } from '../commands/errors.js';
 
 export const HEALTH_TIMER_PREFIX = 'aio-health:';
+/** A probe still pending after this long counts as a transient failure. */
+export const PROBE_TIMEOUT_MS = 5_000;
 export const HEALTH_COMPONENTS = ['runtime', 'scm', 'store', 'usage'] as const;
 export type HealthComponent = (typeof HEALTH_COMPONENTS)[number];
 type Breaker = 'closed' | 'open' | 'half_open';
@@ -35,6 +38,8 @@ export interface HealthMonitorDeps {
   scheduler: Scheduler;
   /** Dedicated, read-only probes; never replay a mutation as a probe. */
   probes: Record<HealthComponent, () => Promise<void>>;
+  /** Bound on each probe (default PROBE_TIMEOUT_MS); a real timer, not `clock`. */
+  probeTimeoutMs?: number;
   /** Uninstrumented store: health publication must not recursively record itself. */
   store: EventStore;
   /** Evaluated lazily to support composition with WorkflowRunners. */
@@ -125,7 +130,9 @@ export class HealthMonitor {
     });
     await this.sync();
     try {
-      await this.call('runtime', () => this.deps.forceRecheck!());
+      await this.call('runtime', () =>
+        this.bounded('runtime', this.deps.forceRecheck!),
+      );
     } catch {
       /* Normal health accounting; never respawn workers. */
     }
@@ -224,7 +231,7 @@ export class HealthMonitor {
     for (const component of HEALTH_COMPONENTS) {
       let failed = false;
       try {
-        await this.call(component, this.deps.probes[component]);
+        await this.call(component, () => this.probe(component));
       } catch {
         failed = true;
       }
@@ -275,7 +282,7 @@ export class HealthMonitor {
     await this.sync();
     let success = false;
     try {
-      await this.call(component, this.deps.probes[component]);
+      await this.call(component, () => this.probe(component));
       success = true;
     } catch {
       /* Category recorded above; no raw error enters health events. */
@@ -357,6 +364,38 @@ export class HealthMonitor {
         };
       }),
     };
+  }
+
+  /**
+   * Runs a component's probe, bounded so that a hung adapter (an `orca` or
+   * `gh` that never answers) fails it as `transient` instead of blocking
+   * startup, the half-open probe or the post-sleep recheck; the late result
+   * is ignored.
+   */
+  private probe(component: HealthComponent): Promise<void> {
+    return this.bounded(component, this.deps.probes[component]);
+  }
+
+  private bounded(
+    component: HealthComponent,
+    run: () => Promise<void>,
+  ): Promise<void> {
+    const ms = this.deps.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new PortError(
+              'transient',
+              'probe_timeout',
+              `${component} health probe timed out after ${ms} ms`,
+            ),
+          ),
+        ms,
+      );
+    });
+    return Promise.race([run(), timeout]).finally(() => clearTimeout(timer));
   }
 
   private prune(state: ComponentState, now: number): void {

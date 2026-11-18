@@ -10,6 +10,7 @@ import type { SpawnEffect } from '@ai-office/engine';
 import {
   lifecycleReact,
   CLI_PATH,
+  DATA_DIR,
   flush,
   harness,
   START,
@@ -381,6 +382,8 @@ describe('spawn materialization (N3)', () => {
     expect(token).toBeDefined();
     expect(h.seatTokens.verify(token ?? '')).toBe('att-1');
     expect(spec).toContain(CLI_PATH);
+    // Agents inherit Orca's environment, so the backend's data dir is explicit.
+    expect(spec).toContain(`submit <kind> --home '${DATA_DIR}' `);
     // The token lives only in the spec file, never in events.
     expect(JSON.stringify(events)).not.toContain(token);
     const [req] = h.world.callsOf('spawnAgent')[0] as [Record<string, unknown>];
@@ -578,6 +581,162 @@ describe('timers', () => {
     expect(payloadsOf(second.events(), 'timer.fired')).toEqual([
       { timerId: TIMER },
     ]);
+  });
+
+  describe('held while the workflow is paused (FX8)', () => {
+    const meta = { occurredAt: START, source: 'user' as const };
+    const pause = (
+      h: ReturnType<typeof harness>,
+      reason: 'hijacked' | 'budget' = 'hijacked',
+    ) =>
+      h.runners.dispatch(WORKFLOW_ID, { type: 'PauseWorkflow', meta, reason });
+    const resume = (
+      h: ReturnType<typeof harness>,
+      reason: 'hijacked' | 'budget' = 'hijacked',
+    ) =>
+      h.runners.dispatch(WORKFLOW_ID, { type: 'ResumeWorkflow', meta, reason });
+    const fired = (h: ReturnType<typeof harness>) =>
+      payloadsOf(h.events(), 'timer.fired').map((p) => p.timerId);
+
+    test('a timer due during the pause fires once, on the resume that unpauses', async () => {
+      const h = harness({
+        react: timerReact,
+        world: new StubWorld().hang('*'),
+      });
+      await h.runners.start(startWorkflow());
+      await pause(h);
+      await pause(h, 'budget');
+      await h.advance(10 * 60_000);
+      expect(fired(h)).toEqual([]);
+      expect(h.runners.get(WORKFLOW_ID)?.state.timers[TIMER]).toBeDefined();
+      await resume(h);
+      expect(fired(h)).toEqual([]);
+      await resume(h, 'budget');
+      expect(fired(h)).toEqual([TIMER]);
+      // A late Scheduler delivery or restart re-arm finds nothing pending.
+      h.runners.get(WORKFLOW_ID)?.fireTimer(TIMER);
+      h.runners.get(WORKFLOW_ID)?.rearmTimers();
+      await h.advance(10 * 60_000);
+      expect(fired(h)).toEqual([TIMER]);
+    });
+
+    test('a timer not yet due at the resume keeps its own deadline', async () => {
+      const h = harness({
+        react: timerReact,
+        world: new StubWorld().hang('*'),
+      });
+      await h.runners.start(startWorkflow());
+      await pause(h);
+      await h.advance(2 * 60_000);
+      await resume(h);
+      expect(fired(h)).toEqual([]);
+      await h.advance(2 * 60_000);
+      expect(fired(h)).toEqual([]);
+      await h.advance(60_000);
+      expect(fired(h)).toEqual([TIMER]);
+    });
+
+    test('a timer cancelled during the pause stays cancelled', async () => {
+      const cancelOnSecondPause = withExtra((after, event) => [
+        ...scheduleOnStart(event),
+        ...(event.type === 'workflow.paused' &&
+        after.workflow?.pausedReasons.length === 2
+          ? [{ kind: 'cancelTimer' as const, id: TIMER, reason: 'test' }]
+          : []),
+      ]);
+      const h = harness({
+        react: cancelOnSecondPause,
+        world: new StubWorld().hang('*'),
+      });
+      await h.runners.start(startWorkflow());
+      await pause(h);
+      await h.advance(10 * 60_000);
+      await pause(h, 'budget');
+      expect(payloadsOf(h.events(), 'timer.cancelled')).toEqual([
+        { timerId: TIMER, reason: 'test' },
+      ]);
+      await resume(h);
+      await resume(h, 'budget');
+      await h.advance(10 * 60_000);
+      expect(fired(h)).toEqual([]);
+    });
+
+    test('the resume effects run first and may cancel the held timer', async () => {
+      const LATER = `${WORKFLOW_ID}/timer/later`;
+      const onResume = withExtra((after, event) => [
+        ...scheduleOnStart(event),
+        ...(event.type === 'workflow.started'
+          ? [
+              {
+                kind: 'timer' as const,
+                timer: {
+                  id: LATER,
+                  fireAt: '2026-11-17T00:06:00.000Z',
+                  payload: {
+                    purpose: 'stage-timeout' as const,
+                    stageId: 'meeting',
+                    attempt: 2,
+                  },
+                },
+              },
+            ]
+          : []),
+        ...(event.type === 'workflow.resumed' &&
+        after.workflow?.pausedReasons.length === 0
+          ? [
+              { kind: 'cancelTimer' as const, id: TIMER, reason: 'resumed' },
+              internal({
+                type: 'RecordError',
+                meta: { occurredAt: event.occurredAt, source: 'engine' },
+                category: 'bug',
+                code: 'resume_hook',
+                message: 'ran before the held timers',
+              }),
+            ]
+          : []),
+      ]);
+      const h = harness({ react: onResume, world: new StubWorld().hang('*') });
+      await h.runners.start(startWorkflow());
+      await pause(h);
+      await h.advance(10 * 60_000);
+      await resume(h);
+      const tail = h
+        .events()
+        .filter((e) =>
+          ['timer.fired', 'timer.cancelled', 'error.recorded'].includes(e.type),
+        )
+        .map((e) =>
+          e.type === 'error.recorded'
+            ? e.type
+            : `${e.type} ${String((e.payload as { timerId: string }).timerId)}`,
+        );
+      expect(tail).toEqual([
+        `timer.cancelled ${TIMER}`,
+        'error.recorded',
+        `timer.fired ${LATER}`,
+      ]);
+    });
+
+    test('a restart while paused keeps holding until the resume', async () => {
+      const first = harness({
+        react: timerReact,
+        world: new StubWorld().hang('*'),
+      });
+      await first.runners.start(startWorkflow());
+      await pause(first);
+      const second = harness({
+        react: timerReact,
+        store: first.store,
+        seatTokens: first.seatTokens,
+        specStore: first.specStore,
+        world: new StubWorld().hang('*'),
+      });
+      second.runners.recover();
+      await second.advance(10 * 60_000);
+      expect(fired(second)).toEqual([]);
+      await resume(second);
+      expect(fired(second)).toEqual([TIMER]);
+    });
   });
 });
 

@@ -1,5 +1,5 @@
 import type { ExternalCommandKind } from '@ai-office/contracts/events';
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { WorkItem } from '@ai-office/domain';
 import { createReact, DEFAULT_MODULES } from '../react.js';
 import { startWorkflow } from '../test-support/fixtures.js';
@@ -794,4 +794,82 @@ it('reserves global capacity for a live on-call instance before worker dispatch'
   });
   expect(sim.state.workItems.A?.status).toBe('in_progress');
   expect(sim.rejections).toEqual([]);
+});
+
+describe('deadlines that elapse during a hijack pause (FX8)', () => {
+  const itemTimers = (
+    sim: Simulator,
+    type: 'timer.fired' | 'timer.scheduled',
+  ) =>
+    sim
+      .eventsOf(type)
+      .filter((e) => e.payload.timerId.includes('/item-timeout/'));
+
+  it('holds the item deadline and fires it exactly once on resume', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(50 * 60_000);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    expect(sim.eventsOf('budget.exceeded')).toHaveLength(0);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    expect(sim.eventsOf('budget.exceeded').at(-1)?.payload).toMatchObject({
+      scope: 'item',
+      metric: 'wallclock',
+      used: 50,
+    });
+    expect(sim.eventsOf('message.nudge')).toHaveLength(1);
+    // The held timer was delivered, not re-armed beside it.
+    expect(itemTimers(sim, 'timer.scheduled')).toHaveLength(1);
+    sim.advance(60 * 60_000);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    expect(sim.state.workItems.A?.status).toBe('needs_attention');
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('records the wallclock hard limit when the pause outlasts it', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(100 * 60_000);
+    expect(sim.eventsOf('budget.hard_limit')).toHaveLength(0);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    expect(sim.eventsOf('budget.hard_limit').at(-1)?.payload).toMatchObject({
+      scope: 'item',
+      metric: 'wallclock',
+      used: 100,
+      threshold: 90,
+    });
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('keeps holding while another pause reason remains', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'budget' });
+    sim.advance(50 * 60_000);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('lets the resume re-evaluation cancel a held deadline before it fires', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(50 * 60_000);
+    done(sim, 'A');
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    expect(
+      sim
+        .eventsOf('timer.cancelled')
+        .filter((e) => e.payload.timerId.includes('/item-timeout/')),
+    ).toHaveLength(1);
+    expect(sim.state.workItems.A?.status).toBe('merge_queued');
+    expect(sim.eventsOf('message.nudge')).toHaveLength(0);
+    sim.advance(60 * 60_000);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    expect(sim.rejections).toEqual([]);
+  });
 });

@@ -62,6 +62,8 @@ export interface WorkflowRunnerDeps {
   specStore: SpecStore;
   /** `<installDir>/apps/cli/dist/main.js` (Q8), passed to SpecBuilder. */
   cliPath: string;
+  /** Absolute data directory; agents' submit commands name it with `--home` (§9.2). */
+  dataDir: string;
   /** Defaults to `@ai-office/engine`'s `react`. */
   react?: RunnerReact;
 }
@@ -231,7 +233,7 @@ export class WorkflowRunner {
     );
   }
 
-  /** Scheduler delivery: writes `timer.fired` if the timer is still pending. */
+  /** Scheduler delivery: writes `timer.fired` if still pending; held while paused. */
   fireTimer(timerId: string): void {
     this.enqueue({ kind: 'timer', timerId });
   }
@@ -333,10 +335,12 @@ export class WorkflowRunner {
           this.record(input.issued, input.outcome);
           return;
         case 'timer':
-          // A rate-limit pause (S26) keeps the timer pending but unfired.
+          // A rate-limit pause (S26) keeps the timer pending but unfired; so
+          // does a workflow pause (FX8), until the resume re-delivers it.
           if (
             Object.hasOwn(this.current.timers, input.timerId) &&
-            this.current.timers[input.timerId]!.pausedAt === undefined
+            this.current.timers[input.timerId]!.pausedAt === undefined &&
+            !this.current.workflow?.pausedReasons.length
           )
             this.commit([
               this.draft(
@@ -402,7 +406,34 @@ export class WorkflowRunner {
     }
     for (const [effect, cause, cursor] of effects)
       this.handle(effect, cause, cursor);
+    if (stored.some((event) => event.type === 'workflow.resumed'))
+      this.redeliverHeldTimers();
     return stored;
+  }
+
+  /**
+   * FX8: on the resume that leaves the workflow unpaused, queue every pending
+   * timer already due — those held while paused — behind the resume's own
+   * effects, so stages re-evaluate state first and a timer they cancel stays
+   * cancelled. Delivery re-checks that the timer is pending, so a second
+   * delivery (Scheduler, restart re-arm) cannot fire it twice.
+   */
+  private redeliverHeldTimers(): void {
+    const workflow = this.current.workflow;
+    if (workflow?.status !== 'running' || workflow.pausedReasons.length) return;
+    const now = this.deps.clock.now().getTime();
+    Object.values(this.current.timers)
+      .filter(
+        (timer) =>
+          timer.pausedAt === undefined && Date.parse(timer.fireAt) <= now,
+      )
+      .sort(
+        (a, b) =>
+          Date.parse(a.fireAt) - Date.parse(b.fireAt) || (a.id < b.id ? -1 : 1),
+      )
+      .forEach((timer) =>
+        this.queue.push({ kind: 'timer', timerId: timer.id }),
+      );
   }
 
   private effectCursor(event: DomainEvent, index: number): CursorWrite {

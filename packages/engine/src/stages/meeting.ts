@@ -7,6 +7,7 @@ import type { ReactContext } from '../context.js';
 import { external, internal } from '../effects.js';
 import type { Effect, SpawnEffect } from '../effects.js';
 import { STAGE_VIOLATION_OPTIONS } from '../protocols/nudge.js';
+import { missed, missedResult } from '../protocols/resume.js';
 import { beginStageClose } from '../protocols/stage-close.js';
 import type { StageGateBuilder } from '../protocols/stage-close.js';
 import { cancelTimer, MINUTE_MS, schedule } from '../timers.js';
@@ -463,11 +464,12 @@ const reactMeeting: StageModule['react'] = (ctx) => {
     if (
       participants.length === config.participants.length &&
       participants.every((a) => a.state === 'done' && a.agentRef) &&
-      !participants.every(
-        (a) =>
-          ctx.before.attempts[a.attemptId]?.state === 'done' &&
-          ctx.before.attempts[a.attemptId]?.agentRef,
-      )
+      (wake ||
+        !participants.every(
+          (a) =>
+            ctx.before.attempts[a.attemptId]?.state === 'done' &&
+            ctx.before.attempts[a.attemptId]?.agentRef,
+        ))
     )
       return [
         internal({
@@ -555,6 +557,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
     if (participants.every((a) => ready(a) || absent.includes(a))) {
       const previous = ctx.before.meetings[stageId]?.rounds[round.round];
       if (
+        !wake &&
         participants.every((a) => {
           const prior = ctx.before.attempts[a.attemptId];
           return (
@@ -790,8 +793,95 @@ const reactMeeting: StageModule['react'] = (ctx) => {
     ];
   return effects;
 };
+/**
+ * Meeting steps reached while paused (§16): statements, a round started or
+ * completed, a dirty worktree. Readiness checks wake on resume instead.
+ */
+const resume = (ctx: ReactContext) => {
+  const config = ctx.state.workflow!.template.stages.find(
+    (s) => s.kind === 'meeting',
+  );
+  if (config?.kind !== 'meeting') return [];
+  const stageId = config.id;
+  if (ctx.state.stages[stageId]?.status !== 'running') return [];
+  const id = (...parts: (string | number)[]) =>
+    stageCommandId(ctx, stageId, ...parts);
+  const events = [];
+  const round = Object.values(ctx.state.meetings[stageId]?.rounds ?? {}).at(-1);
+  if (round && !round.completed) {
+    if (
+      round.attemptIds.some(
+        (a) =>
+          ctx.state.attempts[a]?.agentRef &&
+          !ctx.state.attempts[a].released &&
+          !ctx.state.commands[id('round', round.round, 'send', a)],
+      )
+    )
+      events.push(
+        missed(
+          ctx,
+          'meeting.round_started',
+          { stageId, round: round.round, attemptIds: round.attemptIds },
+          { stageId },
+        ),
+      );
+    for (const attemptId of round.attemptIds) {
+      const s = submitted(
+        ctx.state,
+        ctx.state.attempts[attemptId],
+        'statement',
+      );
+      if (
+        s?.submission.kind === 'statement' &&
+        s.submission.payload.round === round.round &&
+        round.statements[attemptId]?.artifactId !== (s.artifactId ?? s.id)
+      )
+        events.push(
+          missed(
+            ctx,
+            'submission.accepted',
+            {
+              submissionId: s.id,
+              attemptId,
+              kind: s.kind,
+              submission: s.submission,
+              ...(s.artifactId === undefined
+                ? {}
+                : { artifactId: s.artifactId }),
+            },
+            { stageId, attemptId },
+          ),
+        );
+    }
+  }
+  if (
+    round?.completed &&
+    !ctx.state.meetings[stageId]!.rounds[round.round + 1] &&
+    (round.completed.statements < 2 ||
+      (round.round < config.maxRounds && !round.completed.allReadyToConclude))
+  )
+    events.push(
+      missed(
+        ctx,
+        'meeting.round_completed',
+        { stageId, round: round.round, ...round.completed },
+        { stageId },
+      ),
+    );
+  const inspected = ctx.state.commands[id('inspect')]?.result;
+  if (
+    inspected?.kind === 'runtime.inspectWorkspace' &&
+    inspected.result &&
+    'clean' in inspected.result &&
+    !inspected.result.clean
+  )
+    events.push(missedResult(ctx, id('inspect'), stageId)!);
+  return events;
+};
+
 export const meetingStage: StageModule = {
   stageGate: gate,
+  resume,
   react: (ctx) => {
     const stage = ctx.state.workflow?.template.stages.find(
       (s) => s.kind === 'meeting',

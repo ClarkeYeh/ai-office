@@ -53,6 +53,28 @@ const Message = z.looseObject({
   type: z.string().optional(),
   thread_id: z.string().nullish(),
 });
+/**
+ * Agent launch flags for `worker-start`. Orca 1.4.259 rejects `--effort`
+ * without `--model` (`invalid_argument`), and v0.1 templates set no per-role
+ * model, so a model-less effort is dropped: the agent runs with its own
+ * configured model and effort.
+ */
+export function workerStartLaunchArgs(
+  req: Pick<
+    Parameters<RuntimePort['spawnAgent']>[0],
+    'agent' | 'model' | 'effort'
+  >,
+): { args: string[]; droppedEffort: boolean } {
+  return {
+    args: [
+      '--agent',
+      req.agent === 'claude-code' ? 'claude' : 'codex',
+      ...(req.model ? ['--model', req.model] : []),
+      ...(req.model && req.effort ? ['--effort', req.effort] : []),
+    ],
+    droppedEffort: !req.model && !!req.effort,
+  };
+}
 const Receipt = z.looseObject({
   state: text,
   dispatchId: z.string().optional(),
@@ -62,6 +84,7 @@ const Receipt = z.looseObject({
 });
 export class Agents {
   private readonly activeSpawns = new Set<string>();
+  private loggedDroppedEffort = false;
   constructor(
     readonly c: Context,
     readonly workspaces: Workspaces,
@@ -338,14 +361,21 @@ export class Agents {
         ? { attemptId: req.correlation.attemptId }
         : {}),
     });
+    const launch = workerStartLaunchArgs(req);
+    if (launch.droppedEffort && !this.loggedDroppedEffort) {
+      this.loggedDroppedEffort = true;
+      this.c.options.logger.info(
+        { effort: req.effort },
+        'effort ignored without a model; agents use their own configured effort',
+      );
+    }
     this.activeSpawns.add(id);
     try {
       const r = await this.c.call(
         [
           'orchestration',
           'worker-start',
-          '--agent',
-          req.agent === 'claude-code' ? 'claude' : 'codex',
+          ...launch.args,
           '--worktree',
           `path:${workspace.path}`,
           '--task-title',
@@ -353,8 +383,6 @@ export class Agents {
           '--spec-file',
           spec,
           ...(req.keepOpen ? ['--keep-open'] : []),
-          ...(req.model ? ['--model', req.model] : []),
-          ...(req.effort ? ['--effort', req.effort] : []),
         ],
         Receipt,
         req.session,
