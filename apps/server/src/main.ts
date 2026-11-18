@@ -1,4 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerDevFakeRoutes } from './api/dev-fake/index.js';
@@ -149,9 +156,8 @@ export function checkStartOptions(options: StartOptions): void {
 type FakeBackend = { submit(request: FakeSubmission): Promise<void> };
 
 /**
- * The simulated external world (Orca + GitHub + session logs). It is in
- * memory, so it survives an in-process restart (tests pass it back through
- * `fakeWorld`) but not a process restart.
+ * The simulated external world (Orca + GitHub + session logs). Fake mode
+ * checkpoints its data to disk; tests may also retain it across in-process restarts.
  */
 export interface FakeWorld {
   readonly scenario: string;
@@ -206,6 +212,69 @@ export function createFakeWorld(
     }),
   };
   return world;
+}
+
+type FakeWorldSnapshot = {
+  version: 1;
+  scenario: string;
+  runtime: ReturnType<FakeRuntime['snapshot']>;
+  scm: ReturnType<FakeScm['snapshot']>;
+  usage: ReturnType<FakeUsage['snapshot']>;
+};
+const worldDigest = (payload: string) =>
+  createHash('sha256').update(payload).digest('hex');
+
+/** An atomic private checkpoint, independent of the backend's event store. */
+function persistFakeWorld(world: FakeWorld, dataDir: string, restore: boolean) {
+  const path = `${dataDir}/data/fake-world.json`;
+  if (existsSync(path)) {
+    try {
+      const envelope = JSON.parse(readFileSync(path, 'utf8')) as {
+        payload: string;
+        sha256: string;
+      };
+      if (
+        typeof envelope.payload !== 'string' ||
+        worldDigest(envelope.payload) !== envelope.sha256
+      )
+        throw new Error('Snapshot checksum mismatch');
+      const state = JSON.parse(envelope.payload) as FakeWorldSnapshot;
+      if (state.version !== 1 || state.scenario !== world.scenario)
+        throw new Error('Snapshot scenario or version mismatch');
+      if (restore) {
+        world.runtime.restore(state.runtime);
+        world.scm.restore(state.scm);
+        world.usage.restore(state.usage);
+      }
+    } catch {
+      throw new StartupError(
+        `Cannot restore fake world: corrupt snapshot, incompatible version, or different scenario; delete ${path} to reset the fake world`,
+      );
+    }
+  }
+  let saved: string | undefined;
+  const save = () => {
+    const state: FakeWorldSnapshot = {
+      version: 1,
+      scenario: world.scenario,
+      runtime: world.runtime.snapshot(),
+      scm: world.scm.snapshot(),
+      usage: world.usage.snapshot(),
+    };
+    const payload = JSON.stringify(state);
+    if (payload === saved) return;
+    const temporary = `${path}.tmp`;
+    // Remove any interrupted write before creating a new mode-0600 inode.
+    rmSync(temporary, { force: true });
+    writeFileSync(
+      temporary,
+      JSON.stringify({ payload, sha256: worldDigest(payload) }) + '\n',
+      { mode: 0o600, flag: 'wx', flush: true },
+    );
+    renameSync(temporary, path);
+    saved = payload;
+  };
+  return save;
 }
 
 /** A fake agent's `ai-office submit`: the real gateway over HTTP. */
@@ -388,6 +457,31 @@ async function compose(
     });
   if (world.scenario !== options.fake)
     throw new StartupError('The surviving fake world runs another scenario');
+  const saveFakeWorld = persistFakeWorld(
+    world,
+    dataDir,
+    options.fakeWorld === undefined,
+  );
+  saveFakeWorld();
+  // Sampling all three adapters also covers scenario/test mutations outside ports.
+  // Compare before writing: changes are coalesced to at most one checkpoint/second.
+  const checkpoint = setInterval(() => {
+    try {
+      saveFakeWorld();
+    } catch {
+      logger.error({}, 'fake world checkpoint failed');
+    }
+  }, 1000).unref();
+  let finalCheckpointError: unknown;
+  cleanup.push(() => {
+    clearInterval(checkpoint);
+    // Flush after observation drains, while the data-directory lock is held.
+    try {
+      saveFakeWorld();
+    } catch (error) {
+      finalCheckpointError = error;
+    }
+  });
   const runtime: RuntimePort = world.runtime;
   const scm: ScmPort = world.scm;
   const usage: UsagePort = world.usage;
@@ -639,7 +733,10 @@ async function compose(
     fakeWorld: world,
     close: () => {
       submissions.close();
-      return (closing ??= unwind());
+      return (closing ??= (async () => {
+        await unwind();
+        if (finalCheckpointError) throw finalCheckpointError;
+      })());
     },
   };
 }

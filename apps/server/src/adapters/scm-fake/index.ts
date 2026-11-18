@@ -74,6 +74,64 @@ const hash = async (body: string) =>
 export class FakeScm implements ScmPort {
   private repos = new Map<string, RepoState>();
   private sequence = 0;
+  private ownerMerges = new Map<
+    string,
+    { ref: PrRef; at: number; revision: number }
+  >();
+  private mergeDeadlines = new Map<string, number>();
+  private timerGeneration = 0;
+  snapshot() {
+    return structuredClone({
+      version: 1 as const,
+      sequence: this.sequence,
+      repos: [...this.repos].map(
+        ([name, repo]) =>
+          [
+            name,
+            {
+              ...repo,
+              branches: [...repo.branches],
+              parents: [...repo.parents],
+              objects: [...repo.objects],
+              labels: [...repo.labels],
+            },
+          ] as const,
+      ),
+      lostReplies: [...this.lostReplies],
+      mergeDelayMs: this.mergeDelayMs,
+      ...(this.ownerMergeDelayMs === undefined
+        ? {}
+        : { ownerMergeDelayMs: this.ownerMergeDelayMs }),
+      ownerMerges: [...this.ownerMerges],
+      mergeDeadlines: [...this.mergeDeadlines],
+    });
+  }
+  restore(state: ReturnType<FakeScm['snapshot']>): void {
+    if (state.version !== 1)
+      throw new Error('Unsupported fake SCM snapshot version');
+    const data = structuredClone(state);
+    this.timerGeneration++;
+    this.sequence = data.sequence;
+    this.repos = new Map(
+      data.repos.map(([name, repo]) => [
+        name,
+        {
+          ...repo,
+          branches: new Map(repo.branches),
+          parents: new Map(repo.parents),
+          objects: new Map(repo.objects),
+          labels: new Map(repo.labels),
+        },
+      ]),
+    );
+    this.lostReplies = new Set(data.lostReplies);
+    this.mergeDelayMs = data.mergeDelayMs;
+    this.ownerMergeDelayMs = data.ownerMergeDelayMs;
+    this.ownerMerges = new Map(data.ownerMerges);
+    this.mergeDeadlines = new Map(data.mergeDeadlines);
+    for (const [id, pending] of this.ownerMerges)
+      this.armOwnerMerge(id, pending);
+  }
   private lostReplies = new Set<
     'createIssue' | 'openPR' | 'comment' | 'mergePR'
   >();
@@ -94,8 +152,10 @@ export class FakeScm implements ScmPort {
       );
   }
   private mergeDelayMs: number;
+  private ownerMergeDelayMs: number | undefined;
   constructor(private options: FakeScmOptions = {}) {
     this.mergeDelayMs = options.mergeDelayMs ?? 0;
+    this.ownerMergeDelayMs = options.autoMergeIntoDefaultBranchAfterMs;
     this.setMergeDelay(this.mergeDelayMs);
   }
   private now() {
@@ -414,18 +474,38 @@ export class FakeScm implements ScmPort {
     this.prState(obj);
   }
   private scheduleOwnerMerge(obj: ObjectState) {
-    const after = this.options.autoMergeIntoDefaultBranchAfterMs;
+    const after = this.ownerMergeDelayMs;
     const repo = this.repo(obj.ref.repo);
     if (after === undefined || obj.base !== repo.info.defaultBranch) return;
+    const id = JSON.stringify(obj.ref);
+    const pending = {
+      ref: structuredClone(obj.ref),
+      at: Date.parse(this.now()) + after,
+      revision: obj.revision,
+    };
+    this.ownerMerges.set(id, pending);
+    this.armOwnerMerge(id, pending);
+  }
+  private armOwnerMerge(
+    id: string,
+    pending: { ref: PrRef; at: number; revision: number },
+  ) {
+    const generation = this.timerGeneration;
     const wait =
       this.options.delay ??
       ((ms: number) =>
         new Promise<void>((resolve) => setTimeout(resolve, ms).unref()));
-    const revision = obj.revision;
-    void wait(after).then(() => {
+    void wait(Math.max(0, pending.at - Date.parse(this.now()))).then(() => {
+      if (
+        generation !== this.timerGeneration ||
+        this.ownerMerges.get(id) !== pending
+      )
+        return;
+      this.ownerMerges.delete(id);
       try {
-        if (obj.state === 'open' && obj.revision === revision)
-          this.merge(obj, repo.info.viewerLogin);
+        const obj = this.object(pending.ref, 'pr');
+        if (obj.state === 'open' && obj.revision === pending.revision)
+          this.merge(obj, this.repo(obj.ref.repo).info.viewerLogin);
       } catch {
         /* Branches changed meanwhile: the owner does not merge. */
       }
@@ -487,11 +567,17 @@ export class FakeScm implements ScmPort {
     const obj = this.object(ref, 'pr');
     this.checkMerge(obj, opts.expectedHeadSha);
     if (obj.mergeCommitSha) return { mergeCommitSha: obj.mergeCommitSha };
-    if (this.mergeDelayMs)
+    const deadlineKey = JSON.stringify([ref, opts.expectedHeadSha]);
+    const deadline =
+      this.mergeDeadlines.get(deadlineKey) ??
+      Date.parse(this.now()) + this.mergeDelayMs;
+    this.mergeDeadlines.set(deadlineKey, deadline);
+    if (deadline > Date.parse(this.now()))
       await (
         this.options.delay ??
         ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
-      )(this.mergeDelayMs);
+      )(Math.max(0, deadline - Date.parse(this.now())));
+    this.mergeDeadlines.delete(deadlineKey);
     this.checkMerge(obj, opts.expectedHeadSha);
     const result = this.merge(obj, this.repo(ref.repo).info.viewerLogin);
     this.afterMutation('mergePR');
