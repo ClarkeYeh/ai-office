@@ -27,8 +27,8 @@ replay position moves.
 - `useDisplayedModel()`: the displayed read model.
 - `useViewModel(selector, args, stabilize?)`: computes the VM outside the store
   selector. It reruns only when the model, the selector, or a shallow value of `args`
-  changes. Pass a module-level selector, and pass `shared/lib` `stabilize` (M4-T5) so
-  unchanged sub-trees keep their identity. The default is identity.
+  changes. Pass a module-level selector. `stabilize` defaults to `shared/lib`
+  `stabilize` (M4-T5), so unchanged sub-trees keep their identity.
 - `useWebState(selector)`: other store fields. Selectors must return stable references.
 - `useNow()`: wall clock from the global 30-second ticker.
 - `useAppliedEvents(listener)`: the bus, for the component's lifetime.

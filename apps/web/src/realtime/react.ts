@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { ReadModel } from '@ai-office/projection';
+import { stabilize as shareUnchanged } from '../shared/lib/index.js';
 import type { AppliedListener } from './bus.js';
 import type { Realtime } from './realtime.js';
 import { selectDisplayedModel } from './store.js';
@@ -44,8 +45,6 @@ export function useDisplayedModel(): ReadModel | null {
   return useWebState(selectDisplayedModel);
 }
 
-const identity: Stabilize = (_prev, next) => next;
-
 /**
  * VM computed outside the store selector (React 19 snapshot stability):
  * `selector(displayedModel, args)` reruns only when the model, the selector, or a
@@ -55,7 +54,7 @@ const identity: Stabilize = (_prev, next) => next;
 export function useViewModel<A extends object, V>(
   selector: (model: ReadModel | null, args: A) => V,
   args: A,
-  stabilize: Stabilize = identity,
+  stabilize: Stabilize = shareUnchanged,
 ): V {
   const model = useDisplayedModel();
   const stableArgs = useShallowStable(args);
