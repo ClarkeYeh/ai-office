@@ -1,0 +1,58 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T06:05:47Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "check",
+    "--terminal",
+    "term_00000000-0000-4000-8000-000000000001",
+    "--run",
+    "run_3d70ed17e5de",
+    "--retry-request",
+    "00000000-0000-4000-8000-000000000002",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000003",
+    "ok": true,
+    "result": {
+      "runId": "run_3d70ed17e5de",
+      "deliveryId": "<redacted>",
+      "messages": [
+        {
+          "id": "msg_0f5f9db25307",
+          "run_id": "run_3d70ed17e5de",
+          "delivery_contract": "current_delivery",
+          "from_handle": "term_00000000-0000-4000-8000-000000000004",
+          "to_handle": "run:run_3d70ed17e5de",
+          "subject": "aio:p2a pre-restart status",
+          "body": "<redacted length=18 sha256=0318e18b9f6f1723faee92321758a457e0f2d57316d07aa7d3cbe0190b46432d>",
+          "type": "status",
+          "priority": "normal",
+          "thread_id": null,
+          "payload": null,
+          "created_at": "2026-11-18T05:55:22Z",
+          "delivered_at": null
+        }
+      ],
+      "count": 1,
+      "replayed": false,
+      "deliveryAcknowledged": true,
+      "acknowledged": null,
+      "timedOut": false,
+      "cancelled": false,
+      "connectionLost": false,
+      "mutation": {
+        "requestId": "00000000-0000-4000-8000-000000000002",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
+    }
+  },
+  "stderrLines": []
+}

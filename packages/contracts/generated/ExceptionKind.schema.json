@@ -15,6 +15,7 @@
     "dependency-blocked",
     "merge-blocked",
     "rework-limit",
-    "merge-review-failed"
+    "merge-review-failed",
+    "spawn-stall"
   ]
 }

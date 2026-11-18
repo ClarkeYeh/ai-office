@@ -56,6 +56,7 @@ type Agent = {
   workspace: WorkspaceRef;
   request: SpawnRequest;
   behavior: RoleBehavior;
+  role: string;
   turn: number;
   generation: number;
   state: 'working' | 'waiting_input' | 'done' | 'stopped' | 'released' | 'lost';
@@ -69,6 +70,8 @@ type Scheduled = {
   agent: Agent;
   generation: number;
   action: ScenarioStep | { type: 'auto-release' };
+  /** Turn scripts (spawn/send/answer) versus external `enqueue()` stimuli. */
+  source: 'script' | 'external';
 };
 type EventBody = RuntimeEvent extends infer E
   ? E extends RuntimeEvent
@@ -109,6 +112,54 @@ const fail = (code: string) =>
 /** In-memory port simulator. Raw prompts/output stay transient; no files, processes or logging. */
 export class FakeRuntime implements RuntimePort {
   private sequence = 0;
+  private missingIdentity = false;
+  private hijacked = new Set<SessionRef>();
+  private checkTimeout = false;
+  private loseCheckReceipt = false;
+  private consumedChecks = new Map<SessionRef, number>();
+  private holdNextSpawn = false;
+  private pendingSpawns = new Map<
+    AgentRef,
+    { finish: () => void; completed: Promise<void>; events: RuntimeEvent[] }
+  >();
+  /** Fault controls are test-only; mailbox history remains available for backfill. */
+  loseIdentity(): void {
+    this.missingIdentity = true;
+  }
+  hijack(session: SessionRef): void {
+    this.session(session);
+    this.hijacked.add(session);
+    this.emit(session, {
+      type: 'runtime.identity_hijacked',
+      run: session,
+      coordinatorHandle: 'fake-other-coordinator',
+      consumerGeneration: 2,
+    });
+  }
+  timeoutCheck(): void {
+    this.checkTimeout = true;
+  }
+  loseConsumedCheckReceipt(): void {
+    this.loseCheckReceipt = true;
+  }
+  holdSpawn(): void {
+    this.holdNextSpawn = true;
+  }
+  finishPendingSpawns(): void {
+    for (const [ref, pending] of this.pendingSpawns) {
+      this.pendingSpawns.delete(ref);
+      this.session(this.agent(ref).session).push(...pending.events);
+      pending.finish();
+    }
+  }
+  private owned(session: SessionRef): void {
+    if (this.hijacked.has(session))
+      throw new PortError(
+        'hijacked',
+        'consumer_fenced',
+        'Session belongs to another coordinator',
+      );
+  }
   private markers = new Map<string, CommandResult>();
   private pruned = new Set<string>();
   private workspaceNames = new Map<
@@ -237,8 +288,95 @@ export class FakeRuntime implements RuntimePort {
   /** Branch and base commit each workspace was created with (pushes target it). */
   private workspaceBranches = new Map<
     WorkspaceRef,
-    { branch: string; base?: string }
+    { branch: string; base?: string; repo?: RepoRuntimeRef }
   >();
+  /** Simulated local git branches per repo (branch → tip); W1 occupancy derives from workspaces. */
+  private localBranches = new Map<string, Map<string, string | undefined>>();
+  private local(repo: RepoRuntimeRef): Map<string, string | undefined> {
+    const key = JSON.stringify([repo.orcaRepoId, repo.localPath]);
+    let branches = this.localBranches.get(key);
+    if (!branches) this.localBranches.set(key, (branches = new Map()));
+    return branches;
+  }
+  private holder(repo: RepoRuntimeRef, branch: string): WorkspaceRef | null {
+    for (const [ws, entry] of this.workspaceBranches)
+      if (
+        this.workspaces.has(ws) &&
+        entry.branch === branch &&
+        entry.repo !== undefined &&
+        canonical(entry.repo) === canonical(repo)
+      )
+        return ws;
+    return null;
+  }
+  private remote(repo: RepoRuntimeRef, branch: string) {
+    return this.remoteBranches.get(
+      JSON.stringify([repo.orcaRepoId, repo.localPath, branch]),
+    );
+  }
+  /**
+   * Orca 1.4.259 `worktree create --branch` (P8): an unheld local branch whose
+   * tip is the base is reused; any other taken name, including one that only
+   * exists on the remote, silently gets a `-<n>` suffix.
+   */
+  private orcaCreateBranch(
+    repo: RepoRuntimeRef,
+    branch: string,
+    base: string | undefined,
+  ): string {
+    const local = this.local(repo);
+    const taken = (name: string) =>
+      local.has(name) || this.remote(repo, name) !== undefined;
+    if (
+      local.has(branch) &&
+      local.get(branch) === base &&
+      !this.holder(repo, branch)
+    )
+      return branch;
+    let name = branch;
+    for (let n = 2; taken(name); n++) name = `${branch}-${n}`;
+    local.set(name, base);
+    return name;
+  }
+  /**
+   * The adapter's W1 checks (§6.5): never ask git for a branch another worktree
+   * holds; checkoutExisting points an unheld, fully pushed local branch at the
+   * fetched sha first; a suffixed result is removed and refused.
+   */
+  private createWorktreeBranch(
+    req: Parameters<RuntimePort['prepareWorkspace']>[0],
+    base: string | undefined,
+  ): void {
+    if (this.holder(req.repo, req.branch)) throw fail('branch_in_use');
+    const local = this.local(req.repo);
+    if (req.checkoutExisting) {
+      const tip = local.get(req.branch);
+      if (
+        tip !== undefined &&
+        !this.remote(req.repo, req.branch)?.commits.has(tip)
+      )
+        throw fail('unpushed_commits');
+      local.set(req.branch, base);
+    }
+    const actual = this.orcaCreateBranch(req.repo, req.branch, base);
+    if (actual !== req.branch) {
+      local.delete(actual);
+      throw fail('branch_suffixed');
+    }
+  }
+  /** `worktree rm`; the adapter also deletes the branch it created (§6.5). */
+  private removeWorkspace(ws: WorkspaceRef): void {
+    if (!this.workspaces.delete(ws)) return;
+    const entry = this.workspaceBranches.get(ws);
+    if (entry?.repo && !this.holder(entry.repo, entry.branch))
+      this.local(entry.repo).delete(entry.branch);
+  }
+  /** The branch a workspace actually checked out, for W1 assertions. */
+  workspaceBranch(ws: WorkspaceRef): string | null {
+    return this.workspaces.has(ws)
+      ? (this.workspaceBranches.get(ws)?.branch ?? null)
+      : null;
+  }
   private commands = new Map<
     string,
     { signature: string; result: unknown; session: SessionRef }
@@ -257,7 +395,127 @@ export class FakeRuntime implements RuntimePort {
   }[] = [];
   private connected = true;
   private pumping = false;
+  private executing: Scheduled | undefined;
   constructor(private readonly options: FakeRuntimeOptions) {}
+  /** JSON data only; behavior functions and spec credentials are reloaded locally. */
+  snapshot() {
+    const jobs = this.executing
+      ? [this.executing, ...this.scheduled]
+      : this.scheduled;
+    return structuredClone({
+      version: 1 as const,
+      sequence: this.sequence,
+      missingIdentity: this.missingIdentity,
+      hijacked: [...this.hijacked],
+      checkTimeout: this.checkTimeout,
+      loseCheckReceipt: this.loseCheckReceipt,
+      consumedChecks: [...this.consumedChecks],
+      holdNextSpawn: this.holdNextSpawn,
+      pendingSpawns: [...this.pendingSpawns].map(
+        ([ref, pending]) => [ref, pending.events] as const,
+      ),
+      markers: [...this.markers],
+      pruned: [...this.pruned],
+      workspaceNames: [...this.workspaceNames],
+      remoteBranches: [...this.remoteBranches].map(
+        ([key, value]) =>
+          [key, { head: value.head, commits: [...value.commits] }] as const,
+      ),
+      fetches: this.fetches,
+      sessions: [...this.sessions],
+      agents: [...this.agents.values()].map(({ behavior, spec, ...agent }) => {
+        void behavior;
+        void spec;
+        return agent;
+      }),
+      workspaces: [...this.workspaces],
+      workspaceBranches: [...this.workspaceBranches],
+      localBranches: [...this.localBranches].map(
+        ([repo, branches]) =>
+          [
+            repo,
+            [...branches].map(
+              ([branch, tip]) => [branch, tip ?? null] as const,
+            ),
+          ] as const,
+      ),
+      commands: [...this.commands],
+      questions: [...this.questions].map(
+        ([ref, agent]) => [ref, agent.ref] as const,
+      ),
+      deliveries: [...this.deliveries],
+      cursors: [...this.cursors],
+      scheduled: jobs.map(({ agent, ...job }) => ({
+        ...job,
+        agent: agent.ref,
+      })),
+      faults: this.faults,
+      connected: this.connected,
+    });
+  }
+  /** Restore into a fresh adapter wired to the same scenario and spec store. */
+  restore(state: ReturnType<FakeRuntime['snapshot']>): void {
+    if (state.version !== 1)
+      throw new Error('Unsupported fake runtime snapshot version');
+    if (this.pumping || this.pendingDeliveries.size || this.pendingSpawns.size)
+      throw new Error('Cannot restore an active fake runtime');
+    const data = structuredClone(state);
+    this.sequence = data.sequence;
+    this.missingIdentity = data.missingIdentity;
+    this.hijacked = new Set(data.hijacked);
+    this.checkTimeout = data.checkTimeout;
+    this.loseCheckReceipt = data.loseCheckReceipt;
+    this.consumedChecks = new Map(data.consumedChecks);
+    this.holdNextSpawn = data.holdNextSpawn;
+    this.markers = new Map(data.markers);
+    this.pruned = new Set(data.pruned);
+    this.workspaceNames = new Map(data.workspaceNames);
+    this.remoteBranches = new Map(
+      data.remoteBranches.map(([key, value]) => [
+        key,
+        { head: value.head, commits: new Set(value.commits) },
+      ]),
+    );
+    this.fetches = data.fetches;
+    this.sessions = new Map(data.sessions);
+    this.agents = new Map(
+      data.agents.map((agent) => {
+        const spec = this.readSpec(agent.request.prompt);
+        return [
+          agent.ref,
+          {
+            ...agent,
+            behavior: this.options.scenario?.roles[agent.role] ?? {},
+            ...(spec === undefined ? {} : { spec }),
+          },
+        ];
+      }),
+    );
+    // A held spawn's process-local promise is gone. Its external creation and
+    // receipt survived; publish deferred events so reconciliation can finish it.
+    for (const [ref, events] of data.pendingSpawns)
+      this.session(this.agent(ref).session).push(...events);
+    this.workspaces = new Map(data.workspaces);
+    this.workspaceBranches = new Map(data.workspaceBranches);
+    this.localBranches = new Map(
+      data.localBranches.map(([repo, branches]) => [
+        repo,
+        new Map(branches.map(([branch, tip]) => [branch, tip ?? undefined])),
+      ]),
+    );
+    this.commands = new Map(data.commands);
+    this.questions = new Map(
+      data.questions.map(([ref, agent]) => [ref, this.agent(agent)]),
+    );
+    this.deliveries = new Map(data.deliveries);
+    this.cursors = new Map(data.cursors);
+    this.scheduled = data.scheduled.map((job) => ({
+      ...job,
+      agent: this.agent(job.agent),
+    }));
+    this.faults = data.faults;
+    this.connected = data.connected;
+  }
   private id(prefix: string): string {
     return `fake-${prefix}-${++this.sequence}`;
   }
@@ -354,17 +612,22 @@ export class FakeRuntime implements RuntimePort {
       throw fail('agent_not_live');
   }
   private emit(session: SessionRef, body: EventBody, at = this.now()): void {
-    this.session(session).push({
+    const event = {
       ...structuredClone(body),
       externalKey: this.id('event'),
       occurredAt: new Date(at).toISOString(),
-    } as RuntimeEvent);
+    } as RuntimeEvent;
+    const pending =
+      'agent' in body ? this.pendingSpawns.get(body.agent) : undefined;
+    if (pending) pending.events.push(event);
+    else this.session(session).push(event);
   }
   private trigger(
     agent: Agent,
     trigger: 'spawn' | 'send' | 'answer',
     message?: ScenarioContext['message'],
   ): void {
+    if (agent.behavior.silent) return;
     const script = agent.behavior[trigger];
     const context: ScenarioContext = {
       agent: agent.ref,
@@ -391,6 +654,7 @@ export class FakeRuntime implements RuntimePort {
         agent,
         generation: agent.generation,
         action: structuredClone(action),
+        source: 'script',
       });
     }
   }
@@ -408,8 +672,12 @@ export class FakeRuntime implements RuntimePort {
       available: this.connected,
       version: 'fake',
       verified: true,
-      shim: 'ready',
-      ownership: this.sessions.size ? 'owned' : 'none',
+      shim: this.missingIdentity ? 'missing' : 'ready',
+      ownership: this.hijacked.size
+        ? 'hijacked'
+        : this.sessions.size
+          ? 'owned'
+          : 'none',
     };
   }
   async openSession(
@@ -424,6 +692,7 @@ export class FakeRuntime implements RuntimePort {
   async reclaimSession(session: SessionRef): Promise<{ reclaimed: boolean }> {
     this.before('reclaimSession');
     this.session(session);
+    this.hijacked.delete(session);
     this.after('reclaimSession');
     return { reclaimed: true };
   }
@@ -451,10 +720,12 @@ export class FakeRuntime implements RuntimePort {
           return structuredClone(existing.prepared);
         }
         const baseSha = this.workspaceBase(req);
+        this.createWorktreeBranch(req, baseSha);
         const ref = WorkspaceRefSchema.parse(this.id('workspace'));
         this.workspaces.set(ref, { clean: true, changedFiles: [] });
         this.workspaceBranches.set(ref, {
           branch: req.branch,
+          repo: structuredClone(req.repo),
           ...(baseSha === undefined ? {} : { base: baseSha }),
         });
         const prepared = {
@@ -491,54 +762,72 @@ export class FakeRuntime implements RuntimePort {
   }
   async disposeWorkspace(ws: WorkspaceRef): Promise<void> {
     this.before('disposeWorkspace');
-    this.workspaces.delete(ws);
+    this.removeWorkspace(ws);
     this.after('disposeWorkspace');
   }
   async spawnAgent(req: SpawnRequest): Promise<AgentRef> {
-    return this.command('spawnAgent', req.correlation, req, req.session, () => {
-      this.session(req.session);
-      const workspace =
-        req.workspace.kind === 'existing-worktree'
-          ? req.workspace.workspace
-          : WorkspaceRefSchema.parse(this.id('workspace'));
-      if (
-        req.workspace.kind === 'existing-worktree' &&
-        !this.workspaces.has(workspace)
-      )
-        throw fail('unknown_workspace');
-      if (!this.workspaces.has(workspace)) {
-        this.workspaces.set(workspace, { clean: true, changedFiles: [] });
-        if (req.workspace.kind === 'new-worktree')
-          this.workspaceBranches.set(workspace, {
-            branch: req.workspace.branch,
-            base: req.workspace.baseBranch,
+    this.owned(req.session);
+    const result = this.command(
+      'spawnAgent',
+      req.correlation,
+      req,
+      req.session,
+      () => {
+        this.session(req.session);
+        const workspace =
+          req.workspace.kind === 'existing-worktree'
+            ? req.workspace.workspace
+            : WorkspaceRefSchema.parse(this.id('workspace'));
+        if (
+          req.workspace.kind === 'existing-worktree' &&
+          !this.workspaces.has(workspace)
+        )
+          throw fail('unknown_workspace');
+        if (!this.workspaces.has(workspace)) {
+          this.workspaces.set(workspace, { clean: true, changedFiles: [] });
+          if (req.workspace.kind === 'new-worktree')
+            this.workspaceBranches.set(workspace, {
+              branch: req.workspace.branch,
+              base: req.workspace.baseBranch,
+            });
+        }
+        const ref = AgentRefSchema.parse(this.id('agent'));
+        const spec = this.readSpec(req.prompt);
+        const role = this.options.scenario?.role?.(req, spec) ?? req.title;
+        const agent: Agent = {
+          ref,
+          session: req.session,
+          workspace,
+          request: structuredClone(req),
+          behavior: this.options.scenario?.roles[role] ?? {},
+          role,
+          turn: 1,
+          generation: 0,
+          state: 'working',
+          terminalHandle: this.id('terminal'),
+          paneKey: this.id('pane'),
+          ...(spec === undefined ? {} : { spec }),
+        };
+        this.agents.set(ref, agent);
+        if (this.holdNextSpawn) {
+          this.holdNextSpawn = false;
+          let finish!: () => void;
+          const completed = new Promise<void>((resolve) => {
+            finish = resolve;
           });
-      }
-      const ref = AgentRefSchema.parse(this.id('agent'));
-      const spec = this.readSpec(req.prompt);
-      const role = this.options.scenario?.role?.(req, spec) ?? req.title;
-      const agent: Agent = {
-        ref,
-        session: req.session,
-        workspace,
-        request: structuredClone(req),
-        behavior: this.options.scenario?.roles[role] ?? {},
-        turn: 1,
-        generation: 0,
-        state: 'working',
-        terminalHandle: this.id('terminal'),
-        paneKey: this.id('pane'),
-        ...(spec === undefined ? {} : { spec }),
-      };
-      this.agents.set(ref, agent);
-      this.emit(req.session, {
-        type: 'agent.status',
-        agent: ref,
-        state: 'working',
-      });
-      this.trigger(agent, 'spawn');
-      return ref;
-    });
+          this.pendingSpawns.set(ref, { finish, completed, events: [] });
+        }
+        this.emit(req.session, {
+          type: 'agent.status',
+          agent: ref,
+          state: 'working',
+        });
+        this.trigger(agent, 'spawn');
+        return ref;
+      },
+    );
+    await this.pendingSpawns.get(result)?.completed;
+    return result;
   }
   async send(
     ref: AgentRef,
@@ -547,6 +836,7 @@ export class FakeRuntime implements RuntimePort {
     this.before('send');
     await this.runDue();
     const agent = this.agent(ref);
+    this.owned(agent.session);
     this.command('send', msg.correlation, { ref, msg }, agent.session, () => {
       this.live(agent);
       agent.state = 'working';
@@ -567,6 +857,7 @@ export class FakeRuntime implements RuntimePort {
   ): Promise<void> {
     const agent = this.questions.get(question);
     if (!agent) throw fail('unknown_question');
+    this.owned(agent.session);
     this.command(
       'answer',
       correlation,
@@ -604,7 +895,7 @@ export class FakeRuntime implements RuntimePort {
     this.before('release');
     const agent = this.agent(ref);
     this.releaseAgent(agent, this.now());
-    if (opts.removeWorkspace) this.workspaces.delete(agent.workspace);
+    if (opts.removeWorkspace) this.removeWorkspace(agent.workspace);
     this.after('release');
   }
   private releaseAgent(agent: Agent, at: number): void {
@@ -639,6 +930,7 @@ export class FakeRuntime implements RuntimePort {
         agent,
         generation: agent.generation,
         action: structuredClone(action),
+        source: 'external',
       });
     }
   }
@@ -703,7 +995,7 @@ export class FakeRuntime implements RuntimePort {
     this.before('inspectWorkspace');
     this.after('inspectWorkspace');
     const value = this.workspaces.get(ws);
-    if (!value) throw fail('unknown_workspace');
+    if (!value) return { clean: false, changedFiles: [] };
     return structuredClone(value);
   }
   async observe(
@@ -733,12 +1025,47 @@ export class FakeRuntime implements RuntimePort {
     key: string,
     offset: number,
   ): Promise<Delivery> {
+    if (this.checkTimeout) {
+      this.checkTimeout = false;
+      throw new PortError(
+        'transient',
+        'check_timeout',
+        'Check timed out',
+        true,
+      );
+    }
+    if (this.missingIdentity) {
+      this.missingIdentity = false;
+      this.emit(session, {
+        type: 'runtime.identity_restored',
+        newShim: this.id('shim'),
+        runs: [...this.sessions.keys()].filter(
+          (run) => !this.hijacked.has(run),
+        ),
+      });
+    }
     await this.runDue();
     const events = this.session(session);
+    if (this.loseCheckReceipt) {
+      this.loseCheckReceipt = false;
+      this.consumedChecks.set(session, events.length);
+      throw new PortError(
+        'transient',
+        'receipt_absent',
+        'Consumed check receipt absent',
+        true,
+      );
+    }
+    // A consumed check cannot be replayed without its receipt. The durable inbox
+    // history (sessions) still contains it, so backfill from the caller's cursor.
+    const consumed = this.consumedChecks.get(session) ?? offset;
+    const backfill = events.slice(offset, consumed);
+    const unread = events.slice(Math.max(offset, consumed));
+    this.consumedChecks.delete(session);
     const next = RuntimeCursorSchema.parse(this.id('cursor'));
     this.cursors.set(next, { session, offset: events.length });
     const result = {
-      events: structuredClone(events.slice(offset)),
+      events: structuredClone([...backfill, ...unread]),
       cursor: next,
     };
     this.deliveries.set(key, result);
@@ -760,13 +1087,24 @@ export class FakeRuntime implements RuntimePort {
           ['released', 'lost', 'stopped'].includes(job.agent.state)
         )
           continue;
-        await this.execute(job);
+        this.executing = job;
+        try {
+          await this.execute(job);
+        } finally {
+          this.executing = undefined;
+        }
       }
     } finally {
       this.pumping = false;
     }
   }
-  private async execute({ agent: a, action, at }: Scheduled): Promise<void> {
+  private async execute({
+    agent: a,
+    action,
+    at,
+    order,
+    source,
+  }: Scheduled): Promise<void> {
     const emit = (body: EventBody) => this.emit(a.session, body, at);
     switch (action.type) {
       case 'submit': {
@@ -799,12 +1137,24 @@ export class FakeRuntime implements RuntimePort {
           )
             throw error;
           // The agent retries its `ai-office submit` once the backend is back.
+          // The command blocks its turn: later steps (e.g. done) wait for it.
+          // External stimuli (lost, degraded, unmanaged) are not part of the turn.
+          const retryAt = this.now() + retryMs;
+          for (const job of this.scheduled)
+            if (
+              job.agent === a &&
+              job.source === 'script' &&
+              job.generation === a.generation &&
+              job.at < retryAt
+            )
+              job.at = retryAt;
           this.scheduled.push({
-            at: this.now() + retryMs,
-            order: ++this.sequence,
+            at: retryAt,
+            order,
             agent: a,
             generation: a.generation,
             action,
+            source,
           });
         }
         break;
@@ -813,6 +1163,10 @@ export class FakeRuntime implements RuntimePort {
         if (!this.options.onPush) throw fail('missing_push_handler');
         // A scenario's branch name is illustrative; agents push their own worktree.
         const own = this.workspaceBranches.get(a.workspace);
+        if (own?.repo) {
+          this.local(own.repo).set(own.branch, action.headSha);
+          this.setRemoteBranch(own.repo, own.branch, action.headSha);
+        }
         await this.options.onPush({
           agent: a.ref,
           workspace: a.workspace,
@@ -857,10 +1211,21 @@ export class FakeRuntime implements RuntimePort {
             agent: a,
             generation: a.generation,
             action: { type: 'auto-release' },
+            source: 'script',
           });
         break;
       case 'auto-release':
         this.releaseAgent(a, at);
+        break;
+      case 'rate-limited':
+        emit({
+          type: 'agent.rate_limited',
+          agent: a.ref,
+          evidence: action.evidence,
+          ...(action.resetsAt === undefined
+            ? {}
+            : { resetsAt: action.resetsAt }),
+        });
         break;
       case 'lost':
         a.state = 'lost';

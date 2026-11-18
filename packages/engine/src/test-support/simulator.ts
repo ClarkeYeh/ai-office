@@ -212,7 +212,10 @@ export class Simulator {
     const target = this.now + ms;
     for (;;) {
       const due = Object.values(this.state.timers)
-        .filter((timer) => Date.parse(timer.fireAt) <= target)
+        .filter(
+          (timer) =>
+            timer.pausedAt === undefined && Date.parse(timer.fireAt) <= target,
+        )
         .sort(
           (a, b) =>
             Date.parse(a.fireAt) - Date.parse(b.fireAt) ||

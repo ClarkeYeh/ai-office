@@ -130,6 +130,7 @@ export const workItemGateEffects = (
         'item-budget-exceeded',
         'item-budget-hard-limit',
         'workitem-failed',
+        'spawn-stall',
       ].includes(gate.exceptionKind)
     ) ||
     gate.content.type !== 'exception'

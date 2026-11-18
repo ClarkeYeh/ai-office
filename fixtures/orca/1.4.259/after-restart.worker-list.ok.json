@@ -1,0 +1,572 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T06:05:13Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "worker-list",
+    "--run",
+    "run_3d70ed17e5de",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-00000000001a",
+    "ok": true,
+    "result": {
+      "workers": [
+        {
+          "dispatchId": "ctx_34b96984e89c",
+          "taskId": "task_2188d9485009",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "ready",
+          "dispatchStatus": "dispatched",
+          "agentTerminalHandle": "term_00000000-0000-4000-8000-000000000004",
+          "terminalState": "retained",
+          "coordinatedFrom": null,
+          "resource": {
+            "id": "wtr_97beb07e9e77",
+            "ownershipState": "owned",
+            "releaseState": "retained",
+            "retainedReason": "user_requested",
+            "terminalHandle": "term_00000000-0000-4000-8000-000000000004",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+            "endpointId": "00000000-0000-4000-8000-00000000001b",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@721a9048:00000000-0000-4000-8000-00000000001c",
+            "originDispatchId": "ctx_13c3f9458cc1",
+            "ownerDispatchId": "ctx_34b96984e89c",
+            "releaseRequestedAt": null,
+            "releaseCompletedAt": null,
+            "releaseError": null,
+            "recoveryAttemptCount": 0,
+            "lastRecoveryAt": null,
+            "autoReleaseAt": null,
+            "archive": {
+              "source": null,
+              "status": null
+            }
+          },
+          "projection": {
+            "id": "ctx_34b96984e89c",
+            "dispatchId": "ctx_34b96984e89c",
+            "taskId": "task_2188d9485009",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": {
+              "id": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "ready",
+              "dispatch": "dispatched",
+              "detail": "input_accepted",
+              "activity": "working"
+            },
+            "outcome": "in_progress",
+            "liveness": {
+              "verdict": "live",
+              "observedAt": 1794981871809,
+              "source": "agent_status"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "fresh",
+              "lastObservedAt": 1794981871809
+            },
+            "resource": {
+              "state": "owned"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": [],
+              "requiresAction": false
+            }
+          }
+        },
+        {
+          "dispatchId": "ctx_95a2dd7598c2",
+          "taskId": "task_28764fc1b2fd",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "failed",
+          "dispatchStatus": "failed",
+          "agentTerminalHandle": "term_00000000-0000-4000-8000-00000000001d",
+          "terminalState": "released",
+          "coordinatedFrom": null,
+          "resource": {
+            "id": "wtr_e4518019705f",
+            "ownershipState": "released",
+            "releaseState": "released",
+            "retainedReason": null,
+            "terminalHandle": "term_00000000-0000-4000-8000-00000000001d",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+            "endpointId": "00000000-0000-4000-8000-00000000001b",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@c1c680bb:00000000-0000-4000-8000-00000000001e",
+            "originDispatchId": "ctx_95a2dd7598c2",
+            "ownerDispatchId": "ctx_95a2dd7598c2",
+            "releaseRequestedAt": "2026-11-18 05:54:26",
+            "releaseCompletedAt": "2026-11-18 05:54:28",
+            "releaseError": null,
+            "recoveryAttemptCount": 0,
+            "lastRecoveryAt": null,
+            "autoReleaseAt": null,
+            "archive": {
+              "source": "terminal",
+              "status": "unavailable"
+            }
+          },
+          "projection": {
+            "id": "ctx_95a2dd7598c2",
+            "dispatchId": "ctx_95a2dd7598c2",
+            "taskId": "task_28764fc1b2fd",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": null,
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "failed",
+              "dispatch": "failed",
+              "detail": "agent_readiness",
+              "activity": "unknown"
+            },
+            "outcome": "failed",
+            "liveness": {
+              "verdict": "exited",
+              "source": "resource_release"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "unavailable",
+              "lastObservedAt": null
+            },
+            "resource": {
+              "state": "released"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": ["failure"],
+              "requiresAction": true
+            }
+          }
+        },
+        {
+          "dispatchId": "ctx_8934904f1861",
+          "taskId": "task_fc69995e34df",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "succeeded",
+          "dispatchStatus": "completed",
+          "agentTerminalHandle": "term_00000000-0000-4000-8000-000000000008",
+          "terminalState": "released",
+          "coordinatedFrom": null,
+          "resource": {
+            "id": "wtr_bce7673e0079",
+            "ownershipState": "released",
+            "releaseState": "released",
+            "retainedReason": null,
+            "terminalHandle": "term_00000000-0000-4000-8000-000000000008",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+            "endpointId": "00000000-0000-4000-8000-00000000001b",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@bb75d581:00000000-0000-4000-8000-00000000001f",
+            "originDispatchId": "ctx_8934904f1861",
+            "ownerDispatchId": "ctx_8934904f1861",
+            "releaseRequestedAt": "2026-11-18 05:56:10",
+            "releaseCompletedAt": "2026-11-18 05:56:10",
+            "releaseError": null,
+            "recoveryAttemptCount": 1,
+            "lastRecoveryAt": "2026-11-18 05:56:10",
+            "autoReleaseAt": null,
+            "archive": {
+              "source": "terminal",
+              "status": "unavailable"
+            }
+          },
+          "projection": {
+            "id": "ctx_8934904f1861",
+            "dispatchId": "ctx_8934904f1861",
+            "taskId": "task_fc69995e34df",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": null,
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "succeeded",
+              "dispatch": "completed",
+              "detail": "settled",
+              "activity": "unknown"
+            },
+            "outcome": "succeeded",
+            "liveness": {
+              "verdict": "exited",
+              "source": "resource_release"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "unavailable",
+              "lastObservedAt": null
+            },
+            "resource": {
+              "state": "released"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": ["root_completion"],
+              "requiresAction": false
+            }
+          }
+        },
+        {
+          "dispatchId": "ctx_344f220389d5",
+          "taskId": "task_a763be0cbf4d",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "succeeded",
+          "dispatchStatus": "completed",
+          "agentTerminalHandle": "term_00000000-0000-4000-8000-00000000000e",
+          "terminalState": "retained",
+          "coordinatedFrom": null,
+          "resource": {
+            "id": "wtr_5c4d6ad16af2",
+            "ownershipState": "owned",
+            "releaseState": "retained",
+            "retainedReason": "user_requested",
+            "terminalHandle": "term_00000000-0000-4000-8000-00000000000e",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+            "endpointId": "00000000-0000-4000-8000-00000000001b",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@a3bdb424:00000000-0000-4000-8000-000000000018",
+            "originDispatchId": "ctx_fbb183823fc4",
+            "ownerDispatchId": "ctx_344f220389d5",
+            "releaseRequestedAt": null,
+            "releaseCompletedAt": null,
+            "releaseError": null,
+            "recoveryAttemptCount": 0,
+            "lastRecoveryAt": null,
+            "autoReleaseAt": null,
+            "archive": {
+              "source": null,
+              "status": null
+            }
+          },
+          "projection": {
+            "id": "ctx_344f220389d5",
+            "dispatchId": "ctx_344f220389d5",
+            "taskId": "task_a763be0cbf4d",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": {
+              "id": "codex",
+              "model": "gpt-6-astra"
+            },
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "succeeded",
+              "dispatch": "completed",
+              "detail": "settled",
+              "activity": "done"
+            },
+            "outcome": "succeeded",
+            "liveness": {
+              "verdict": "live",
+              "observedAt": 1794981201247,
+              "source": "agent_status"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "fresh",
+              "lastObservedAt": 1794981201247
+            },
+            "resource": {
+              "state": "owned"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": ["root_completion"],
+              "requiresAction": false
+            }
+          }
+        },
+        {
+          "dispatchId": "ctx_89eb9ce72392",
+          "taskId": "task_7a371298f52a",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "succeeded",
+          "dispatchStatus": "completed",
+          "agentTerminalHandle": null,
+          "terminalState": null,
+          "coordinatedFrom": null,
+          "resource": null,
+          "projection": {
+            "id": "ctx_89eb9ce72392",
+            "dispatchId": "ctx_89eb9ce72392",
+            "taskId": "task_7a371298f52a",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": null,
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "succeeded",
+              "dispatch": "completed",
+              "detail": "settled",
+              "activity": "unknown"
+            },
+            "outcome": "succeeded",
+            "liveness": {
+              "verdict": "unverifiable",
+              "reason": "missing_status"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "unavailable",
+              "lastObservedAt": null
+            },
+            "resource": {
+              "state": "absent",
+              "reason": "not_materialized"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": ["unverifiable", "root_completion"],
+              "requiresAction": true
+            }
+          }
+        },
+        {
+          "dispatchId": "ctx_fbb183823fc4",
+          "taskId": "task_63d73bb2a51d",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "succeeded",
+          "dispatchStatus": "completed",
+          "agentTerminalHandle": null,
+          "terminalState": null,
+          "coordinatedFrom": null,
+          "resource": null,
+          "projection": {
+            "id": "ctx_fbb183823fc4",
+            "dispatchId": "ctx_fbb183823fc4",
+            "taskId": "task_63d73bb2a51d",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": null,
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "succeeded",
+              "dispatch": "completed",
+              "detail": "settled",
+              "activity": "unknown"
+            },
+            "outcome": "succeeded",
+            "liveness": {
+              "verdict": "unverifiable",
+              "reason": "missing_status"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "unavailable",
+              "lastObservedAt": null
+            },
+            "resource": {
+              "state": "absent",
+              "reason": "not_materialized"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": ["unverifiable", "root_completion"],
+              "requiresAction": true
+            }
+          }
+        },
+        {
+          "dispatchId": "ctx_13c3f9458cc1",
+          "taskId": "task_426dd8bc71fe",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "succeeded",
+          "dispatchStatus": "completed",
+          "agentTerminalHandle": null,
+          "terminalState": null,
+          "coordinatedFrom": null,
+          "resource": null,
+          "projection": {
+            "id": "ctx_13c3f9458cc1",
+            "dispatchId": "ctx_13c3f9458cc1",
+            "taskId": "task_426dd8bc71fe",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": null,
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "succeeded",
+              "dispatch": "completed",
+              "detail": "settled",
+              "activity": "unknown"
+            },
+            "outcome": "succeeded",
+            "liveness": {
+              "verdict": "unverifiable",
+              "reason": "missing_status"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "unavailable",
+              "lastObservedAt": null
+            },
+            "resource": {
+              "state": "absent",
+              "reason": "not_materialized"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": ["unverifiable", "root_completion"],
+              "requiresAction": true
+            }
+          }
+        },
+        {
+          "dispatchId": "ctx_f91f0c1b897a",
+          "taskId": "task_f3f9b2d65501",
+          "runId": "run_3d70ed17e5de",
+          "workerState": "succeeded",
+          "dispatchStatus": "completed",
+          "agentTerminalHandle": "term_00000000-0000-4000-8000-000000000011",
+          "terminalState": "released",
+          "coordinatedFrom": null,
+          "resource": {
+            "id": "wtr_fd5dbdd23ece",
+            "ownershipState": "released",
+            "releaseState": "released",
+            "retainedReason": null,
+            "terminalHandle": "term_00000000-0000-4000-8000-000000000011",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+            "endpointId": "00000000-0000-4000-8000-00000000001b",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@039d1bf9:00000000-0000-4000-8000-000000000020",
+            "originDispatchId": "ctx_f91f0c1b897a",
+            "ownerDispatchId": "ctx_f91f0c1b897a",
+            "releaseRequestedAt": "2026-11-18 05:49:15",
+            "releaseCompletedAt": "2026-11-18 05:49:17",
+            "releaseError": null,
+            "recoveryAttemptCount": 1,
+            "lastRecoveryAt": "2026-11-18 05:49:17",
+            "autoReleaseAt": null,
+            "archive": {
+              "source": "transcript",
+              "status": "captured"
+            }
+          },
+          "projection": {
+            "id": "ctx_f91f0c1b897a",
+            "dispatchId": "ctx_f91f0c1b897a",
+            "taskId": "task_f3f9b2d65501",
+            "runId": "run_3d70ed17e5de",
+            "role": "worker",
+            "parent": null,
+            "provider": null,
+            "host": "<redacted>",
+            "workspace": {
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+              "kind": "folder_or_worktree"
+            },
+            "stage": {
+              "worker": "succeeded",
+              "dispatch": "completed",
+              "detail": "settled",
+              "activity": "unknown"
+            },
+            "outcome": "succeeded",
+            "liveness": {
+              "verdict": "exited",
+              "source": "resource_release"
+            },
+            "evidence": {
+              "durable": true,
+              "liveStatus": "unavailable",
+              "lastObservedAt": null
+            },
+            "resource": {
+              "state": "released"
+            },
+            "nextAction": {
+              "kind": "none",
+              "argv": []
+            },
+            "attention": {
+              "categories": ["root_completion"],
+              "requiresAction": false
+            }
+          }
+        }
+      ],
+      "counts": {
+        "retained": 2,
+        "released": 3
+      },
+      "page": {
+        "limit": 100,
+        "total": 8,
+        "hasMore": false,
+        "nextCursor": null
+      },
+      "scope": {
+        "run": "run_3d70ed17e5de",
+        "source": "flag"
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
+    }
+  },
+  "stderrLines": []
+}

@@ -64,6 +64,16 @@ export function applySeats(m: ReadModel, e: DomainEvent): void {
       )
         attempt.waitingSince = e.payload.waitingSince;
       else delete attempt.waitingSince;
+      // S26: present only on rate-limit observations; `since` stays the first one.
+      if (e.payload.rateLimited)
+        attempt.rateLimited = {
+          since: attempt.rateLimited?.since ?? e.payload.rateLimited.since,
+          ...(e.payload.rateLimited.resetsAt === undefined
+            ? {}
+            : { resetsAt: e.payload.rateLimited.resetsAt }),
+        };
+      else if (e.payload.rateLimited === null && attempt.rateLimited)
+        attempt.rateLimited = null;
       break;
     case 'seat.activity':
       seat.recentActivity = [
@@ -89,6 +99,7 @@ export function applySeats(m: ReadModel, e: DomainEvent): void {
       attempt.endedAt = e.occurredAt;
       attempt.exitReason = e.payload.reason;
       delete attempt.waitingSince;
+      if (attempt.rateLimited) attempt.rateLimited = null;
       break;
     case 'seat.released':
       attempt.released = true;

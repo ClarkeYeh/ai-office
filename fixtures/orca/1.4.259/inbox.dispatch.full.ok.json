@@ -1,0 +1,50 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:53:38Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "inbox",
+    "--terminal",
+    "dispatch:ctx_89eb9ce72392",
+    "--full",
+    "--limit",
+    "10",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-00000000002a",
+    "ok": true,
+    "result": {
+      "messages": [
+        {
+          "id": "msg_4f375e42656d",
+          "run_id": "run_3d70ed17e5de",
+          "delivery_contract": "current_delivery",
+          "from_handle": "run:run_3d70ed17e5de",
+          "to_handle": "dispatch:ctx_89eb9ce72392",
+          "subject": "Re: Question",
+          "body": "<redacted length=13 sha256=97f9b343183f324ea0d48465d32e6bdb4e1de9584d9333132e015df180ab8104>",
+          "type": "status",
+          "priority": "normal",
+          "thread_id": "msg_418dffcf48ef",
+          "payload": null,
+          "read": 1,
+          "sequence": 611,
+          "created_at": "2026-11-18T05:53:06Z",
+          "delivered_at": "2026-11-18T05:53:07Z",
+          "sender_pane_key": null,
+          "pointer_enter_pending": 0,
+          "pointer_pty_id": null,
+          "pointer_process_incarnation": null
+        }
+      ],
+      "count": 1
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

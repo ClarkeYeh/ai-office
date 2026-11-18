@@ -1,0 +1,36 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:48:38Z",
+  "argv": [
+    "orca",
+    "worktree",
+    "create",
+    "--repo",
+    "path:<home>/workspace/personal/ai-office-spike",
+    "--name",
+    "aio-test-p7bad",
+    "--branch",
+    "<redacted>",
+    "--base-branch",
+    "0000000000000000000000000000000000000000",
+    "--no-parent",
+    "--setup",
+    "skip",
+    "--comment",
+    "aio:p7bad",
+    "--json"
+  ],
+  "exitCode": 1,
+  "response": {
+    "id": "00000000-0000-4000-8000-00000000005b",
+    "ok": false,
+    "error": {
+      "code": "runtime_error",
+      "message": "fatal: invalid reference: 0000000000000000000000000000000000000000"
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

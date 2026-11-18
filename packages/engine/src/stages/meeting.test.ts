@@ -51,6 +51,19 @@ describe('meeting stage protocol', () => {
     ).toBe(true);
     expect(sim.eventsOf('message.nudge')).toHaveLength(0);
   });
+  it('bases the meeting worktree on the fetched remote default branch (§7.2)', () => {
+    const sim = runMeeting();
+    const repo = sim.state.workflow!.repo;
+    expect(
+      sim.issued.find((c) => c.command.kind === 'runtime.prepareWorkspace')
+        ?.command,
+    ).toMatchObject({
+      args: {
+        fetchBranch: repo.defaultBranch,
+        baseBranch: `origin/${repo.defaultBranch}`,
+      },
+    });
+  });
   it('concludes early when all effective speakers are ready', () => {
     const sim = runMeeting({ early: true });
     checked(sim);
