@@ -223,7 +223,14 @@ describe(
         let hijack = false;
         const o = await office({
           // Orca's observation reports another coordinator owning the run.
-          intercept: async (operation, _args, call) => {
+          intercept: async (operation, args, call) => {
+            // Hijack during wrap-up: the integrator's report then races the
+            // pause, which once stranded the integrate stage after resume.
+            if (
+              operation === 'spawnAgent' &&
+              JSON.stringify(args).includes('integrator')
+            )
+              hijack = true;
             const delivery = (await call()) as { events: RuntimeEvent[] };
             if (operation === 'observe' && hijack) {
               hijack = false;
@@ -243,7 +250,6 @@ describe(
         await o.drive(workflowId, async () =>
           has(await o.events(workflowId), 'workitem.merged'),
         );
-        hijack = true;
         const reclaims: unknown[] = [];
         const final = await o.drive(workflowId, isEnded, {
           onException: async (gate) => {

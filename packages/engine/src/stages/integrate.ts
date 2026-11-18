@@ -1,3 +1,4 @@
+import type { DomainEvent } from '@ai-office/contracts/events';
 import { possiblyLiveAttempts } from '@ai-office/domain';
 import { releaseAttempt, stopAttempt } from '../agents.js';
 import { metaFor, sessionRef } from '../context.js';
@@ -47,6 +48,24 @@ export const integrateStage: StageModule = {
       (a) => a.purpose === 'integrator',
     );
     const report = submitted(ctx.state, integrator, 'integration-report');
+    // A report accepted while paused was ignored above; replay it on resume.
+    if (report && ctx.event.type === 'workflow.resumed')
+      return integrateStage.react({
+        ...ctx,
+        event: {
+          ...ctx.event,
+          type: 'submission.accepted',
+          payload: {
+            submissionId: report.id,
+            attemptId: report.attemptId,
+            kind: report.kind,
+            submission: report.submission,
+            ...(report.artifactId === undefined
+              ? {}
+              : { artifactId: report.artifactId }),
+          },
+        } as DomainEvent,
+      });
     if (report) {
       if (
         ctx.timer?.payload.purpose === 'stage-timeout' &&
