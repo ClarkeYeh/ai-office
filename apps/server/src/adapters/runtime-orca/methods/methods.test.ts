@@ -685,7 +685,8 @@ it('pages worker-list and resolves caller with pane verification', async () => {
                   },
                 ],
               }
-            : { workers: [], nextCursor: 'page2' },
+            : // Orca 1.4.259 reports the cursor under `page` (M2-FX13).
+              { workers: [], page: { hasMore: true, nextCursor: 'page2' } },
         }
       : undefined,
   );
@@ -701,6 +702,17 @@ it('pages worker-list and resolves caller with pane verification', async () => {
       paneKey: 'wrong',
     }),
   ).toBeNull();
+});
+it('refuses a worker-list page with more rows but no cursor (M2-FX13)', async () => {
+  const f = await fixture();
+  f.setCustom(async (r) =>
+    command(r, 'orchestration worker-list')
+      ? { result: { workers: [], page: { hasMore: true, nextCursor: null } } }
+      : undefined,
+  );
+  await expect(
+    f.runtime.resolveCaller({ terminalHandle: 'term_worker', paneKey: 'pane' }),
+  ).rejects.toMatchObject({ code: 'runtime_contract_mismatch' });
 });
 it('answers only a known run question and leaves a recoverable marker', async () => {
   const f = await fixture();

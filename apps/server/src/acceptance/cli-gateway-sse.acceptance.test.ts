@@ -139,7 +139,9 @@ describe(
             ? new Promise<void>((resolve) => (releaseMerge = resolve))
             : Promise.resolve(),
       });
-      o.world.scm.setMergeDelay(1);
+      // FakeScm only calls `delay` while the deadline is still ahead of the
+      // real clock; a 1 ms deadline could lapse and skip the hold (M2-FX13).
+      o.world.scm.setMergeDelay(3_600_000);
       // The merge-queue integrator's first merge-request goes through the CLI.
       const real = o.world.backend!;
       let captured: FakeSubmission | undefined;

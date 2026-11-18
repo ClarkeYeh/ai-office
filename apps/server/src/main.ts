@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
   LedgerWorkersSchema,
   LedgerTasksSchema,
+  pageWorkerList,
 } from './adapters/runtime-orca/ledger.js';
 import {
   DefaultOrcaCli,
@@ -668,30 +669,14 @@ async function composeOrca(
     ...Object.keys(sessions),
     ...ledger.all().map((entry) => entry.run),
   ])) {
-    const workers: z.infer<typeof LedgerWorkersSchema>['workers'] = [];
-    const seen = new Set<string>();
-    let cursor: string | undefined;
-    do {
+    const workers = await pageWorkerList(async (pageArgs) => {
       const { result } = await cli.run(
-        [
-          'orchestration',
-          'worker-list',
-          '--full',
-          '--limit',
-          '100',
-          ...(cursor ? ['--cursor', cursor] : []),
-        ],
+        ['orchestration', 'worker-list', '--full', ...pageArgs],
         { kind: 'read', priority: 'worker-list', run },
-        LedgerWorkersSchema.extend({ nextCursor: z.string().nullish() }),
+        z.looseObject({ workers: LedgerWorkersSchema.shape.workers }),
       );
-      workers.push(...result.workers);
-      cursor = result.nextCursor ?? undefined;
-      if (cursor && seen.has(cursor))
-        throw new StartupError(
-          'Repeated worker-list cursor during ledger restoration',
-        );
-      if (cursor) seen.add(cursor);
-    } while (cursor);
+      return result;
+    });
     const { result: tasks } = await cli.run(
       ['orchestration', 'task-list'],
       { kind: 'read', priority: 'worker-list', run },
