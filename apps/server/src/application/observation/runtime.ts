@@ -111,6 +111,11 @@ export function ingestRuntime(
     const attemptId = attempt.attemptId;
     switch (event.type) {
       case 'agent.status':
+        // M2-T17 D5: real Orca reports a finished keep-open worker `idle`
+        // right after worker_done. Idle never downgrades done; only a new turn
+        // (working / waiting_input) or exit/lost does, so the engine's `done`
+        // checks (meeting rounds, conclusion, planning, items) stay true.
+        if (event.state === 'idle' && attempt.state === 'done') break;
         batch.add(
           'seat.status',
           {

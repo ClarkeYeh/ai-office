@@ -17,7 +17,16 @@ export type ScenarioContext = {
 export type ScenarioAction =
   | { type: 'submit'; submission: AgentSubmission }
   | { type: 'ask'; body: string }
-  | { type: 'done'; outcome?: 'success' | 'failure'; filesModified?: number }
+  | {
+      type: 'done';
+      outcome?: 'success' | 'failure';
+      filesModified?: number;
+      /**
+       * Real Orca (M2-T17 D5): a keep-open worker's next worker-list poll
+       * reports it `idle` this many ms after worker_done. Off when absent.
+       */
+      idleAfterMs?: number;
+    }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
   | { type: 'lost' }

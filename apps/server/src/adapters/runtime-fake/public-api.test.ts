@@ -17,7 +17,13 @@ type ScenarioContext = {
 type ScenarioAction =
   | { type: 'submit'; submission: AgentSubmission }
   | { type: 'ask'; body: string }
-  | { type: 'done'; outcome?: 'success' | 'failure'; filesModified?: number }
+  | {
+      type: 'done';
+      outcome?: 'success' | 'failure';
+      filesModified?: number;
+      /** M2-T17 (D5): optional, additive; absent keeps the M1 behavior. */
+      idleAfterMs?: number;
+    }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
   | { type: 'lost' }

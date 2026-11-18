@@ -69,7 +69,7 @@ type Scheduled = {
   order: number;
   agent: Agent;
   generation: number;
-  action: ScenarioStep | { type: 'auto-release' };
+  action: ScenarioStep | { type: 'auto-release' } | { type: 'idle' };
   /** Turn scripts (spawn/send/answer) versus external `enqueue()` stimuli. */
   source: 'script' | 'external';
 };
@@ -1204,6 +1204,15 @@ export class FakeRuntime implements RuntimePort {
             ? {}
             : { filesModified: action.filesModified }),
         });
+        if (action.idleAfterMs !== undefined)
+          this.scheduled.push({
+            at: at + action.idleAfterMs,
+            order: ++this.sequence,
+            agent: a,
+            generation: a.generation,
+            action: { type: 'idle' },
+            source: 'script',
+          });
         if (!a.request.keepOpen)
           this.scheduled.push({
             at: at + 120_000,
@@ -1216,6 +1225,9 @@ export class FakeRuntime implements RuntimePort {
         break;
       case 'auto-release':
         this.releaseAgent(a, at);
+        break;
+      case 'idle':
+        emit({ type: 'agent.status', agent: a.ref, state: 'idle' });
         break;
       case 'rate-limited':
         emit({
