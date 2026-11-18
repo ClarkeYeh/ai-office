@@ -126,9 +126,9 @@ makes. `codexEnvironmentWarnings()` on the owner's config returned `[]`.
 
 ## Usage (calibration only; no cap)
 
-| Run                            | Provider    | Input (incl. cache)         | Output |
-| ------------------------------ | ----------- | --------------------------- | ------ |
-| P4, first run                  | Claude Code | 299,730                     | 1,232  |
-| P4, re-run (verdict persisted) | Claude Code | 351,598                     | 1,666  |
-| P5b                            | Codex       | 123,389                     | 486    |
+| Run                            | Provider    | Input (incl. cache)      | Output |
+| ------------------------------ | ----------- | ------------------------ | ------ |
+| P4, first run                  | Claude Code | 299,730                  | 1,232  |
+| P4, re-run (verdict persisted) | Claude Code | 351,598                  | 1,666  |
+| P5b                            | Codex       | 123,389                  | 486    |
 | P5a, 8 `codex exec`            | Codex       | 338,319 (281,472 cached) | 466    |
