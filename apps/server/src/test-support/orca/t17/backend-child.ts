@@ -34,9 +34,6 @@ try {
     env: process.env,
     webDist: join(home, 'no-web'),
     print: () => undefined,
-    ...(process.env.AIO_T17_CLI_PATH
-      ? { cliPath: process.env.AIO_T17_CLI_PATH }
-      : {}),
     ...composedShimOptions({
       orcaHome,
       onShimCreated: (handle) =>

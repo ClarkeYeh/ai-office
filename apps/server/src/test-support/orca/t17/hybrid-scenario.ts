@@ -6,8 +6,6 @@
  * is `kill -9`'d once mid-meeting, then restarted on the same home.
  */
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
-import { builtinTemplateUrls } from '@ai-office/templates';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -28,7 +26,6 @@ import {
 } from './checks.js';
 import {
   adoptRun,
-  agentCliWrapper,
   backendHome,
   drive,
   events,
@@ -55,39 +52,17 @@ export const assertClean = true;
 const REQUIREMENT =
   'Add a file GREETING.md at the repository root containing one line: "Hello from AI Office". Keep the change minimal; no other files.';
 
-/**
- * The built-in `feature-to-pr`, unchanged except that `effort:` lines are
- * dropped: runtime-orca passes `--effort` without `--model`, which Orca
- * 1.4.259 rejects (`--effort requires --model`) — T17 defect D1.
- */
-export async function builtinWithoutEffort(): Promise<string> {
-  const source = await readFile(builtinTemplateUrls[0]!, 'utf8');
-  const out = source
-    .split('\n')
-    .filter((line) => !/^\s+effort:\s/.test(line))
-    .join('\n')
-    .replace(/^id: feature-to-pr$/m, 'id: t17-feature-to-pr');
-  if (out === source || !out.includes('id: t17-feature-to-pr'))
-    throw new Error('Built-in template changed shape');
-  return out;
-}
-
 export async function run(h: OrcaHarness): Promise<void> {
   const home = process.env.HOME;
   requireValue(home, 'HOME required');
   const orcaHome = join(home, '.ai-office', 'orca-home');
   const kill = process.env.AIO_T17_KILL !== '0';
-  const dir = await backendHome(h, {
-    enforcement: 'on',
-    templates: { 't17-feature-to-pr.yaml': await builtinWithoutEffort() },
-  });
+  const dir = await backendHome(h, { enforcement: 'on' });
   const effects = await h.composedBackend(dir);
-  const cliPath = await agentCliWrapper(dir);
   let backend: BackendProcess = await startBackendProcess({
     home: dir,
     orcaHome,
     effects,
-    cliPath,
     logName: 'backend-1.log',
   });
   await effects.settle();
@@ -106,7 +81,7 @@ export async function run(h: OrcaHarness): Promise<void> {
     // §17.3 registration through the composed runtime (`repo list` lookup only).
     const repoId = await registerRepo(api, h.ledger.repoPath);
     const started = await startWorkflow(h, api, {
-      templateId: 't17-feature-to-pr',
+      templateId: 'feature-to-pr',
       repoId,
       requirement: REQUIREMENT,
       // Budget enforcement ON with a wide test budget (M2_PLAN T17): bars and
@@ -159,7 +134,6 @@ export async function run(h: OrcaHarness): Promise<void> {
       backend = await startBackendProcess({
         home: dir,
         orcaHome,
-        cliPath,
         logName: 'backend-2.log',
       });
       api = await session(backend.url, backend.bootstrapUrl);

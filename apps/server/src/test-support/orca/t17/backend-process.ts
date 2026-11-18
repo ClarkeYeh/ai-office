@@ -32,8 +32,6 @@ export async function startBackendProcess(options: {
   /** First start only: ledgers the shim the backend creates. */
   effects?: ComposedEffects;
   logName: string;
-  /** Agent CLI wrapper pinning the isolated home (defect D2 workaround). */
-  cliPath?: string;
 }): Promise<BackendProcess> {
   await access(CHILD_ENTRY).catch(() => {
     throw new Error('Run `pnpm -r build` first: T17 child backend not built');
@@ -50,7 +48,6 @@ export async function startBackendProcess(options: {
       HOME: home,
       AI_OFFICE_HOME: options.home,
       AIO_T17_ORCA_HOME: options.orcaHome,
-      ...(options.cliPath ? { AIO_T17_CLI_PATH: options.cliPath } : {}),
     },
     cwd: options.home,
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],

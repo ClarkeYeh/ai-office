@@ -6,8 +6,7 @@
  * Reports carry numbers, ids and event types only — never bodies.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { OrcaHarness } from '../harness.js';
 import type { Json } from './checks.js';
@@ -48,28 +47,6 @@ export async function backendHome(
       await writeFile(join(home, 'templates', file), yaml, { mode: 0o600 });
   }
   return home;
-}
-
-/** The built agent CLI (`apps/cli/dist/main.js`), same depth from src and dist. */
-const AGENT_CLI = resolve(
-  import.meta.dirname,
-  '../../../../../cli/dist/main.js',
-);
-
-/**
- * T17 defect D2 workaround: agents inherit Orca's environment, so the spec's
- * `node <cliPath> submit …` cannot find an isolated AI_OFFICE_HOME. The test
- * passes this wrapper as the public `cliPath` option; it pins the home and
- * then runs the real CLI unchanged.
- */
-export async function agentCliWrapper(home: string): Promise<string> {
-  const path = join(home, 'aio-cli.mjs');
-  await writeFile(
-    path,
-    `process.env.AI_OFFICE_HOME = ${JSON.stringify(home)};\nawait import(${JSON.stringify(pathToFileURL(AGENT_CLI).href)});\n`,
-    { mode: 0o600, flag: 'wx' },
-  );
-  return path;
 }
 
 export interface Api {

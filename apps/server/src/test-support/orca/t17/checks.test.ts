@@ -1,8 +1,3 @@
-import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { WorkflowTemplateSchema } from '@ai-office/contracts/template';
@@ -19,8 +14,6 @@ import {
   type Json,
 } from './checks.js';
 import { ITEMS, TEST_TEMPLATE } from './implement-scenario.js';
-import { builtinWithoutEffort } from './hybrid-scenario.js';
-import { agentCliWrapper } from './office.js';
 
 const spawned = (attemptId: string, agent: string, role: string): Json => ({
   type: 'seat.spawned',
@@ -48,44 +41,6 @@ describe('T17 live inputs', () => {
       ['greeting', []],
       ['farewell', ['greeting']],
     ]);
-  });
-});
-
-describe('T17 hybrid template (defect D1 workaround)', () => {
-  it('is the built-in template without effort settings', async () => {
-    const template = WorkflowTemplateSchema.parse(
-      parse(await builtinWithoutEffort()),
-    );
-    expect(template.id).toBe('t17-feature-to-pr');
-    expect(
-      Object.values(template.roles).filter((r) => r.effort !== undefined),
-    ).toEqual([]);
-    expect(template.stages.map((s) => s.id)).toEqual([
-      'meeting',
-      'breakdown',
-      'implement',
-      'integrate',
-      'final-pr',
-    ]);
-  });
-});
-
-describe('T17 agent CLI wrapper (defect D2 workaround)', () => {
-  it('pins the isolated home and runs the real agent CLI', async () => {
-    const home = await mkdtemp(join(tmpdir(), 'aio-t17-cli-'));
-    try {
-      const wrapper = await agentCliWrapper(home);
-      const { stdout } = await promisify(execFile)(process.execPath, [
-        wrapper,
-      ]).catch((e: { stdout: string }) => e);
-      expect(stdout).toContain('Usage: ai-office <submit|start>');
-      // The CLI reads runtime.json from AI_OFFICE_HOME, which the wrapper pins.
-      expect(await readFile(wrapper, 'utf8')).toContain(
-        `process.env.AI_OFFICE_HOME = ${JSON.stringify(home)};`,
-      );
-    } finally {
-      await rm(home, { recursive: true, force: true });
-    }
   });
 });
 

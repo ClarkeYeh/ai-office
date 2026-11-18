@@ -29,7 +29,6 @@ import {
 } from './checks.js';
 import {
   adoptRun,
-  agentCliWrapper,
   backendHome,
   decide,
   drive,
@@ -181,7 +180,6 @@ export async function run(h: OrcaHarness): Promise<void> {
     env: { ...process.env, AI_OFFICE_HOME: dir },
     webDist: join(dir, 'no-web'),
     print: () => undefined,
-    cliPath: await agentCliWrapper(dir),
     ...seam,
     testOnly: { ...testOnly, scm },
   });
