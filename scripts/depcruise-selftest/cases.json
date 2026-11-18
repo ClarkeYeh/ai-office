@@ -412,5 +412,13 @@
   {
     "file": "apps/server/src/api/dev-fake/good.ts",
     "rules": []
+  },
+  {
+    "file": "apps/web/src/realtime/react.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/realtime/other.ts",
+    "rules": ["realtime-react-only-in-bridge"]
   }
 ]

@@ -279,7 +279,17 @@ const config = {
       '^' + contracts,
       '^packages/projection/',
       packagePath('zustand'),
+      packagePath('react'),
     ]),
+    // Only this bridge connects the vanilla store to React hooks (M4-T3).
+    rule(
+      'realtime-react-only-in-bridge',
+      {
+        path: '^apps/web/src/realtime/',
+        pathNot: [test, '^apps/web/src/realtime/react\\.ts$'],
+      },
+      { path: packagePath('react') },
+    ),
     boundary('shared-lib-allowed-dependencies', '^apps/web/src/shared/lib/', [
       '^apps/web/src/shared/lib/',
       '^' + contracts,
