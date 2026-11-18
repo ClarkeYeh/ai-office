@@ -464,16 +464,24 @@ export class ContractWorld implements Exec {
           result = {};
           break;
         case 'orchestration worker-stop':
+        case 'orchestration worker-release':
+          // Real 1.4.259 usage: --dispatch [--retry-request] [--json] [--full]
+          // only; caller identity or --run is invalid_argument (M2-T17 D6).
+          if (a.some((x) => x === '--from' || x === '--run')) {
+            error = 'invalid_argument';
+            break;
+          }
+          if (key === 'orchestration worker-release') {
+            this.workers.find(
+              (w) => w.dispatchId === flag(a, '--dispatch'),
+            )!.terminalState = 'released';
+            template = 'release';
+            break;
+          }
           this.workers.find(
             (w) => w.dispatchId === flag(a, '--dispatch'),
           )!.workerState = 'stopped';
           template = 'stop';
-          break;
-        case 'orchestration worker-release':
-          this.workers.find(
-            (w) => w.dispatchId === flag(a, '--dispatch'),
-          )!.terminalState = 'released';
-          template = 'release';
           break;
         default:
           throw new Error(`Unexpected synthetic Orca command: ${key}`);

@@ -23,6 +23,11 @@ export interface OrcaCliOptions {
   metrics?: CliMetrics;
 }
 /** No retries here: application recovery must retain the original request id. */
+/** Mutations Orca addresses by dispatch alone (no --from / --run). */
+const DISPATCH_ONLY = new Set([
+  'orchestration worker-stop',
+  'orchestration worker-release',
+]);
 export class DefaultOrcaCli implements OrcaCli {
   readonly scheduler: CliScheduler;
   readonly metrics: CliMetrics;
@@ -99,12 +104,23 @@ export class DefaultOrcaCli implements OrcaCli {
       throw guard('request_id_required');
     if (opts.kind === 'consume' && !opts.run)
       throw guard('consume_run_required');
-    const identity = await this.options.identity.argsFor(opts.kind, opts.run, {
-      command: args.slice(0, 2),
-      ...(opts.mailbox ? { mailbox: opts.mailbox } : {}),
-      ...(opts.terminal ? { terminal: opts.terminal } : {}),
-    });
-    if (orchestration && opts.kind === 'mutate' && !identity.includes('--from'))
+    // Orca 1.4.259: worker-stop/worker-release accept only --dispatch,
+    // --retry-request, --json and --full; caller identity or --run is
+    // rejected as invalid_argument (M2-T17 D6).
+    const dispatchOnly = DISPATCH_ONLY.has(command);
+    const identity = dispatchOnly
+      ? []
+      : await this.options.identity.argsFor(opts.kind, opts.run, {
+          command: args.slice(0, 2),
+          ...(opts.mailbox ? { mailbox: opts.mailbox } : {}),
+          ...(opts.terminal ? { terminal: opts.terminal } : {}),
+        });
+    if (
+      orchestration &&
+      opts.kind === 'mutate' &&
+      !dispatchOnly &&
+      !identity.includes('--from')
+    )
       throw guard('mutate_identity_required');
     if (opts.kind === 'consume' && !identity.includes('--terminal'))
       throw guard('consume_identity_required');
@@ -121,6 +137,7 @@ export class DefaultOrcaCli implements OrcaCli {
     if (
       opts.run &&
       command !== 'orchestration inbox' &&
+      !dispatchOnly &&
       !identity.includes('--run')
     )
       argv.push('--run', opts.run);

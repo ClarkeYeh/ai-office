@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { expect, it } from 'vitest';
 import { checkReceipt, parseResult } from './schemas/index.js';
 import { DispatchLedger } from './ledger.js';
+import { DefaultOrcaCli } from './cli/index.js';
+import { CwdGuard } from './cli/cwd.js';
+import type { ExecRequest } from './cli/types.js';
 
 function recording(name: string) {
   return JSON.parse(
@@ -83,5 +87,57 @@ it('rebuilds the ledger from the recorded concise task-list, never the --full vi
   expect(Object.keys((full.tasks as object[])[0]!)).toContain('task_title');
   expect(() => ledger.rebuild(run, workers, full)).toThrow(
     expect.objectContaining({ code: 'runtime_contract_mismatch' }),
+  );
+});
+it('sends worker-stop/worker-release exactly as the recorded argv, never --from/--run (M2-T17 D6)', async () => {
+  const requests: ExecRequest[] = [];
+  const cli = new DefaultOrcaCli({
+    bin: '/bin/orca',
+    env: {},
+    cwdGuard: new CwdGuard(tmpdir(), async () => []),
+    exec: {
+      run: async (request) => {
+        requests.push(request);
+        return {
+          exitCode: 0,
+          stdout: '{"ok":true,"result":{"state":"stopped"}}',
+        };
+      },
+    },
+    identity: {
+      argsFor: async (kind) =>
+        kind === 'mutate' ? ['--from', 'term_shim'] : [],
+    },
+  });
+  for (const verb of ['worker-stop', 'worker-release']) {
+    const recorded = recording(
+      verb === 'worker-stop'
+        ? 'worker-stop.already-settled.ok'
+        : 'worker-release.ok',
+    ).argv.slice(1);
+    const dispatch = recorded[recorded.indexOf('--dispatch') + 1]!;
+    await cli.run(['orchestration', verb, '--dispatch', dispatch], {
+      kind: 'mutate',
+      priority: 'mutate',
+      run: 'run_owned',
+      requestId: '00000000-0000-4000-8000-000000000001',
+    });
+    const argv = requests.at(-1)!.args;
+    expect(argv).not.toContain('--from');
+    expect(argv).not.toContain('--run');
+    // Recorded flags plus the idempotent request id, nothing else.
+    expect(argv.filter((a) => a.startsWith('--')).sort()).toEqual(
+      [...recorded.filter((a) => a.startsWith('--')), '--retry-request'].sort(),
+    );
+  }
+  // Other mutations keep caller identity and the run.
+  await cli.run(['orchestration', 'send', '--to', 'dispatch:ctx'], {
+    kind: 'mutate',
+    priority: 'mutate',
+    run: 'run_owned',
+    requestId: '00000000-0000-4000-8000-000000000002',
+  });
+  expect(requests.at(-1)!.args).toEqual(
+    expect.arrayContaining(['--from', 'term_shim', '--run', 'run_owned']),
   );
 });
