@@ -110,4 +110,28 @@ returned by scm.compareBranch. The caller supplies a fresh deterministic name
 ending in -r<n> and a new command ID; the branch itself remains unchanged.
 The fake validates and fetches that branch, returns the pinned baseSha, and
 replays a lost response without fetching or creating a second workspace.
-Real Orca checkout behavior remains M2 verification P8.
+
+## Git one-worktree rule and Orca suffixes (W1, SPEC §6.5, §7.3)
+
+The fake keeps a local branch table per repo; a workspace holds the branch it
+was prepared with until it is removed (`release({removeWorkspace: true})` or
+`disposeWorkspace`, which also deletes the branch the adapter created).
+`release({removeWorkspace: false})` keeps the worktree and its branch, so a
+rework reuses it as an `existing-worktree`. `prepareWorkspace` follows the
+adapter algorithm on top of Orca 1.4.259 naming (P8):
+
+- A branch held by another live workspace is refused with
+  `guard{branch_in_use}`, for new and `checkoutExisting` requests alike.
+- Orca reuses an unheld local branch whose tip is the base, and silently
+  suffixes any other taken name (`W-2`, `W-3`, ...), including a name that only
+  exists on the remote. The fake detects the suffix, drops the suffixed branch
+  and refuses with `guard{branch_suffixed}`; it never returns another branch.
+- `checkoutExisting` first points an unheld local branch at the fetched sha
+  (creating it when missing), refusing `guard{unpushed_commits}` when the local
+  tip is not on the remote; the branch name is then exact.
+
+A scenario `push` moves the workspace's local branch and its remote model.
+`workspaceBranch(ws)` reports the branch a live workspace holds.
+
+`enqueue()` stimuli (lost, degraded, unmanaged, ...) are never held behind a
+retried submit; only the agent's own turn script waits for it.
