@@ -9,6 +9,7 @@ import { t } from '../../../shared/lib/i18n/index.js';
 import { gateHeaderViewModel } from '../model/index.js';
 import { GateNotice, GateStatusMessage } from '../ui/index.js';
 import { gateBodyFor } from './gateBodies.js';
+import { GateThumbnail } from './GateThumbnail.js';
 import { useGate } from './useGate.js';
 
 export interface GatePageProps {
@@ -53,6 +54,7 @@ export function GatePage({ route, api }: GatePageProps) {
       layout={{
         header,
         backHref: `/workflows/${encodeURIComponent(gate.workflowId)}`,
+        thumbnail: <GateThumbnail workflowId={gate.workflowId} />,
         readOnly: replaying,
         ...(load.status === 'error'
           ? {

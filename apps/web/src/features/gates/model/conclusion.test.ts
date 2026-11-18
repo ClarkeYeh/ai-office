@@ -14,6 +14,7 @@ import {
   emptyTechDraft,
   parseConclusionBody,
   stripMarker,
+  stripMarkers,
 } from './conclusion.js';
 import type { GateView } from './gateHeader.js';
 
@@ -32,6 +33,16 @@ describe('marker and body parsing', () => {
     const body = renderConclusion(CONCLUSION);
     expect(stripMarker(withMarker(body))).toBe(body);
     expect(stripMarker(body)).toBe(body);
+  });
+  test('strips every ai-office marker (sections and command) for readers', () => {
+    const shown = stripMarkers(withMarker(renderConclusion(CONCLUSION)));
+    expect(shown).not.toContain('<!--');
+    expect(shown).not.toContain('ai-office:');
+    expect(shown).toContain('Use CSS variables and a ThemeProvider');
+    // Markers in the middle of a line go too; other comments stay.
+    expect(stripMarkers('a <!-- ai-office:x --> b\n<!-- keep -->')).toBe(
+      'a  b\n<!-- keep -->',
+    );
   });
   test('parses the engine sections back into a conclusion', () => {
     expect(parseConclusionBody(withMarker(renderConclusion(EDITED)))).toEqual(
@@ -97,10 +108,11 @@ describe('conclusionViewModel', () => {
       expect(added.map((l) => l.text).join('\n')).toContain(
         'Apply saved theme before first paint',
       );
-      // The marker never reaches the diff.
-      expect(vm.diff.lines.some((l) => l.text.includes('ai-office:cmd'))).toBe(
+      // No ai-office marker (command or section) reaches the diff, on either side.
+      expect(vm.diff.lines.some((l) => l.text.includes('ai-office:'))).toBe(
         false,
       );
+      expect(vm.diff.lines.some((l) => l.text.includes('<!--'))).toBe(false);
     }
     expect(vm.editBase).toEqual({ source: 'github', conclusion: EDITED });
     expect(vm.issue).toEqual({
@@ -113,6 +125,23 @@ describe('conclusionViewModel', () => {
       'architect',
       'engineer',
     ]);
+  });
+  test('raw views read without markers', () => {
+    const vm = conclusionViewModel(
+      gate({
+        original: null,
+        renderedBody: rendered,
+        githubBody: withMarker('Free text the owner wrote'),
+      }),
+      model,
+    );
+    expect(vm.github).toEqual({
+      kind: 'raw',
+      text: 'Free text the owner wrote',
+    });
+    expect(vm.original.kind).toBe('raw');
+    if (vm.original.kind === 'raw')
+      expect(vm.original.text).not.toContain('ai-office:');
   });
   test('missing GitHub body: diff unavailable, revise starts from the original', () => {
     const vm = conclusionViewModel(

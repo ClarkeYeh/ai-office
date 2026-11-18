@@ -15,9 +15,25 @@ const SECTIONS = [
   'openQuestions',
 ] as const;
 
-/** `githubBody` is raw (hash-consistent); strip the command marker before showing or diffing. */
+/** `githubBody` is raw (hash-consistent); strip the command marker before parsing sections. */
 export function stripMarker(body: string): string {
   return body.replace(MARKER, '');
+}
+
+/** A line holding only an ai-office marker (section start/end or command). */
+const MARKER_LINE = /^[ \t]*<!-- ai-office:[^\n]*? -->[ \t]*(?:\n|$)/gm;
+const INLINE_MARKER = /<!-- ai-office:[^\n]*? -->/g;
+
+/**
+ * Every ai-office HTML comment marker removed, for what a person reads: the raw
+ * views and both sides of the diff. Hashing still uses the raw `githubBody`.
+ */
+export function stripMarkers(body: string): string {
+  return body
+    .replace(/\r\n?/g, '\n')
+    .replace(MARKER_LINE, '')
+    .replace(INLINE_MARKER, '')
+    .trimEnd();
 }
 
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -156,20 +172,27 @@ export function conclusionViewModel(
     view?.githubBody === undefined ? undefined : stripMarker(view.githubBody);
   const githubParsed =
     githubText === undefined ? null : parseConclusionBody(githubText);
+  // Shown and diffed without any ai-office markers, on both sides.
+  const githubShown =
+    view?.githubBody === undefined ? undefined : stripMarkers(view.githubBody);
+  const renderedShown =
+    view?.renderedBody === undefined
+      ? undefined
+      : stripMarkers(view.renderedBody);
   const github: ConclusionDocument =
-    githubText === undefined
+    githubShown === undefined
       ? { kind: 'unavailable' }
       : githubParsed
         ? { kind: 'structured', conclusion: githubParsed }
-        : { kind: 'raw', text: githubText };
+        : { kind: 'raw', text: githubShown };
   const original: ConclusionDocument = view?.original
     ? { kind: 'structured', conclusion: view.original }
-    : view?.renderedBody !== undefined
-      ? { kind: 'raw', text: view.renderedBody }
+    : renderedShown !== undefined
+      ? { kind: 'raw', text: renderedShown }
       : { kind: 'unavailable' };
   const diff: ConclusionDiff =
-    githubText !== undefined && view?.renderedBody !== undefined
-      ? { kind: 'lines', ...lineDiff(view.renderedBody, githubText) }
+    githubShown !== undefined && renderedShown !== undefined
+      ? { kind: 'lines', ...lineDiff(renderedShown, githubShown) }
       : { kind: 'unavailable' };
   return {
     github,

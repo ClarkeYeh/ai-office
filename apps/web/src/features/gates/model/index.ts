@@ -20,6 +20,7 @@ export {
   emptyTechDraft,
   parseConclusionBody,
   stripMarker,
+  stripMarkers,
 } from './conclusion.js';
 export type {
   Conclusion,

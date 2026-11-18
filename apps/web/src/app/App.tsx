@@ -20,6 +20,7 @@ import { AppProviders, useAppServices, type AppServices } from './providers.js';
 import { useRoute } from './router.js';
 import { routes } from './routes.js';
 import { Shell, type ShellNeed } from './Shell.js';
+import { stageGateOf } from './stageGates.js';
 
 export function App({ services }: { services?: AppServices }) {
   return (
@@ -152,22 +153,34 @@ function RoutedApp() {
       needs={needs}
       newGateTitle={openGates.at(-1)?.title ?? ''}
       stages={
-        current?.stages.map((stage) => ({
-          id: stage.stageId,
-          name: t(`stage.${stage.kind}`),
-          status: stage.status,
-          current: stage.stageId === current.currentStageId,
-          gates: current.gates
-            .filter(
-              (gate) =>
-                gate.stageId === stage.stageId && gate.status === 'open',
-            )
-            .map((gate) => ({
-              id: gate.gateId,
-              title: gate.title,
-              href: `/gates/${encodeURIComponent(gate.gateId)}`,
-            })),
-        })) ?? []
+        current?.stages.map((stage) => {
+          const gate = stageGateOf(current, stage.stageId);
+          // The read model keeps `awaiting_gate` after the decision; a decided gate means done.
+          const done =
+            stage.status === 'done' ||
+            (stage.status === 'awaiting_gate' && gate?.state === 'done');
+          return {
+            id: stage.stageId,
+            name: t(`stage.${stage.kind}`),
+            status: done ? 'done' : stage.status,
+            current: stage.stageId === current.currentStageId,
+            ...(gate ? { gate } : {}),
+            // V3: the final-PR stage is its gate; one flag, not two chips.
+            ...(stage.kind === 'final-pr' && gate ? { gateOnly: true } : {}),
+            gates: current.gates
+              .filter(
+                (g) =>
+                  g.stageId === stage.stageId &&
+                  g.status === 'open' &&
+                  g.gateId !== gate?.gateId,
+              )
+              .map((g) => ({
+                id: g.gateId,
+                title: g.title,
+                href: `/gates/${encodeURIComponent(g.gateId)}`,
+              })),
+          };
+        }) ?? []
       }
       banners={
         <Banners

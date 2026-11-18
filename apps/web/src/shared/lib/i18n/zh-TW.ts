@@ -43,6 +43,7 @@ export const zhTW = {
   'app.navigation': '主要導覽',
   'app.view': '流程檢視',
   'app.stages': '流程階段',
+  'app.flow': '流程',
   'app.sidebar': '流程詳情',
   'app.usage': 'token 用量',
   'app.gate': 'gate',
@@ -98,5 +99,10 @@ export const zhTW = {
   'stage.completed': '已完成',
   'stage.failed': '失敗',
   'stage.skipped': '已略過',
+  'stage.done': '已完成',
+  'stage.awaiting_gate': '等你決定',
+  'stage.gate.pending': '{title}：還沒開',
+  'stage.gate.open': '{title}：在等你，開啟關卡',
+  'stage.gate.done': '{title}：已決定',
   'stage.aria': '{name}：{status}',
 } as const;

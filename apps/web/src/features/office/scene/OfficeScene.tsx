@@ -36,7 +36,7 @@ import css from './scene.module.css';
 
 export type OfficeSceneProps = {
   vm: OfficeViewModel;
-  /** Integer scale (`sceneScale`), at least 2. */
+  /** Integer scale (`sceneScale`), at least 2; 1 only for the still gate thumbnail. */
   scale: number;
   /** The catalog translator, for the few strings the view model does not carry. */
   t: SceneTranslate;
@@ -203,6 +203,7 @@ export const OfficeScene = memo(function OfficeScene({
       data-scale={s}
       data-reduced={reducedMotion ? 'true' : 'false'}
       data-zoom={zoom ?? undefined}
+      data-still={interactive ? undefined : 'true'}
       {...(interactive
         ? { role: 'group', 'aria-label': t('office.scene.aria') }
         : { 'aria-hidden': true })}
