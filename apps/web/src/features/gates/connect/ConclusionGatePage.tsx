@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { conclusionViewModel, type GateView } from '../model/index.js';
 import { ConclusionGate } from '../ui/index.js';
-import type { GateBodyProps } from './gateBodyTypes.js';
+import type { GateBodyProps } from './types.js';
 import { sha256Hex } from './hash.js';
 import { useGateDecision } from './useGateDecision.js';
 

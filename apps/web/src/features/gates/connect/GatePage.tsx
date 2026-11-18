@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import type { ApiClient } from '../../../api/index.js';
-import { useDisplayedModel, useNow } from '../../../realtime/index.js';
+import {
+  useDisplayedModel,
+  useNow,
+  useWebState,
+} from '../../../realtime/index.js';
 import { t } from '../../../shared/lib/i18n/index.js';
 import { gateHeaderViewModel } from '../model/index.js';
 import { GateNotice, GateStatusMessage } from '../ui/index.js';
@@ -18,6 +22,7 @@ export function GatePage({ route, api }: GatePageProps) {
   const load = useGate(gateId, api);
   const displayed = useDisplayedModel();
   const now = useNow();
+  const replaying = useWebState((state) => state.replay !== null);
   const gate = load.gate;
   const model =
     gate && displayed?.workflowId === gate.workflowId ? displayed : null;
@@ -48,6 +53,7 @@ export function GatePage({ route, api }: GatePageProps) {
       layout={{
         header,
         backHref: `/workflows/${encodeURIComponent(gate.workflowId)}`,
+        readOnly: replaying,
         ...(load.status === 'error'
           ? {
               notice: (

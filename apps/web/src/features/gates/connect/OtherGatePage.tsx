@@ -7,7 +7,7 @@ import { GateLayout, GateNotice } from '../ui/GateLayout.js';
 import { TaskSplitGate } from '../ui/TaskSplitGate.js';
 import { ExceptionGate } from '../ui/ExceptionGate.js';
 import { FinalPrGate } from '../ui/FinalPrGate.js';
-import type { GateBodyProps } from './gateBodyTypes.js';
+import type { GateBodyProps } from './types.js';
 import { useGateDecision } from './useGateDecision.js';
 
 export function OtherGatePage({

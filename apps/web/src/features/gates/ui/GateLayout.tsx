@@ -35,6 +35,8 @@ export interface GateLayoutProps {
   children: ReactNode;
   /** Decision controls: one primary, then secondary, then danger (red outline). */
   decision?: ReactNode;
+  /** Replay (T14) or another read-only state: every decision control is disabled. */
+  readOnly?: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export function GateLayout({
   notice,
   children,
   decision,
+  readOnly = false,
 }: GateLayoutProps) {
   const mobile = useMobileLayout();
   return (
@@ -123,8 +126,16 @@ export function GateLayout({
             </PixelFrame>
           )}
           {decision && (
-            <PixelFrame className={styles.actions} data-testid="gate-actions">
-              {decision}
+            <PixelFrame data-testid="gate-actions">
+              {readOnly && (
+                <p className={styles.small} data-testid="gate-read-only">
+                  {t('gates.replayReadOnly')}
+                </p>
+              )}
+              {/* A disabled fieldset disables every control a gate body supplies. */}
+              <fieldset className={styles.actions} disabled={readOnly}>
+                {decision}
+              </fieldset>
             </PixelFrame>
           )}
         </aside>

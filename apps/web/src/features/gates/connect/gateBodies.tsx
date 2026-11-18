@@ -1,5 +1,5 @@
-import type { GateBodyProps } from './gateBodyTypes.js';
-export type { GateBodyProps } from './gateBodyTypes.js';
+import type { GateBodyProps } from './types.js';
+export type { GateBodyProps } from './types.js';
 import type { ComponentType } from 'react';
 import type { GateView } from '../model/index.js';
 import { OtherGatePage } from './OtherGatePage.js';

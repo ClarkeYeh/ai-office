@@ -1,6 +1,8 @@
 import type { ReadModel } from '@ai-office/projection';
 import type { Translator } from '../../../shared/lib/i18n/index.js';
 
+/** The gate's workflow read model, re-exported so connect needs no projection import. */
+export type WorkflowModel = ReadModel;
 export type GateView = ReadModel['gates'][number];
 export type GateStatus = GateView['status'];
 
