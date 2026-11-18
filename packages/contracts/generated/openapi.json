@@ -3216,6 +3216,9 @@
           },
           "githubBody": {
             "type": "string"
+          },
+          "renderedBody": {
+            "type": "string"
           }
         },
         "required": [
