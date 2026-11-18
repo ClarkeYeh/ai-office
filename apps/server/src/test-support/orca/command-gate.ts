@@ -15,6 +15,7 @@ export function assertCommand(
     '--delete-branch',
     '--keep-open',
     '--no-parent',
+    '--wait',
   ]);
   for (let i = 2; i < args.length; i++) {
     const key = args[i]!;
@@ -51,8 +52,7 @@ export function assertCommand(
         break;
       case 'request-show':
         own('--request', ledger.requests);
-        from();
-        allowed = ['--request-id', '--from'];
+        allowed = ['--request'];
         break;
       case 'run-create':
         from();
@@ -61,30 +61,49 @@ export function assertCommand(
         allowed = ['--from', '--objective', '--retry-request'];
         break;
       case 'run-use':
+        own('--id', ledger.runs);
+        from();
+        allowed = ['--id', '--from', '--retry-request'];
+        break;
       case 'run-show':
+        own('--id', ledger.runs);
+        allowed = ['--id'];
+        break;
       case 'task-list':
         own('--run', ledger.runs);
-        if (action === 'run-use') from();
-        allowed = ['--run', '--from', '--retry-request'];
+        if (flags.has('--from')) from();
+        allowed = ['--run', '--from'];
         break;
       case 'inbox':
         own(
           '--terminal',
           ledger.runs.map((r) => `run:${r}`),
         );
-        allowed = ['--terminal', '--limit', '--after'];
+        allowed = ['--terminal', '--limit'];
         break;
       case 'check':
-        from();
+        own(
+          '--terminal',
+          ledger.shims.filter((s) => !s.done).map((s) => s.id),
+        );
         own('--run', ledger.runs);
-        allowed = ['--from', '--run', '--wait', '--retry-request', '--types'];
+        allowed = [
+          '--terminal',
+          '--run',
+          '--wait',
+          '--timeout-ms',
+          '--retry-request',
+          '--types',
+        ];
         break;
       case 'worker-show':
       case 'worker-stop':
       case 'worker-release':
         dispatch();
-        if (action !== 'worker-show') from();
-        allowed = ['--dispatch', '--from', '--retry-request'];
+        allowed =
+          action === 'worker-show'
+            ? ['--dispatch']
+            : ['--dispatch', '--retry-request'];
         break;
       case 'worker-list':
         own('--run', ledger.runs);
@@ -126,7 +145,14 @@ export function assertCommand(
         from();
         if (flags.get('--status') !== 'failed')
           throw new Error('Cleanup may only fail test tasks');
-        allowed = ['--id', '--status', '--run', '--from', '--retry-request'];
+        allowed = [
+          '--id',
+          '--status',
+          '--result',
+          '--run',
+          '--from',
+          '--retry-request',
+        ];
         break;
       default:
         throw new Error('Orca command not allowed by harness');
@@ -150,6 +176,12 @@ export function assertCommand(
     allowed = ['--terminal'];
   } else throw new Error('Orca command not allowed by harness');
   for (const key of flags.keys())
-    if (!['--json', '--full', ...allowed].includes(key))
+    if (
+      ![
+        '--json',
+        ...(group === 'orchestration' ? ['--full'] : []),
+        ...allowed,
+      ].includes(key)
+    )
       throw new Error('Orca flag not allowed by harness');
 }

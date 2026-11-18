@@ -57,6 +57,10 @@ describe('fixture command-line tools', () => {
 
   it.each([
     ['sample.json', '{"value":"test@example.com"}'],
+    ['sample.json', JSON.stringify({ path: '/Users/test/private' })],
+    ['sample.json', JSON.stringify({ path: '/Users/<redacted>/private' })],
+    ['sample.json', '{"path":"\\u002fUsers\\u002f<redacted>/private"}'],
+    ['README.md', '/home/test/private'],
     ['sample.json', '{"handle":"term_12345678-1234-4234-8234-123456789abc"}'],
     ['sample.json', '{"output":"ordinary tool output"}'],
     ['sample.json', '{"value":"\\u0074est@example.com"}'],
