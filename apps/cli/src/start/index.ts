@@ -20,10 +20,15 @@ export interface StartOptions {
 }
 
 const usage =
-  'Usage: ai-office start [--dev] [--fake <scenario>] [--port <n>] [--break-lock] [--no-open]';
+  'Usage: ai-office start [--dev] [--fake <scenario>] [--runtime orca] [--port <n>] [--break-lock] [--no-open]';
 
 const SERVER_FLAGS = new Set(['--dev', '--break-lock']);
-const SERVER_VALUES = new Set(['--fake', '--port', '--dev-origin']);
+const SERVER_VALUES = new Set([
+  '--fake',
+  '--runtime',
+  '--port',
+  '--dev-origin',
+]);
 
 function defaultOpen(url: string): void {
   const [command, args] =
