@@ -50,6 +50,11 @@ export interface Workflow {
   startedAt: string;
   status: WorkflowStatus;
   pausedReasons: PauseReason[];
+  /**
+   * FX8b: each pause, from its first reason to full unpause; `to` is unset
+   * while it lasts. Pause time does not count toward timers or timeouts.
+   */
+  pauseWindows?: { from: string; to?: string }[];
   cancelRequested: boolean;
   endedAt?: string;
   failure?: EventPayload<'workflow.failed'>;
@@ -273,6 +278,8 @@ export interface Timer {
    * reschedules it with the remaining `fireAt − pausedAt`.
    */
   pausedAt?: string;
+  /** When its `timer.scheduled` was recorded; FX8b credits pause time after it. */
+  scheduledAt?: string;
 }
 
 export type Anomaly = EventPayload<'anomaly.detected'> & { detectedAt: string };

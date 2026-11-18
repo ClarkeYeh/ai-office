@@ -169,7 +169,47 @@ test('conclusion drift is based only on body hash; timestamps are display-only',
     ...payloads['submission.accepted'],
     artifactId: undefined,
   });
-  expect(Object.keys(s.model.acceptedSubmissions)).toEqual(['art1']);
+  expect(Object.keys(s.model.acceptedSubmissions)).toEqual(['art1', 'sub1']);
+});
+
+test('submissions without artifactId are keyed by submissionId for gates', () => {
+  const s = prepared();
+  s.push('submission.accepted', {
+    ...payloads['submission.accepted'],
+    submissionId: 'sub-plan',
+    kind: 'work-items',
+    submission: {
+      kind: 'work-items',
+      payload: { items: payloads['workitem.proposed'].items },
+    },
+    artifactId: undefined,
+  });
+  s.push('submission.accepted', {
+    ...payloads['submission.accepted'],
+    submissionId: 'sub-conc',
+    artifactId: undefined,
+  });
+  s.push('gate.opened', {
+    ...payloads['gate.opened'],
+    gateId: 'plan',
+    stageId: 'planning',
+    templateGateId: 'plan',
+    stageKind: 'planning',
+    content: { type: 'work-items', artifactId: 'sub-plan' },
+  });
+  expect(s.model.gates.at(-1)?.workItems).toEqual(
+    payloads['workitem.proposed'].items,
+  );
+  s.push('gate.opened', {
+    ...payloads['gate.opened'],
+    gateId: 'conc',
+    content: {
+      type: 'conclusion',
+      artifactId: 'sub-conc',
+      renderedHash: 'b'.repeat(64),
+    },
+  });
+  expect(s.model.gates.at(-1)?.conclusion?.original?.summary).toBe('Build it');
 });
 
 test('artifacts link issues, branches, PR status and final gate views', () => {

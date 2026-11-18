@@ -8,6 +8,7 @@ import type {
 } from './types.js';
 
 export type * from './types.js';
+export { heldTimerShifts, isTimerHeld, pausedMilliseconds } from './pause.js';
 
 export const initialState = (): WorkflowState => ({
   workflowId: null,

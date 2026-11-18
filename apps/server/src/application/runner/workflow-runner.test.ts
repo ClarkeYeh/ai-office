@@ -1,5 +1,10 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { DomainEvent, EventPayload } from '@ai-office/contracts/events';
+import { CURRENT_SCHEMA_VERSION } from '@ai-office/contracts/events';
+import type {
+  DomainEvent,
+  DomainEventDraft,
+  EventPayload,
+} from '@ai-office/contracts/events';
 import { evolve, replay } from '@ai-office/domain';
 import type { WorkflowState } from '@ai-office/domain';
 import { internal, react as engineReact } from '@ai-office/engine';
@@ -583,57 +588,98 @@ describe('timers', () => {
     ]);
   });
 
-  describe('held while the workflow is paused (FX8)', () => {
-    const meta = { occurredAt: START, source: 'user' as const };
-    const pause = (
-      h: ReturnType<typeof harness>,
-      reason: 'hijacked' | 'budget' = 'hijacked',
-    ) =>
-      h.runners.dispatch(WORKFLOW_ID, { type: 'PauseWorkflow', meta, reason });
-    const resume = (
-      h: ReturnType<typeof harness>,
-      reason: 'hijacked' | 'budget' = 'hijacked',
-    ) =>
-      h.runners.dispatch(WORKFLOW_ID, { type: 'ResumeWorkflow', meta, reason });
-    const fired = (h: ReturnType<typeof harness>) =>
+  describe('held while the workflow is paused, then shifted (FX8, FX8b)', () => {
+    const MIN = 60_000;
+    type H = ReturnType<typeof harness>;
+    const meta = (h: H) => ({
+      occurredAt: h.clock.now().toISOString(),
+      source: 'user' as const,
+    });
+    const pause = (h: H, reason: 'hijacked' | 'budget' = 'hijacked') =>
+      h.runners.dispatch(WORKFLOW_ID, {
+        type: 'PauseWorkflow',
+        meta: meta(h),
+        reason,
+      });
+    const resume = (h: H, reason: 'hijacked' | 'budget' = 'hijacked') =>
+      h.runners.dispatch(WORKFLOW_ID, {
+        type: 'ResumeWorkflow',
+        meta: meta(h),
+        reason,
+      });
+    const fired = (h: H) =>
       payloadsOf(h.events(), 'timer.fired').map((p) => p.timerId);
+    const scheduled = (h: H) =>
+      payloadsOf(h.events(), 'timer.scheduled').filter(
+        (p) => p.timerId === TIMER,
+      );
 
-    test('a timer due during the pause fires once, on the resume that unpauses', async () => {
+    test('a timer resumes with the time it had left when the pause began', async () => {
       const h = harness({
         react: timerReact,
         world: new StubWorld().hang('*'),
       });
       await h.runners.start(startWorkflow());
+      await h.advance(3 * MIN);
       await pause(h);
-      await pause(h, 'budget');
-      await h.advance(10 * 60_000);
+      await h.advance(60 * MIN);
       expect(fired(h)).toEqual([]);
-      expect(h.runners.get(WORKFLOW_ID)?.state.timers[TIMER]).toBeDefined();
       await resume(h);
+      // Rescheduled under the same id: 2 minutes left, counted from the resume.
+      expect(scheduled(h).map((p) => p.fireAt)).toEqual([
+        '2026-11-17T00:05:00.000Z',
+        '2026-11-17T01:05:00.000Z',
+      ]);
+      expect(h.runners.get(WORKFLOW_ID)?.state.timers[TIMER]?.fireAt).toBe(
+        '2026-11-17T01:05:00.000Z',
+      );
+      await h.advance(2 * MIN - 1);
       expect(fired(h)).toEqual([]);
-      await resume(h, 'budget');
-      expect(fired(h)).toEqual([TIMER]);
-      // A late Scheduler delivery or restart re-arm finds nothing pending.
-      h.runners.get(WORKFLOW_ID)?.fireTimer(TIMER);
-      h.runners.get(WORKFLOW_ID)?.rearmTimers();
-      await h.advance(10 * 60_000);
+      await h.advance(1);
       expect(fired(h)).toEqual([TIMER]);
     });
 
-    test('a timer not yet due at the resume keeps its own deadline', async () => {
+    test('nested pause reasons count as one pause until fully unpaused', async () => {
+      const h = harness({
+        react: timerReact,
+        world: new StubWorld().hang('*'),
+      });
+      await h.runners.start(startWorkflow());
+      await h.advance(MIN);
+      await pause(h);
+      await h.advance(10 * MIN);
+      await pause(h, 'budget');
+      await h.advance(10 * MIN);
+      expect(h.runners.get(WORKFLOW_ID)?.state.timers[TIMER]).toBeDefined();
+      await resume(h);
+      expect(scheduled(h)).toHaveLength(1);
+      await h.advance(10 * MIN);
+      expect(fired(h)).toEqual([]);
+      await resume(h, 'budget');
+      expect(scheduled(h).at(-1)?.fireAt).toBe('2026-11-17T00:35:00.000Z');
+      // A late Scheduler delivery while held, or a re-arm, cannot fire it early or twice.
+      h.runners.get(WORKFLOW_ID)?.rearmTimers();
+      await h.advance(4 * MIN - 1);
+      expect(fired(h)).toEqual([]);
+      await h.advance(1);
+      expect(fired(h)).toEqual([TIMER]);
+      h.runners.get(WORKFLOW_ID)?.fireTimer(TIMER);
+      h.runners.get(WORKFLOW_ID)?.rearmTimers();
+      await h.advance(10 * MIN);
+      expect(fired(h)).toEqual([TIMER]);
+    });
+
+    test('a held timer ignores deliveries until its shift', async () => {
       const h = harness({
         react: timerReact,
         world: new StubWorld().hang('*'),
       });
       await h.runners.start(startWorkflow());
       await pause(h);
-      await h.advance(2 * 60_000);
-      await resume(h);
+      await h.advance(10 * MIN);
+      h.runners.get(WORKFLOW_ID)?.fireTimer(TIMER);
+      await h.advance(0);
       expect(fired(h)).toEqual([]);
-      await h.advance(2 * 60_000);
-      expect(fired(h)).toEqual([]);
-      await h.advance(60_000);
-      expect(fired(h)).toEqual([TIMER]);
     });
 
     test('a timer cancelled during the pause stays cancelled', async () => {
@@ -650,14 +696,15 @@ describe('timers', () => {
       });
       await h.runners.start(startWorkflow());
       await pause(h);
-      await h.advance(10 * 60_000);
+      await h.advance(10 * MIN);
       await pause(h, 'budget');
       expect(payloadsOf(h.events(), 'timer.cancelled')).toEqual([
         { timerId: TIMER, reason: 'test' },
       ]);
       await resume(h);
       await resume(h, 'budget');
-      await h.advance(10 * 60_000);
+      await h.advance(20 * MIN);
+      expect(scheduled(h)).toHaveLength(1);
       expect(fired(h)).toEqual([]);
     });
 
@@ -698,12 +745,18 @@ describe('timers', () => {
       const h = harness({ react: onResume, world: new StubWorld().hang('*') });
       await h.runners.start(startWorkflow());
       await pause(h);
-      await h.advance(10 * 60_000);
+      await h.advance(10 * MIN);
       await resume(h);
+      await h.advance(6 * MIN);
       const tail = h
         .events()
         .filter((e) =>
-          ['timer.fired', 'timer.cancelled', 'error.recorded'].includes(e.type),
+          [
+            'timer.scheduled',
+            'timer.fired',
+            'timer.cancelled',
+            'error.recorded',
+          ].includes(e.type),
         )
         .map((e) =>
           e.type === 'error.recorded'
@@ -711,18 +764,22 @@ describe('timers', () => {
             : `${e.type} ${String((e.payload as { timerId: string }).timerId)}`,
         );
       expect(tail).toEqual([
+        `timer.scheduled ${TIMER}`,
+        `timer.scheduled ${LATER}`,
         `timer.cancelled ${TIMER}`,
         'error.recorded',
+        `timer.scheduled ${LATER}`,
         `timer.fired ${LATER}`,
       ]);
     });
 
-    test('a restart while paused keeps holding until the resume', async () => {
+    test('a restart while paused keeps holding, then shifts on the resume', async () => {
       const first = harness({
         react: timerReact,
         world: new StubWorld().hang('*'),
       });
       await first.runners.start(startWorkflow());
+      await first.advance(MIN);
       await pause(first);
       const second = harness({
         react: timerReact,
@@ -731,10 +788,50 @@ describe('timers', () => {
         specStore: first.specStore,
         world: new StubWorld().hang('*'),
       });
+      second.clock.advance(MIN);
       second.runners.recover();
-      await second.advance(10 * 60_000);
+      await second.advance(10 * MIN);
       expect(fired(second)).toEqual([]);
       await resume(second);
+      expect(fired(second)).toEqual([]);
+      expect(scheduled(second).at(-1)?.fireAt).toBe('2026-11-17T00:15:00.000Z');
+      await second.advance(4 * MIN);
+      expect(fired(second)).toEqual([TIMER]);
+    });
+
+    test('a restart after the unpausing resume but before its shift redoes the shift', async () => {
+      const first = harness({
+        react: timerReact,
+        world: new StubWorld().hang('*'),
+      });
+      await first.runners.start(startWorkflow());
+      await first.advance(MIN);
+      await pause(first);
+      first.clock.advance(10 * MIN);
+      // The resume is stored, but the process dies before the shift runs.
+      first.store.append([
+        {
+          type: 'workflow.resumed',
+          payload: { reason: 'hijacked' },
+          occurredAt: first.clock.now().toISOString(),
+          workflowId: WORKFLOW_ID,
+          source: 'user',
+          provenance: 'decided',
+          schemaVersion: CURRENT_SCHEMA_VERSION['workflow.resumed'],
+        } as DomainEventDraft,
+      ]);
+      const second = harness({
+        react: timerReact,
+        store: first.store,
+        seatTokens: first.seatTokens,
+        specStore: first.specStore,
+        world: new StubWorld().hang('*'),
+      });
+      second.clock.advance(15 * MIN);
+      second.runners.recover();
+      // Shifted from the resume, not the restart: 4 minutes were left.
+      expect(scheduled(second).at(-1)?.fireAt).toBe('2026-11-17T00:15:00.000Z');
+      await second.advance(0);
       expect(fired(second)).toEqual([TIMER]);
     });
   });
