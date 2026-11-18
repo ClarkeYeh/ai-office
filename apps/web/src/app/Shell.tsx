@@ -1,3 +1,4 @@
+import { OfficeUsage } from '../features/office/index.js';
 import {
   useEffect,
   useState,
@@ -38,6 +39,10 @@ export interface ShellProps {
   legend?: ReactNode;
   newGateTitle?: string;
 }
+const subscribeLocation = (listener: () => void) => {
+  globalThis.addEventListener('popstate', listener);
+  return () => globalThis.removeEventListener('popstate', listener);
+};
 const mobileQuery = '(max-width: 899px)';
 function subscribeMobile(listener: () => void) {
   const query = globalThis.matchMedia(mobileQuery);
@@ -62,6 +67,11 @@ export function Shell({
   legend,
   newGateTitle,
 }: ShellProps) {
+  const search = useSyncExternalStore(
+    subscribeLocation,
+    () => globalThis.location.search,
+    () => '',
+  );
   const mobile = useSyncExternalStore(
     subscribeMobile,
     () => globalThis.matchMedia(mobileQuery).matches,
@@ -113,7 +123,7 @@ export function Shell({
             {(['office', 'board', 'timeline'] as const).map((mode) => (
               <Link
                 key={mode}
-                href={`${workflowPath}${mode === 'office' ? '' : `/${mode}`}`}
+                href={`${workflowPath}${mode === 'office' ? '' : `/${mode}`}${search}`}
                 aria-label={t(`app.${mode}`)}
                 data-testid={`view-${mode}`}
                 aria-current={view === mode ? 'page' : undefined}
@@ -232,15 +242,10 @@ export function Shell({
           </PixelFrame>
           {rightColumn}
           {totalTokens !== undefined && (
-            <PixelFrame data-testid="token-usage">
-              <div className={styles.usage}>
-                <h2>{t('app.usage')}</h2>
-                <span className={styles.tokens}>
-                  {totalTokens.toLocaleString('zh-TW')}
-                </span>
-              </div>
-              {budgetDisabled && <p>{t('office.usage.budgetDisabled')}</p>}
-            </PixelFrame>
+            <OfficeUsage
+              totalTokens={totalTokens}
+              budgetDisabled={budgetDisabled ?? false}
+            />
           )}
         </aside>
       </div>

@@ -94,6 +94,12 @@ export type OfficeSeat = {
   x: number;
   y: number;
   nameplate: Nameplate;
+  bubble?: {
+    position: string;
+    round: number;
+    maxRounds: number;
+    label: string;
+  };
   ariaLabel: string;
   testId: string;
   needsYou: boolean;

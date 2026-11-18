@@ -18,7 +18,7 @@ import {
 import { mainline } from '../../../test-support/office/mainline.js';
 import { seatId } from '../../../test-support/office/log.js';
 import { seatsT as t } from '../../../shared/lib/i18n/seats.js';
-import { ApiError } from '../../../api/index.js';
+import { ApiError, type ApiClient } from '../../../api/index.js';
 import { SeatInspector, messageError } from './SeatInspector.js';
 const log = mainline();
 const id = seatId('engineer', 'feature');
@@ -302,4 +302,18 @@ test('errors, optional rate limit and attempt history are accessible without tra
   expect(screen.getByTestId('seat-attempt-history').textContent).toContain(
     '220,000',
   );
+});
+
+test('uses the supplied app API client instead of creating its own', async () => {
+  const h = setup();
+  h.fetcher.mockClear();
+  const listEvents = vi.fn(async () => ({ events: [] }));
+  const api = { listEvents } as unknown as ApiClient;
+  h.rerender(
+    <RealtimeProvider realtime={h.realtime}>
+      <SeatInspector seatId={id} api={api} />
+    </RealtimeProvider>,
+  );
+  await waitFor(() => expect(listEvents).toHaveBeenCalled());
+  expect(h.fetcher).not.toHaveBeenCalled();
 });
