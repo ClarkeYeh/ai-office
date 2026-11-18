@@ -167,7 +167,8 @@ describe('read-only Codex policy prediction', () => {
     ['[shell_environment_policy]\nexclude = ["ORCA_*"]', true],
     ['[shell_environment_policy]\ninclude_only = ["PATH", "HOME"]', true],
     ['[shell_environment_policy]\nignore_default_excludes = true', false],
-    ['[shell_environment_policy]\nignore_default_excludes = false', false],
+    ['[shell_environment_policy]\nignore_default_excludes = false', true],
+    ['[shell_environment_policy.set]\nEXTRA = "1"', false],
     ['[broken', true],
     ['shell_environment_policy = "invalid"', true],
   ])(

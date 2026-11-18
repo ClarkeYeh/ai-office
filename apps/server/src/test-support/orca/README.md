@@ -25,7 +25,7 @@ Set `AIO_REAL_ORCA=1`, `AIO_TEST_REPO_PATH` to the spike clone,
 origins identify the same repository; lookalike hosts/repos are rejected.
 The owner-approved `~/.ai-office/orca-home` folder must already be registered.
 
-Run `pnpm test:orca --maxWorkers=2` or `pnpm orca:record smoke`. The lifecycle is
+Run `pnpm test:orca` (files run serially; the leak scan is global) or `pnpm orca:record smoke`. The lifecycle is
 shim → run → pre-created local branch → worktree → cleanup. No agent is launched.
 Each file/session has its own private temporary dataDir; set `AI_OFFICE_HOME` to
 `harness.ledger.dataDir` when launching a test backend. Do not mutate global env
@@ -185,3 +185,14 @@ leftovers are rescanned for up to three seconds (at most 12 retries); persistent
 shims still fail. Other resource leaks fail immediately. We retain pane-only
 close: although `--tab` waits for durable persistence, it can also close other
 panes in that tab, beyond the ledger-owned shim.
+
+## M2-T16 live scenarios (integrator, agents)
+
+`adapters/runtime-orca/verify.orca.test.ts` (`pnpm test:orca:agents`) runs
+`p4-run-use.ts` and `p5b-codex-env.ts`. Both use `assertClean` and write
+`P4-verdict.json`/`P5b-verdict.json` (codes, booleans, key names) to the private
+dataDir, because vitest may hide stdout. P4 drives the production
+`ShimCoordinatorIdentity` through the command gate (`t16-live.ts`
+`identityFor`, seeded state, so it never creates or adopts a shim). Worker result
+files in the test worktree are deleted before cleanup. Results are recorded in
+`fixtures/orca/1.4.259/README.md`.
