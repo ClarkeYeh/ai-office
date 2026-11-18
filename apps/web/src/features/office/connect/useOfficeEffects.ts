@@ -41,7 +41,9 @@ export function useOfficeEffects(workflowId: string | undefined) {
       return;
     }
     // Reject stale/live-model events while replay displays a different snapshot.
-    if (applied.next !== selectDisplayedModel(state)) return;
+    // Live events of one frame batch carry intermediate models, so only replay compares.
+    if (state.replay !== null && applied.next !== selectDisplayedModel(state))
+      return;
     const fresh = effects(applied.event, applied.prev, applied.next).map(
       (effect) => ({ id: nextId.current++, effect }),
     );
