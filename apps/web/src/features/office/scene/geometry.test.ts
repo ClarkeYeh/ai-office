@@ -112,7 +112,7 @@ describe('figures (§2.6)', () => {
       figureOf(seat({ place: 'meeting', chair: 1, pose: 'working' })),
     ).toMatchObject({ frame: 'upper', animated: false });
     expect(
-      figureOf(seat({ place: 'meeting', chair: 4, pose: 'working' })),
+      figureOf(seat({ place: 'meeting', chair: 2, pose: 'working' })),
     ).toMatchObject({ frame: 'type', animated: false });
     expect(
       figureOf(seat({ place: 'meeting', chair: 'facilitator' }))?.frame,

@@ -90,7 +90,8 @@ export function facingOf(seat: Pick<OfficeSeat, 'place' | 'chair'>): Facing {
       return 'back';
     case 'meeting':
       if (seat.chair === 'facilitator') return 'standing';
-      return typeof seat.chair === 'number' && seat.chair >= 3
+      return typeof seat.chair === 'number' &&
+        (seat.chair === 2 || seat.chair === 3)
         ? 'back'
         : 'behind-desk';
     case 'lead':

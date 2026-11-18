@@ -42,6 +42,8 @@ export type OfficeSceneProps = {
   t: SceneTranslate;
   /** Effects in arrival order with increasing ids; background events never get here. */
   effects?: readonly QueuedEffect[];
+  /** Cancels old animations on replay seeks/catch-up without moving the camera. */
+  effectEpoch?: number;
   /** false: the gate page's still thumbnail (no buttons, no effects). */
   interactive?: boolean;
   /** Overrides `prefers-reduced-motion` (tests, harness). */
@@ -71,6 +73,7 @@ export const OfficeScene = memo(function OfficeScene({
   scale: s,
   t,
   effects = NO_EFFECTS,
+  effectEpoch = 0,
   interactive = true,
   reducedMotion: reducedOverride,
   onSelectSeat,
@@ -87,9 +90,12 @@ export const OfficeScene = memo(function OfficeScene({
   // -- effect queue ----------------------------------------------------------
   const [queue, setQueue] = useState(emptyQueue);
   useEffect(() => {
+    setQueue(emptyQueue());
+  }, [effectEpoch]);
+  useEffect(() => {
     if (!interactive) return;
     setQueue((q) => enqueue(q, effects, reducedMotion));
-  }, [effects, reducedMotion, interactive]);
+  }, [effects, reducedMotion, interactive, effectEpoch]);
   useEffect(() => {
     if (reducedMotion) setQueue(reduceAll);
   }, [reducedMotion]);
@@ -137,7 +143,14 @@ export const OfficeScene = memo(function OfficeScene({
     [],
   );
   const [remembered, setRemembered] = useState<string | null>(null);
-  const seatIds = vm.seats.map((seat) => seat.seatId);
+  const visibleSeats = useMemo(
+    () =>
+      vm.seats.filter(
+        (seat) => seat.place !== 'meeting' || seat.pose !== 'away',
+      ),
+    [vm.seats],
+  );
+  const seatIds = visibleSeats.map((seat) => seat.seatId);
   const tabbable = rovingId(
     seatIds,
     remembered,
@@ -145,14 +158,17 @@ export const OfficeScene = memo(function OfficeScene({
   );
   const points = useMemo(
     () =>
-      vm.seats.map((seat) => {
+      visibleSeats.map((seat) => {
         const r = seatRect(seat);
         return { id: seat.seatId, x: r.x + r.w / 2, y: r.y + r.h / 2 };
       }),
-    [vm.seats],
+    [visibleSeats],
   );
+  const pointsRef = useRef(points);
+  pointsRef.current = points;
   const onSeatKey = useCallback(
     (seatId: string, event: KeyboardEvent<HTMLButtonElement>) => {
+      const points = pointsRef.current;
       let target: string | undefined;
       const direction = ARROWS[event.key];
       if (direction) target = neighbour(points, seatId, direction);
@@ -164,7 +180,7 @@ export const OfficeScene = memo(function OfficeScene({
       setRemembered(target);
       buttons.current.get(target)?.focus();
     },
-    [points],
+    [],
   );
   const onRootKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape' && zoom !== null) {
@@ -175,8 +191,8 @@ export const OfficeScene = memo(function OfficeScene({
 
   // Figures lower on the floor are drawn later (in front).
   const byDepth = useMemo(
-    () => [...vm.seats].sort((a, b) => a.y - b.y),
-    [vm.seats],
+    () => [...visibleSeats].sort((a, b) => a.y - b.y),
+    [visibleSeats],
   );
   const lit = vm.hush.lit;
   return (

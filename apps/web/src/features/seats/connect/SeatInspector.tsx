@@ -1,5 +1,9 @@
 import { useMemo } from 'react';
-import { ApiError, createApiClient } from '../../../api/index.js';
+import {
+  ApiError,
+  createApiClient,
+  type ApiClient,
+} from '../../../api/index.js';
 import {
   useDisplayedModel,
   useNow,
@@ -33,21 +37,28 @@ export function messageError(error: unknown): string {
   return seatsT('seats.error.failed');
 }
 
-/** Mount in the office inspector slot under the existing RealtimeProvider. */
-export function SeatInspector({ seatId }: { seatId: string | null }) {
+/** Mount in the office inspector slot under the existing RealtimeProvider; pass the app's client to share its 401 handling. */
+export function SeatInspector({
+  seatId,
+  api: supplied,
+}: {
+  seatId: string | null;
+  api?: ApiClient;
+}) {
   const realtime = useRealtime();
   const model = useDisplayedModel();
   const now = useNow();
   const replaying = useWebState((s) => s.replay !== null);
   const api = useMemo(
     () =>
+      supplied ??
       createApiClient({
         onUnauthorized: () => {
           realtime.stop();
           realtime.store.setState({ auth: 'missing' });
         },
       }),
-    [realtime],
+    [realtime, supplied],
   );
   const history = useReviewHistory(model?.workflowId ?? null, api);
   const vm = useViewModel(seatInspector, {

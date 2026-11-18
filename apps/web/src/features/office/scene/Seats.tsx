@@ -13,6 +13,7 @@ import {
   YOUR_DESK,
 } from './geometry.js';
 import { Hit } from './Hit.js';
+import { SpeechBubble } from './SpeechBubble.js';
 import { Nameplate } from './Nameplate.js';
 import { Sprite, spriteSize } from './Sprite.js';
 import css from './scene.module.css';
@@ -69,7 +70,9 @@ export const SeatButton = memo(function SeatButton({
     <Hit
       interactive={interactive}
       testId={seat.testId}
-      ariaLabel={seat.ariaLabel}
+      ariaLabel={
+        seat.bubble ? `${seat.ariaLabel} ${seat.bubble.label}` : seat.ariaLabel
+      }
       pressed={seat.selected}
       rect={rect}
       scale={s}
@@ -110,8 +113,11 @@ export const SeatButton = memo(function SeatButton({
         scale={s}
         origin={rect}
         flash={flash}
-        compact={seat.place === 'meeting' && seat.chair !== 'facilitator'}
+        compact={seat.place === 'meeting'}
       />
+      {seat.bubble && !walking ? (
+        <SpeechBubble seat={seat} scale={s} origin={rect} />
+      ) : null}
     </Hit>
   );
 });
@@ -264,6 +270,7 @@ export const Inbox = memo(function Inbox({
             key={item.artifactId}
             className={css.inboxLink}
             href={item.url}
+            aria-label={item.label}
             target="_blank"
             rel="noreferrer"
             data-testid={item.testId}
