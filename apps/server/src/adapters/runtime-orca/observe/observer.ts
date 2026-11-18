@@ -12,7 +12,11 @@ import type { OrcaCli, RunOptions } from '../cli/types.js';
 import type { CoordinatorIdentity } from '../coordinator-identity/index.js';
 import { guard } from '../errors.js';
 import { markerToken } from '../marker.js';
-import type { DispatchLedger } from '../ledger.js';
+import {
+  type DispatchLedger,
+  workerListCursor,
+  workerPageArgs,
+} from '../ledger.js';
 import { decodeCursor, encodeCursor, questionRef } from '../refs.js';
 import {
   CursorPayloadSchema,
@@ -269,6 +273,36 @@ export class OrcaObserver {
     if (parsed.success) return { ok: true, data: parsed.data };
     this.mismatch(b, command, issueSummary(parsed.error));
     return { ok: false, error: null };
+  }
+  /** Every worker-list page: one call returns at most 100 rows (M2-FX13). */
+  private async listWorkers(
+    b: Batch,
+  ): Promise<
+    | { ok: true; data: { workers: Worker[] } }
+    | { ok: false; error: null | PortError }
+  > {
+    const workers: Worker[] = [],
+      seen = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const page = await this.call(
+        b,
+        'orchestration worker-list',
+        ['orchestration', 'worker-list', '--full', ...workerPageArgs(cursor)],
+        { kind: 'read', priority: 'worker-list', run: b.run },
+        WorkerListSchema,
+      );
+      if (!page.ok) return page;
+      workers.push(...page.data.workers);
+      try {
+        cursor = workerListCursor(page.data, seen);
+      } catch (error) {
+        if (!(error instanceof PortError)) throw error;
+        this.mismatch(b, 'orchestration worker-list', [error.code]);
+        return { ok: false, error: null };
+      }
+    } while (cursor);
+    return { ok: true, data: { workers } };
   }
   private mismatch(b: Batch, command: string, issues: string[]): void {
     if (b.mismatched.has(command)) return;
@@ -653,13 +687,7 @@ export class OrcaObserver {
   }
   /** The ledger is a rebuildable cache (§11.5): complete worker-list and task-list. */
   private async rebuildLedger(b: Batch): Promise<void> {
-    const workers = await this.call(
-      b,
-      'orchestration worker-list',
-      ['orchestration', 'worker-list', '--full'],
-      { kind: 'read', priority: 'worker-list', run: b.run },
-      WorkerListSchema,
-    );
+    const workers = await this.listWorkers(b);
     if (!workers.ok) return this.recover(b, workers.error);
     const tasks = [...b.st.tasks].map(([id, title]) => ({ id, title }));
     try {
@@ -801,13 +829,7 @@ export class OrcaObserver {
     if (this.now() - st.listedAt < interval) return;
     st.listedAt = this.now();
     await this.refreshAnswers(b);
-    const listed = await this.call(
-      b,
-      'orchestration worker-list',
-      ['orchestration', 'worker-list', '--full'],
-      { kind: 'read', priority: 'worker-list', run: b.run },
-      WorkerListSchema,
-    );
+    const listed = await this.listWorkers(b);
     if (!listed.ok) return this.recover(b, listed.error);
     const groups = new Map<AgentRef, Worker[]>();
     for (const worker of listed.data.workers) {

@@ -191,9 +191,20 @@ class World {
       }
       case 'orchestration task-list':
         return ok({ tasks: this.tasks.map((t) => ({ ...t, runId: RUN })) });
-      case 'orchestration worker-list':
+      case 'orchestration worker-list': {
+        // 1.4.259 pages: --limit rows from the opaque --cursor, page.nextCursor.
+        const limit = Number(flag(args, '--limit') ?? 100);
+        const from = Number(flag(args, '--cursor')?.slice('c'.length) ?? 0);
+        const rows = this.workers.slice(from, from + limit);
+        const more = from + limit < this.workers.length;
         return ok({
-          workers: this.workers.map((w) => ({
+          page: {
+            limit,
+            total: this.workers.length,
+            hasMore: more,
+            nextCursor: more ? `c${from + limit}` : null,
+          },
+          workers: rows.map((w) => ({
             dispatchId: w.dispatchId,
             taskId: w.taskId,
             runId: RUN,
@@ -224,6 +235,7 @@ class World {
             },
           })),
         });
+      }
       case 'orchestration worker-show':
         return ok({
           observation: {
@@ -959,6 +971,50 @@ describe('OrcaObserver: mapping', () => {
       state: 'started',
       dispatch: 'ctx_z',
     });
+  });
+
+  it('pages worker-list past 100 rows to rebuild a lost ledger (M2-FX13)', async () => {
+    // A long run: 150 settled dispatches, the managed one beyond page one.
+    for (let i = 0; i < 150; i++)
+      r.world.workers.push({
+        dispatchId: `ctx_old${i}`,
+        taskId: `task_old${i}`,
+        workerState: 'succeeded',
+      });
+    r.world.tasks.push({ id: 'task_z', title: 'aio:cmd-z build' });
+    r.world.workers.push({ dispatchId: 'ctx_z', taskId: 'task_z' });
+    const batch = await r.observe(null);
+    expect(ofType(batch.events, 'runtime.contract_mismatch')).toEqual([]);
+    expect(r.ledger.byCommand('cmd-z')).toMatchObject({
+      state: 'started',
+      dispatch: 'ctx_z',
+    });
+    const lists = r.world.calls.filter((a) => a[1] === 'worker-list');
+    expect(lists.map((a) => flag(a, '--cursor'))).toContain('c100');
+    expect(lists.every((a) => flag(a, '--limit') === '100')).toBe(true);
+    expect(ofType(batch.events, 'agent.status')).toEqual([
+      expect.objectContaining({ agent: 'ctx_z' }),
+    ]);
+  });
+
+  it('refuses a worker-list page that has more rows but no cursor (M2-FX13)', async () => {
+    spawned(r, 'ctx_a');
+    const respond = r.world.respond.bind(r.world);
+    r.world.respond = async (args) =>
+      args[1] === 'worker-list'
+        ? ok({
+            workers: [],
+            page: { limit: 100, total: 150, hasMore: true, nextCursor: null },
+          })
+        : respond(args);
+    const batch = await r.observe(null);
+    const mismatch = ofType(batch.events, 'runtime.contract_mismatch');
+    expect(mismatch).toEqual([
+      expect.objectContaining({
+        command: 'orchestration worker-list',
+        issues: ['runtime_contract_mismatch'],
+      }),
+    ]);
   });
 
   it('derives waiting_input from unanswered questions and clears it after reply', async () => {

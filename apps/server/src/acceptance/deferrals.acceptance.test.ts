@@ -83,7 +83,9 @@ it(
         return new Promise<void>(() => {});
       },
     });
-    o.world.scm.setMergeDelay(1);
+    // FakeScm only calls `delay` while the deadline is still ahead of the real
+    // clock; a 1 ms deadline could lapse under load and let the merge finish.
+    o.world.scm.setMergeDelay(3_600_000);
     const backend = o.world.backend!;
     let captured:
       import('../adapters/runtime-fake/index.js').FakeSubmission | undefined;
