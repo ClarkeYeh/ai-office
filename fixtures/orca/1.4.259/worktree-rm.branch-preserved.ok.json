@@ -6,7 +6,7 @@
     "worktree",
     "rm",
     "--worktree",
-    "path:/Users/<redacted><redacted>",
+    "path:<home>/<redacted>",
     "--delete-branch",
     "--json"
   ],

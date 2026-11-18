@@ -31,9 +31,9 @@
             "releaseState": "retained",
             "retainedReason": "user_requested",
             "terminalHandle": "term_00000000-0000-4000-8000-000000000004",
-            "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
             "endpointId": "00000000-0000-4000-8000-00000000001b",
-            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@721a9048:00000000-0000-4000-8000-00000000001c",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@721a9048:00000000-0000-4000-8000-00000000001c",
             "originDispatchId": "ctx_13c3f9458cc1",
             "ownerDispatchId": "ctx_34b96984e89c",
             "releaseRequestedAt": null,
@@ -60,7 +60,7 @@
             },
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {
@@ -108,9 +108,9 @@
             "releaseState": "released",
             "retainedReason": null,
             "terminalHandle": "term_00000000-0000-4000-8000-00000000001d",
-            "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
             "endpointId": "00000000-0000-4000-8000-00000000001b",
-            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@c1c680bb:00000000-0000-4000-8000-00000000001e",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@c1c680bb:00000000-0000-4000-8000-00000000001e",
             "originDispatchId": "ctx_95a2dd7598c2",
             "ownerDispatchId": "ctx_95a2dd7598c2",
             "releaseRequestedAt": "2026-11-18 05:54:26",
@@ -134,7 +134,7 @@
             "provider": null,
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {
@@ -181,9 +181,9 @@
             "releaseState": "released",
             "retainedReason": null,
             "terminalHandle": "term_00000000-0000-4000-8000-000000000008",
-            "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
             "endpointId": "00000000-0000-4000-8000-00000000001b",
-            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@bb75d581:00000000-0000-4000-8000-00000000001f",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@bb75d581:00000000-0000-4000-8000-00000000001f",
             "originDispatchId": "ctx_8934904f1861",
             "ownerDispatchId": "ctx_8934904f1861",
             "releaseRequestedAt": "2026-11-18 05:56:10",
@@ -207,7 +207,7 @@
             "provider": null,
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {
@@ -254,9 +254,9 @@
             "releaseState": "retained",
             "retainedReason": "user_requested",
             "terminalHandle": "term_00000000-0000-4000-8000-00000000000e",
-            "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
             "endpointId": "00000000-0000-4000-8000-00000000001b",
-            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@a3bdb424:00000000-0000-4000-8000-000000000018",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@a3bdb424:00000000-0000-4000-8000-000000000018",
             "originDispatchId": "ctx_fbb183823fc4",
             "ownerDispatchId": "ctx_344f220389d5",
             "releaseRequestedAt": null,
@@ -283,7 +283,7 @@
             },
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {
@@ -336,7 +336,7 @@
             "provider": null,
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {
@@ -389,7 +389,7 @@
             "provider": null,
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {
@@ -442,7 +442,7 @@
             "provider": null,
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {
@@ -490,9 +490,9 @@
             "releaseState": "released",
             "retainedReason": null,
             "terminalHandle": "term_00000000-0000-4000-8000-000000000011",
-            "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+            "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
             "endpointId": "00000000-0000-4000-8000-00000000001b",
-            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@039d1bf9:00000000-0000-4000-8000-000000000020",
+            "endpointIncarnation": "00000000-0000-4000-8000-000000000017::<home>/<redacted>@@039d1bf9:00000000-0000-4000-8000-000000000020",
             "originDispatchId": "ctx_f91f0c1b897a",
             "ownerDispatchId": "ctx_f91f0c1b897a",
             "releaseRequestedAt": "2026-11-18 05:49:15",
@@ -516,7 +516,7 @@
             "provider": null,
             "host": "<redacted>",
             "workspace": {
-              "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
               "kind": "folder_or_worktree"
             },
             "stage": {

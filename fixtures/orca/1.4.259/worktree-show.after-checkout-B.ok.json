@@ -6,7 +6,7 @@
     "worktree",
     "show",
     "--worktree",
-    "path:/Users/<redacted><redacted>",
+    "path:<home>/<redacted>",
     "--json"
   ],
   "exitCode": 0,
@@ -15,7 +15,7 @@
     "ok": true,
     "result": {
       "worktree": {
-        "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+        "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
         "identity": {
           "key": "wt2:local:00000000-0000-4000-8000-000000000062",
           "executionHostId": "local",
@@ -29,7 +29,7 @@
         "creatorProvenance": {
           "kind": "host"
         },
-        "path": "/Users/<redacted><redacted>",
+        "path": "<home>/<redacted>",
         "head": "5850c286ebc3e30ba4d864983faf534bef5d75e5",
         "branch": "<redacted>",
         "isBare": false,
@@ -65,7 +65,7 @@
         "childWorktreeIds": [],
         "lineage": null,
         "git": {
-          "path": "/Users/<redacted><redacted>",
+          "path": "<home>/<redacted>",
           "head": "5850c286ebc3e30ba4d864983faf534bef5d75e5",
           "branch": "<redacted>",
           "isBare": false,

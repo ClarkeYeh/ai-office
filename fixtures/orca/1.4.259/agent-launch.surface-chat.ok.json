@@ -8,7 +8,7 @@
     "--agent",
     "claude",
     "--worktree",
-    "path:/Users/<redacted><redacted>",
+    "path:<home>/<redacted>",
     "--surface",
     "chat",
     "--prompt",
@@ -26,7 +26,7 @@
         "handle": "<redacted>",
         "tabId": "<redacted>"
       },
-      "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+      "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
       "receipt": {
         "mode": "structured",
         "preferred": "structured",

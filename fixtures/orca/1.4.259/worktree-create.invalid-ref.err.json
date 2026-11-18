@@ -6,7 +6,7 @@
     "worktree",
     "create",
     "--repo",
-    "path:/Users/<redacted>/workspace/personal/ai-office-spike",
+    "path:<home>/workspace/personal/ai-office-spike",
     "--name",
     "aio-test-p7bad",
     "--branch",

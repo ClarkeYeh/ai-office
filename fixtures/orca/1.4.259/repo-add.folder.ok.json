@@ -6,7 +6,7 @@
     "repo",
     "add",
     "--path",
-    "/Users/<redacted>/.ai-office/orca-home",
+    "<home>/.ai-office/orca-home",
     "--kind",
     "folder",
     "--json"
@@ -18,7 +18,7 @@
     "result": {
       "repo": {
         "id": "00000000-0000-4000-8000-00000000002f",
-        "path": "/Users/<redacted>/.ai-office/orca-home",
+        "path": "<home>/.ai-office/orca-home",
         "displayName": "orca-home",
         "badgeColor": "#737373",
         "addedAt": 1794980782575,

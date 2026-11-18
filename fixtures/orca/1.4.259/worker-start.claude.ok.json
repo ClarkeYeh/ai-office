@@ -12,7 +12,7 @@
     "--agent",
     "claude",
     "--worktree",
-    "path:/Users/<redacted><redacted>",
+    "path:<home>/<redacted>",
     "--task-title",
     "aio:p1 echo",
     "--spec-file",
@@ -64,7 +64,7 @@
         {
           "kind": "worktree",
           "action": "reused",
-          "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>"
+          "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>"
         },
         {
           "kind": "setup",
