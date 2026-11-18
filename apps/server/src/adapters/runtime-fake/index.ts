@@ -56,6 +56,7 @@ type Agent = {
   workspace: WorkspaceRef;
   request: SpawnRequest;
   behavior: RoleBehavior;
+  role: string;
   turn: number;
   generation: number;
   state: 'working' | 'waiting_input' | 'done' | 'stopped' | 'released' | 'lost';
@@ -305,7 +306,112 @@ export class FakeRuntime implements RuntimePort {
   }[] = [];
   private connected = true;
   private pumping = false;
+  private executing: Scheduled | undefined;
   constructor(private readonly options: FakeRuntimeOptions) {}
+  /** JSON data only; behavior functions and spec credentials are reloaded locally. */
+  snapshot() {
+    const jobs = this.executing
+      ? [this.executing, ...this.scheduled]
+      : this.scheduled;
+    return structuredClone({
+      version: 1 as const,
+      sequence: this.sequence,
+      missingIdentity: this.missingIdentity,
+      hijacked: [...this.hijacked],
+      checkTimeout: this.checkTimeout,
+      loseCheckReceipt: this.loseCheckReceipt,
+      consumedChecks: [...this.consumedChecks],
+      holdNextSpawn: this.holdNextSpawn,
+      pendingSpawns: [...this.pendingSpawns].map(
+        ([ref, pending]) => [ref, pending.events] as const,
+      ),
+      markers: [...this.markers],
+      pruned: [...this.pruned],
+      workspaceNames: [...this.workspaceNames],
+      remoteBranches: [...this.remoteBranches].map(
+        ([key, value]) =>
+          [key, { head: value.head, commits: [...value.commits] }] as const,
+      ),
+      fetches: this.fetches,
+      sessions: [...this.sessions],
+      agents: [...this.agents.values()].map(({ behavior, spec, ...agent }) => {
+        void behavior;
+        void spec;
+        return agent;
+      }),
+      workspaces: [...this.workspaces],
+      workspaceBranches: [...this.workspaceBranches],
+      commands: [...this.commands],
+      questions: [...this.questions].map(
+        ([ref, agent]) => [ref, agent.ref] as const,
+      ),
+      deliveries: [...this.deliveries],
+      cursors: [...this.cursors],
+      scheduled: jobs.map(({ agent, ...job }) => ({
+        ...job,
+        agent: agent.ref,
+      })),
+      faults: this.faults,
+      connected: this.connected,
+    });
+  }
+  /** Restore into a fresh adapter wired to the same scenario and spec store. */
+  restore(state: ReturnType<FakeRuntime['snapshot']>): void {
+    if (state.version !== 1)
+      throw new Error('Unsupported fake runtime snapshot version');
+    if (this.pumping || this.pendingDeliveries.size || this.pendingSpawns.size)
+      throw new Error('Cannot restore an active fake runtime');
+    const data = structuredClone(state);
+    this.sequence = data.sequence;
+    this.missingIdentity = data.missingIdentity;
+    this.hijacked = new Set(data.hijacked);
+    this.checkTimeout = data.checkTimeout;
+    this.loseCheckReceipt = data.loseCheckReceipt;
+    this.consumedChecks = new Map(data.consumedChecks);
+    this.holdNextSpawn = data.holdNextSpawn;
+    this.markers = new Map(data.markers);
+    this.pruned = new Set(data.pruned);
+    this.workspaceNames = new Map(data.workspaceNames);
+    this.remoteBranches = new Map(
+      data.remoteBranches.map(([key, value]) => [
+        key,
+        { head: value.head, commits: new Set(value.commits) },
+      ]),
+    );
+    this.fetches = data.fetches;
+    this.sessions = new Map(data.sessions);
+    this.agents = new Map(
+      data.agents.map((agent) => {
+        const spec = this.readSpec(agent.request.prompt);
+        return [
+          agent.ref,
+          {
+            ...agent,
+            behavior: this.options.scenario?.roles[agent.role] ?? {},
+            ...(spec === undefined ? {} : { spec }),
+          },
+        ];
+      }),
+    );
+    // A held spawn's process-local promise is gone. Its external creation and
+    // receipt survived; publish deferred events so reconciliation can finish it.
+    for (const [ref, events] of data.pendingSpawns)
+      this.session(this.agent(ref).session).push(...events);
+    this.workspaces = new Map(data.workspaces);
+    this.workspaceBranches = new Map(data.workspaceBranches);
+    this.commands = new Map(data.commands);
+    this.questions = new Map(
+      data.questions.map(([ref, agent]) => [ref, this.agent(agent)]),
+    );
+    this.deliveries = new Map(data.deliveries);
+    this.cursors = new Map(data.cursors);
+    this.scheduled = data.scheduled.map((job) => ({
+      ...job,
+      agent: this.agent(job.agent),
+    }));
+    this.faults = data.faults;
+    this.connected = data.connected;
+  }
   private id(prefix: string): string {
     return `fake-${prefix}-${++this.sequence}`;
   }
@@ -586,6 +692,7 @@ export class FakeRuntime implements RuntimePort {
           workspace,
           request: structuredClone(req),
           behavior: this.options.scenario?.roles[role] ?? {},
+          role,
           turn: 1,
           generation: 0,
           state: 'working',
@@ -871,7 +978,12 @@ export class FakeRuntime implements RuntimePort {
           ['released', 'lost', 'stopped'].includes(job.agent.state)
         )
           continue;
-        await this.execute(job);
+        this.executing = job;
+        try {
+          await this.execute(job);
+        } finally {
+          this.executing = undefined;
+        }
       }
     } finally {
       this.pumping = false;
