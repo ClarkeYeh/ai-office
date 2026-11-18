@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "test": "vitest run",
+    "test": "vitest run --project '!@ai-office/server-orca'",
     "lint": "eslint . && prettier --check .",
     "typecheck": "tsc -b",
     "format": "prettier --write .",
@@ -20,7 +20,13 @@
     "fixtures:scan": "pnpm --filter @ai-office/redaction build && node scripts/fixtures/scan.ts",
     "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json",
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage --project '!@ai-office/server-orca'",
+    "test:orca": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=0 vitest run --project @ai-office/server-orca --passWithNoTests",
+    "test:orca:agents": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=1 vitest run --project @ai-office/server-orca --passWithNoTests",
+    "test:orca:disruptive": "node -e \"console.error('not available until M2-T8'); process.exit(1)\"",
+    "orca:record": "node -e \"console.error('not available until M2-T8'); process.exit(1)\"",
+    "orca:recheck": "node -e \"console.error('not available until M2-T8'); process.exit(1)\"",
+    "orca:janitor": "node -e \"console.error('not available until M2-T8'); process.exit(1)\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
