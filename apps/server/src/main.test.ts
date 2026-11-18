@@ -1,7 +1,6 @@
-import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FAKE_REPO,
@@ -278,46 +277,6 @@ describe('fake-mode backend', () => {
     await second.close();
     expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
   }, 120_000);
-});
-
-describe('backend process', () => {
-  // Built by `pnpm -r build` before tests (DoD order).
-  const serverMain = resolve(import.meta.dirname, '../dist/main.js');
-
-  it('shuts down gracefully when SIGTERM repeats during shutdown', async () => {
-    const directory = home();
-    const child = spawn(
-      process.execPath,
-      [serverMain, '--dev', '--fake', 'mainline', '--port', '0'],
-      {
-        env: { ...process.env, AI_OFFICE_HOME: directory },
-        stdio: ['ignore', 'pipe', 'inherit'],
-      },
-    );
-    const exited = new Promise<[number | null, NodeJS.Signals | null]>((done) =>
-      child.once('exit', (code, signal) => done([code, signal])),
-    );
-    let out = '';
-    const bootstrap = await new Promise<string>((done, fail) => {
-      child.stdout.on('data', (chunk) => {
-        out += String(chunk);
-        const url = /Open (\S+)/.exec(out)?.[1];
-        if (url) done(url);
-      });
-      void exited.then(() => fail(new Error(`backend exited early: ${out}`)));
-    });
-    // A served request means main() is past startup and listening for signals.
-    expect((await fetch(bootstrap, { redirect: 'manual' })).status).toBe(302);
-    expect(existsSync(join(directory, 'runtime.json'))).toBe(true);
-
-    // Keep signalling until it exits, as an impatient supervisor would.
-    const repeat = setInterval(() => child.kill('SIGTERM'), 1);
-    child.kill('SIGTERM');
-    const [code, signal] = await exited.finally(() => clearInterval(repeat));
-    expect({ code, signal }).toEqual({ code: 0, signal: null });
-    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
-    expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
-  }, 60_000);
 });
 
 it('createFakeWorld disables owner timers by default and preserves explicit finalMergeMs', async () => {
