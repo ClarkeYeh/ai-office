@@ -27,6 +27,13 @@ describe('port event schemas', () => {
     { type: 'agent.done', agent: 'a', outcome: 'success', filesModified: 1 },
     { type: 'agent.exited', agent: 'a', reason: 'finished' },
     { type: 'agent.stopped', agent: 'a' },
+    { type: 'agent.rate_limited', agent: 'a', evidence: 'worker-show' },
+    {
+      type: 'agent.rate_limited',
+      agent: 'a',
+      evidence: 'transcript',
+      resetsAt: '2026-01-01T01:00:00Z',
+    },
     { type: 'agent.degraded', agent: 'a', reason: 'source_changed' },
     { type: 'agent.unmanaged', dispatch: 'dispatch' },
     { type: 'runtime.identity_restored', newShim: 'shim', runs: ['run'] },
@@ -61,6 +68,13 @@ describe('port event schemas', () => {
   it('rejects invalid states, outcomes, counts and raw blocks', () => {
     for (const value of [
       { type: 'agent.status', agent: 'a', state: 'stopped' },
+      { type: 'agent.rate_limited', agent: 'a', evidence: 'guess' },
+      {
+        type: 'agent.rate_limited',
+        agent: 'a',
+        evidence: 'transcript',
+        resetsAt: 'unknown',
+      },
       { type: 'agent.done', agent: 'a', outcome: 'unknown' },
       { type: 'agent.done', agent: 'a', outcome: 'success', filesModified: -1 },
       {

@@ -175,7 +175,11 @@ describe('on-demand engine', () => {
     const sim = setup();
     enqueue(sim, 'A');
     sim.advance(20 * MINUTE_MS);
-    expect(sim.eventsOf('message.nudge')).toHaveLength(1);
+    expect(
+      sim
+        .eventsOf('message.nudge')
+        .filter((e) => e.payload.reason !== 'spawn-stall'),
+    ).toHaveLength(1);
     sim.advance(20 * MINUTE_MS);
     expect(sim.eventsOf('ondemand.started')).toHaveLength(2);
     sim.advance(40 * MINUTE_MS);
@@ -231,7 +235,11 @@ describe('on-demand engine', () => {
     ask(sim, 'q1');
     sim.advance(20 * MINUTE_MS);
     expect(sim.state.questions.q1!.status).toBe('escalated');
-    expect(sim.eventsOf('message.nudge')).toHaveLength(1);
+    expect(
+      sim
+        .eventsOf('message.nudge')
+        .filter((e) => e.payload.reason !== 'spawn-stall'),
+    ).toHaveLength(1);
     clean(sim);
   });
   it('requeues a failed on-call once, then escalates', () => {

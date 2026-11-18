@@ -286,6 +286,64 @@ describe('runtime ingestion', () => {
       degraded: true,
     });
   });
+  it('maps provider rate-limit evidence to seat.status rateLimited, keeping the first since (S26)', async () => {
+    const h = await setup();
+    const later = new Date(Date.parse(START) + 60_000).toISOString();
+    const resetsAt = new Date(Date.parse(START) + 3_600_000).toISOString();
+    h.setEvents([
+      {
+        type: 'agent.status',
+        agent,
+        externalKey: 'waiting',
+        occurredAt: START,
+        state: 'waiting_input',
+        waitingSince: START,
+      },
+      {
+        type: 'agent.rate_limited',
+        agent,
+        externalKey: 'limit-1',
+        occurredAt: START,
+        evidence: 'worker-show',
+      },
+      {
+        type: 'agent.rate_limited',
+        agent,
+        externalKey: 'limit-2',
+        occurredAt: later,
+        evidence: 'transcript',
+        resetsAt,
+      },
+    ]);
+    await h.loop.pollRuntime(h.runner, session);
+    const statuses = h
+      .events()
+      .filter((e) => e.type === 'seat.status')
+      .map((e) => e.payload);
+    expect(statuses.slice(1)).toEqual([
+      {
+        attemptId: 'att-1',
+        state: 'waiting_input',
+        waitingSince: START,
+        rateLimited: { since: START, evidence: 'worker-show' },
+      },
+      {
+        attemptId: 'att-1',
+        state: 'waiting_input',
+        waitingSince: START,
+        rateLimited: { since: START, evidence: 'transcript', resetsAt },
+      },
+    ]);
+    expect(h.runner.state.attempts['att-1']).toMatchObject({
+      state: 'waiting_input',
+      waitingSince: START,
+      rateLimited: { since: START, lastEvidenceAt: later, resetsAt },
+    });
+    expect(h.events().some((e) => e.type === 'error.recorded')).toBe(false);
+    // Redelivery is idempotent by externalKey.
+    await h.loop.pollRuntime(h.runner, session);
+    expect(h.events().filter((e) => e.type === 'seat.status')).toHaveLength(3);
+  });
   it.each([false, true])(
     'marks a stopped attempt expected only with a backend command: %s',
     async (commanded) => {

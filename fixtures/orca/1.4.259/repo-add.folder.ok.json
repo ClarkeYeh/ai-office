@@ -1,0 +1,43 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:46:22Z",
+  "argv": [
+    "orca",
+    "repo",
+    "add",
+    "--path",
+    "<home>/.ai-office/orca-home",
+    "--kind",
+    "folder",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-00000000002e",
+    "ok": true,
+    "result": {
+      "repo": {
+        "id": "00000000-0000-4000-8000-00000000002f",
+        "path": "<home>/.ai-office/orca-home",
+        "displayName": "orca-home",
+        "badgeColor": "#737373",
+        "addedAt": 1794980782575,
+        "kind": "folder",
+        "gitUsername": "",
+        "hookSettings": {
+          "mode": "auto",
+          "setupRunPolicy": "run-by-default",
+          "setupAgentStartupPolicy": "start-immediately",
+          "scripts": {
+            "setup": "",
+            "archive": ""
+          }
+        }
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

@@ -35,3 +35,20 @@ Redaction can change replay payloads; build adapter tests around the sanitized s
 The rules live in `packages/redaction`, shared by fixtures and the server redactor.
 The package preserves no repository URLs by default; fixture scripts supply the configuration.
 `pnpm fixtures:scan` builds the package before scanning, including on a clean checkout.
+
+## Orca versioned recordings
+
+Store sanitized recordings under `fixtures/orca/<orcaVersion>/`, starting with
+`fixtures/orca/1.4.259/`. Record only the dedicated public test repository and runs
+created by the test harness. Raw recordings remain outside the repository.
+
+M2-T8 adds stable normalization of home paths, usernames, terminal handles, pane
+keys and repo IDs before these recordings are committed; existing preservation
+of Orca handles above does not meet that additional requirement. An integrator
+must manually inspect normalized recordings and run `pnpm fixtures:scan`.
+
+Body-like fields are summarized by the sanitizer. The replay layer must refill
+these fields with deterministic placeholder strings before passing responses to
+adapters; adapter schemas must not be relaxed to accept sanitizer summaries.
+Never commit raw transcript text, credentials or secrets. Recording, recheck and
+janitor commands remain unavailable until the M2-T8 safety harness is installed.

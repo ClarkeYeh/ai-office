@@ -50,6 +50,13 @@
         "exceeded",
         "hard_limit"
       ]
+    },
+    "enforcement": {
+      "type": "string",
+      "enum": [
+        "on",
+        "off"
+      ]
     }
   },
   "required": [

@@ -2,10 +2,11 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FAKE_REPO,
   checkStartOptions,
+  createFakeWorld,
   orcaSubprocessPolicy,
   parseArgs,
   startServer,
@@ -317,4 +318,31 @@ describe('backend process', () => {
     expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
     expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
   }, 60_000);
+});
+
+it('createFakeWorld disables owner timers by default and preserves explicit finalMergeMs', async () => {
+  vi.useFakeTimers();
+  try {
+    for (const finalMergeMs of [undefined, 6000]) {
+      const world = createFakeWorld('mainline', {
+        readSpec: () => null,
+        ...(finalMergeMs === undefined ? {} : { finalMergeMs }),
+      });
+      const repo = FAKE_REPO.github;
+      world.scm.pushBranch(repo, 'ai-office/final', 'main');
+      const pr = await world.scm.openPR(
+        repo,
+        { title: 'Final', body: '', base: 'main', head: 'ai-office/final' },
+        { workflowId: 'wf', commandId: 'open' },
+      );
+      await vi.advanceTimersByTimeAsync(5999);
+      expect((await world.scm.getPR(pr)).state).toBe('open');
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await world.scm.getPR(pr)).state).toBe(
+        finalMergeMs === undefined ? 'open' : 'merged',
+      );
+    }
+  } finally {
+    vi.useRealTimers();
+  }
 });

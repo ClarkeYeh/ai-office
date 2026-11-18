@@ -152,6 +152,8 @@ export interface ObserveAttemptStatus extends Base<'ObserveAttemptStatus'> {
   attemptId: string;
   state: EventPayload<'seat.status'>['state'];
   waitingSince?: string;
+  /** S26: enter/refresh (object) or lift (`null`) the provider rate limit. */
+  rateLimited?: EventPayload<'seat.status'>['rateLimited'];
 }
 export interface RecordAttemptActivity extends Base<'RecordAttemptActivity'> {
   attemptId: string;

@@ -66,6 +66,34 @@ const openItemGate = (ctx: ReactContext, item: WorkItem): boolean =>
       g.content.itemKey === item.key,
   );
 
+/** The attempt a rework answers; its kept worktree still holds the branch (W1, §7.3). */
+const previousAttempt = (ctx: ReactContext, item: WorkItem) => {
+  const id = item.attemptIds.at(-2);
+  return id === undefined ? undefined : ctx.state.attempts[id];
+};
+const previousWorkspace = (
+  ctx: ReactContext,
+  item: WorkItem,
+): string | undefined => {
+  const id = item.attemptIds.at(-2);
+  const spawn = Object.values(ctx.state.commands).find(
+    (c) => c.attemptId === id && c.issued.kind === 'runtime.spawnAgent',
+  )?.issued;
+  return spawn?.kind === 'runtime.spawnAgent' &&
+    spawn.args.workspace.kind === 'existing-worktree'
+    ? spawn.args.workspace.workspace
+    : undefined;
+};
+const reworkReleaseId = (
+  ctx: ReactContext,
+  item: WorkItem,
+): string | undefined => {
+  const previous = previousAttempt(ctx, item);
+  return previous
+    ? commandId(ctx, 'release', previous.attemptId, 'rework', item.attempt)
+    : undefined;
+};
+
 /** Dispatch readiness is delegated to domain, including transitive dependency waivers. */
 const dispatchCommand = (
   ctx: ReactContext,
@@ -275,18 +303,26 @@ const reactImplement: StageModule['react'] = (ctx) => {
     const recovered: Effect[] = [];
     for (const item of items) {
       if (openItemGate(ctx, item)) continue;
+      // A rework resumes from its latest workspace step (release → inspect → dispose → prepare).
+      const setup = [
+        itemId(ctx, item, 'prepare'),
+        ...(item.reworkOf === undefined
+          ? []
+          : [
+              itemId(ctx, item, 'dispose'),
+              itemId(ctx, item, 'inspect'),
+              reworkReleaseId(ctx, item),
+            ]),
+      ];
       const phase =
         item.status === 'dispatched'
           ? ctx.state.attempts[item.currentAttemptId!]
-            ? 'spawn'
-            : 'prepare'
+            ? itemId(ctx, item, 'spawn')
+            : (setup.find((id) => id && ctx.state.commands[id]) ?? setup[0])
           : item.status === 'pushed'
-            ? 'pr'
+            ? itemId(ctx, item, 'pr')
             : undefined;
-      const record =
-        ctx.state.commands[
-          phase ? itemId(ctx, item, phase) : baseId(ctx, item)
-        ];
+      const record = ctx.state.commands[phase ?? baseId(ctx, item)];
       if (
         record?.result &&
         (phase ||
@@ -373,8 +409,12 @@ const reactImplement: StageModule['react'] = (ctx) => {
     if (recovered.length) return recovered;
   }
 
-  if (event.type === 'workitem.dispatched') {
-    const item = ctx.state.workItems[event.payload.itemKey]!;
+  const scope = (item: WorkItem) => ({
+    stageId: config.id,
+    attemptId: item.currentAttemptId!,
+  });
+  /** A fresh worktree; a rework checks its existing branch out under a `-r<n>` name (§6.5). */
+  const prepare = (item: WorkItem): Effect[] => {
     const rework = item.reworkOf !== undefined;
     return [
       external(
@@ -398,11 +438,90 @@ const reactImplement: StageModule['react'] = (ctx) => {
             ...(rework ? { checkoutExisting: true } : {}),
           },
         },
-        { stageId: config.id, attemptId: item.currentAttemptId! },
+        scope(item),
       ),
     ];
+  };
+  /** Rework reuses the kept worktree when it is still there and clean (W1, §7.3). */
+  const inspectPrevious = (item: WorkItem): Effect[] => {
+    const workspace = previousWorkspace(ctx, item);
+    return workspace === undefined
+      ? prepare(item)
+      : [
+          external(
+            itemId(ctx, item, 'inspect'),
+            { kind: 'runtime.inspectWorkspace', args: { workspace } },
+            scope(item),
+          ),
+        ];
+  };
+  const spawnWorker = (item: WorkItem, workspace: string): Effect[] => {
+    const id = item.currentAttemptId!;
+    const spawnId = itemId(ctx, item, 'spawn');
+    return [
+      internal({
+        type: 'SpawnAttempt',
+        meta: metaFor(ctx),
+        stageId: config.id,
+        role: item.role,
+        itemKey: item.key,
+        attemptId: id,
+        purpose: 'worker',
+        keepOpen: true,
+        spawnCommandId: spawnId,
+        agent: item.agent,
+      }),
+      {
+        kind: 'spawn',
+        commandId: spawnId,
+        stageId: config.id,
+        seatId: seatIdFor({
+          workflowId: ctx.workflowId,
+          role: item.role,
+          itemKey: item.key,
+        }),
+        attemptId: id,
+        agent: item.agent,
+        keepOpen: true,
+        spec: {
+          purpose: 'worker',
+          stageId: config.id,
+          itemKey: item.key,
+          attempt: item.attempt,
+          baseSha: item.baseSha!,
+          ...(item.reworkOf ? { reworkOf: item.reworkOf } : {}),
+        },
+        workspace: { kind: 'existing-worktree', workspace, readOnly: false },
+      },
+    ];
+  };
+  const reworkItem = (id: string) =>
+    items.find(
+      (i) =>
+        i.status === 'dispatched' &&
+        i.reworkOf !== undefined &&
+        !ctx.state.attempts[i.currentAttemptId!] &&
+        [
+          reworkReleaseId(ctx, i),
+          itemId(ctx, i, 'inspect'),
+          itemId(ctx, i, 'dispose'),
+        ].includes(id),
+    );
+
+  if (event.type === 'workitem.dispatched') {
+    const item = ctx.state.workItems[event.payload.itemKey]!;
+    if (item.reworkOf === undefined) return prepare(item);
+    const previous = previousAttempt(ctx, item);
+    if (previous?.agentRef === undefined || previous.released)
+      return inspectPrevious(item);
+    return releaseAttempt(ctx, previous, false, 'rework', item.attempt);
   }
   if (event.type === 'command.failed') {
+    const rework = reworkItem(event.payload.commandId);
+    // A missing or unreadable kept worktree falls back to checkoutExisting.
+    if (rework && event.payload.commandId === itemId(ctx, rework, 'inspect'))
+      return prepare(rework);
+    if (rework) return failItem(ctx, rework, event.payload.error.message);
     const item = items.find(
       (i) =>
         event.payload.commandId === baseId(ctx, i) ||
@@ -420,6 +539,24 @@ const reactImplement: StageModule['react'] = (ctx) => {
   }
   if (event.type === 'command.succeeded') {
     const p = event.payload;
+    const rework = reworkItem(p.commandId);
+    if (rework && p.kind === 'runtime.release') return inspectPrevious(rework);
+    if (rework && p.kind === 'runtime.inspectWorkspace') {
+      if (p.result.clean)
+        return spawnWorker(rework, previousWorkspace(ctx, rework)!);
+      // Leftover changes block the branch; pushed commits are safe on the remote.
+      return [
+        external(
+          itemId(ctx, rework, 'dispose'),
+          {
+            kind: 'runtime.disposeWorkspace',
+            args: { workspace: previousWorkspace(ctx, rework)! },
+          },
+          scope(rework),
+        ),
+      ];
+    }
+    if (rework && p.kind === 'runtime.disposeWorkspace') return prepare(rework);
     const item = items.find(
       (i) =>
         p.commandId === baseId(ctx, i) ||
@@ -439,50 +576,8 @@ const reactImplement: StageModule['react'] = (ctx) => {
       item &&
       p.kind === 'runtime.prepareWorkspace' &&
       p.commandId === itemId(ctx, item, 'prepare')
-    ) {
-      const id = item.currentAttemptId!;
-      const spawnId = itemId(ctx, item, 'spawn');
-      return [
-        internal({
-          type: 'SpawnAttempt',
-          meta: metaFor(ctx),
-          stageId: config.id,
-          role: item.role,
-          itemKey: item.key,
-          attemptId: id,
-          purpose: 'worker',
-          keepOpen: true,
-          spawnCommandId: spawnId,
-          agent: item.agent,
-        }),
-        {
-          kind: 'spawn',
-          commandId: spawnId,
-          stageId: config.id,
-          seatId: seatIdFor({
-            workflowId: ctx.workflowId,
-            role: item.role,
-            itemKey: item.key,
-          }),
-          attemptId: id,
-          agent: item.agent,
-          keepOpen: true,
-          spec: {
-            purpose: 'worker',
-            stageId: config.id,
-            itemKey: item.key,
-            attempt: item.attempt,
-            baseSha: item.baseSha!,
-            ...(item.reworkOf ? { reworkOf: item.reworkOf } : {}),
-          },
-          workspace: {
-            kind: 'existing-worktree',
-            workspace: p.result.workspace,
-            readOnly: false,
-          },
-        },
-      ];
-    }
+    )
+      return spawnWorker(item, p.result.workspace);
     if (item && p.kind === 'runtime.spawnAgent' && item.status === 'dispatched')
       return [
         update(ctx, item, 'in_progress'),
@@ -513,7 +608,26 @@ const reactImplement: StageModule['react'] = (ctx) => {
       p.kind === 'scm.openPR' &&
       p.commandId === itemId(ctx, item, 'pr')
     ) {
+      // Record the worker PR before pr_open/merge_queued so pr.status can link
+      // it to its item; keyed by the openPR command, so rework (same branch,
+      // same PR, no new openPR) never records it twice.
       const effects: Effect[] = [
+        internal({
+          type: 'RecordStageArtifact',
+          meta: metaFor(ctx),
+          stageId: config.id,
+          commandId: p.commandId,
+          artifact: {
+            kind: 'pr',
+            artifactId: p.commandId,
+            number: p.result.pr,
+            url: p.result.url,
+            purpose: 'worker',
+            head: item.branch!,
+            base: workflow.integrationBranch,
+            itemKey: item.key,
+          },
+        }),
         update(ctx, item, 'pr_open', { pr: p.result.pr }),
       ];
       // Failed retries supersede old PRs; rework never opens or closes a PR.

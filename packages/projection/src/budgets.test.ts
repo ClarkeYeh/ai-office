@@ -194,3 +194,48 @@ test('top-ups use persisted gate links, survive snapshot/replay and isolate item
     'hard_limit',
   );
 });
+
+test('S25: enforcement off shows usage-only bars; wallclock timeouts stay enforced', () => {
+  const s = scenario({
+    ...start,
+    limits: { globalAgents: 10, budgetEnforcement: 'off' },
+  });
+  s.push('stage.started');
+  s.push('seat.spawned', {
+    ...payloads['seat.spawned'],
+    stageId: 'meeting',
+    itemKey: 'w1',
+  });
+  s.push('usage.tokens', { ...payloads['usage.tokens'], budgetTokens: 500 });
+  s.push('usage.turns', { attemptId: 'a1', turns: 9 });
+  s.push('timer.fired', undefined, { occurredAt: '2026-11-17T01:00:00Z' });
+  const bars = s.model.budgetBars;
+  for (const bar of bars.filter((b) => b.metric !== 'wallclock'))
+    expect(bar).toMatchObject({ enforcement: 'off', level: 'ok' });
+  expect(bars.find((b) => b.scope === 'workflow')).toMatchObject({
+    used: 500,
+    budget: 100,
+  });
+  const clock = bars.find((b) => b.metric === 'wallclock');
+  expect(clock).toMatchObject({ level: 'exceeded' });
+  expect(clock).not.toHaveProperty('enforcement');
+});
+
+test('S25: on carries the snapshot; older snapshots without it are unchanged', () => {
+  const on = scenario({
+    ...start,
+    limits: { globalAgents: 10, budgetEnforcement: 'on' },
+  });
+  on.push('usage.tokens', { ...payloads['usage.tokens'], budgetTokens: 500 });
+  const old = scenario(start);
+  old.push('usage.tokens', { ...payloads['usage.tokens'], budgetTokens: 500 });
+  expect(on.model.budgetBars.every((b) => b.enforcement === 'on')).toBe(true);
+  expect(old.model.budgetBars.some((b) => 'enforcement' in b)).toBe(false);
+  expect(
+    on.model.budgetBars.map((b) => {
+      const copy = { ...b };
+      delete copy.enforcement;
+      return copy;
+    }),
+  ).toEqual(old.model.budgetBars);
+});
