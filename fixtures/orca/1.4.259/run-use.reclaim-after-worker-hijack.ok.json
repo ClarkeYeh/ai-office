@@ -1,0 +1,42 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T09:13:34.943Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "run-use",
+    "--id",
+    "run_ff655fbb715d",
+    "--from",
+    "term_00000000-0000-4000-8000-00000000000b",
+    "--retry-request",
+    "00000000-0000-4000-8000-000000000024",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000025",
+    "ok": true,
+    "result": {
+      "run": {
+        "id": "run_ff655fbb715d",
+        "objective": "<redacted length=27 sha256=2e92018e47644d36028f8cfef171d8b6dcc79693df780d55b6d9b1fee1e8d7f4>",
+        "coordinator_handle": "term_00000000-0000-4000-8000-00000000000b",
+        "consumer_generation": 3,
+        "legacy": 0,
+        "created_at": "2026-11-18T09:13:06Z",
+        "updated_at": "2026-11-18T09:13:34Z"
+      },
+      "mutation": {
+        "requestId": "00000000-0000-4000-8000-000000000024",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-000000000001"
+    }
+  },
+  "stderrLines": [],
+  "note": "M2-T16 P4: reclaimSession(RB) from shim B after the worker hijack; generation 2 -> 3."
+}
