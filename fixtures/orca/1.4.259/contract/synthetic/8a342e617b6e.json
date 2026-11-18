@@ -354,7 +354,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -363,11 +362,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:spawn Contract"
             }
           ]
         }
@@ -485,7 +485,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -494,16 +493,17 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:spawn Contract"
             },
             {
               "id": "task_2",
-              "title": "aio:lost-spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:lost-spawn Contract"
             }
           ]
         }
@@ -624,7 +624,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -633,16 +632,17 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:spawn Contract"
             },
             {
               "id": "task_2",
-              "title": "aio:lost-spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:lost-spawn Contract"
             }
           ]
         }

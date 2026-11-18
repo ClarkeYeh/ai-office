@@ -693,7 +693,7 @@ async function composeOrca(
       if (cursor) seen.add(cursor);
     } while (cursor);
     const { result: tasks } = await cli.run(
-      ['orchestration', 'task-list', '--full'],
+      ['orchestration', 'task-list'],
       { kind: 'read', priority: 'worker-list', run },
       LedgerTasksSchema,
     );

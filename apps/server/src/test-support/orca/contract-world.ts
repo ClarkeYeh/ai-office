@@ -365,14 +365,31 @@ export class ContractWorld implements Exec {
           result = { workers: this.rows() };
           template = 'list';
           break;
-        case 'orchestration task-list':
+        case 'orchestration task-list': {
+          // Real 1.4.259 shapes (fixtures task-list*.json, M2-T17 D3): only the
+          // concise view has `title`; `--full` rows use task_title / run_id.
+          const tasks = this.workers.filter(
+            (w) => !this.hidden || w !== this.workers.at(-1),
+          );
           result = {
-            tasks: this.workers
-              .filter((w) => !this.hidden || w !== this.workers.at(-1))
-              .map((w) => ({ id: w.taskId, title: w.title, runId: RUN })),
+            runId: RUN,
+            tasks: a.includes('--full')
+              ? tasks.map((w) => ({
+                  id: w.taskId,
+                  run_id: RUN,
+                  task_title: w.title,
+                  display_name: w.title,
+                  status: 'dispatched',
+                }))
+              : tasks.map((w) => ({
+                  id: w.taskId,
+                  status: 'dispatched',
+                  title: w.title,
+                })),
           };
           this.hidden = false;
           break;
+        }
         case 'orchestration worker-show': {
           const w = this.workers.find(
             (w) => w.dispatchId === flag(a, '--dispatch'),

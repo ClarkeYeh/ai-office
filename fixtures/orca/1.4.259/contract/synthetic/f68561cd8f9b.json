@@ -400,7 +400,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -409,11 +408,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_2",
-              "title": "aio:first Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:first Contract"
             }
           ]
         }
@@ -513,7 +513,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -522,11 +521,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_2",
-              "title": "aio:first Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:first Contract"
             }
           ]
         }
@@ -855,7 +855,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -864,16 +863,17 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_2",
-              "title": "aio:first Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:first Contract"
             },
             {
               "id": "task_3",
-              "title": "aio:second Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:second Contract"
             }
           ]
         }
@@ -1002,7 +1002,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -1011,16 +1010,17 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_2",
-              "title": "aio:first Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:first Contract"
             },
             {
               "id": "task_3",
-              "title": "aio:second Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:second Contract"
             }
           ]
         }
@@ -1170,7 +1170,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -1179,16 +1178,17 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_2",
-              "title": "aio:first Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:first Contract"
             },
             {
               "id": "task_3",
-              "title": "aio:second Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:second Contract"
             }
           ]
         }

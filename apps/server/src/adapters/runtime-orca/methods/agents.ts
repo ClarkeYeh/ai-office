@@ -104,7 +104,7 @@ export class Agents {
   async rebuild(run: string, settleCommand?: string) {
     const workers = await this.workers(run);
     const tasks = await this.c.call(
-      ['orchestration', 'task-list', '--full'],
+      ['orchestration', 'task-list'],
       z.looseObject({ tasks: z.array(Task) }),
       run,
     );

@@ -64,3 +64,24 @@ it('recovers recorded resource origin links from an empty cache using task title
     followup.resource!.originDispatchId,
   );
 });
+it('rebuilds the ledger from the recorded concise task-list, never the --full view (M2-T17 D3)', () => {
+  const concise = parseResult(
+    JSON.stringify(recording('task-list.ok').response),
+  );
+  const full = parseResult(
+    JSON.stringify(recording('task-list.full.ok').response),
+  );
+  const run = String(concise.runId);
+  const task = (concise.tasks as { id: string }[])[0]!;
+  const workers = {
+    workers: [{ dispatchId: 'ctx_recorded', taskId: task.id, runId: run }],
+  };
+  const ledger = new DispatchLedger({ read: () => null, write: () => {} });
+  ledger.rebuild(run, workers, concise);
+  expect(ledger.all().map((e) => e.dispatch)).toEqual(['ctx_recorded']);
+  // Real --full rows carry task_title/run_id and no `title`: rejected.
+  expect(Object.keys((full.tasks as object[])[0]!)).toContain('task_title');
+  expect(() => ledger.rebuild(run, workers, full)).toThrow(
+    expect.objectContaining({ code: 'runtime_contract_mismatch' }),
+  );
+});

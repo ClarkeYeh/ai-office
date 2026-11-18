@@ -511,16 +511,17 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:spawn Contract"
             },
             {
               "id": "task_2",
-              "title": "aio:pending-spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:pending-spawn Contract"
             }
           ]
         }
