@@ -17,6 +17,8 @@ export type UsageLocateRef = {
   agent: AgentKind;
   reportedSessionId?: string;
   dispatchId: string;
+  /** Attempt start (ISO timestamp), used to bound session-log fallback searches. */
+  startedAt?: string;
   transcriptMessageIds?: string[];
 };
 export type UsageRef = {
@@ -26,7 +28,7 @@ export type UsageRef = {
   file: string;
 };
 export type UsageSample = {
-  externalKey: string; // claude: usage:<sessionId>:<message.id>；codex: usage:<threadId>:cumulative
+  externalKey: string; // claude: usage:<sessionId>:<message.id>; codex: usage:codex:<threadId>:<total>
   occurredAt: string;
   inputUncached: number;
   output: number;

@@ -133,6 +133,17 @@ export type Attempt = EventPayload<'seat.spawned'> & {
   agentSession?: EventPayload<'submission.accepted'>['agentSession'];
   /** Latest accepted submission id per kind (statements: latest of any round). */
   submissions: Partial<Record<SubmissionKind, string>>;
+  /** S26 (provisional): the provider rate limit in force; `since` is kept from the first evidence. */
+  rateLimited?: AttemptRateLimit;
+  /** S26: rate-limit windows, the open one last; excluded from item wallclock time. */
+  rateLimitWindows?: { from: string; to?: string }[];
+};
+
+export type AttemptRateLimit = NonNullable<
+  EventPayload<'seat.status'>['rateLimited']
+> & {
+  /** Time of the latest evidence; the 30-minute lift rule counts from it (§7.1). */
+  lastEvidenceAt: string;
 };
 
 export interface MeetingRound {
@@ -256,6 +267,12 @@ export interface Timer {
   id: string;
   fireAt: string;
   payload: TimerPayload;
+  /**
+   * S26: paused while its attempt is rate-limited (a `timer.cancelled` with
+   * `TIMER_PAUSE_REASON`). Still pending, but never fires until engine
+   * reschedules it with the remaining `fireAt − pausedAt`.
+   */
+  pausedAt?: string;
 }
 
 export type Anomaly = EventPayload<'anomaly.detected'> & { detectedAt: string };

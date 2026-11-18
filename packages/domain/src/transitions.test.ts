@@ -1070,3 +1070,177 @@ describe('M1-T10b transitions', () => {
     },
   ]);
 });
+
+// M2-T14: spawn-stall exception gate (§7.1, §8.3) ------------------------------
+import type { Harness } from './test-support/fixtures.js';
+import {
+  choose as pmChoose,
+  implementation as pmImplementation,
+  status as pmStatus,
+} from './test-support/progressive-merge.js';
+
+const stallGate = (itemKey?: string): DomainCommand => ({
+  type: 'OpenGate',
+  meta: meta(),
+  noLiveAttempts: false,
+  gate: {
+    kind: 'exception',
+    gateId: 'stall',
+    stageId: itemKey ? 'implement' : 'meeting',
+    exceptionKind: 'spawn-stall',
+    title: 'Agent did not start',
+    options: [
+      { optionId: 'retry', label: 'retry' },
+      { optionId: 'reassign', label: 'reassign', input: 'agent' },
+      { optionId: 'abort', label: 'abort' },
+    ],
+    content: {
+      type: 'exception',
+      summary: 'No activity or submission after spawn',
+      attemptId: itemKey ? 'worker' : 'att-1',
+      ...(itemKey ? { itemKey } : {}),
+    },
+  },
+});
+const stalledItem = (h: Harness) =>
+  h.given(
+    ...pmImplementation().given(
+      pmDispatch(),
+      spawn('worker', 'engineer', 'implement', {
+        purpose: 'worker',
+        itemKey: 'A',
+      }),
+      pmStatus('A', 'in_progress'),
+    ).events,
+  );
+describe('M2-T14 spawn-stall transitions', () => {
+  runTransitionRows([
+    {
+      name: 'stage agent stall opens the gate',
+      given: withAttempt,
+      when: stallGate(),
+      then: ['gate.opened'],
+    },
+    {
+      name: 'stage stall retry is decided without item effects',
+      given: [...withAttempt, stallGate()],
+      when: pmChoose('stall', 'retry'),
+      then: ['gate.decided'],
+    },
+    {
+      name: 'stage stall reassign requires an agent',
+      given: [...withAttempt, stallGate()],
+      when: {
+        type: 'DecideGate',
+        meta: meta(),
+        gateId: 'stall',
+        expectedVersion: 1,
+        by: 'user',
+        decision: 'option',
+        optionId: 'reassign',
+      },
+      then: { error: 'agent_required' },
+    },
+    {
+      name: 'stage stall offers no skip',
+      given: [...withAttempt, stallGate()],
+      when: pmChoose('stall', 'skip'),
+      then: { error: 'invalid_gate_decision' },
+    },
+    {
+      name: 'stall abort requests cancellation',
+      given: [...withAttempt, stallGate()],
+      when: pmChoose('stall', 'abort'),
+      then: ['gate.decided', 'workflow.cancel_requested'],
+    },
+    {
+      name: 'item stall retry puts the item in needs_attention',
+      given: (h) => stalledItem(h).given(stallGate('A')),
+      when: pmChoose('stall', 'retry'),
+      then: ['gate.decided', 'workitem.status'],
+      check: (h) =>
+        expect(h.state.workItems.A).toMatchObject({
+          status: 'needs_attention',
+          statusReason: 'stall',
+        }),
+    },
+    {
+      name: 'item stall reassign puts the item in needs_attention',
+      given: (h) => stalledItem(h).given(stallGate('A')),
+      when: pmChoose('stall', 'reassign'),
+      then: ['gate.decided', 'workitem.status'],
+    },
+  ]);
+});
+
+const rateLimit = (
+  rateLimited: Extract<
+    DomainCommand,
+    { type: 'ObserveAttemptStatus' }
+  >['rateLimited'],
+): DomainCommand =>
+  cmd('ObserveAttemptStatus', {
+    attemptId: 'att-1',
+    state: 'starting',
+    rateLimited,
+  });
+const enter = rateLimit({
+  since: '2026-11-17T00:00:09.000Z',
+  evidence: 'worker-show',
+});
+const meetingTurns: DomainCommand = cmd('RecordUsageTurns', {
+  usage: { attemptId: 'att-1', turns: 500 },
+});
+describe('M2-T19 S25 / S26 transitions', () => {
+  runTransitionRows([
+    {
+      name: 'rate limit entry keeps the attempt state',
+      given: withAttempt,
+      when: enter,
+      then: ['seat.status'],
+      check: (h) =>
+        expect(h.state.attempts['att-1']).toMatchObject({
+          state: 'starting',
+          rateLimited: { evidence: 'worker-show' },
+        }),
+    },
+    {
+      name: 'rate limit evidence refresh',
+      given: [...withAttempt, enter],
+      when: enter,
+      then: ['seat.status'],
+    },
+    {
+      name: 'rate limit lift',
+      given: [...withAttempt, enter],
+      when: rateLimit(null),
+      then: ['seat.status'],
+      check: (h) =>
+        expect(h.state.attempts['att-1']?.rateLimited).toBeUndefined(),
+    },
+    {
+      name: 'rate limit lift without a limit',
+      given: withAttempt,
+      when: rateLimit(null),
+      then: [],
+    },
+    {
+      name: 'budget enforcement on: turns over budget alert',
+      given: withAttempt,
+      when: meetingTurns,
+      then: ['usage.turns', 'budget.exceeded', 'budget.hard_limit'],
+    },
+    {
+      name: 'budget enforcement off: usage only',
+      given: [
+        startCommand({
+          limits: { globalAgents: 10, budgetEnforcement: 'off' },
+        }),
+        startStage('meeting'),
+        spawn('att-1', 'pm'),
+      ],
+      when: meetingTurns,
+      then: ['usage.turns'],
+    },
+  ]);
+});

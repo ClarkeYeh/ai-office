@@ -192,7 +192,12 @@ const config = {
     ),
     placement(
       'process-only-in-runtime-config-cli-start',
-      `^(node:)?child_process$|${packagePath('execa')}`,
+      '^(node:)?child_process$',
+      `^${server}(adapters/runtime-orca/|config/|test-support/orca/)|^apps/cli/src/(commands/)?start(\\.[cm]?ts$|/)`,
+    ),
+    placement(
+      'execa-only-in-runtime-config-cli-start',
+      packagePath('execa'),
       `^${server}(adapters/runtime-orca/|config/)|^apps/cli/src/(commands/)?start(\\.[cm]?ts$|/)`,
     ),
     placement(

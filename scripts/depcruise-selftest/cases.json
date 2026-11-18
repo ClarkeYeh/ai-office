@@ -304,5 +304,25 @@
   {
     "file": "apps/server/src/adapters/runtime-fake/redaction.ts",
     "rules": ["adapter-runtime-fake-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/test-support/orca/process.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/acceptance/orca/process.orca.test.ts",
+    "rules": ["process-only-in-runtime-config-cli-start"]
+  },
+  {
+    "file": "apps/server/src/test-support/other/process.ts",
+    "rules": ["process-only-in-runtime-config-cli-start"]
+  },
+  {
+    "file": "apps/server/src/application/process.ts",
+    "rules": ["process-only-in-runtime-config-cli-start"]
+  },
+  {
+    "file": "apps/server/src/test-support/orca/execa.ts",
+    "rules": ["execa-only-in-runtime-config-cli-start"]
   }
 ]

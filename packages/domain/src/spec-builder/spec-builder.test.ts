@@ -511,6 +511,20 @@ describe('progressive merge (rev2.10)', () => {
     expect(spec.text).toContain('at most 2 times');
   });
 
+  test.each([
+    ['merge-queue', richState()],
+    ['integrator', richState()],
+  ] as const)(
+    'the %s integrator patches worker branches detached, never by name (W1)',
+    (purpose, state) => {
+      const text = ok(state, REQUESTS[purpose]!).text;
+      expect(text).toContain('git checkout --detach origin/<worker branch>');
+      expect(text).toContain('git push origin HEAD:refs/heads/<worker branch>');
+      expect(text).toContain('Never `git checkout -B`, `git switch -C`');
+      expect(text).not.toMatch(/`git (checkout -B|switch -C) [^`]/);
+    },
+  );
+
   test('the merge-queue integrator without a first PR prepares and waits', () => {
     const state = richState();
     const template = structuredClone(state.workflow!.template);
