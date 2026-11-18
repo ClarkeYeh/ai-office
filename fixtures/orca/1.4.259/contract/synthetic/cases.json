@@ -1,0 +1,22 @@
+{
+  "7fdf67d6a4a3.json": "ask false escalation and live turn-start-unobserved never become errors",
+  "c60f1ae7db76.json": "auto-releases two minutes after done without keepOpen and rejects follow-up",
+  "81655f3bd41f.json": "check-timeout recovers each message once using the unchanged cursor",
+  "bb66ee04a26d.json": "checks out an existing worker branch in a fresh workspace and replays it stably",
+  "73089c1e5c27.json": "defers pending spawn events without treating the worker as unmanaged",
+  "3674e2cc76a0.json": "does not steal a hijacked session and resumes only after reclaim",
+  "79bcb9298cde.json": "explicitly reclaims a session idempotently without a request ID",
+  "506a34b7b935.json": "keepOpen allows a completed worker to receive a new turn after two minutes",
+  "83a411813ace.json": "never checks out a branch another worktree holds, nor accepts a suffixed name (W1)",
+  "1a3e8b19aa9a.json": "receipt-absent-after-consume recovers each message once using the unchanged cursor",
+  "54a69962367b.json": "replays exactly the same batch for the same cursor, even after new events",
+  "97671de2dea0.json": "replays spawn and finds its correlation without creating another agent",
+  "22bed960a0b0.json": "reports provider rate limits as information without failing the agent",
+  "73088820eb70.json": "reports request_mismatch as bug for reused command IDs with changed parameters",
+  "57473867f2b6.json": "restores a missing identity on observe and can send afterward",
+  "8a342e617b6e.json": "retries a lost spawn response with the same command ID and AgentRef",
+  "d0729f4857d8.json": "returns a fresh cursor for each new empty batch",
+  "1bc13af8706d.json": "returns the pinned base and a usable workspace path, with stable replay",
+  "f68561cd8f9b.json": "rework reuses the kept worktree; checkoutExisting works once it is removed",
+  "ff364db9f8c1.json": "stop and release are idempotent; stopping never fabricates worker_done"
+}

@@ -288,9 +288,11 @@ export function runtimePortContract(
       });
       await f.runtime.stop(second);
       await f.runtime.release(second, { removeWorkspace: true });
-      await expect(
-        f.runtime.inspectWorkspace(kept.workspace),
-      ).rejects.toMatchObject({ category: 'guard' });
+      // SPEC §6.5: a removed checkout is reported as unavailable/unclean.
+      expect(await f.runtime.inspectWorkspace(kept.workspace)).toEqual({
+        clean: false,
+        changedFiles: [],
+      });
       const fresh = await f.runtime.prepareWorkspace(fallback);
       expect(fresh.workspace).not.toBe(kept.workspace);
       expect(fresh.baseSha).toBe(f.reworkRequest.baseBranch);

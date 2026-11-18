@@ -8,6 +8,8 @@ export type ScmContractFixture = {
   scm: ScmPort;
   repo: RepoScmRef;
   defaultBranch: string;
+  /** Restricted test remotes use ai-office-test/ instead. */
+  branchPrefix?: string;
   pushBranch: (branch: string) => Promise<string>;
   editBody: (issue: IssueRef, body: string) => Promise<void>;
   dispose?: () => void | Promise<void>;
@@ -24,20 +26,21 @@ export function scmPortContract(
     afterEach(async () => {
       await f.dispose?.();
     });
+    const branch = (name: string) => `${f.branchPrefix ?? 'ai-office/'}${name}`;
     async function branches() {
       await f.scm.ensureBranch(
         f.repo,
-        'ai-office/integration',
+        branch('integration'),
         f.defaultBranch,
         c('integration'),
       );
       await f.scm.ensureBranch(
         f.repo,
-        'ai-office/worker',
-        'ai-office/integration',
+        branch('worker'),
+        branch('integration'),
         c('worker'),
       );
-      return f.pushBranch('ai-office/worker');
+      return f.pushBranch(branch('worker'));
     }
     it('recovers issue, PR and comment targets by exact command marker', async () => {
       const issue = await f.scm.createIssue(
@@ -65,8 +68,8 @@ export function scmPortContract(
         {
           title: 'Work',
           body: '',
-          base: 'ai-office/integration',
-          head: 'ai-office/worker',
+          base: branch('integration'),
+          head: branch('worker'),
         },
         c('pr'),
       );
@@ -84,7 +87,7 @@ export function scmPortContract(
           title: 'Final',
           body: '',
           base: f.defaultBranch,
-          head: 'ai-office/worker',
+          head: branch('worker'),
         },
         c('final'),
       );
@@ -96,8 +99,8 @@ export function scmPortContract(
         {
           title: 'Work',
           body: '',
-          base: 'ai-office/integration',
-          head: 'ai-office/worker',
+          base: branch('integration'),
+          head: branch('worker'),
         },
         c('worker-pr'),
       );
@@ -166,12 +169,12 @@ export function scmPortContract(
       expect(
         await f.scm.compareBranch(
           f.repo,
-          'ai-office/integration',
-          'ai-office/worker',
+          branch('integration'),
+          branch('worker'),
         ),
       ).toMatchObject({ ahead: 1 });
       expect(
-        await f.scm.compareBranch(f.repo, 'missing', 'ai-office/worker'),
+        await f.scm.compareBranch(f.repo, 'missing', branch('worker')),
       ).toBeNull();
       await expect(
         f.scm.deleteBranch(f.repo, f.defaultBranch),
@@ -179,9 +182,9 @@ export function scmPortContract(
       await expect(
         f.scm.deleteBranch(f.repo, 'user-branch'),
       ).rejects.toMatchObject({ category: 'guard' });
-      await f.scm.deleteBranch(f.repo, 'ai-office/worker');
+      await f.scm.deleteBranch(f.repo, branch('worker'));
       expect(
-        await f.scm.compareBranch(f.repo, f.defaultBranch, 'ai-office/worker'),
+        await f.scm.compareBranch(f.repo, f.defaultBranch, branch('worker')),
       ).toBeNull();
     });
   });
