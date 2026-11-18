@@ -319,8 +319,9 @@ describe('FakeRuntime scenarios and faults', () => {
         paneKey: 'wrong',
       }),
     ).toBeNull();
-    await expect(f.runtime.inspectWorkspace(ws)).rejects.toMatchObject({
-      code: 'unknown_workspace',
+    expect(await f.runtime.inspectWorkspace(ws)).toEqual({
+      clean: false,
+      changedFiles: [],
     });
     await f.runtime.disposeWorkspace(ws);
     await f.runtime.closeSession(f.session);

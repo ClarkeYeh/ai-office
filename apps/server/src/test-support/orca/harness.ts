@@ -154,7 +154,10 @@ export class OrcaHarness {
   persist(): Promise<void> {
     return saveLedger(this.ledgerPath, this.ledger);
   }
-  async command(args: readonly string[]): Promise<Record<string, unknown>> {
+  async command(
+    args: readonly string[],
+    expectedRejection?: 'request_mismatch',
+  ): Promise<Record<string, unknown>> {
     if (
       this.interrupted &&
       !['worker-stop', 'worker-release', 'rm', 'close', 'task-update'].includes(
@@ -177,48 +180,61 @@ export class OrcaHarness {
     )
       ? await this.beginMutation(args[1]!)
       : undefined;
-    const result = await this.receipt(args, async (result) => {
-      if (
-        ['inbox', 'check'].includes(args[1] ?? '') &&
-        Array.isArray(result.messages)
-      ) {
-        for (const message of result.messages) {
-          const id = (message as { id?: unknown }).id;
-          if (typeof id === 'string' && !this.ledger.messages.includes(id))
-            this.ledger.messages.push(id);
+    const result = await this.receipt(
+      args,
+      async (result) => {
+        if (
+          ['inbox', 'check'].includes(args[1] ?? '') &&
+          Array.isArray(result.messages)
+        ) {
+          for (const message of result.messages) {
+            const id = (message as { id?: unknown }).id;
+            if (typeof id === 'string' && !this.ledger.messages.includes(id))
+              this.ledger.messages.push(id);
+          }
+          await this.persist();
         }
-        await this.persist();
-      }
-      if (args[1] === 'run-create') {
-        const run = result.run as { id?: string } | undefined;
-        if (!run?.id) throw new Error('Missing run receipt');
-        if (!this.ledger.runs.includes(run.id)) this.ledger.runs.push(run.id);
-        await this.persist();
-      }
-      if (['worker-start', 'send'].includes(args[1] ?? '')) {
+        if (args[1] === 'run-create') {
+          const run = result.run as { id?: string } | undefined;
+          if (!run?.id) throw new Error('Missing run receipt');
+          if (!this.ledger.runs.includes(run.id)) this.ledger.runs.push(run.id);
+          await this.persist();
+        }
+        if (['worker-start', 'send'].includes(args[1] ?? '')) {
+          if (
+            typeof result.dispatchId === 'string' &&
+            !this.ledger.dispatches.some((d) => d.id === result.dispatchId)
+          )
+            this.ledger.dispatches.push({
+              id: result.dispatchId,
+              stopped: false,
+              done: false,
+            });
+          if (
+            typeof result.taskId === 'string' &&
+            !this.ledger.tasks.some((t) => t.id === result.taskId)
+          )
+            this.ledger.tasks.push({ id: result.taskId, done: false });
+          await this.persist();
+        }
         if (
-          typeof result.dispatchId === 'string' &&
-          !this.ledger.dispatches.some((d) => d.id === result.dispatchId)
+          mutation &&
+          !expectedRejection &&
+          (typeof result.dispatchId === 'string' ||
+            typeof (result.run as { id?: unknown } | undefined)?.id ===
+              'string')
         )
-          this.ledger.dispatches.push({
-            id: result.dispatchId,
-            stopped: false,
-            done: false,
-          });
-        if (
-          typeof result.taskId === 'string' &&
-          !this.ledger.tasks.some((t) => t.id === result.taskId)
-        )
-          this.ledger.tasks.push({ id: result.taskId, done: false });
-        await this.persist();
-      }
-      if (
-        mutation &&
-        (typeof result.dispatchId === 'string' ||
-          typeof (result.run as { id?: unknown } | undefined)?.id === 'string')
-      )
-        await this.endMutation(mutation);
-    });
+          await this.endMutation(mutation);
+      },
+      expectedRejection
+        ? async (code) => {
+            if (mutation) await this.endMutation(mutation);
+            return { rejected: code };
+          }
+        : undefined,
+    );
+    if (expectedRejection && result.rejected !== expectedRejection)
+      throw new Error('Expected explicit request rejection');
     return result;
   }
   private async beginMutation(kind: string): Promise<string> {
@@ -235,14 +251,38 @@ export class OrcaHarness {
   private async receipt(
     args: readonly string[],
     capture?: (result: Record<string, unknown>) => Promise<void>,
+    rejected?: (code: 'request_mismatch') => Promise<Record<string, unknown>>,
   ): Promise<Record<string, unknown>> {
     const output = await this.execute(this.options.orcaBin, args);
-    let parsed: { ok?: boolean; result?: Record<string, unknown> };
+    let parsed: {
+      ok?: boolean;
+      result?: Record<string, unknown>;
+      error?: Record<string, unknown>;
+    };
     try {
       parsed = JSON.parse(output.stdout) as typeof parsed;
     } catch {
       throw new Error('Invalid Orca receipt');
     }
+    // Only a known pre-execution rejection with no resource/result details can
+    // discharge the intent. Malformed, unknown, or residual-resource receipts
+    // remain pending for reconciliation; never infer this from the exit code.
+    if (
+      rejected &&
+      parsed.ok === false &&
+      Object.keys(parsed).every((key) =>
+        ['ok', 'id', 'error', 'result', '_meta'].includes(key),
+      ) &&
+      parsed.error?.code === 'request_mismatch' &&
+      Object.keys(parsed.error).every((key) =>
+        ['code', 'message'].includes(key),
+      ) &&
+      (parsed.result == null ||
+        (typeof parsed.result === 'object' &&
+          !Array.isArray(parsed.result) &&
+          Object.keys(parsed.result).length === 0))
+    )
+      return rejected('request_mismatch');
     if (parsed.result && typeof parsed.result === 'object')
       await capture?.(parsed.result);
     if (!parsed.ok || !parsed.result) throw new Error('Orca receipt rejected');
