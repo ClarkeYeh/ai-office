@@ -11,10 +11,17 @@ export default defineConfig({
     timeout: 10_000,
     toHaveScreenshot: { maxDiffPixels: 0, animations: 'disabled' },
   },
+  // dist/ is already ignored by git, Prettier, ESLint and depcruise.
+  outputDir: 'dist/test-results',
   forbidOnly: ci,
   retries: ci ? 1 : 0,
   ...(ci ? { workers: 2 } : {}),
-  reporter: ci ? [['list'], ['html', { open: 'never' }]] : [['list']],
+  reporter: ci
+    ? [
+        ['list'],
+        ['html', { open: 'never', outputFolder: 'dist/playwright-report' }],
+      ]
+    : [['list']],
   // Linux-only baselines; no platform suffix (§7.3).
   snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',
   use: {
