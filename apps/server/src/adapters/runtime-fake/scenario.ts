@@ -45,6 +45,11 @@ export type RoleBehavior = {
   send?: ScenarioScript;
   answer?: ScenarioScript;
   ignoreStop?: boolean;
+  /**
+   * Spawned but never acts on any trigger: no output, submission, push or done
+   * (the §7.1 spawn-stall case). Stop and release still end it.
+   */
+  silent?: boolean;
 };
 export type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */
