@@ -1,6 +1,9 @@
 import { officeMessagesZhTW } from './office.js';
 
+import { timelineMessagesZhTW } from './timeline.js';
+
 export const zhTW = {
+  ...timelineMessagesZhTW,
   ...officeMessagesZhTW,
   'app.name': 'AI Office',
   'app.home': '流程',
