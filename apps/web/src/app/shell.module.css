@@ -104,7 +104,9 @@
   background: var(--ink);
   border-color: var(--ink);
 }
-.stage a {
+/* The open gate stays amber (needs you), current step or not. */
+.stage a,
+.stage a[aria-current='step'] {
   display: inline-flex;
   align-items: center;
   gap: 6px;

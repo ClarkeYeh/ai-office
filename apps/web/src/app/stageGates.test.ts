@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { mainline } from '../test-support/office/mainline.js';
-import { stageGateOf } from './stageGates.js';
+import { stageDone, stageGateOf } from './stageGates.js';
 
 const log = mainline();
 
@@ -33,5 +33,23 @@ describe('stageGateOf (stage strip gate chips)', () => {
     const model = structuredClone(log.at('gate:plan'));
     model.gates.find((g) => g.gateId === 'g-plan')!.status = 'rejected';
     expect(stageGateOf(model, 'planning')?.state).toBe('pending');
+  });
+});
+
+describe('stageDone (stage strip check)', () => {
+  test('done, or waiting on an open or decided gate', () => {
+    const open = stageGateOf(log.at('gate:conclusion'), 'meeting');
+    expect(open?.state).toBe('open');
+    expect(stageDone('awaiting_gate', open)).toBe(true);
+    expect(stageDone('awaiting_gate', { ...open!, state: 'done' })).toBe(true);
+    expect(stageDone('done', undefined)).toBe(true);
+  });
+  test('not while running or with its gate pending again', () => {
+    const open = stageGateOf(log.at('gate:conclusion'), 'meeting')!;
+    expect(stageDone('running', open)).toBe(false);
+    expect(stageDone('awaiting_gate', { ...open, state: 'pending' })).toBe(
+      false,
+    );
+    expect(stageDone('awaiting_gate', undefined)).toBe(false);
   });
 });

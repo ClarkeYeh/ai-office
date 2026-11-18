@@ -198,7 +198,7 @@ export type PaperStack = { desk: number; sheets: number; x: number; y: number };
 export type Hush = {
   active: boolean;
   gateId?: string;
-  /** The lit area (your office); everything else gets the 42% ink overlay. */
+  /** The lit area (your office); everything else gets the 68% ink overlay ("lights off"). */
   lit: Rect;
   label: string;
 };

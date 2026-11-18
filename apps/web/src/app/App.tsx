@@ -20,7 +20,7 @@ import { AppProviders, useAppServices, type AppServices } from './providers.js';
 import { useRoute } from './router.js';
 import { routes } from './routes.js';
 import { Shell, type ShellNeed } from './Shell.js';
-import { stageGateOf } from './stageGates.js';
+import { stageDone, stageGateOf } from './stageGates.js';
 
 export function App({ services }: { services?: AppServices }) {
   return (
@@ -155,10 +155,7 @@ function RoutedApp() {
       stages={
         current?.stages.map((stage) => {
           const gate = stageGateOf(current, stage.stageId);
-          // The read model keeps `awaiting_gate` after the decision; a decided gate means done.
-          const done =
-            stage.status === 'done' ||
-            (stage.status === 'awaiting_gate' && gate?.state === 'done');
+          const done = stageDone(stage.status, gate);
           return {
             id: stage.stageId,
             name: t(`stage.${stage.kind}`),

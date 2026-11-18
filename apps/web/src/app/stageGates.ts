@@ -31,3 +31,17 @@ export function stageGateOf(
     state: latest && latest.status !== 'rejected' ? 'done' : 'pending',
   };
 }
+
+/**
+ * A stage shows its check once its own work is over: `done`, or `awaiting_gate`
+ * with its gate open or decided (V3Gate checks 會議 while 結論定案 waits; the
+ * read model keeps `awaiting_gate` after the decision too).
+ */
+export function stageDone(status: string, gate: ShellStageGate | undefined) {
+  return (
+    status === 'done' ||
+    (status === 'awaiting_gate' &&
+      gate !== undefined &&
+      gate.state !== 'pending')
+  );
+}

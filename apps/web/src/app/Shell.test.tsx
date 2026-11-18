@@ -164,3 +164,33 @@ test('stage strip: checks on done stages and decided gates, flags on the rest (V
   expect(icon('stage-meeting')).not.toBe(icon('stage-flag-final-pr'));
   expect(screen.getByTestId('stage-planning').querySelector('path')).toBeNull();
 });
+test('stage strip: a stage waiting on its gate is checked; the gate is the step (V3Gate)', () => {
+  viewport(false);
+  render(
+    <Shell
+      workflowId="w"
+      stages={[
+        {
+          id: 'meeting',
+          name: 'Meeting',
+          status: 'done',
+          current: true,
+          gate: {
+            id: 'conclusion',
+            title: 'Conclusion',
+            state: 'open',
+            gateId: 'g-c',
+            href: '/gates/g-c',
+          },
+        },
+        { id: 'planning', name: 'Planning', status: 'pending' },
+      ]}
+    />,
+  );
+  const meeting = screen.getByTestId('stage-meeting');
+  expect(meeting.querySelector('path')).not.toBeNull();
+  expect(meeting.getAttribute('aria-current')).toBeNull();
+  expect(
+    screen.getByTestId('stage-gate-g-c').getAttribute('aria-current'),
+  ).toBe('step');
+});
