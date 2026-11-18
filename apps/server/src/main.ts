@@ -532,6 +532,10 @@ async function compose(
     await delay(Math.min(1000 * pass, 5000));
   }
   await runners.idle();
+  // Publish each component's actual state before serving (FX5): the fake
+  // runtime is up once composed, so its identity counts as probed here.
+  await health.runtimeIdentityVerified((await runtime.health()).verified);
+  await health.publishInitial();
 
   const projections = new ProjectionService(
     stores.events,
