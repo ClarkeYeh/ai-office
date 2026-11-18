@@ -7,7 +7,7 @@ function scan(
   directory: string,
   redactor: ReturnType<typeof fixtureRedactor>,
 ): number {
-  const { maskText, hasLeaks } = redactor;
+  const { maskText } = redactor;
   let failures = 0;
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -28,7 +28,7 @@ function scan(
       }
       if (entry.name.endsWith('.json')) {
         try {
-          if (hasLeaks(JSON.parse(text))) failures++;
+          if (fixtureRedactor(path).hasLeaks(JSON.parse(text))) failures++;
         } catch {
           failures++;
         }
