@@ -50,7 +50,7 @@ for (const state of STATES) {
     await page.evaluate(async () => {
       await document.fonts.ready;
       await Promise.all(
-        [...document.images].map((image) => image.decode().catch(() => {})),
+        Array.from(document.images, (image) => image.decode().catch(() => {})),
       );
     });
     await expect(scene).toHaveScreenshot(`${state}.png`, {

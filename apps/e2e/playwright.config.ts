@@ -31,11 +31,9 @@ export default defineConfig({
   },
   projects: [
     { name: 'e2e', testIgnore: ['visual.spec.ts'] },
-    {
-      name: 'visual',
-      testMatch: ['visual.spec.ts'],
-      use: { deviceScaleFactor: 2 },
-    },
+    // "2×" is the scene's own integer scale (?scale=2); DPR 1 keeps the
+    // screenshot free of resampling.
+    { name: 'visual', testMatch: ['visual.spec.ts'] },
     {
       name: 'fps',
       testDir: 'perf',
