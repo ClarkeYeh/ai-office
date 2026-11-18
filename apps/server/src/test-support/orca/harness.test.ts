@@ -363,57 +363,103 @@ it('accepts normalized receipt identities in later replay calls', async () => {
   replay.assertConsumed();
 });
 
-it('runs the complete CLI-only lifecycle against fake exec and leaves zero ledger resources', async () => {
-  const { OrcaHarness } = await import('./harness.js');
-  const repo = await directory();
-  const calls: string[][] = [];
-  const harness = await OrcaHarness.create({
-    repoPath: repo,
-    sourceRoot: process.cwd(),
-    orcaBin: '/fake/orca',
-    worktreePaths: async () => [],
-    env: { AIO_REAL_ORCA: '1', HOME: repo },
-    exec: {
-      run: async (req) => {
-        calls.push([...req.args]);
-        if (req.bin === 'git') {
-          if (req.args.includes('get-url'))
-            return { stdout: TEST_REPO_URL, exitCode: 0 };
-          if (req.args.includes('show-ref')) return { stdout: '', exitCode: 1 };
-          if (req.args.includes('ls-remote'))
-            return { stdout: '', exitCode: 2 };
-          return { stdout: '', exitCode: 0 };
-        }
-        let result: unknown = {};
-        if (req.args[0] === 'terminal' && req.args[1] === 'create')
-          result = { terminal: { handle: 'term_owned' } };
-        if (req.args[1] === 'run-create') result = { run: { id: 'run_owned' } };
-        if (req.args[0] === 'worktree' && req.args[1] === 'create')
-          result = {
-            worktree: {
-              id: 'wt_owned',
-              branch: 'ai-office-test/unit',
-              displayName: 'aio-test-unit',
-              comment: 'aio:aio-test-unit',
-            },
+it.each(['short', 'qualified', 'bad-metadata', 'rejected-receipt'])(
+  'cleans the known resource even with a %s receipt',
+  async (mode) => {
+    const { OrcaHarness } = await import('./harness.js');
+    const repo = await directory();
+    const calls: string[][] = [];
+    let ghost = false;
+    const harness = await OrcaHarness.create({
+      repoPath: repo,
+      sourceRoot: process.cwd(),
+      orcaBin: '/fake/orca',
+      worktreePaths: async () => [],
+      env: { AIO_REAL_ORCA: '1', HOME: repo },
+      exec: {
+        run: async (req) => {
+          calls.push([...req.args]);
+          if (req.bin === 'git') {
+            if (req.args.includes('get-url'))
+              return { stdout: TEST_REPO_URL, exitCode: 0 };
+            if (req.args.includes('show-ref'))
+              return { stdout: '', exitCode: 1 };
+            if (req.args.includes('ls-remote'))
+              return {
+                stdout: '',
+                exitCode: req.args.includes('--exit-code') ? 2 : 0,
+              };
+            if (req.args.includes('-D')) return { stdout: '', exitCode: 1 };
+            return { stdout: '', exitCode: 0 };
+          }
+          if (req.args[0] !== 'orchestration' && req.args.includes('--full'))
+            throw new Error('unsupported --full');
+          let result: unknown = {};
+          if (req.args[1] === 'list')
+            result =
+              req.args[0] === 'worktree'
+                ? {
+                    worktrees: ghost
+                      ? [{ id: 'ghost', displayName: 'aio-test-lost' }]
+                      : [],
+                  }
+                : { terminals: [] };
+          if (req.args[0] === 'terminal' && req.args[1] === 'create')
+            result = { terminal: { handle: 'term_owned' } };
+          if (req.args[1] === 'run-create')
+            result = { run: { id: 'run_owned' } };
+          if (req.args[0] === 'worktree' && req.args[1] === 'create')
+            result = {
+              worktree: {
+                id: 'wt_owned',
+                branch:
+                  mode === 'short'
+                    ? 'ai-office-test/unit'
+                    : 'refs/heads/ai-office-test/unit',
+                displayName:
+                  mode === 'bad-metadata' ? 'unexpected' : 'aio-test-unit',
+                comment: 'aio:aio-test-unit',
+              },
+            };
+          return {
+            stdout: JSON.stringify({
+              ok: !(
+                mode === 'rejected-receipt' &&
+                req.args[0] === 'worktree' &&
+                req.args[1] === 'create'
+              ),
+              result,
+            }),
+            exitCode: 0,
           };
-        return { stdout: JSON.stringify({ ok: true, result }), exitCode: 0 };
+        },
       },
-    },
-  });
-  temporary.push(harness.ledger.dataDir);
-  await harness.createShim(join(repo, '.ai-office', 'orca-home'));
-  await harness.createRun('term_owned', 'unit');
-  await harness.createWorktree(
-    'aio-test-unit',
-    'ai-office-test/unit',
-    'a'.repeat(40),
-  );
-  await harness.clean();
-  expect(leftovers(harness.ledger)).toEqual([]);
-  expect(
-    calls.some(
-      (args) => args.includes('-D') && args.includes('ai-office-test/unit'),
-    ),
-  ).toBe(true);
-});
+    });
+    temporary.push(harness.ledger.dataDir);
+    await harness.createShim(join(repo, '.ai-office', 'orca-home'));
+    await harness.createRun('term_owned', 'unit');
+    const creation = harness.createWorktree(
+      'aio-test-unit',
+      'ai-office-test/unit',
+      'a'.repeat(40),
+    );
+    if (mode === 'bad-metadata' || mode === 'rejected-receipt')
+      await expect(creation).rejects.toThrow();
+    else await creation;
+    const saved = await loadLedger(harness.ledgerPath);
+    expect(saved.worktrees[0]?.id).toBe('wt_owned');
+    expect(saved.pending).toEqual([]);
+    await harness.clean();
+    expect(leftovers(harness.ledger)).toEqual([]);
+    await harness.assertClean();
+    ghost = true;
+    await expect(harness.assertClean()).rejects.toThrow(
+      'Scanned resources remain',
+    );
+    expect(
+      calls.some(
+        (args) => args.includes('-D') && args.includes('ai-office-test/unit'),
+      ),
+    ).toBe(true);
+  },
+);

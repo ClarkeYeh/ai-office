@@ -229,7 +229,7 @@ export class FixtureNormalizer {
             ) &&
             (typeof child === 'string' || key === 'stderrLines')
               ? summarize(child)
-              : /^(?:username|ownerName)$/i.test(key) &&
+              : /^(?:username|gitUsername|ownerName)$/i.test(key) &&
                   typeof child === 'string'
                 ? '<redacted>'
                 : key === 'projectId' && typeof child === 'string'

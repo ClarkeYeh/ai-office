@@ -9,6 +9,7 @@ import type {
   ExecResult,
 } from '../../adapters/runtime-orca/cli/types.js';
 import { subprocessEnv } from '../../adapters/runtime-orca/env-allowlist.js';
+import { scanResources, type ScanResource } from './scan.js';
 import { assertCommand } from './command-gate.js';
 import {
   assertOutside,
@@ -19,6 +20,7 @@ import {
 } from './safety.js';
 import {
   cleanup,
+  leftovers,
   emptyLedger,
   saveLedger,
   type ResourceLedger,
@@ -175,42 +177,48 @@ export class OrcaHarness {
     )
       ? await this.beginMutation(args[1]!)
       : undefined;
-    const result = await this.receipt(args);
-    if (
-      ['inbox', 'check'].includes(args[1] ?? '') &&
-      Array.isArray(result.messages)
-    ) {
-      for (const message of result.messages) {
-        const id = (message as { id?: unknown }).id;
-        if (typeof id === 'string' && !this.ledger.messages.includes(id))
-          this.ledger.messages.push(id);
+    const result = await this.receipt(args, async (result) => {
+      if (
+        ['inbox', 'check'].includes(args[1] ?? '') &&
+        Array.isArray(result.messages)
+      ) {
+        for (const message of result.messages) {
+          const id = (message as { id?: unknown }).id;
+          if (typeof id === 'string' && !this.ledger.messages.includes(id))
+            this.ledger.messages.push(id);
+        }
+        await this.persist();
       }
-      await this.persist();
-    }
-    if (args[1] === 'run-create') {
-      const run = result.run as { id?: string } | undefined;
-      if (!run?.id) throw new Error('Missing run receipt');
-      if (!this.ledger.runs.includes(run.id)) this.ledger.runs.push(run.id);
-      await this.persist();
-    }
-    if (['worker-start', 'send'].includes(args[1] ?? '')) {
+      if (args[1] === 'run-create') {
+        const run = result.run as { id?: string } | undefined;
+        if (!run?.id) throw new Error('Missing run receipt');
+        if (!this.ledger.runs.includes(run.id)) this.ledger.runs.push(run.id);
+        await this.persist();
+      }
+      if (['worker-start', 'send'].includes(args[1] ?? '')) {
+        if (
+          typeof result.dispatchId === 'string' &&
+          !this.ledger.dispatches.some((d) => d.id === result.dispatchId)
+        )
+          this.ledger.dispatches.push({
+            id: result.dispatchId,
+            stopped: false,
+            done: false,
+          });
+        if (
+          typeof result.taskId === 'string' &&
+          !this.ledger.tasks.some((t) => t.id === result.taskId)
+        )
+          this.ledger.tasks.push({ id: result.taskId, done: false });
+        await this.persist();
+      }
       if (
-        typeof result.dispatchId === 'string' &&
-        !this.ledger.dispatches.some((d) => d.id === result.dispatchId)
+        mutation &&
+        (typeof result.dispatchId === 'string' ||
+          typeof (result.run as { id?: unknown } | undefined)?.id === 'string')
       )
-        this.ledger.dispatches.push({
-          id: result.dispatchId,
-          stopped: false,
-          done: false,
-        });
-      if (
-        typeof result.taskId === 'string' &&
-        !this.ledger.tasks.some((t) => t.id === result.taskId)
-      )
-        this.ledger.tasks.push({ id: result.taskId, done: false });
-      await this.persist();
-    }
-    if (mutation) await this.endMutation(mutation);
+        await this.endMutation(mutation);
+    });
     return result;
   }
   private async beginMutation(kind: string): Promise<string> {
@@ -226,6 +234,7 @@ export class OrcaHarness {
   }
   private async receipt(
     args: readonly string[],
+    capture?: (result: Record<string, unknown>) => Promise<void>,
   ): Promise<Record<string, unknown>> {
     const output = await this.execute(this.options.orcaBin, args);
     let parsed: { ok?: boolean; result?: Record<string, unknown> };
@@ -234,6 +243,8 @@ export class OrcaHarness {
     } catch {
       throw new Error('Invalid Orca receipt');
     }
+    if (parsed.result && typeof parsed.result === 'object')
+      await capture?.(parsed.result);
     if (!parsed.ok || !parsed.result) throw new Error('Orca receipt rejected');
     // Nonzero exit with ok:true is a receipt, not permission to retry a mutation.
     return parsed.result;
@@ -272,45 +283,63 @@ export class OrcaHarness {
       sha,
     ]);
     if (created.exitCode !== 0) throw new Error('Cannot create test branch');
-    const result = await this.receipt([
-      'worktree',
-      'create',
-      '--repo',
-      `path:${this.ledger.repoPath}`,
-      '--name',
-      name,
-      '--branch',
-      branch,
-      '--base-branch',
-      sha,
-      '--no-parent',
-      '--setup',
-      'skip',
-      '--comment',
-      `aio:${name}`,
-      '--json',
-    ]);
+    const result = await this.receipt(
+      [
+        'worktree',
+        'create',
+        '--repo',
+        `path:${this.ledger.repoPath}`,
+        '--name',
+        name,
+        '--branch',
+        branch,
+        '--base-branch',
+        sha,
+        '--no-parent',
+        '--setup',
+        'skip',
+        '--comment',
+        `aio:${name}`,
+        '--json',
+      ],
+      async (receipt) => {
+        const created = receipt.worktree as
+          { id?: unknown; branch?: unknown } | undefined;
+        if (typeof created?.id !== 'string' || !created.id) return;
+        // The returned ID proves creation; preserve the requested ownership marker
+        // even when the remaining receipt metadata is malformed.
+        this.ledger.worktrees.push({
+          id: created.id,
+          branch,
+          name,
+          comment: `aio:${name}`,
+          done: false,
+        });
+        if (typeof created.branch === 'string') {
+          const actual = created.branch.replace(/^refs\/heads\//, '');
+          try {
+            testBranch(actual);
+            if (!this.ledger.localBranches.some((b) => b.id === actual))
+              this.ledger.localBranches.push({ id: actual, done: false });
+          } catch {
+            /* Never claim or delete a non-test branch. */
+          }
+        }
+        await this.endMutation(intent);
+      },
+    );
     const w = result.worktree as
       | { id?: string; branch?: string; displayName?: string; comment?: string }
       | undefined;
     if (
       !w?.id ||
-      w.branch !== branch ||
+      w.branch?.replace(/^refs\/heads\//, '') !== branch ||
       w.displayName !== name ||
       w.comment !== `aio:${name}`
     )
       throw new Error(
         'Unexpected worktree receipt; inspect test resources before retry',
       );
-    this.ledger.worktrees.push({
-      id: w.id,
-      branch,
-      name,
-      comment: `aio:${name}`,
-      done: false,
-    });
-    await this.persist();
-    await this.endMutation(intent);
   }
   async createShim(folderPath: string): Promise<string> {
     // Only the previously owner-approved folder registration is usable; never register it here.
@@ -319,22 +348,27 @@ export class OrcaHarness {
       throw new Error('Approved shim folder required');
     await this.verify();
     const intent = await this.beginMutation('shim-create');
-    const result = await this.receipt([
-      'terminal',
-      'create',
-      '--worktree',
-      `path:${folderPath}`,
-      '--title',
-      'aio-test-shim',
-      '--command',
-      'exec cat > /dev/null',
-      '--json',
-    ]);
+    const result = await this.receipt(
+      [
+        'terminal',
+        'create',
+        '--worktree',
+        `path:${folderPath}`,
+        '--title',
+        'aio-test-shim',
+        '--command',
+        'exec cat > /dev/null',
+        '--json',
+      ],
+      async (receipt) => {
+        const created = receipt.terminal as { handle?: unknown } | undefined;
+        if (typeof created?.handle !== 'string' || !created.handle) return;
+        this.ledger.shims.push({ id: created.handle, done: false });
+        await this.endMutation(intent);
+      },
+    );
     const terminal = result.terminal as { handle?: string } | undefined;
     if (!terminal?.handle) throw new Error('Missing shim receipt');
-    this.ledger.shims.push({ id: terminal.handle, done: false });
-    await this.persist();
-    await this.endMutation(intent);
     return terminal.handle;
   }
   async createRun(shim: string, name: string): Promise<string> {
@@ -362,6 +396,27 @@ export class OrcaHarness {
     this.ledger.usage.push(...usage);
     await this.persist();
   }
+  async scan(): Promise<ScanResource[]> {
+    const home = (this.options.env ?? process.env).HOME;
+    if (!home) throw new Error('Home required for scoped shim inventory');
+    return scanResources(
+      this.ledger.repoPath,
+      join(home, '.ai-office', 'orca-home'),
+      async (kind, args) => {
+        await this.verify();
+        return this.execute(
+          kind === 'orca' ? this.options.orcaBin : 'git',
+          args,
+        );
+      },
+    );
+  }
+  async assertClean(): Promise<void> {
+    if (leftovers(this.ledger).length)
+      throw new Error('Ledger resources remain after cleanup');
+    if ((await this.scan()).length)
+      throw new Error('Scanned resources remain after cleanup');
+  }
   async clean(): Promise<void> {
     this.cleaning ??= this.cleanupResources().finally(() => {
       this.cleaning = undefined;
@@ -374,12 +429,12 @@ export class OrcaHarness {
         'Unresolved mutation receipt: reconcile private ledger before cleanup',
       );
     const command = async (args: string[]) => {
-      await this.command([...args, '--json', '--full']);
+      await this.command([
+        ...args,
+        '--json',
+        ...(args[0] === 'orchestration' ? ['--full'] : []),
+      ]);
     };
-    const from = () => [
-      '--from',
-      this.ledger.shims.find((s) => !s.done)?.id ?? '',
-    ];
     await cleanup(
       this.ledger,
       {
@@ -389,7 +444,6 @@ export class OrcaHarness {
             'worker-stop',
             '--dispatch',
             id,
-            ...from(),
             '--json',
             '--full',
           ]);
@@ -412,21 +466,14 @@ export class OrcaHarness {
             'worker-release',
             '--dispatch',
             id,
-            ...from(),
             '--json',
             '--full',
           ]);
-          if (result.state !== 'released')
+          if (!['released', 'already_released'].includes(String(result.state)))
             throw new Error('Worker release has not settled');
         },
         removeWorktree: (id) =>
-          command([
-            'worktree',
-            'rm',
-            '--worktree',
-            `id:${id}`,
-            '--delete-branch',
-          ]),
+          command(['worktree', 'rm', '--worktree', `id:${id}`]),
         closeShim: (id) => command(['terminal', 'close', '--terminal', id]),
         deleteRemote: (id) => this.deleteBranch(id, true),
         deleteLocal: (id) => this.deleteBranch(id, false),
@@ -464,7 +511,7 @@ export class OrcaHarness {
         this.ledger.repoPath,
         ...(remote
           ? ['ls-remote', '--exit-code', 'origin', `refs/heads/${branch}`]
-          : ['show-ref', '--verify', `refs/heads/${branch}`]),
+          : ['show-ref', '--quiet', '--verify', `refs/heads/${branch}`]),
       ]);
       if (probe.exitCode !== (remote ? 2 : 1))
         throw new Error('Test branch cleanup failed');
