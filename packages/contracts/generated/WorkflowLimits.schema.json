@@ -6,6 +6,18 @@
       "type": "integer",
       "exclusiveMinimum": 0,
       "maximum": 9007199254740991
+    },
+    "spawnStallMs": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "budgetEnforcement": {
+      "type": "string",
+      "enum": [
+        "on",
+        "off"
+      ]
     }
   },
   "required": [
