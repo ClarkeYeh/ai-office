@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b && vite build",
-    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/web",
+    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/web --project @ai-office/web-dom",
     "dev": "vite",
     "preview": "vite preview"
   },
@@ -13,7 +13,8 @@
     "@ai-office/contracts": "workspace:*",
     "@ai-office/projection": "workspace:*",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
