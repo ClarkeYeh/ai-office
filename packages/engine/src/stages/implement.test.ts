@@ -146,9 +146,7 @@ it('counts on-demand agents against the global limit', () => {
   expect(sim.rejections).toEqual([]);
 });
 
-it('reworks on the same branch and PR with a fresh workspace and attempt', () => {
-  const { sim } = setup({ items: [item('A')] });
-  done(sim, 'A');
+const requestRework = (sim: Simulator) => {
   const first = { ...sim.state.workItems.A! };
   sim.inject('workitem.rework_requested', {
     itemKey: 'A',
@@ -158,32 +156,151 @@ it('reworks on the same branch and PR with a fresh workspace and attempt', () =>
     reasons: ['Add a regression test'],
     rework: 1,
   });
+  return first;
+};
+const spawnedWorkspace = (sim: Simulator) =>
+  sim.issued
+    .filter((c) => c.command.kind === 'runtime.spawnAgent')
+    .map((c) =>
+      c.command.kind === 'runtime.spawnAgent' &&
+      c.command.args.workspace.kind === 'existing-worktree'
+        ? c.command.args.workspace.workspace
+        : undefined,
+    );
+
+it('reworks in the kept worktree of the previous attempt on the same branch and PR (W1)', () => {
+  const { sim } = setup({ items: [item('A')] });
+  done(sim, 'A');
+  const firstAttempt = sim.state.workItems.A!.currentAttemptId!;
+  const first = requestRework(sim);
   expect(sim.state.workItems.A).toMatchObject({
     attempt: 2,
     branch: first.branch,
     pr: first.pr,
     reworkOf: 'review-1',
+    status: 'in_progress',
+  });
+  const kinds = sim.issued.map((c) => c.command.kind);
+  const after = kinds.slice(kinds.lastIndexOf('scm.compareBranch'));
+  expect(after).toEqual([
+    'scm.compareBranch',
+    'runtime.release',
+    'runtime.inspectWorkspace',
+    'runtime.spawnAgent',
+  ]);
+  expect(
+    sim.issued.find((c) => c.command.kind === 'runtime.release')?.command,
+  ).toMatchObject({ args: { removeWorkspace: false } });
+  expect(sim.state.attempts[firstAttempt]).toMatchObject({
+    released: true,
+    removeWorkspace: false,
   });
   expect(
-    sim.issued
-      .filter((c) => c.command.kind === 'runtime.prepareWorkspace')
-      .at(-1)?.command,
-  ).toMatchObject({
-    args: {
-      checkoutExisting: true,
-      branch: first.branch,
-      fetchBranch: first.branch,
-      name: `${first.workspaceName}-r1`,
-    },
-  });
+    sim.issued.filter((c) => c.command.kind === 'runtime.prepareWorkspace'),
+  ).toHaveLength(1);
+  const [kept, reused] = spawnedWorkspace(sim);
+  expect(reused).toBe(kept);
   done(sim, 'A');
   expect(sim.state.workItems.A?.status).toBe('merge_queued');
   expect(
     sim.issued.filter((c) => c.command.kind === 'scm.openPR'),
   ).toHaveLength(1);
   merge(sim, 'A');
+  expect(
+    sim.issued
+      .filter((c) => c.command.kind === 'runtime.release')
+      .map((c) => c.command.kind === 'runtime.release' && c.command.args),
+  ).toEqual([
+    expect.objectContaining({ removeWorkspace: false }),
+    expect.objectContaining({ removeWorkspace: true }),
+  ]);
   expect(sim.liveAgents()).toBe(0);
   expect(sim.rejections).toEqual([]);
+});
+
+it.each([
+  {
+    name: 'dirty: disposes it, then checks the branch out fresh',
+    inspect: {
+      ok: true as const,
+      result: { clean: false, changedFiles: ['notes.txt'] },
+    },
+    steps: ['runtime.disposeWorkspace', 'runtime.prepareWorkspace'],
+  },
+  {
+    name: 'missing: checks the branch out fresh',
+    inspect: {
+      ok: false as const,
+      error: {
+        category: 'guard' as const,
+        code: 'unknown_workspace',
+        message: 'gone',
+        retryable: false,
+      },
+    },
+    steps: ['runtime.prepareWorkspace'],
+  },
+])(
+  'rework falls back to checkoutExisting when the kept worktree is $name',
+  ({ inspect, steps }) => {
+    const { sim } = setup({
+      items: [item('A')],
+      world: (issued) =>
+        issued.command.kind === 'runtime.inspectWorkspace'
+          ? inspect
+          : undefined,
+    });
+    done(sim, 'A');
+    const first = requestRework(sim);
+    const kinds = sim.issued.map((c) => c.command.kind);
+    expect(
+      kinds.slice(kinds.lastIndexOf('runtime.inspectWorkspace') + 1),
+    ).toEqual([...steps, 'runtime.spawnAgent']);
+    expect(
+      sim.issued
+        .filter((c) => c.command.kind === 'runtime.prepareWorkspace')
+        .at(-1)?.command,
+    ).toMatchObject({
+      args: {
+        checkoutExisting: true,
+        branch: first.branch,
+        fetchBranch: first.branch,
+        baseBranch: sim.state.workItems.A!.baseSha,
+        name: `${first.workspaceName}-r1`,
+      },
+    });
+    const [kept, fresh] = spawnedWorkspace(sim);
+    expect(fresh).toBe(`ws:${first.workspaceName}-r1`);
+    expect(fresh).not.toBe(kept);
+    done(sim, 'A');
+    merge(sim, 'A');
+    expect(sim.state.workItems.A?.status).toBe('merged');
+    expect(sim.rejections).toEqual([]);
+  },
+);
+
+it('fails a rework whose previous attempt cannot be released', () => {
+  const { sim } = setup({
+    items: [item('A')],
+    world: (issued) =>
+      issued.command.kind === 'runtime.release'
+        ? {
+            ok: false,
+            error: {
+              category: 'guard',
+              code: 'release_unknown',
+              message: 'release failed',
+              retryable: false,
+            },
+          }
+        : undefined,
+  });
+  done(sim, 'A');
+  requestRework(sim);
+  expect(sim.state.workItems.A?.status).toBe('needs_attention');
+  expect(
+    sim.issued.filter((c) => c.command.kind === 'runtime.inspectWorkspace'),
+  ).toHaveLength(0);
 });
 
 it('raises transitive dependency exceptions when a prerequisite fails', () => {

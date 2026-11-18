@@ -55,8 +55,9 @@ Acceptance criteria:
 The current directory is your own worktree, based on the latest integration branch `ai-office/ab12-add-dark-mode-toggle`. It stays yours between reviews and is removed when AI Office stops you.
 
 - Read a pull request with git: `git fetch origin`, then `git log` and `git diff origin/ai-office/ab12-add-dark-mode-toggle...origin/<worker branch>`.
-- To build and test it, check out the worker branch: `git checkout -B <worker branch> origin/<worker branch>`, then run the project's build and test commands.
-- On a conflict: in the worker branch, `git merge origin/ai-office/ab12-add-dark-mode-toggle`, resolve, verify and `git push origin <worker branch>` (never force-push); then request the merge with the new head sha. Fix only what integration needs; send everything else back with `rework-request`, because the worker owns the item.
+- To build and test it, check out the worker branch detached: `git checkout --detach origin/<worker branch>`, then run the project's build and test commands.
+- On a conflict: from that detached checkout, `git merge origin/ai-office/ab12-add-dark-mode-toggle`, resolve, verify and `git push origin HEAD:refs/heads/<worker branch>` (never force-push); then request the merge with the new head sha. Fix only what integration needs; send everything else back with `rework-request`, because the worker owns the item.
+- Never `git checkout -B`, `git switch -C` or otherwise check out a worker branch by name: the worker's worktree still holds it. Work detached and push with `HEAD:refs/heads/<worker branch>`.
 - Never push `ai-office/ab12-add-dark-mode-toggle` or any branch other than the worker branch under review. During implementation `ai-office/ab12-add-dark-mode-toggle` moves only through merges AI Office performs.
 - Do not open, merge, close, edit or comment on pull requests or issues, and do not run `gh` in any form.
 - Leave no uncommitted changes behind when you finish a review.
