@@ -38,6 +38,7 @@ import {
   session,
   startWorkflow,
   writeReport,
+  compactTrace,
   type DriveRecord,
   type Json,
 } from './office.js';
@@ -45,12 +46,13 @@ import {
 const git = promisify(execFile);
 export const assertClean = true;
 
-/** Built-in roles and stage kinds; only the meeting is trimmed (1 round, 1 participant). */
+/** Built-in roles and stage kinds; only the meeting is trimmed (1 round, 2 participants). */
 export const TEST_TEMPLATE = `apiVersion: ai-office/v1alpha1
 id: aio-test-implement
 name: T17 implement acceptance
 roles:
   lead: { agent: claude-code, scope: 'Facilitate briefly; split work; answer on-call questions' }
+  pm: { agent: claude-code, scope: 'Check scope and acceptance criteria' }
   engineer: { agent: codex, scope: 'Implement the assigned work item exactly as written' }
   integrator: { agent: claude-code, scope: 'Review worker PRs in the merge queue and write the integration report' }
 defaults:
@@ -61,7 +63,8 @@ stages:
   - id: meeting
     kind: meeting
     facilitator: lead
-    participants: [engineer]
+    # The meeting stage requires at least two effective speakers.
+    participants: [pm, engineer]
     maxRounds: 1
     timeouts: { roundMin: 15, stageMin: 40 }
     budget: { tokens: 300000, maxTurns: 60 }
@@ -192,8 +195,10 @@ export async function run(h: OrcaHarness): Promise<void> {
   };
   const report: Record<string, unknown> = {};
   let workflowId: string | undefined;
+  let api: Awaited<ReturnType<typeof session>> | undefined;
+  let finished = false;
   try {
-    const api = await session(server.url, server.bootstrapUrl);
+    api = await session(server.url, server.bootstrapUrl);
     const repoId = await registerRepo(api, h.ledger.repoPath);
     const started = await startWorkflow(
       h,
@@ -203,21 +208,22 @@ export async function run(h: OrcaHarness): Promise<void> {
     );
     workflowId = started.workflowId;
     const id = workflowId;
+    const live = api;
     const startedAt = Date.now();
     let orcaRun: string | undefined;
     let merged = false;
     const final = await drive(
       h,
-      api,
+      live,
       id,
       (w) => ['completed', 'failed', 'cancelled'].includes(w.status),
       {
-        run: async () => (orcaRun ??= await adoptRun(h, api, id)),
+        run: async () => (orcaRun ??= await adoptRun(h, live, id)),
         record,
         onStageGate: async (gate) => {
-          orcaRun ??= await adoptRun(h, api, id);
+          orcaRun ??= await adoptRun(h, live, id);
           if (gate.stageKind === 'planning') {
-            const decided = await decide(api, gate, {
+            const decided = await decide(live, gate, {
               edits: { type: 'work-items', items: ITEMS },
             });
             if (decided.status >= 300 && decided.status !== 409)
@@ -236,7 +242,7 @@ export async function run(h: OrcaHarness): Promise<void> {
         },
       },
     );
-    const log = await events(api, id);
+    const log = await events(live, id);
     const dispatched = log.filter((e) => e.type === 'workitem.dispatched');
     const a = log.find(
       (e) => e.type === 'workitem.merged' && e.payload.itemKey === 'greeting',
@@ -369,7 +375,10 @@ export async function run(h: OrcaHarness): Promise<void> {
       record.cliCallsPerMinute.every((n) => n <= 120),
       'CLI calls per minute ≤ 120',
     );
+    finished = true;
   } finally {
+    if (workflowId && api && !finished)
+      report.trace = await compactTrace(api, workflowId).catch(() => []);
     if (workflowId)
       await writeReport(h, 'implement', report).catch(() => undefined);
     await server.close();

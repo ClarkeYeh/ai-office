@@ -326,6 +326,44 @@ export async function drive(
   }
 }
 
+const NOISE = new Set([
+  'seat.activity',
+  'usage.tokens',
+  'usage.turns',
+  'timer.scheduled',
+  'timer.cancelled',
+  'timer.fired',
+]);
+/**
+ * Failure diagnosis without bodies: seq, type and only enum-like fields
+ * (kind, codes, reasons, states, keys). The backend's data/ is removed after
+ * a run, so this is the only post-run evidence.
+ */
+export async function compactTrace(api: Api, workflowId: string) {
+  const pick = (p: Json) =>
+    Object.fromEntries(
+      Object.entries({
+        kind: p.kind,
+        state: p.state,
+        reason: p.reason,
+        code: p.error?.code,
+        exceptionKind: p.exceptionKind,
+        stageKind: p.stageKind,
+        stageId: p.stageId,
+        itemKey: p.itemKey,
+        round: p.round,
+        role: p.role,
+        agent: p.agent,
+        rule: p.rule,
+        summary:
+          typeof p.summary === 'string' ? p.summary.slice(0, 160) : undefined,
+      }).filter(([, v]) => v !== undefined),
+    );
+  return (await events(api, workflowId))
+    .filter((e) => !NOISE.has(e.type))
+    .map((e) => ({ seq: e.seq, type: e.type, ...pick(e.payload ?? {}) }));
+}
+
 /** Private 0600 numeric report next to the ledger; a summary goes to stdout. */
 export async function writeReport(
   h: OrcaHarness,

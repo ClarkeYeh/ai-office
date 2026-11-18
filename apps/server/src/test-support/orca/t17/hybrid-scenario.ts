@@ -35,6 +35,7 @@ import {
   session,
   startWorkflow,
   writeReport,
+  compactTrace,
   type Api,
   type DriveRecord,
 } from './office.js';
@@ -74,6 +75,7 @@ export async function run(h: OrcaHarness): Promise<void> {
   };
   const report: Record<string, unknown> = {};
   let taskSplitOpen = false;
+  let finished = false;
   let api: Api = await session(backend.url, backend.bootstrapUrl);
   let workflowId: string | undefined;
   let orcaRun: string | undefined;
@@ -309,7 +311,10 @@ export async function run(h: OrcaHarness): Promise<void> {
       leftovers.length === 0,
       'backend cleanup removed its resources',
     );
+    finished = true;
   } finally {
+    if (workflowId && !finished)
+      report.trace = await compactTrace(api, workflowId).catch(() => []);
     if (workflowId)
       await writeReport(h, 'hybrid', report).catch(() => undefined);
     await backend.stop();
