@@ -995,7 +995,7 @@ export class FakeRuntime implements RuntimePort {
     this.before('inspectWorkspace');
     this.after('inspectWorkspace');
     const value = this.workspaces.get(ws);
-    if (!value) throw fail('unknown_workspace');
+    if (!value) return { clean: false, changedFiles: [] };
     return structuredClone(value);
   }
   async observe(
