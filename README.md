@@ -105,3 +105,7 @@ Python sources and mock-up screenshots are kept in `tools/sprites-src/`.
 - The scene uses only the [Endesga 32](https://lospec.com/palette-list/endesga-32)
   palette by Endesga.
 - All characters, props and effects are drawn for this project.
+- The bundled ASCII pixel font (`AI Office Pixel`) is a subset of
+  [DotGothic16](https://github.com/fontworks-fonts/DotGothic16) by the DotGothic16
+  Project Authors, under the SIL Open Font License 1.1; see
+  `apps/web/src/shared/fonts/`.
