@@ -20,6 +20,7 @@ import {
   text,
   transient,
 } from './context.js';
+import { completeTaskList } from '../ledger.js';
 import { markerToken, sameCommand } from '../marker.js';
 import { Workspaces } from './workspaces.js';
 
@@ -129,7 +130,7 @@ export class Agents {
     const workers = await this.workers(run);
     const tasks = await this.c.call(
       ['orchestration', 'task-list'],
-      z.looseObject({ tasks: z.array(Task) }),
+      z.looseObject({ tasks: z.array(Task) }).refine(completeTaskList),
       run,
     );
     const visibleTasks = tasks.tasks.filter((task) => {

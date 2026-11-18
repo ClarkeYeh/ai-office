@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { completeTaskList } from '../ledger.js';
 
 /** Orca 1.4.259 shapes (fixtures/orca/1.4.259). Loose: only read fields are pinned. */
 export const MailMessageSchema = z.looseObject({
@@ -71,15 +72,17 @@ export type Worker = z.infer<typeof WorkerSchema>;
 export const WorkerListSchema = z.looseObject({
   workers: z.array(WorkerSchema),
 });
-export const TaskListSchema = z.looseObject({
-  tasks: z.array(
-    z.looseObject({
-      id: z.string(),
-      title: z.string(),
-      runId: z.string().optional(),
-    }),
-  ),
-});
+export const TaskListSchema = z
+  .looseObject({
+    tasks: z.array(
+      z.looseObject({
+        id: z.string(),
+        title: z.string(),
+        runId: z.string().optional(),
+      }),
+    ),
+  })
+  .refine(completeTaskList);
 export const WorkerShowSchema = z.looseObject({
   observation: z.looseObject({ agentWait: z.unknown() }).nullish(),
 });

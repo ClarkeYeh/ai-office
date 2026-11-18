@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { expect, it } from 'vitest';
 import { checkReceipt, parseResult } from './schemas/index.js';
-import { DispatchLedger } from './ledger.js';
+import { DispatchLedger, LedgerTasksSchema } from './ledger.js';
+import { TaskListSchema } from './observe/schemas.js';
 import { DefaultOrcaCli } from './cli/index.js';
 import { CwdGuard } from './cli/cwd.js';
 import type { ExecRequest } from './cli/types.js';
@@ -140,4 +141,63 @@ it('sends worker-stop/worker-release exactly as the recorded argv, never --from/
   expect(requests.at(-1)!.args).toEqual(
     expect.arrayContaining(['--from', 'term_shim', '--run', 'run_owned']),
   );
+});
+it('refuses a capped task-list instead of rebuilding a partial ledger (M2-FX13)', async () => {
+  // Recorded views: no cursor; --full's count equals its rows.
+  for (const name of ['task-list.ok', 'task-list.full.ok']) {
+    const result = parseResult(JSON.stringify(recording(name).response));
+    expect(LedgerTasksSchema.safeParse(result).success).toBe(
+      name === 'task-list.ok',
+    );
+    expect(TaskListSchema.safeParse(result).success).toBe(
+      name === 'task-list.ok',
+    );
+  }
+  const full = parseResult(
+    JSON.stringify(recording('task-list.full.ok').response),
+  );
+  expect(full.count).toBe((full.tasks as unknown[]).length);
+  // A fake capped response: 100 of 250 rows, or a continuation signal.
+  const page = Array.from({ length: 100 }, (_, i) => ({
+    id: `task_${i}`,
+    title: `aio:command-${i} example`,
+  }));
+  for (const signal of [
+    { count: 250 },
+    { nextCursor: 'c2' },
+    { hasMore: true },
+    { truncated: true },
+  ]) {
+    const capped = { runId: 'run_owned', tasks: page, ...signal };
+    expect(LedgerTasksSchema.safeParse(capped).success).toBe(false);
+    expect(TaskListSchema.safeParse(capped).success).toBe(false);
+    const ledger = new DispatchLedger({ read: () => null, write: () => {} });
+    expect(() => ledger.rebuild('run_owned', { workers: [] }, capped)).toThrow(
+      expect.objectContaining({ code: 'runtime_contract_mismatch' }),
+    );
+    // Startup restore reads through the CLI with LedgerTasksSchema.
+    const cli = new DefaultOrcaCli({
+      bin: '/bin/orca',
+      env: {},
+      cwdGuard: new CwdGuard(tmpdir(), async () => []),
+      exec: {
+        run: async () => ({
+          exitCode: 0,
+          stdout: JSON.stringify({ ok: true, result: capped }),
+        }),
+      },
+      identity: { argsFor: async () => [] },
+    });
+    await expect(
+      cli.run(
+        ['orchestration', 'task-list'],
+        { kind: 'read', priority: 'worker-list', run: 'run_owned' },
+        LedgerTasksSchema,
+      ),
+    ).rejects.toMatchObject({ code: 'runtime_contract_mismatch' });
+  }
+  // Without a signal, a long run's full list is accepted as complete.
+  expect(
+    LedgerTasksSchema.safeParse({ tasks: page, count: page.length }).success,
+  ).toBe(true);
 });

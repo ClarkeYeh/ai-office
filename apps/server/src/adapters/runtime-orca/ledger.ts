@@ -34,7 +34,26 @@ const TaskSchema = z.object({
   runId: z.string().optional(),
 });
 export const LedgerWorkersSchema = z.object({ workers: z.array(WorkerSchema) });
-export const LedgerTasksSchema = z.object({ tasks: z.array(TaskSchema) });
+/**
+ * Orca 1.4.259 `task-list` documents no row cap or cursor (M2-FX13), unlike
+ * worker-list. A result that signals more rows than it carries would rebuild a
+ * partial ledger, so it is refused as a contract mismatch instead.
+ */
+export function completeTaskList(result: {
+  tasks: readonly unknown[];
+  [key: string]: unknown;
+}): boolean {
+  const { count, nextCursor, hasMore, truncated } = result;
+  return !(
+    (typeof count === 'number' && count > result.tasks.length) ||
+    (nextCursor !== undefined && nextCursor !== null) ||
+    hasMore === true ||
+    truncated === true
+  );
+}
+export const LedgerTasksSchema = z
+  .looseObject({ tasks: z.array(TaskSchema) })
+  .refine(completeTaskList);
 /** Cache only: lost stoppedByBackend is reconstructed by application command history. */
 /**
  * A follow-up may only inherit from a dispatch AI Office started itself (not
