@@ -220,8 +220,9 @@ describe(
     // The hijack pauses the run in one of two wrap-up windows, each of which
     // once stranded the workflow after the owner reclaimed it: the
     // integrator's report racing the pause, or the final PR merging while
-    // paused. `final-pr` waits for that merge before deciding, so the merge
-    // is always observed while paused.
+    // paused. The window's call is held until the pause is recorded, so the
+    // integrator (and its report) or the final PR (and its merge) always
+    // land while paused; `final-pr` also waits for the merge before deciding.
     it.each([
       ['reclaim', 'wrap-up'],
       ['reclaim', 'final-pr'],
@@ -231,7 +232,21 @@ describe(
       async (choice, window) => {
         let hijack = false;
         let merged = false;
-        const o = await office({
+        let workflowId = '';
+        const pauseFirst = async () => {
+          hijack = true;
+          await until(
+            () => o.events(workflowId),
+            (events) =>
+              events.some(
+                (e) =>
+                  e.type === 'workflow.paused' &&
+                  e.payload.reason === 'hijacked',
+              ),
+            'hijack pause',
+          );
+        };
+        const o: Office = await office({
           // The fake owner merges the final PR shortly after it opens.
           finalMergeMs: 50,
           // Orca's observation reports another coordinator owning the run.
@@ -241,7 +256,7 @@ describe(
               operation === 'spawnAgent' &&
               JSON.stringify(args).includes('integrator')
             )
-              hijack = true;
+              await pauseFirst();
             const delivery = (await call()) as { events: RuntimeEvent[] };
             if (operation === 'observe' && hijack) {
               hijack = false;
@@ -263,11 +278,11 @@ describe(
               operation === 'openPR' &&
               draft?.base?.startsWith('ai-office/') === false
             )
-              hijack = true;
+              await pauseFirst();
             return call();
           },
         });
-        const workflowId = await o.start();
+        workflowId = await o.start();
         await o.drive(workflowId, async () =>
           has(await o.events(workflowId), 'workitem.merged'),
         );

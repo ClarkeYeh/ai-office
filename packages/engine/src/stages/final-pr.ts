@@ -204,14 +204,38 @@ export const finalPrStage: StageModule = {
       !workflow ||
       config?.kind !== 'final-pr' ||
       !integrate ||
-      workflow.status !== 'running' ||
-      workflow.cancelRequested ||
-      workflow.pausedReasons.length
+      workflow.status !== 'running'
     )
       return [];
     const stageId = config.id;
     const stage = ctx.state.stages[stageId]!;
     const event = ctx.event;
+    const id = stageCommandId(ctx, stageId, 'publish', integrate.attempt);
+    // Bookkeeping, not an action: the final PR is recorded even while paused
+    // or cancelling, so its merge is never mistaken for an outside change.
+    if (
+      event.type === 'command.succeeded' &&
+      event.payload.commandId === id &&
+      event.payload.kind === 'scm.openPR'
+    )
+      return [
+        internal({
+          type: 'RecordStageArtifact',
+          meta: metaFor(ctx),
+          stageId,
+          commandId: id,
+          artifact: {
+            kind: 'pr',
+            artifactId: id,
+            number: event.payload.result.pr,
+            url: event.payload.result.url,
+            purpose: 'final',
+            head: workflow.integrationBranch,
+            base: workflow.repo.defaultBranch,
+          },
+        }),
+      ];
+    if (workflow.cancelRequested || workflow.pausedReasons.length) return [];
     if (event.type === 'gate.closed' && event.payload.reason === 'merged') {
       const closed = ctx.state.gates[event.payload.gateId];
       if (
@@ -254,7 +278,6 @@ export const finalPrStage: StageModule = {
           }),
         ];
     }
-    const id = stageCommandId(ctx, stageId, 'publish', integrate.attempt);
     if (
       (event.type === 'stage.started' && event.payload.stageId === stageId) ||
       (event.type === 'stage.completed' &&
@@ -308,28 +331,12 @@ export const finalPrStage: StageModule = {
         ),
       ];
     }
-    if (event.type === 'command.succeeded' && event.payload.commandId === id) {
-      if (event.payload.kind === 'scm.openPR')
-        return [
-          internal({
-            type: 'RecordStageArtifact',
-            meta: metaFor(ctx),
-            stageId,
-            commandId: id,
-            artifact: {
-              kind: 'pr',
-              artifactId: id,
-              number: event.payload.result.pr,
-              url: event.payload.result.url,
-              purpose: 'final',
-              head: workflow.integrationBranch,
-              base: workflow.repo.defaultBranch,
-            },
-          }),
-        ];
-      if (event.payload.kind === 'scm.updatePR')
-        return beginStageClose(ctx, stageId, gate);
-    }
+    if (
+      event.type === 'command.succeeded' &&
+      event.payload.commandId === id &&
+      event.payload.kind === 'scm.updatePR'
+    )
+      return beginStageClose(ctx, stageId, gate);
     if (
       event.type === 'artifact.created' &&
       event.payload.kind === 'pr' &&
