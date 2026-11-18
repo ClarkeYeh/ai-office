@@ -863,9 +863,13 @@ export class OrcaObserver {
         (q) =>
           (this.options.ledger.agentFor(q.dispatch) ?? q.dispatch) === agent,
       );
+      const stopped =
+        this.options.ledger.byDispatch(worker.dispatchId)?.stoppedByBackend ===
+        true;
       let state = workerState(
         worker,
         questions.length > 0 || st.agentWait.get(agent) === true,
+        stopped,
       );
       if (state !== 'exited') active = true;
       const progress = st.progressAt.get(worker.dispatchId) ?? this.now();
@@ -893,7 +897,7 @@ export class OrcaObserver {
         const waiting = await this.probe(b, agent, worker.dispatchId);
         if (waiting !== undefined) {
           st.agentWait.set(agent, waiting);
-          state = workerState(worker, questions.length > 0 || waiting);
+          state = workerState(worker, questions.length > 0 || waiting, stopped);
         }
       }
       if (state !== previous)

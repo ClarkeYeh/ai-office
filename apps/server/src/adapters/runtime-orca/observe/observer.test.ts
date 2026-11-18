@@ -626,6 +626,22 @@ describe('OrcaObserver: mapping', () => {
     expect(ofType(after.events, 'agent.exited')).toEqual([]);
   });
 
+  it('observes our stop of an already-settled worker once (M2-FX12 rework)', async () => {
+    // Live FX12 run: worker-stop on a succeeded dispatch answers
+    // alreadySettled / processAction none and the row stays `succeeded`.
+    spawned(r, 'ctx_a');
+    r.world.workers[0]!.workerState = 'succeeded';
+    const first = await r.observe(null);
+    expect(ofType(first.events, 'agent.stopped')).toEqual([]);
+    r.ledger.stopped('ctx_a');
+    const next = await r.observe(first.cursor);
+    expect(ofType(next.events, 'agent.stopped')).toEqual([
+      expect.objectContaining({ agent: 'ctx_a' }),
+    ]);
+    const after = await r.observe(next.cursor);
+    expect(ofType(after.events, 'agent.stopped')).toEqual([]);
+  });
+
   it('maps worker-list stopped to agent.stopped', async () => {
     spawned(r, 'ctx_a');
     const first = await r.observe(null);
