@@ -14,6 +14,9 @@ export interface WorkerLike {
 }
 
 export interface ReplayController {
+  /** Stable, read-only event snapshot; changes only when the log changes. */
+  getEvents(): readonly DomainEvent[];
+  subscribeEvents(listener: () => void): () => void;
   /** Page in the workflow's events (progress in `replay.progress`), ending at the head. */
   open(workflowId: string): Promise<void>;
   /** Timeline drag: state only, no AppliedEvent; stale worker answers are dropped. */
@@ -39,7 +42,11 @@ export function createReplayController(options: {
   const pageSize = options.pageSize ?? REPLAY_PAGE_SIZE;
   let worker: WorkerLike | null = null;
   let session = 0;
-  let events: DomainEvent[] = [];
+  let events: readonly DomainEvent[] = Object.freeze([]);
+  const listeners = new Set<() => void>();
+  const notifyEvents = () => {
+    for (const listener of listeners) listener();
+  };
   let early: DomainEvent[] = [];
   let loading = false;
   let seekId = 0;
@@ -58,7 +65,8 @@ export function createReplayController(options: {
   function append(batch: DomainEvent[]) {
     const fresh = batch.filter((event) => event.seq > lastSeq());
     if (!fresh.length) return;
-    events.push(...fresh);
+    events = Object.freeze([...events, ...fresh]);
+    notifyEvents();
     // One page per message keeps each structured clone on the main thread small.
     worker!.postMessage({ type: 'append', events: fresh });
   }
@@ -67,7 +75,8 @@ export function createReplayController(options: {
     session++;
     worker?.terminate();
     worker = null;
-    events = [];
+    events = Object.freeze([]);
+    notifyEvents();
     early = [];
     loading = false;
     store.setState({ replay: null });
@@ -81,6 +90,13 @@ export function createReplayController(options: {
   }
 
   return {
+    getEvents: () => events,
+    subscribeEvents(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
     async open(workflowId) {
       exit();
       const current = session;
