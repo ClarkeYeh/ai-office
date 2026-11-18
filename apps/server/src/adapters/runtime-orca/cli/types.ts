@@ -6,6 +6,8 @@ export interface RunOptions {
   kind: CommandKind;
   run?: string;
   mailbox?: { kind: 'run' | 'dispatch'; id: string };
+  /** Target of native `terminal show|read|close`; argsFor decides whether it is allowed. */
+  terminal?: string;
   priority: CliPriority;
   requestId?: string;
   timeoutMs?: number;
