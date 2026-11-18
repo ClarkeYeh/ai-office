@@ -1,3 +1,4 @@
+import { DecisionSections, type BodyLayout } from './DecisionSections.js';
 import { useState } from 'react';
 import { t } from '../../../shared/lib/i18n/index.js';
 import { Button, Link, PixelFrame } from '../../../shared/ui/index.js';
@@ -11,6 +12,7 @@ import styles from './forms.module.css';
 
 export function TaskSplitGate({
   gate,
+  layout,
   disabled,
   onDecision,
   links = [],
@@ -21,6 +23,7 @@ export function TaskSplitGate({
     number: number;
     url: string;
   }[];
+  layout?: BodyLayout | undefined;
   gate: GateView;
   disabled: boolean;
   onDecision: (body: GateAction) => void;
@@ -62,7 +65,51 @@ export function TaskSplitGate({
     );
   }
   return (
-    <section className={styles.stack}>
+    <DecisionSections
+      layout={layout}
+      actions={
+        <>
+          <Button
+            aria-label={t(
+              changed ? 'gates.tasks.revise' : 'gates.tasks.approve',
+            )}
+            variant="primary"
+            data-testid="tasks-approve"
+            disabled={disabled || errors.length > 0 || !items.length}
+            onClick={() =>
+              onDecision(
+                changed
+                  ? { decision: 'revise', edits: { type: 'work-items', items } }
+                  : { decision: 'approve' },
+              )
+            }
+          >
+            {t(changed ? 'gates.tasks.revise' : 'gates.tasks.approve')}
+          </Button>
+          <label className={styles.field}>
+            {t('gates.feedback')}
+            <textarea
+              aria-label={t('gates.feedback')}
+              data-testid="tasks-feedback"
+              value={feedback}
+              disabled={disabled}
+              onChange={(e) => setFeedback(e.target.value)}
+            />
+          </label>
+          <Button
+            variant="danger"
+            aria-label={t('gates.tasks.reject')}
+            data-testid="tasks-reject"
+            disabled={disabled || !feedback.trim()}
+            onClick={() =>
+              onDecision({ decision: 'reject', comment: feedback.trim() })
+            }
+          >
+            {t('gates.tasks.reject')}
+          </Button>
+        </>
+      }
+    >
       <h3>{t('gates.tasks.title')}</h3>
       <p>{t('gates.tasks.authority')}</p>
       {items.map((item, index) => (
@@ -157,7 +204,7 @@ export function TaskSplitGate({
             data-testid="task-add"
             disabled={
               disabled ||
-              !/^[a-z][a-z0-9-]*$/.test(newKey) ||
+              !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(newKey) ||
               items.some((item) => item.key === newKey)
             }
             onClick={() => {
@@ -184,42 +231,6 @@ export function TaskSplitGate({
           {t('gates.tasks.invalid', { keys: errors.join(', ') })}
         </p>
       )}
-      <Button
-        aria-label={t(changed ? 'gates.tasks.revise' : 'gates.tasks.approve')}
-        variant="primary"
-        data-testid="tasks-approve"
-        disabled={disabled || errors.length > 0 || !items.length}
-        onClick={() =>
-          onDecision(
-            changed
-              ? { decision: 'revise', edits: { type: 'work-items', items } }
-              : { decision: 'approve' },
-          )
-        }
-      >
-        {t(changed ? 'gates.tasks.revise' : 'gates.tasks.approve')}
-      </Button>
-      <label className={styles.field}>
-        {t('gates.feedback')}
-        <textarea
-          aria-label={t('gates.feedback')}
-          data-testid="tasks-feedback"
-          value={feedback}
-          disabled={disabled}
-          onChange={(e) => setFeedback(e.target.value)}
-        />
-      </label>
-      <Button
-        variant="danger"
-        aria-label={t('gates.tasks.reject')}
-        data-testid="tasks-reject"
-        disabled={disabled || !feedback.trim()}
-        onClick={() =>
-          onDecision({ decision: 'reject', comment: feedback.trim() })
-        }
-      >
-        {t('gates.tasks.reject')}
-      </Button>
-    </section>
+    </DecisionSections>
   );
 }

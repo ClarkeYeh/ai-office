@@ -135,7 +135,10 @@ test('final PR offers human GitHub merge, revision and abort, never approve', ()
       gate={{
         ...gate,
         content: { type: 'final-pr', artifactId: 'pr', pr: 7 },
-        options: [{ optionId: 'abort', label: 'Abort' }],
+        options: [
+          { optionId: 'request-changes', label: 'Request changes' },
+          { optionId: 'abort', label: 'Abort' },
+        ],
       }}
       url="https://github.com/test/repo/pull/7"
       remaining={1}
@@ -194,4 +197,70 @@ test('question submits option plus free text and disables in replay', () => {
   expect(
     (screen.getByTestId('question-submit') as HTMLButtonElement).disabled,
   ).toBe(true);
+});
+
+test('task additions and deletions preserve unique keys and detect broken dependencies', () => {
+  const onDecision = vi.fn();
+  render(
+    <TaskSplitGate
+      gate={{
+        ...gate,
+        editable: ['title', 'body', 'acceptance', 'role', 'agent', 'deps'],
+      }}
+      disabled={false}
+      onDecision={onDecision}
+    />,
+  );
+  fireEvent.change(screen.getByTestId('task-new-key'), {
+    target: { value: 'one' },
+  });
+  expect((screen.getByTestId('task-add') as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  fireEvent.change(screen.getByTestId('task-new-key'), {
+    target: { value: 'two' },
+  });
+  fireEvent.click(screen.getByTestId('task-add'));
+  fireEvent.change(screen.getByTestId('item-two-deps'), {
+    target: { value: 'one' },
+  });
+  fireEvent.click(screen.getByTestId('item-one-remove'));
+  expect(
+    (screen.getByTestId('tasks-approve') as HTMLButtonElement).disabled,
+  ).toBe(true);
+  fireEvent.change(screen.getByTestId('item-two-deps'), {
+    target: { value: '' },
+  });
+  fireEvent.change(screen.getByTestId('item-two-role'), {
+    target: { value: 'engineer' },
+  });
+  fireEvent.click(screen.getByTestId('tasks-approve'));
+  expect(onDecision.mock.calls[0]?.[0]).toMatchObject({
+    decision: 'revise',
+    edits: { items: [{ key: 'two', role: 'engineer' }] },
+  });
+});
+
+test('final PR revision controls follow server options when the revision limit is reached', () => {
+  render(
+    <FinalPrGate
+      gate={{
+        ...gate,
+        content: { type: 'final-pr', artifactId: 'pr' },
+        options: [{ optionId: 'abort', label: 'Abort' }],
+      }}
+      remaining={null}
+      disabled={false}
+      onDecision={vi.fn()}
+    />,
+  );
+  expect(
+    (screen.getByTestId('final-feedback') as HTMLTextAreaElement).disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByTestId('final-reject') as HTMLButtonElement).disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByTestId('final-abort') as HTMLButtonElement).disabled,
+  ).toBe(false);
 });

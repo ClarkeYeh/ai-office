@@ -1,4 +1,3 @@
-import { useWebState } from '../../../realtime/index.js';
 import { t } from '../../../shared/lib/i18n/index.js';
 import { Link } from '../../../shared/ui/index.js';
 import { isRateLimited, type GateAction } from '../model/actions.js';
@@ -17,7 +16,6 @@ export function OtherGatePage({
   refetch,
   layout,
 }: GateBodyProps) {
-  const replaying = useWebState((state) => state.replay !== null);
   const { pending, notice, decide } = useGateDecision(gate, api, refetch);
   const budgetOff =
     gate.exceptionKind?.includes('budget') &&
@@ -58,15 +56,22 @@ export function OtherGatePage({
               a.attemptId === gate.content.attemptId,
           )
       : undefined;
-  return (
-    <GateLayout {...layout}>
-      {replaying && <GateNotice tone="info">{t('gates.replay')}</GateNotice>}
-      {notice && <GateNotice tone={notice.tone}>{notice.text}</GateNotice>}
-      {budgetOff && <p>{t('gates.exception.budgetOff')}</p>}
-      {isRateLimited(attempt) && (
-        <p data-testid="gate-rate-limited">{t('gates.rateLimited')}</p>
-      )}
-      {questionId ? (
+  const bodyLayout = {
+    ...layout,
+    notice: (
+      <>
+        {layout.notice}
+        {notice && <GateNotice tone={notice.tone}>{notice.text}</GateNotice>}
+        {budgetOff && <p>{t('gates.exception.budgetOff')}</p>}
+        {isRateLimited(attempt) && (
+          <p data-testid="gate-rate-limited">{t('gates.rateLimited')}</p>
+        )}
+      </>
+    ),
+  };
+  if (questionId)
+    return (
+      <GateLayout {...bodyLayout}>
         <Link
           href={`/questions/${encodeURIComponent(questionId)}`}
           aria-label={t('gates.question.open')}
@@ -74,37 +79,44 @@ export function OtherGatePage({
         >
           {t('gates.question.open')}
         </Link>
-      ) : gate.content.type === 'work-items' ? (
-        <TaskSplitGate
-          key={`${gate.gateId}:${gate.version}`}
-          gate={gate}
-          links={(model?.artifacts ?? []).flatMap((a) =>
-            (a.kind === 'issue' || a.kind === 'pr') &&
-            a.itemKey &&
-            a.number &&
-            a.url
-              ? [{ key: a.itemKey, kind: a.kind, number: a.number, url: a.url }]
-              : [],
-          )}
-          disabled={disabled}
-          onDecision={onDecision}
-        />
-      ) : gate.content.type === 'final-pr' ? (
-        <FinalPrGate
-          gate={pr ? { ...gate, pr } : gate}
-          url={pr?.url ?? artifact?.url}
-          remaining={rerunsLeft(gate, model)}
-          disabled={disabled}
-          onDecision={onDecision}
-        />
-      ) : (
-        <ExceptionGate
-          key={`${gate.gateId}:${gate.version}`}
-          gate={gate}
-          disabled={disabled}
-          onDecision={onDecision}
-        />
-      )}
-    </GateLayout>
+      </GateLayout>
+    );
+  if (gate.content.type === 'work-items')
+    return (
+      <TaskSplitGate
+        key={`${gate.gateId}:${gate.version}`}
+        gate={gate}
+        layout={bodyLayout}
+        links={(model?.artifacts ?? []).flatMap((a) =>
+          (a.kind === 'issue' || a.kind === 'pr') &&
+          a.itemKey &&
+          a.number &&
+          a.url
+            ? [{ key: a.itemKey, kind: a.kind, number: a.number, url: a.url }]
+            : [],
+        )}
+        disabled={disabled}
+        onDecision={onDecision}
+      />
+    );
+  if (gate.content.type === 'final-pr')
+    return (
+      <FinalPrGate
+        gate={pr ? { ...gate, pr } : gate}
+        layout={bodyLayout}
+        url={pr?.url ?? artifact?.url}
+        remaining={rerunsLeft(gate, model)}
+        disabled={disabled}
+        onDecision={onDecision}
+      />
+    );
+  return (
+    <ExceptionGate
+      key={`${gate.gateId}:${gate.version}`}
+      gate={gate}
+      layout={bodyLayout}
+      disabled={disabled}
+      onDecision={onDecision}
+    />
   );
 }

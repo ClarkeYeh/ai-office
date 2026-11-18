@@ -173,5 +173,6 @@ export const gatesMessagesZhTW = {
   'gates.tasks.add': '新增工作項目',
   'gates.tasks.remove': '刪除 {key}',
   'gates.tasks.key': '新工作項目 key',
-  'gates.tasks.keyHint': '小寫英文開頭，可使用數字與連字號；必須唯一。',
+  'gates.tasks.keyHint':
+    '英數字開頭，可使用底線與連字號，最長 64 字元；必須唯一。',
 } as const;

@@ -28,8 +28,8 @@ const CONFLICTS = new Set(['gate_content_changed', 'version_conflict']);
 function errorNotice(error: ApiError): string {
   if (error.code === 'gate_content_changed')
     return t('gates.error.contentChanged');
-  if (error.status === 409) return t('gates.error.versionConflict');
   if (error.code === 'gate_not_open') return t('gates.error.notOpen');
+  if (error.status === 409) return t('gates.error.versionConflict');
   if (error.code === 'scm_unavailable') return t('gates.error.scm');
   if (error.status === 0 && error.category === 'transient')
     return t('gates.error.network');

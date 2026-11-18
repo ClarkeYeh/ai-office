@@ -52,6 +52,7 @@ export function Question({
         </label>
         <Button
           aria-label={t('gates.question.submit')}
+          variant="primary"
           data-testid="question-submit"
           disabled={disabled || !body.trim()}
           onClick={() => onAnswer(body.trim(), option || undefined)}
