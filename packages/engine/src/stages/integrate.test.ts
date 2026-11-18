@@ -229,6 +229,225 @@ describe('wrap-up and final PR', () => {
   });
 });
 
+describe('re-evaluation on resume', () => {
+  const pause = (sim: Simulator) =>
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+  const resume = (sim: Simulator) =>
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+  const withhold =
+    (kind: string): World =>
+    (issued, current) =>
+      issued.command.kind === kind
+        ? undefined
+        : cooperativeWorld(issued, current);
+  const answer = (sim: Simulator, kind: string, result: object) => {
+    const issued = sim.issued.find((e) => e.command.kind === kind)!;
+    sim.inject(
+      'command.succeeded',
+      { commandId: issued.commandId, kind, result } as never,
+      { stageId: 'final-pr' },
+    );
+  };
+
+  it('completes on a final PR merge observed while paused', () => {
+    const sim = report(setup());
+    expect(finalGate(sim).status).toBe('open');
+    pause(sim);
+    merge(sim);
+    expect(finalGate(sim).status).toBe('open');
+    expect(sim.state.workflow?.status).toBe('running');
+    resume(sim);
+    expect(finalGate(sim)).toMatchObject({
+      status: 'closed',
+      closedReason: 'merged',
+    });
+    expect(sim.state.workflow?.status).toBe('completed');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('completes on a merge observed while paused after keep-open', () => {
+    const sim = report(setup());
+    sim.dispatch({
+      type: 'DecideGate',
+      gateId: finalGate(sim).gateId,
+      expectedVersion: 1,
+      by: 'user',
+      decision: 'option',
+      optionId: 'keep-open',
+    });
+    pause(sim);
+    merge(sim);
+    resume(sim);
+    expect(sim.state.workflow?.status).toBe('completed');
+  });
+  it('waits for every pause reason before acting', () => {
+    const sim = report(setup());
+    pause(sim);
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'budget' });
+    merge(sim);
+    resume(sim);
+    expect(sim.state.workflow?.status).toBe('running');
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
+    expect(sim.state.workflow?.status).toBe('completed');
+  });
+  it('records a final PR opened while paused and gates it on resume', () => {
+    const sim = report(setup(withhold('scm.openPR')));
+    pause(sim);
+    answer(sim, 'scm.openPR', {
+      pr: 2,
+      url: 'https://github.com/octo/demo/pull/2',
+    });
+    // Recorded at once, so its merge is attributed to the workflow.
+    expect(sim.state.workflow?.finalPr).toBe(2);
+    expect(sim.state.stages['final-pr']?.status).toBe('running');
+    resume(sim);
+    expect(sim.state.stages['final-pr']?.status).toBe('awaiting_gate');
+    expect(finalGate(sim).status).toBe('open');
+    merge(sim);
+    expect(sim.state.workflow?.status).toBe('completed');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('completes a final PR opened and merged while paused', () => {
+    const sim = report(setup(withhold('scm.openPR')));
+    pause(sim);
+    answer(sim, 'scm.openPR', {
+      pr: 2,
+      url: 'https://github.com/octo/demo/pull/2',
+    });
+    merge(sim);
+    resume(sim);
+    expect(finalGate(sim)).toMatchObject({
+      status: 'closed',
+      closedReason: 'merged',
+    });
+    expect(sim.state.workflow?.status).toBe('completed');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('opens the gate for a revision published while paused', () => {
+    const sim = report(setup(withhold('scm.updatePR')));
+    sim.dispatch({
+      type: 'DecideGate',
+      gateId: finalGate(sim).gateId,
+      expectedVersion: 1,
+      by: 'user',
+      decision: 'reject',
+      comment: 'Improve verification',
+    });
+    report(sim);
+    expect(sim.eventsOf('gate.opened')).toHaveLength(1);
+    pause(sim);
+    answer(sim, 'scm.updatePR', {});
+    resume(sim);
+    expect(finalGate(sim).status).toBe('open');
+    expect(sim.eventsOf('gate.opened')).toHaveLength(2);
+    expect(sim.rejections).toEqual([]);
+  });
+  it('starts a revision requested while paused', () => {
+    const sim = report(setup());
+    pause(sim);
+    sim.dispatch({
+      type: 'DecideGate',
+      gateId: finalGate(sim).gateId,
+      expectedVersion: 1,
+      by: 'user',
+      decision: 'reject',
+      comment: 'Fix tests',
+    });
+    expect(sim.state.stages.integrate?.status).toBe('done');
+    resume(sim);
+    expect(sim.state.stages.integrate).toMatchObject({
+      status: 'running',
+      mode: 'revision',
+    });
+    expect(sim.liveAgents()).toBe(1);
+    expect(sim.rejections).toEqual([]);
+  });
+  it('opens and answers a decision request raised and decided while paused', () => {
+    const sim = setup();
+    const attempt = Object.values(sim.state.attempts)[0]!;
+    pause(sim);
+    sim.dispatch({
+      type: 'AcceptSubmission',
+      submissionId: 'decision',
+      attemptId: attempt.attemptId,
+      submission: {
+        kind: 'decision-request',
+        payload: {
+          reason: 'scope-change',
+          question: 'Proceed?',
+          options: ['Proceed'],
+        },
+      },
+    });
+    expect(Object.values(sim.state.gates)).toHaveLength(0);
+    resume(sim);
+    const gate = Object.values(sim.state.gates)[0]!;
+    expect(gate).toMatchObject({ exceptionKind: 'decision-request' });
+    pause(sim);
+    sim.dispatch({
+      type: 'DecideGate',
+      gateId: gate.gateId,
+      expectedVersion: 1,
+      by: 'user',
+      decision: 'option',
+      optionId: 'choice-1',
+    });
+    expect(sim.issued.some((e) => e.command.kind === 'runtime.send')).toBe(
+      false,
+    );
+    resume(sim);
+    expect(sim.issued.at(-1)?.command).toMatchObject({
+      kind: 'runtime.send',
+      args: { body: 'Proceed\n' },
+    });
+    expect(sim.rejections).toEqual([]);
+  });
+  it('prepares wrap-up once agents that ended while paused are gone', () => {
+    const sim = setup(cooperativeWorld, false);
+    sim.inject('seat.spawned', {
+      attemptId: 'old-oncall',
+      attempt: 1,
+      seatId: 'wf-1/lead',
+      stageId: 'implement',
+      role: 'lead',
+      agent: 'claude-code',
+      purpose: 'oncall',
+      ondemand: { purpose: 'oncall' },
+      keepOpen: true,
+      spawnCommandId: 'old-spawn',
+    });
+    sim.dispatch({ type: 'StartStage', stageId: 'integrate' });
+    pause(sim);
+    sim.dispatch({
+      type: 'ReleaseAttempt',
+      attemptId: 'old-oncall',
+      removeWorkspace: false,
+    });
+    expect(
+      sim.issued.some((e) => e.command.kind === 'runtime.prepareWorkspace'),
+    ).toBe(false);
+    resume(sim);
+    expect(
+      sim.issued.some((e) => e.command.kind === 'runtime.prepareWorkspace'),
+    ).toBe(true);
+  });
+  it('replays nothing already acted on', () => {
+    const sim = report(setup());
+    const events = sim.events.length;
+    pause(sim);
+    resume(sim);
+    expect(sim.events.slice(events).map((e) => e.type)).toEqual([
+      'workflow.paused',
+      'workflow.resumed',
+    ]);
+    pause(sim);
+    merge(sim);
+    resume(sim);
+    expect(sim.eventsOf('gate.closed')).toHaveLength(1);
+    expect(sim.eventsOf('workflow.completed')).toHaveLength(1);
+    expect(sim.rejections).toEqual([]);
+  });
+});
+
 it('keeps the final gate closed for a lost on-demand attempt arriving during publication', () => {
   const sim = report(
     setup((issued, current) =>

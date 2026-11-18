@@ -21,6 +21,9 @@ a synchronous port method.
 Five consecutive transient failures completed within 60 seconds open a component's
 breaker. A success or a non-transient error resets that streak. Probes run ten
 seconds after opening or a failed probe; only one probe per component can run.
+Every probe (startup's `publishInitial` included) is bounded by `probeTimeoutMs`
+(default 5 s): a hung adapter counts as a transient failure, so startup still
+serves and reports that component `degraded`.
 Successful ordinary calls already in flight do not close an open breaker.
 
 Runtime, SCM, and store outages block all new executor attempts and add their
