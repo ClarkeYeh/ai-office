@@ -7,6 +7,7 @@ import {
   PROJECTION_VERSION,
   type ReadModel,
 } from '@ai-office/projection';
+import { GateViewSchema } from '@ai-office/contracts/api';
 import {
   DomainEventSchema,
   type DomainEventDraft,
@@ -17,6 +18,7 @@ import {
 } from '../../test-support/stores.js';
 import { FakeClock, ManualScheduler } from '../../test-support/services.js';
 import { eventDraft } from '../../test-support/contracts.js';
+import type { GateBodyDeps } from './gate-bodies.js';
 import { ProjectionService, QueryService } from './index.js';
 
 function start(workflowId = 'wf'): DomainEventDraft {
@@ -118,6 +120,7 @@ function start(workflowId = 'wf'): DomainEventDraft {
 function setup(
   events: EventStore = new InMemoryEventStore(),
   checkpoints: ProjectionStore<ReadModel> = new InMemoryProjectionStore<ReadModel>(),
+  gateBodies: GateBodyDeps = {},
 ) {
   const clock = new FakeClock();
   const scheduler = new ManualScheduler(clock, (timer) =>
@@ -129,7 +132,7 @@ function setup(
     clock,
     scheduler,
   );
-  const queries = new QueryService(events, projections, 'fake');
+  const queries = new QueryService(events, projections, 'fake', gateBodies);
   return { events, checkpoints, clock, scheduler, projections, queries };
 }
 
@@ -229,7 +232,7 @@ describe('ProjectionService', () => {
 });
 
 describe('QueryService', () => {
-  it('reads global lists, repo and health events, missing entities, and isolated pages', () => {
+  it('reads global lists, repo and health events, missing entities, and isolated pages', async () => {
     const s = setup();
     const draft = start();
     if (draft.type !== 'workflow.started') throw new Error('fixture');
@@ -263,7 +266,7 @@ describe('QueryService', () => {
       status: 'healthy',
       verified: true,
     });
-    expect(s.queries.getGate('missing')).toBeNull();
+    expect(await s.queries.getGate('missing')).toBeNull();
     expect(s.queries.getSeat('missing')).toBeNull();
     expect(s.queries.getRepo('missing')).toBeNull();
     expect(s.queries.listGates()).toEqual({ gates: [] });
@@ -288,7 +291,7 @@ describe('QueryService', () => {
   });
 });
 
-it('keeps closed gate details, limits the inbox to open gates, and exposes only escalated questions', () => {
+it('keeps closed gate details, limits the inbox to open gates, and exposes only escalated questions', async () => {
   const s = setup();
   s.events.append([
     start(),
@@ -350,7 +353,7 @@ it('keeps closed gate details, limits the inbox to open gates, and exposes only 
     },
   ]);
   expect(s.queries.listGates().gates.map((g) => g.gateId)).toEqual(['gate']);
-  expect(s.queries.getGate('gate')?.version).toBe(1);
+  expect((await s.queries.getGate('gate'))?.version).toBe(1);
   expect(s.queries.listQuestions().questions.map((q) => q.questionId)).toEqual([
     'escalated',
   ]);
@@ -366,7 +369,7 @@ it('keeps closed gate details, limits the inbox to open gates, and exposes only 
     },
   ]);
   expect(s.queries.listGates().gates).toEqual([]);
-  expect(s.queries.getGate('gate')?.status).toBe('closed');
+  expect((await s.queries.getGate('gate'))?.status).toBe('closed');
   s.events.append([
     {
       ...eventDraft(),
@@ -408,4 +411,166 @@ it('recovers a persisted sqlite checkpoint and observes committed batches', () =
     a.projections.close();
     stores.close();
   }
+});
+
+describe('conclusion gate bodies (G3b)', () => {
+  const gateId = 'wf/meeting/1/gate';
+  const commandId = 'wf/meeting/1/issue';
+  const rendered = '## Summary\nShip it';
+  const issued = `${rendered}\n\n<!-- ai-office:cmd=${commandId} -->`;
+  const repo = { owner: 'owner', name: 'repo' };
+  const sha = async (body: string) =>
+    Array.from(
+      new Uint8Array(
+        await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body)),
+      ),
+      (b) => b.toString(16).padStart(2, '0'),
+    ).join('');
+  const draft = (
+    type: DomainEventDraft['type'],
+    payload: unknown,
+  ): DomainEventDraft =>
+    ({ ...eventDraft(), type, payload }) as DomainEventDraft;
+  const create = draft('command.issued', {
+    commandId,
+    kind: 'scm.createIssue',
+    args: { repo, title: 'Conclusion', body: issued, labels: [] },
+  });
+  const created = draft('command.succeeded', {
+    commandId,
+    kind: 'scm.createIssue',
+    result: { issue: 7, url: 'https://github.com/owner/repo/issues/7' },
+  });
+  const opened = async (renderedHash?: string) =>
+    draft('gate.opened', {
+      gateId,
+      stageId: 'meeting',
+      title: 'Review',
+      kind: 'stage',
+      stageKind: 'meeting',
+      templateGateId: 'review',
+      optional: false,
+      version: 1,
+      options: [],
+      content: {
+        type: 'conclusion',
+        artifactId: 'conclusion',
+        renderedHash: renderedHash ?? (await sha(issued)),
+      },
+    });
+  const scm = (body: string | Error) => ({
+    getIssue: vi.fn(async () => {
+      if (body instanceof Error) throw body;
+      return { body, bodyHash: await sha(body), updatedAt: '', labels: [] };
+    }),
+  });
+  const logger = () => {
+    const l = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: () => l };
+    return l;
+  };
+
+  it('fills the live GitHub body and the marker-free rendered body', async () => {
+    const edited = `${issued}\n\nEdited on GitHub.`;
+    const port = scm(edited);
+    const s = setup(undefined, undefined, { scm: port });
+    s.events.append([start(), create, created, await opened()]);
+    const gate = await s.queries.getGate(gateId);
+    expect(port.getIssue).toHaveBeenCalledWith({ repo, number: 7 });
+    expect(gate?.conclusion).toMatchObject({
+      renderedBody: rendered,
+      githubBody: edited,
+    });
+    // The UI diffs the two bodies line by line after dropping the marker.
+    const strip = (body: string) =>
+      body.replace(/\n*<!-- ai-office:cmd=.+? -->/g, '').split('\n');
+    const before = new Set(strip(gate!.conclusion!.renderedBody!));
+    expect(
+      strip(gate!.conclusion!.githubBody!).filter(
+        (l) => l !== '' && !before.has(l),
+      ),
+    ).toEqual(['Edited on GitHub.']);
+    expect(GateViewSchema.parse(gate)).toEqual(gate);
+    // Bodies are per request, never written back into the read model.
+    expect(s.queries.listGates().gates[0]?.conclusion).not.toHaveProperty(
+      'renderedBody',
+    );
+    s.projections.close();
+  });
+
+  it('uses the last issue body update and omits a body whose hash does not match', async () => {
+    const revised = '## Summary\nRevised';
+    const log = logger();
+    const s = setup(undefined, undefined, { scm: scm(revised), logger: log });
+    s.events.append([
+      start(),
+      create,
+      created,
+      draft('command.issued', {
+        commandId: 'wf/sync/1',
+        kind: 'scm.updateIssue',
+        args: { issue: { repo, number: 8 }, patch: { body: 'Other issue' } },
+      }),
+      draft('command.issued', {
+        commandId: 'wf/sync/2',
+        kind: 'scm.updateIssue',
+        args: { issue: { repo, number: 7 }, patch: { body: revised } },
+      }),
+      await opened(await sha(revised)),
+    ]);
+    expect((await s.queries.getGate(gateId))?.conclusion?.renderedBody).toBe(
+      revised,
+    );
+    s.events.append([
+      draft('command.issued', {
+        commandId: 'wf/sync/3',
+        kind: 'scm.updateIssue',
+        args: { issue: { repo, number: 7 }, patch: { body: 'Tampered' } },
+      }),
+    ]);
+    const gate = await s.queries.getGate(gateId);
+    expect(gate?.conclusion).not.toHaveProperty('renderedBody');
+    expect(gate?.conclusion?.githubBody).toBe(revised);
+    expect(log.warn).toHaveBeenCalledWith(
+      { gateId },
+      expect.stringContaining('renderedHash'),
+    );
+    s.projections.close();
+  });
+
+  it('omits githubBody when SCM fails or times out', async () => {
+    const log = logger();
+    const failing = setup(undefined, undefined, {
+      scm: scm(new Error('down')),
+      logger: log,
+    });
+    failing.events.append([start(), create, created, await opened()]);
+    const gate = await failing.queries.getGate(gateId);
+    expect(gate?.conclusion).not.toHaveProperty('githubBody');
+    expect(gate?.conclusion?.renderedBody).toBe(rendered);
+    expect(log.warn).toHaveBeenCalledOnce();
+    failing.projections.close();
+
+    const slow = setup(undefined, undefined, {
+      scm: { getIssue: () => new Promise(() => {}) },
+      scmTimeoutMs: 5,
+    });
+    slow.events.append([start(), create, created, await opened()]);
+    expect((await slow.queries.getGate(gateId))?.conclusion).not.toHaveProperty(
+      'githubBody',
+    );
+    slow.projections.close();
+  });
+
+  it('leaves legacy gates without bodies parseable and unchanged', async () => {
+    const port = scm('unused');
+    const s = setup(undefined, undefined, { scm: port });
+    // No issue command in the store (e.g. events from before G3b's wiring).
+    s.events.append([start(), await opened()]);
+    const gate = await s.queries.getGate(gateId);
+    expect(gate?.conclusion).not.toHaveProperty('renderedBody');
+    expect(gate?.conclusion).not.toHaveProperty('githubBody');
+    expect(GateViewSchema.parse(gate)).toEqual(gate);
+    expect(port.getIssue).not.toHaveBeenCalled();
+    s.projections.close();
+  });
 });

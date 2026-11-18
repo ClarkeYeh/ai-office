@@ -28,6 +28,7 @@ type ObjectState = {
   labels: string[];
   state: 'open' | 'closed' | 'merged';
   updatedAt: string;
+  revision: number;
   comments: string[];
   reviews: ReviewComment[];
   base: string;
@@ -248,7 +249,10 @@ export class FakeScm implements ScmPort {
     repo.parents.set(sha, [parent]);
     repo.branches.set(branch, sha);
     for (const obj of repo.objects.values())
-      if (obj.kind === 'pr' && obj.head === branch) this.prState(obj);
+      if (obj.kind === 'pr' && obj.head === branch) {
+        obj.revision++;
+        this.prState(obj);
+      }
     return sha;
   }
   private create(
@@ -266,6 +270,7 @@ export class FakeScm implements ScmPort {
       labels: 'labels' in draft ? [...draft.labels] : [],
       state: 'open',
       updatedAt: this.now(),
+      revision: 0,
       comments: [],
       reviews: [],
       base: 'base' in draft ? draft.base : '',
@@ -311,6 +316,7 @@ export class FakeScm implements ScmPort {
     return { body, bodyHash: await hash(body), updatedAt, labels };
   }
   private async changed(obj: ObjectState) {
+    obj.revision++;
     obj.updatedAt = this.now();
     if (obj.kind === 'pr') {
       this.prState(obj);
@@ -415,9 +421,11 @@ export class FakeScm implements ScmPort {
       this.options.delay ??
       ((ms: number) =>
         new Promise<void>((resolve) => setTimeout(resolve, ms).unref()));
+    const revision = obj.revision;
     void wait(after).then(() => {
       try {
-        if (obj.state === 'open') this.merge(obj, repo.info.viewerLogin);
+        if (obj.state === 'open' && obj.revision === revision)
+          this.merge(obj, repo.info.viewerLogin);
       } catch {
         /* Branches changed meanwhile: the owner does not merge. */
       }
@@ -488,6 +496,20 @@ export class FakeScm implements ScmPort {
     const result = this.merge(obj, this.repo(ref.repo).info.viewerLogin);
     this.afterMutation('mergePR');
     return result;
+  }
+  /** Explicit simulated owner action; never used by the backend ScmPort. */
+  async mergeOwner(ref: PrRef) {
+    const obj = this.object(ref, 'pr');
+    if (
+      obj.base !== this.repo(ref.repo).info.defaultBranch ||
+      obj.state === 'closed'
+    )
+      throw new PortError(
+        'guard',
+        'not_open_final_pr',
+        'Expected an open final PR',
+      );
+    return this.merge(obj, this.repo(ref.repo).info.viewerLogin);
   }
   async mergeExternally(
     ref: PrRef,

@@ -1,0 +1,85 @@
+@font-face {
+  font-family: 'AI Office Pixel';
+  src: url('../fonts/ai-office-pixel.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0020-007E;
+}
+:root {
+  color-scheme: light;
+  --ui-bg: #f2f4f8;
+  --ui-paper: #fff;
+  --ink: #262b44;
+  --slate: #5a6988;
+  --steel: #8b9bb4;
+  --mist: #c0cbdc;
+  --amber: #feae34;
+  --red: #e43b44;
+  --font-body:
+    'PingFang TC', 'Microsoft JhengHei', 'Noto Sans CJK TC', sans-serif;
+  --font-pixel: 'AI Office Pixel', monospace;
+  --pixel-corners: polygon(
+    0 3px,
+    3px 3px,
+    3px 0,
+    calc(100% - 3px) 0,
+    calc(100% - 3px) 3px,
+    100% 3px,
+    100% calc(100% - 3px),
+    calc(100% - 3px) calc(100% - 3px),
+    calc(100% - 3px) 100%,
+    3px 100%,
+    3px calc(100% - 3px),
+    0 calc(100% - 3px)
+  );
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--ui-bg);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}
+:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+}
+h1 {
+  font-size: 32px;
+}
+h2 {
+  font-size: 17px;
+}
+h3 {
+  font-size: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

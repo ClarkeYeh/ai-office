@@ -1,0 +1,67 @@
+.frame {
+  padding: 18px;
+  border: 3px solid var(--ink);
+  background: var(--ui-paper);
+  clip-path: var(--pixel-corners);
+}
+.attention {
+  border-color: var(--amber);
+}
+.button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 2px solid var(--ink);
+  background: var(--ui-paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+}
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.primary {
+  color: var(--ui-paper);
+  background: var(--ink);
+}
+.danger {
+  border-color: var(--red);
+}
+.need {
+  background: var(--amber);
+}
+.banner {
+  padding: 12px 18px;
+  border: 2px solid var(--mist);
+  background: var(--ui-paper);
+}
+.error {
+  border-color: var(--red);
+}
+.field {
+  display: grid;
+  gap: 8px;
+}
+.input {
+  width: 100%;
+  min-height: 40px;
+  border: 2px solid var(--slate);
+  padding: 8px;
+  color: var(--ink);
+  background: var(--ui-paper);
+}
+.hint {
+  color: var(--slate);
+  font-size: 13px;
+}
+.invalid {
+  color: var(--ink);
+  border-left: 3px solid var(--red);
+  padding-left: 8px;
+}
+.icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+}
