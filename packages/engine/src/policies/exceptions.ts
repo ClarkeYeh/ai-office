@@ -317,6 +317,15 @@ export const exceptionsPolicy: Policy = (ctx) => {
   if (event.type === 'seat.policy_violation') {
     const attempt = ctx.state.attempts[event.payload.attemptId];
     if (!attempt) return [];
+    // A worker that run-uses another run hijacks it (M2-T16 P4). Reclaiming
+    // the run is the gate's job; stop the offender once, whatever the severity.
+    // Our own rebinds go through CoordinatorIdentity, never an attempt transcript.
+    if (event.payload.hits.some((h) => h.rule === 'orca-run-use'))
+      return ctx.state.commands[
+        commandId(ctx, 'stop', attempt.attemptId, 'run-use')
+      ]
+        ? []
+        : stopAttempt(ctx, attempt, 'run-use');
     if (event.payload.hits.some((h) => h.severity === 'high'))
       return stopAttempt(ctx, attempt, 'policy', event.id);
     return attempt.agentRef
