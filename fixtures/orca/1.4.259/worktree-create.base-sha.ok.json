@@ -1,0 +1,100 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:48:27Z",
+  "argv": [
+    "orca",
+    "worktree",
+    "create",
+    "--repo",
+    "path:/Users/<redacted>/workspace/personal/ai-office-spike",
+    "--name",
+    "aio-test-p7a",
+    "--branch",
+    "ai-office-test/p7a",
+    "--base-branch",
+    "f5f5fce01aef1e75f0a3b419a9a8db34d8285e0b",
+    "--no-parent",
+    "--setup",
+    "skip",
+    "--comment",
+    "aio:p7a base:f5f5fce01aef1e75f0a3b419a9a8db34d8285e0b",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "026afe23-e996-4be4-9ab2-a0ccf017de5d",
+    "ok": true,
+    "result": {
+      "worktree": {
+        "id": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>",
+        "identity": {
+          "key": "wt2:local:cc90ef25-7753-48b0-a16c-3298b5d7aa52",
+          "executionHostId": "local",
+          "instanceId": "cc90ef25-7753-48b0-a16c-3298b5d7aa52"
+        },
+        "instanceId": "cc90ef25-7753-48b0-a16c-3298b5d7aa52",
+        "repoId": "9403ea2c-1e07-4c06-a4bb-6090f4040959",
+        "projectId": "github:clarkeyeh/ai-office-spike",
+        "hostId": "local",
+        "projectHostSetupId": "9403ea2c-1e07-4c06-a4bb-6090f4040959",
+        "creatorProvenance": {
+          "kind": "host"
+        },
+        "path": "/Users/<redacted><redacted>",
+        "head": "f5f5fce01aef1e75f0a3b419a9a8db34d8285e0b",
+        "branch": "<redacted>",
+        "isBare": false,
+        "isMainWorktree": false,
+        "displayName": "aio-test-p7a",
+        "displayNameMode": "fixed",
+        "comment": "aio:p7a base:f5f5fce01aef1e75f0a3b419a9a8db34d8285e0b",
+        "linkedIssue": null,
+        "linkedPR": null,
+        "linkedLinearIssue": null,
+        "linkedLinearIssueWorkspaceId": null,
+        "linkedLinearIssueOrganizationUrlKey": null,
+        "linkedGitLabMR": null,
+        "linkedGitLabIssue": null,
+        "linkedBitbucketPR": null,
+        "linkedAzureDevOpsPR": null,
+        "linkedGiteaPR": null,
+        "linkedWorkItem": null,
+        "linkedTaskSourceContext": null,
+        "isArchived": false,
+        "isUnread": false,
+        "isPinned": false,
+        "sortOrder": 1794980907108,
+        "lastActivityAt": 1794980907108,
+        "createdAt": 1794980907108,
+        "cliProvenance": {
+          "kind": "created-by-cli",
+          "createdAt": 1794980906434
+        },
+        "baseRef": "f5f5fce01aef1e75f0a3b419a9a8db34d8285e0b",
+        "workspaceStatus": "in-progress",
+        "parentWorktreeId": null,
+        "childWorktreeIds": [],
+        "lineage": null,
+        "workspaceLineage": null,
+        "git": {
+          "path": "/Users/<redacted><redacted>",
+          "head": "f5f5fce01aef1e75f0a3b419a9a8db34d8285e0b",
+          "branch": "<redacted>",
+          "isBare": false,
+          "isMainWorktree": false
+        }
+      },
+      "lineage": null,
+      "workspaceLineage": null,
+      "warnings": [],
+      "catalogVersion": {
+        "epoch": "3f0623db-ec1e-4db2-9366-4bb105df489b",
+        "sequence": 1037
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

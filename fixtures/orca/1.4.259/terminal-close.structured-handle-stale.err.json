@@ -1,0 +1,30 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:54:53Z",
+  "argv": [
+    "orca",
+    "terminal",
+    "close",
+    "--terminal",
+    "<redacted>",
+    "--json"
+  ],
+  "exitCode": 1,
+  "response": {
+    "id": "bd539322-353a-4677-aab0-93395f11a424",
+    "ok": false,
+    "error": {
+      "code": "terminal_handle_stale",
+      "message": "terminal_handle_stale",
+      "data": {
+        "nextSteps": [
+          "Terminal handles belong to the Orca server that issued them. If this handle came from a paired server (for example `orca terminal list --environment <server>`), pass the same --environment <server> to this command."
+        ]
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

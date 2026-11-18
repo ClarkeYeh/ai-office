@@ -1,0 +1,68 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:47:07Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "check",
+    "--terminal",
+    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "--run",
+    "run_3d70ed17e5de",
+    "--wait",
+    "--types",
+    "worker_done",
+    "--timeout-ms",
+    "180000",
+    "--retry-request",
+    "dbff204b-2573-4f5f-8cc1-590e66f5657e",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "7df8e0f8-0ee3-41be-9827-735e2b24236c",
+    "ok": true,
+    "result": {
+      "runId": "run_3d70ed17e5de",
+      "deliveryId": "<redacted>",
+      "messages": [
+        {
+          "id": "msg_ae1bda806148",
+          "run_id": "run_3d70ed17e5de",
+          "delivery_contract": "current_delivery",
+          "from_handle": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
+          "to_handle": "run:run_3d70ed17e5de",
+          "subject": "aio p1 done",
+          "body": "<redacted length=21 sha256=0a7f342773a4b045b126809a9d4e495e48d100d42ed2c8e1d4d3b052621d2129>",
+          "type": "worker_done",
+          "priority": "normal",
+          "thread_id": null,
+          "payload": "{\"taskId\":\"task_f3f9b2d65501\",\"dispatchId\":\"ctx_f91f0c1b897a\",\"outcome\":\"succeeded\"}",
+          "created_at": "2026-11-18T05:47:07Z",
+          "delivered_at": null,
+          "follow_up": {
+            "kind": "send",
+            "dispatchId": "ctx_f91f0c1b897a",
+            "active": false
+          }
+        }
+      ],
+      "count": 1,
+      "replayed": false,
+      "deliveryAcknowledged": true,
+      "acknowledged": null,
+      "timedOut": false,
+      "cancelled": false,
+      "connectionLost": false,
+      "mutation": {
+        "requestId": "dbff204b-2573-4f5f-8cc1-590e66f5657e",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

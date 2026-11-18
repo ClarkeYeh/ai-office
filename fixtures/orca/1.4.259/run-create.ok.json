@@ -1,0 +1,41 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:46:35Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "run-create",
+    "--objective",
+    "<redacted:test-input>",
+    "--from",
+    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "--retry-request",
+    "c489fe92-a282-47fe-8aa2-e3323a149e69",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "779455f9-0c6a-4ebb-bd90-b1150cadd54f",
+    "ok": true,
+    "result": {
+      "run": {
+        "id": "run_3d70ed17e5de",
+        "objective": "aio-test p1 aio:p1",
+        "coordinator_handle": "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+        "consumer_generation": 1,
+        "legacy": 0,
+        "created_at": "2026-11-18T05:46:35Z",
+        "updated_at": "2026-11-18T05:46:35Z"
+      },
+      "mutation": {
+        "requestId": "c489fe92-a282-47fe-8aa2-e3323a149e69",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

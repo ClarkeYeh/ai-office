@@ -1,0 +1,29 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:49:14Z",
+  "argv": [
+    "orca",
+    "worktree",
+    "rm",
+    "--worktree",
+    "path:/Users/<redacted><redacted>",
+    "--delete-branch",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "bfe594b9-07ec-4232-b4da-f8d448af9367",
+    "ok": true,
+    "result": {
+      "removed": true,
+      "preservedBranch": {
+        "branchName": "<redacted>",
+        "head": "5850c286ebc3e30ba4d864983faf534bef5d75e5"
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

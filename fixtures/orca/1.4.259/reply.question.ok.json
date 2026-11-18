@@ -1,0 +1,66 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:53:06Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "reply",
+    "--id",
+    "msg_418dffcf48ef",
+    "--run",
+    "run_3d70ed17e5de",
+    "--from",
+    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "--body",
+    "<redacted:test-input>",
+    "--retry-request",
+    "2eee273d-b84d-4f5a-bede-02e06f761dbe",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "4b92af19-65da-43c9-b27c-eac5431c3cda",
+    "ok": true,
+    "result": {
+      "message": {
+        "id": "msg_4f375e42656d",
+        "run_id": "run_3d70ed17e5de",
+        "delivery_contract": "current_delivery",
+        "from_handle": "run:run_3d70ed17e5de",
+        "to_handle": "dispatch:ctx_89eb9ce72392",
+        "subject": "Re: Question",
+        "body": "<redacted length=13 sha256=97f9b343183f324ea0d48465d32e6bdb4e1de9584d9333132e015df180ab8104>",
+        "type": "status",
+        "priority": "normal",
+        "thread_id": "msg_418dffcf48ef",
+        "payload": null,
+        "created_at": "2026-11-18T05:53:06Z",
+        "delivered_at": null
+      },
+      "question": {
+        "message_id": "msg_418dffcf48ef",
+        "run_id": "run_3d70ed17e5de",
+        "dispatch_id": "ctx_89eb9ce72392",
+        "asker_handle": "term_03215e44-8f01-4511-af19-888b18540987",
+        "status": "answered",
+        "answer_message_id": "msg_4f375e42656d",
+        "answer_body": "TEAL-FINCH-31",
+        "answered_by_generation": 1,
+        "created_at": "2026-11-18T05:50:47Z",
+        "answered_at": "2026-11-18T05:53:06Z",
+        "closed_at": null
+      },
+      "duplicate": false,
+      "next": "Finish the rest of your mail.",
+      "mutation": {
+        "requestId": "2eee273d-b84d-4f5a-bede-02e06f761dbe",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

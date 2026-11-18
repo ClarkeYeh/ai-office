@@ -1,0 +1,37 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:47:12Z",
+  "argv": [
+    "orca",
+    "terminal",
+    "read",
+    "--terminal",
+    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "18ee5d77-441e-4bd0-a7e1-cc6674f6ba07",
+    "ok": true,
+    "result": {
+      "terminal": {
+        "handle": "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+        "status": "running",
+        "tail": [
+          "❯ exec cat > /dev/null"
+        ],
+        "truncated": false,
+        "limited": false,
+        "oldestCursor": "0",
+        "nextCursor": "3",
+        "latestCursor": "3",
+        "returnedLineCount": 1,
+        "source": "stream"
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

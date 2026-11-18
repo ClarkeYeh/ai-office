@@ -1,0 +1,44 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:53:55Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "check",
+    "--terminal",
+    "term_38f2852f-3fb1-4218-a418-2702f692dd7d",
+    "--run",
+    "run_3d70ed17e5de",
+    "--retry-request",
+    "441b97cf-32a7-40d8-a94f-6036fdad8343",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 1,
+  "response": {
+    "id": "d923eb99-4b00-4178-ae3d-a227e4bb96b1",
+    "ok": false,
+    "error": {
+      "code": "consumer_fenced",
+      "message": "This caller is not bound to Run run_3d70ed17e5de, which is bound to term_64deb21b-e1c0-4fc2-b59f-09b3fd638444. Nothing changed. Orchestration mutation request ID: 441b97cf-32a7-40d8-a94f-6036fdad8343.",
+      "data": {
+        "orchestrationRequestId": "441b97cf-32a7-40d8-a94f-6036fdad8343",
+        "originalCommand": [
+          "orca",
+          "orchestration",
+          "check",
+          "--terminal",
+          "term_38f2852f-3fb1-4218-a418-2702f692dd7d",
+          "--run",
+          "run_3d70ed17e5de",
+          "--json",
+          "--full"
+        ]
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}

@@ -1,0 +1,78 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:54:33Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "check",
+    "--terminal",
+    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "--run",
+    "run_3d70ed17e5de",
+    "--retry-request",
+    "1f150e0d-d8b9-4487-a3e4-2b725071f1c1",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "2930fbb8-2d01-4efb-baa1-e19bde60988c",
+    "ok": true,
+    "result": {
+      "runId": "run_3d70ed17e5de",
+      "deliveryId": "<redacted>",
+      "messages": [
+        {
+          "id": "msg_cdf9848adccc",
+          "run_id": "run_3d70ed17e5de",
+          "delivery_contract": "current_delivery",
+          "from_handle": "term_2d6e283d-409c-4ed0-a2db-4b8bb26f5fd2",
+          "to_handle": "run:run_3d70ed17e5de",
+          "subject": "aio unobs",
+          "body": "<redacted length=9 sha256=2f443362ce5608a3d93b997fc9f74084946ca92f6e549ebd5a423675dbcc1ead>",
+          "type": "worker_done",
+          "priority": "normal",
+          "thread_id": null,
+          "payload": "{\"taskId\":\"task_fc69995e34df\",\"dispatchId\":\"ctx_8934904f1861\",\"outcome\":\"succeeded\"}",
+          "created_at": "2026-11-18T05:54:10Z",
+          "delivered_at": null,
+          "follow_up": {
+            "kind": "send",
+            "dispatchId": "ctx_8934904f1861",
+            "active": false
+          }
+        },
+        {
+          "id": "<redacted>",
+          "run_id": "run_3d70ed17e5de",
+          "delivery_contract": "current_delivery",
+          "from_handle": "dispatch:ctx_95a2dd7598c2",
+          "to_handle": "run:run_3d70ed17e5de",
+          "subject": "Worker lost without reporting",
+          "body": "<redacted length=475 sha256=0331df1cfad374dc29426f2456af166d646ab861a3bede0d0d961ef17b2e5849>",
+          "type": "escalation",
+          "priority": "high",
+          "thread_id": null,
+          "payload": "{\"taskId\":\"task_28764fc1b2fd\",\"dispatchId\":\"ctx_95a2dd7598c2\",\"handle\":\"dispatch:ctx_95a2dd7598c2\",\"stopReason\":\"lost\"}",
+          "created_at": "2026-11-18T05:54:13Z",
+          "delivered_at": null
+        }
+      ],
+      "count": 2,
+      "replayed": false,
+      "deliveryAcknowledged": true,
+      "acknowledged": null,
+      "timedOut": false,
+      "cancelled": false,
+      "connectionLost": false,
+      "mutation": {
+        "requestId": "1f150e0d-d8b9-4487-a3e4-2b725071f1c1",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+    }
+  },
+  "stderrLines": []
+}
