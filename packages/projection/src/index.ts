@@ -10,3 +10,4 @@ export { evolveGlobal, initialGlobalReadModel } from './global.js';
 export type { GlobalReadModel } from './global.js';
 export { replay, createCheckpoints, replayWithCheckpoints } from './replay.js';
 export type { Checkpoint } from './replay.js';
+export { blockedByOf, isReady } from './readiness.js';

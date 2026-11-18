@@ -1,1 +1,1 @@
-export {};
+export { stabilize } from './stabilize.js';
