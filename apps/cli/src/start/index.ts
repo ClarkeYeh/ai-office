@@ -20,12 +20,13 @@ export interface StartOptions {
 }
 
 const usage =
-  'Usage: ai-office start [--dev] [--fake <scenario>] [--runtime orca] [--port <n>] [--break-lock] [--no-open]';
+  'Usage: ai-office start [--dev] [--fake <scenario>] [--runtime orca] [--orca-home <path>] [--port <n>] [--break-lock] [--no-open]';
 
 const SERVER_FLAGS = new Set(['--dev', '--break-lock']);
 const SERVER_VALUES = new Set([
   '--fake',
   '--runtime',
+  '--orca-home',
   '--port',
   '--dev-origin',
 ]);

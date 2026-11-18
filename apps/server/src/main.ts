@@ -28,7 +28,7 @@ import {
   createOrcaRuntime,
 } from './adapters/runtime-orca/index.js';
 import type { Exec, OrcaCli } from './adapters/runtime-orca/index.js';
-import { OrcaObserver } from './adapters/runtime-orca/observe/index.js';
+import { withSleepWake } from './adapters/runtime-orca/sleep-wake.js';
 import {
   parseResult,
   WorktreeListSchema,
@@ -136,7 +136,12 @@ export interface StartOptions {
   dev?: boolean;
   runtime?: 'orca';
   /** Programmatic integration-test seam; never accepted from CLI or config. */
-  testOnly?: { scm: ScmPort };
+  testOnly?: {
+    scm?: ScmPort;
+    onShimCreated?: (handle: string) => void | Promise<void>;
+  };
+  /** Dev hybrid only: an existing, owner-approved Orca folder workspace. */
+  orcaHome?: string;
   /** Fake scenario name; refused unless `dev` (Q7). */
   fake?: string;
   /** Overrides `server.port`; 0 picks an ephemeral port. */
@@ -172,6 +177,23 @@ export class StartupError extends Error {}
 
 /** Validates flag combinations before any side effect (Q7). */
 export function checkStartOptions(options: StartOptions): void {
+  if (options.dev !== true)
+    throw new StartupError(
+      'Production SCM is available in M3; --dev and an explicit --fake or --runtime orca are required',
+    );
+  if (options.fake === undefined && options.runtime === undefined)
+    throw new StartupError(
+      '--dev requires --fake <scenario> or --runtime orca',
+    );
+  if (
+    options.orcaHome !== undefined &&
+    (options.runtime !== 'orca' ||
+      !isAbsolute(options.orcaHome) ||
+      options.orcaHome.includes('\0'))
+  )
+    throw new StartupError(
+      '--orca-home requires --dev --runtime orca and an absolute path',
+    );
   if (options.runtime !== undefined && options.runtime !== 'orca')
     throw new StartupError('Unknown runtime');
   if (options.runtime !== undefined && options.fake !== undefined)
@@ -184,11 +206,7 @@ export function checkStartOptions(options: StartOptions): void {
       options.fake === undefined
     )
   )
-    throw new StartupError('testOnly.scm requires --dev --runtime orca');
-  if (options.fake !== undefined && options.dev !== true)
-    throw new StartupError(
-      `--fake ${options.fake} requires --dev: fake runtime, SCM and usage must never serve production`,
-    );
+    throw new StartupError('testOnly hooks require --dev --runtime orca');
   if (options.fake !== undefined && !(options.fake in FAKE_SCENARIOS))
     throw new StartupError(
       `Unknown fake scenario "${options.fake}" (available: ${Object.keys(FAKE_SCENARIOS).join(', ')})`,
@@ -464,7 +482,7 @@ async function composeOrca(
   ids: SystemIdGen,
   logger: Logger,
   cleanup: (() => void | Promise<void>)[],
-  dev: boolean,
+  options: StartOptions,
 ) {
   absoluteUsagePaths(settings.usage.claudeConfigDirs);
   absoluteUsagePaths(settings.usage.codexHomes);
@@ -558,6 +576,10 @@ async function composeOrca(
     dataDir,
     shimLocation: settings.orca.shimLocation,
     closeOnExit: settings.orca.shim.closeOnExit,
+    ...(options.orcaHome === undefined ? {} : { orcaHome: options.orcaHome }),
+    ...(options.testOnly?.onShimCreated === undefined
+      ? {}
+      : { onCreated: options.testOnly.onShimCreated }),
   });
   const observerCli: OrcaCli = {
     run: (args, options, schema) =>
@@ -566,13 +588,13 @@ async function composeOrca(
         : cli.run(args, options, schema),
   };
   const ledger = new DispatchLedger(state);
-  const observer = new OrcaObserver({
+  const observerOptions = {
     cli: observerCli,
     identity,
     ledger,
     logger,
     pressured: () => pressured,
-  });
+  };
   const version = new VersionMonitor(cli, {
     min: range[1]!,
     max: upper.join('.'),
@@ -592,18 +614,24 @@ async function composeOrca(
     ids,
     logger,
     dataDir,
-    observer,
+    observer: {
+      observe: (
+        ...args: Parameters<RuntimePort['observe']>
+      ): ReturnType<RuntimePort['observe']> => sleepRuntime.observe(...args),
+    },
     version,
     metrics,
     binPath: config.orcaBinPath,
     supportedRange: settings.orca.supportedRange,
   });
+  const sleepRuntime = withSleepWake(base, {
+    observer: observerOptions,
+    version,
+    logger,
+    preventSleep: settings.orca.preventSleep,
+  });
   const runtime: RuntimePort = {
-    ...base,
-    async answer(question, body, correlation) {
-      await base.answer(question, body, correlation);
-      observer.markAnswered(question);
-    },
+    ...sleepRuntime,
     async health() {
       const info = await base.health();
       return {
@@ -612,53 +640,22 @@ async function composeOrca(
       };
     },
   };
-  let sleep: AbortController | undefined;
   let closed = false;
   let identityStarted = false;
-  const setActive = (running: boolean) => {
-    if (closed || !settings.orca.preventSleep || process.platform !== 'darwin')
-      return;
-    if (!running) {
-      sleep?.abort();
-      sleep = undefined;
-      return;
-    }
-    if (sleep) return;
-    const controller = (sleep = new AbortController());
-    void exec
-      .run({
-        bin: '/usr/bin/caffeinate',
-        args: ['-i', '-w', String(process.pid)],
-        cwd: policy.cwd,
-        env: config.orcaEnv,
-        timeoutMs: 2_147_483_647,
-        signal: controller.signal,
-      })
-      .catch(() => {
-        if (!controller.signal.aborted)
-          logger.warn({}, 'Sleep prevention unavailable');
-      })
-      .finally(() => {
-        if (sleep === controller) sleep = undefined;
-      });
-  };
   const close = async () => {
     if (closed) return;
     closed = true;
-    observer.close();
+    const sleepClosing = sleepRuntime.close();
     polls.close();
-    sleep?.abort();
     try {
       if (identityStarted) await Promise.race([identity.close(), delay(1000)]);
     } finally {
       scheduler.close();
       abort.abort();
-      await Promise.allSettled([...active]);
+      await Promise.allSettled([...active, sleepClosing]);
     }
   };
   cleanup.push(close);
-  if (!dev)
-    return { runtime, observer, close, setActive, identityEnsured: false };
   await cwdGuard.check();
   await cleanupOrphanProcesses(groups, { exec, cwdGuard, env: config.orcaEnv });
   await version.check();
@@ -703,7 +700,13 @@ async function composeOrca(
     ledger.rebuild(run, { workers }, tasks);
   }
   // The runtime identity probe succeeded (FX5: runtimeVerified may be published).
-  return { runtime, observer, close, setActive, identityEnsured: true };
+  return {
+    runtime,
+    close,
+    stopObservation: sleepRuntime.stopObservation,
+    forceRecheck: sleepRuntime.forceRecheck,
+    identityEnsured: true,
+  };
 }
 
 async function compose(
@@ -798,15 +801,11 @@ async function compose(
       ids,
       logger,
       cleanup,
-      options.dev === true,
+      options,
     );
     runtime = orca.runtime;
-    if (!options.dev)
-      throw new StartupError(
-        'Production SCM (scm-github) is available in M3; use --dev --runtime orca',
-      );
     scm = options.testOnly?.scm ?? createFakeScm({ clock });
-    if (!options.testOnly) {
+    if (options.testOnly?.scm === undefined) {
       const fakeScm = scm as FakeScm;
       const inspect = runtime.inspectLocalRepo.bind(runtime);
       runtime.inspectLocalRepo = async (path) => {
@@ -877,6 +876,14 @@ async function compose(
     store: stores.events,
     workflows: (): readonly WorkflowRunner[] => runners.all(),
     runtime: runtimeMetadata,
+    ...(orca
+      ? {
+          forceRecheck: async () => {
+            await orca.forceRecheck();
+            await refreshRuntimeHealth();
+          },
+        }
+      : {}),
     probes: {
       runtime: refreshRuntimeHealth,
       scm: async () => {
@@ -900,6 +907,7 @@ async function compose(
       },
     },
   });
+  cleanup.push(() => health.close());
   const executor: CommandExecutor = new CommandExecutor({
     handlers: portHandlers({ runtime, scm, specStore }),
     health,
@@ -1016,15 +1024,6 @@ async function compose(
   });
   if (fake) await commands.registerRepo({ localPath: FAKE_REPO.localPath });
 
-  const refreshSleep = () =>
-    orca?.setActive(
-      runners.all().some((r) => r.state.workflow?.status === 'running'),
-    );
-  const unsubscribeSleep = stores.events.subscribe(() =>
-    queueMicrotask(refreshSleep),
-  );
-  cleanup.push(unsubscribeSleep);
-  refreshSleep();
   const healthPoll = setInterval(() => {
     void refreshRuntimeHealth().catch(failed('runtime health'));
   }, 60_000).unref();
@@ -1074,9 +1073,12 @@ async function compose(
             ...(runtimeMetadata.supportedRange
               ? { supportedRange: runtimeMetadata.supportedRange }
               : {}),
-            ...(runtimeMetadata.warnings
-              ? { warnings: runtimeMetadata.warnings }
-              : {}),
+            warnings: [
+              ...new Set([
+                ...(snapshot.runtime.warnings ?? []),
+                ...(runtimeMetadata.warnings ?? []),
+              ]),
+            ],
             ...(runtimeMetadata.cliCallsPerMinute !== undefined
               ? { cliCallsPerMinute: runtimeMetadata.cliCallsPerMinute }
               : {}),
@@ -1163,7 +1165,8 @@ async function compose(
   cleanup.push(async () => {
     observation.stop();
     submissions.close();
-    orca?.observer.close();
+    health.close();
+    orca?.stopObservation();
     await Promise.race([runners.idle(), delay(1000)]);
     await orca?.close();
     await observation.idle();
@@ -1192,7 +1195,8 @@ async function compose(
     close: () => {
       observation.stop();
       submissions.close();
-      orca?.observer.close();
+      health.close();
+      orca?.stopObservation();
       return (closing ??= (async () => {
         await unwind();
         if (finalCheckpointError) throw finalCheckpointError;
@@ -1215,6 +1219,9 @@ export function parseArgs(argv: readonly string[]): StartOptions {
     switch (arg) {
       case '--dev':
         options.dev = true;
+        break;
+      case '--orca-home':
+        options.orcaHome = value();
         break;
       case '--runtime': {
         const mode = value();
