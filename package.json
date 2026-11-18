@@ -23,10 +23,11 @@
     "test:coverage": "vitest run --coverage --project '!@ai-office/server-orca'",
     "test:orca": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=0 vitest run --project @ai-office/server-orca --passWithNoTests",
     "test:orca:agents": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=1 vitest run --project @ai-office/server-orca --passWithNoTests",
-    "test:orca:disruptive": "node -e \"console.error('not available until M2-T8'); process.exit(1)\"",
-    "orca:record": "node -e \"console.error('not available until M2-T8'); process.exit(1)\"",
-    "orca:recheck": "node -e \"console.error('not available until M2-T8'); process.exit(1)\"",
-    "orca:janitor": "node -e \"console.error('not available until M2-T8'); process.exit(1)\""
+    "test:orca:disruptive": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs p2 prepare",
+    "orca:record": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs record",
+    "orca:recheck": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs recheck",
+    "orca:janitor": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs janitor",
+    "orca:p2": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs p2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -25,16 +25,25 @@ describe('real Orca gates', () => {
   it('requires exact opt-in and always skips CI, even with all flags', () => {
     expect(realOrcaSkipReason({}, {})).toContain('AIO_REAL_ORCA');
     expect(realOrcaSkipReason({}, { AIO_REAL_ORCA: 'true' })).toBeDefined();
-    expect(realOrcaSkipReason({}, { AIO_REAL_ORCA: '1' })).toBeUndefined();
+    expect(
+      realOrcaSkipReason(
+        {},
+        { AIO_REAL_ORCA: '1', AIO_TEST_REPO_PATH: '/spike' },
+      ),
+    ).toBeUndefined();
     expect(
       realOrcaSkipReason({ agents: true }, { AIO_REAL_ORCA: '1' }),
     ).toContain('AIO_REAL_AGENTS');
-    const enabled = { AIO_REAL_ORCA: '1', AIO_REAL_AGENTS: '1' };
+    const enabled = {
+      AIO_REAL_ORCA: '1',
+      AIO_REAL_AGENTS: '1',
+      AIO_TEST_REPO_PATH: '/spike',
+    };
     expect(realOrcaSkipReason({ agents: true }, enabled)).toBeUndefined();
     expect(realOrcaSkipReason({}, { ...enabled, CI: 'true' })).toContain('CI');
     expect(realOrcaSkipReason({}, { ...enabled, CI: 'false' })).toContain('CI');
     expect(realOrcaSkipReason({ disruptive: true }, enabled)).toContain(
-      'M2-T8',
+      'interactive',
     );
   });
 
