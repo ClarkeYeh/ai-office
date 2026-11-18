@@ -1,9 +1,10 @@
-import type { DomainEvent } from '@ai-office/contracts/events';
 import { possiblyLiveAttempts } from '@ai-office/domain';
 import { releaseAttempt, stopAttempt } from '../agents.js';
 import { metaFor, sessionRef } from '../context.js';
+import type { ReactContext } from '../context.js';
 import { external, internal } from '../effects.js';
 import type { Effect } from '../effects.js';
+import { missed } from '../protocols/resume.js';
 import { MINUTE_MS, schedule } from '../timers.js';
 import {
   remind,
@@ -16,7 +17,78 @@ import {
 } from './meeting.js';
 import type { StageModule } from './types.js';
 
+/**
+ * Wrap-up steps reached while paused (§16): the integrator's report or
+ * decision request, the owner's answer to it, or a requested revision.
+ */
+const resume = (ctx: ReactContext) => {
+  const config = ctx.state.workflow!.template.stages.find(
+    (s) => s.kind === 'integrate',
+  );
+  if (config?.kind !== 'integrate') return [];
+  const stageId = config.id;
+  const stage = ctx.state.stages[stageId]!;
+  if (stage.status === 'done' && stage.pendingRerun)
+    return [
+      missed(
+        ctx,
+        'stage.rerun_requested',
+        { stageId, ...stage.pendingRerun },
+        { stageId },
+      ),
+    ];
+  const integrator = stageAttempts(ctx.state, stageId).find(
+    (a) => a.purpose === 'integrator',
+  );
+  const accepted = (kind: 'integration-report' | 'decision-request') => {
+    const s = submitted(ctx.state, integrator, kind);
+    return s
+      ? missed(
+          ctx,
+          'submission.accepted',
+          {
+            submissionId: s.id,
+            attemptId: s.attemptId,
+            kind: s.kind,
+            submission: s.submission,
+            ...(s.artifactId === undefined ? {} : { artifactId: s.artifactId }),
+          },
+          { stageId, attemptId: s.attemptId },
+        )
+      : undefined;
+  };
+  const report = accepted('integration-report');
+  if (report) return [report];
+  const request = accepted('decision-request');
+  const events = [];
+  if (
+    request?.type === 'submission.accepted' &&
+    !ctx.state.gates[
+      stageCommandId(ctx, stageId, 'decision', request.payload.submissionId)
+    ]
+  )
+    events.push(request);
+  for (const gate of Object.values(ctx.state.gates))
+    if (
+      gate.stageId === stageId &&
+      gate.kind === 'exception' &&
+      gate.exceptionKind === 'decision-request' &&
+      gate.decision &&
+      !ctx.state.commands[stageCommandId(ctx, stageId, 'answer', gate.gateId)]
+    ) {
+      const decision: Partial<typeof gate.decision> = { ...gate.decision };
+      delete decision.decidedAt;
+      events.push(
+        missed(ctx, 'gate.decided', decision as typeof gate.decision, {
+          stageId,
+        }),
+      );
+    }
+  return events;
+};
+
 export const integrateStage: StageModule = {
+  resume,
   react: (ctx) => {
     const workflow = ctx.state.workflow;
     const config = workflow?.template.stages.find(
@@ -48,24 +120,6 @@ export const integrateStage: StageModule = {
       (a) => a.purpose === 'integrator',
     );
     const report = submitted(ctx.state, integrator, 'integration-report');
-    // A report accepted while paused was ignored above; replay it on resume.
-    if (report && ctx.event.type === 'workflow.resumed')
-      return integrateStage.react({
-        ...ctx,
-        event: {
-          ...ctx.event,
-          type: 'submission.accepted',
-          payload: {
-            submissionId: report.id,
-            attemptId: report.attemptId,
-            kind: report.kind,
-            submission: report.submission,
-            ...(report.artifactId === undefined
-              ? {}
-              : { artifactId: report.artifactId }),
-          },
-        } as DomainEvent,
-      });
     if (report) {
       if (
         ctx.timer?.payload.purpose === 'stage-timeout' &&
@@ -247,6 +301,7 @@ export const integrateStage: StageModule = {
       );
     if (
       ![
+        'workflow.resumed',
         'stage.started',
         'command.succeeded',
         'seat.exited',

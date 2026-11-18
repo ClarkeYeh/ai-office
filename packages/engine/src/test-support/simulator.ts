@@ -55,6 +55,30 @@ export type World = (
   sim: Simulator,
 ) => WorldReply | undefined;
 
+/**
+ * Wraps a world so the first command matching `when` pauses the workflow
+ * (`hijacked`) just before its reply's observations land, which then all
+ * arrive while paused.
+ */
+export const pausingWorld = (
+  world: World,
+  when: (issued: IssuedCommand, sim: Simulator) => boolean,
+): World => {
+  let paused = false;
+  return (issued, sim) => {
+    const reply = world(issued, sim);
+    if (paused || reply === undefined || !when(issued, sim)) return reply;
+    paused = true;
+    return {
+      ...reply,
+      observe: [
+        { type: 'PauseWorkflow', reason: 'hijacked' },
+        ...(reply.observe ?? []),
+      ],
+    };
+  };
+};
+
 type Input =
   | { kind: 'spawn'; effect: SpawnEffect }
   | { kind: 'command'; command: DomainCommand }
