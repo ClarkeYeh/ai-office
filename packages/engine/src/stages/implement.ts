@@ -513,7 +513,26 @@ const reactImplement: StageModule['react'] = (ctx) => {
       p.kind === 'scm.openPR' &&
       p.commandId === itemId(ctx, item, 'pr')
     ) {
+      // Record the worker PR before pr_open/merge_queued so pr.status can link
+      // it to its item; keyed by the openPR command, so rework (same branch,
+      // same PR, no new openPR) never records it twice.
       const effects: Effect[] = [
+        internal({
+          type: 'RecordStageArtifact',
+          meta: metaFor(ctx),
+          stageId: config.id,
+          commandId: p.commandId,
+          artifact: {
+            kind: 'pr',
+            artifactId: p.commandId,
+            number: p.result.pr,
+            url: p.result.url,
+            purpose: 'worker',
+            head: item.branch!,
+            base: workflow.integrationBranch,
+            itemKey: item.key,
+          },
+        }),
         update(ctx, item, 'pr_open', { pr: p.result.pr }),
       ];
       // Failed retries supersede old PRs; rework never opens or closes a PR.

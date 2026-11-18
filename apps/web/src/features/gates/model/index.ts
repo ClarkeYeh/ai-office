@@ -33,3 +33,4 @@ export type {
 } from './conclusion.js';
 export { DIFF_MAX_LINES, lineDiff } from './diff.js';
 export type { DiffKind, DiffLine, LineDiff } from './diff.js';
+export type { QuestionView } from '@ai-office/contracts/api';

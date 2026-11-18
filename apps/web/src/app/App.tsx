@@ -148,6 +148,7 @@ function RoutedApp() {
       }
       banners={
         <Banners
+          gateActions
           pausedReasons={current?.pausedReasons ?? []}
           health={overview.health}
           degraded={current?.seats.some((seat) => seat.degraded) ?? false}

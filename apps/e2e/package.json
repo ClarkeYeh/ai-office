@@ -1,0 +1,17 @@
+{
+  "name": "@ai-office/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test --project=e2e",
+    "test:visual": "playwright test --project=visual",
+    "e2e:fps": "playwright test --project=fps"
+  },
+  "devDependencies": {
+    "@ai-office/contracts": "workspace:*",
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "@types/node": "^24.10.0"
+  }
+}
