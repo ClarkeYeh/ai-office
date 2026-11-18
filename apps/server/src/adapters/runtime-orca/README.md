@@ -70,8 +70,9 @@ responsible for bootstrap/reclaim identity policy.
   hijacked) get one `run-use` each and their new generation is recorded at once;
   then `runtime.identity_restored` is queued.
 - `checkOwnership(run, {force})`: per-run 30 s throttle; `run-show --full`; a
-  different handle or generation queues `runtime.identity_hijacked` once per
-  generation. Never takes the run back.
+  different handle queues `runtime.identity_hijacked` once per generation; our
+  own handle is owned at any generation, which is then recorded (a crash between
+  `run-use` and the record must not look like a hijack). Never takes the run back.
 - `withIdentity(run, op)`: `identity` → `ensure({force})` + one retry of `op`
   (which keeps its request id); `hijacked` (`consumer_fenced`) → immediate
   ownership check, then rethrow.
