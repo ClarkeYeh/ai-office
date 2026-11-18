@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b && vite build",
-    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/web --project @ai-office/web-dom",
+    "test": "pnpm --workspace-root exec vitest run --config vitest.config.ts --project @ai-office/web --project @ai-office/web-dom",
     "dev": "vite",
     "preview": "vite preview"
   },
