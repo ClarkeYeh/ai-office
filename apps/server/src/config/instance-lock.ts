@@ -32,6 +32,8 @@ export class InstanceLockedError extends Error {
 export interface AcquireOptions {
   /** §16 risk 11: the user confirmed the recorded pid is not AI Office. */
   breakLock?: boolean;
+  /** Blocks between reads of a lock whose holder has not written it yet; tests inject a deterministic one. */
+  pause?: (attempt: number) => void;
 }
 /** Locks held by this process: a pid match alone cannot tell them from stale ones. */
 const held = new Set<string>();
@@ -62,8 +64,15 @@ function parseLockInfo(text: string): Omit<RuntimeInfo, 'port'> | null {
   }
 }
 
+function waitBriefly(): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+}
+
 /** The holder creates the file before writing it: retry briefly before failing closed. */
-function readLockInfo(path: string): Omit<RuntimeInfo, 'port'> {
+function readLockInfo(
+  path: string,
+  pause: (attempt: number) => void,
+): Omit<RuntimeInfo, 'port'> {
   for (let attempt = 0; ; attempt++) {
     const info = parseLockInfo(readFileSync(path, 'utf8'));
     if (info !== null) return info;
@@ -71,7 +80,7 @@ function readLockInfo(path: string): Omit<RuntimeInfo, 'port'> {
       throw new Error(
         'Invalid instance lock contents; if no AI Office process is running, restart with --break-lock',
       );
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+    pause(attempt);
   }
 }
 
@@ -108,7 +117,7 @@ export function acquireInstanceLock(
     }
     try {
       try {
-        const existing = readLockInfo(path);
+        const existing = readLockInfo(path, options.pause ?? waitBriefly);
         // PID reuse can conservatively reject startup; accepted residual risk (Q13).
         // Our own pid is never a live holder here (held locks were rejected above):
         // a container restart reuses pid 1 for the next process.
