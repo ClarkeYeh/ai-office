@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import type { GateView, WorkflowReadModel } from '@ai-office/contracts/api';
+import type { GateView } from '@ai-office/contracts/api';
 import {
   finalPrNumber,
   gates,

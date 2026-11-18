@@ -14,7 +14,7 @@ pnpm test:visual                   # visual regression (compared on Linux CI onl
 pnpm e2e:fps                       # load-10 frame timing, 60 s (milestone acceptance)
 ```
 
-`pnpm e2e:fps` reads `AIO_FPS_PATH` (default `/`) and `AIO_FPS_SECONDS`
+`pnpm e2e:fps` starts a `load-10` workflow with the optional gates off and measures its office; `AIO_FPS_PATH` overrides the page and `AIO_FPS_SECONDS`
 (default `60`).
 
 ## Writing a spec
