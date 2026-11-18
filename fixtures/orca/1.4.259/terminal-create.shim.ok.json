@@ -1,0 +1,40 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:46:27Z",
+  "argv": [
+    "orca",
+    "terminal",
+    "create",
+    "--worktree",
+    "path:<home>/.ai-office/orca-home",
+    "--title",
+    "AI Office · 請勿關閉 aio-shim:test",
+    "--command",
+    "exec cat > /dev/null",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-00000000003d",
+    "ok": true,
+    "result": {
+      "terminal": {
+        "processId": 27316,
+        "handle": "term_00000000-0000-4000-8000-000000000001",
+        "tabId": "00000000-0000-4000-8000-00000000003e",
+        "paneKey": "00000000-0000-4000-8000-00000000003e:00000000-0000-4000-8000-00000000003f",
+        "ptyId": "00000000-0000-4000-8000-00000000002f::<home>/.ai-office/orca-home@@7b343aca",
+        "worktreeId": "00000000-0000-4000-8000-00000000002f::<home>/.ai-office/orca-home",
+        "title": "AI Office · 請勿關閉 aio-shim:test",
+        "executionHostId": "local",
+        "incarnationId": "00000000-0000-4000-8000-000000000040",
+        "hostPlatform": "darwin",
+        "surface": "visible"
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

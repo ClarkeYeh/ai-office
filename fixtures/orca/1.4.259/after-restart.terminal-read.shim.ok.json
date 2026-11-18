@@ -1,0 +1,35 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T06:05:06Z",
+  "argv": [
+    "orca",
+    "terminal",
+    "read",
+    "--terminal",
+    "term_00000000-0000-4000-8000-000000000001",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000019",
+    "ok": true,
+    "result": {
+      "terminal": {
+        "handle": "term_00000000-0000-4000-8000-000000000001",
+        "status": "running",
+        "tail": ["❯ exec cat > /dev/null"],
+        "truncated": false,
+        "limited": false,
+        "oldestCursor": "0",
+        "nextCursor": "0",
+        "latestCursor": "0",
+        "returnedLineCount": 1,
+        "source": "stream"
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
+    }
+  },
+  "stderrLines": []
+}

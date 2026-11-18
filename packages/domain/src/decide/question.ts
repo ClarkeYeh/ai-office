@@ -17,16 +17,29 @@ export const questionWaitMilliseconds = (
   state: WorkflowState,
   attemptId: string,
   now: string,
+): number => suspendedMilliseconds(state, attemptId, now, false);
+
+/**
+ * Wallclock an attempt spent suspended: waiting for answers and, with
+ * `rateLimits` (S26), rate-limited by its provider. Overlaps count once.
+ */
+export const suspendedMilliseconds = (
+  state: WorkflowState,
+  attemptId: string,
+  now: string,
+  rateLimits = true,
 ): number => {
   const end = Date.parse(now);
-  const intervals = Object.values(state.questions)
-    .filter((q) => q.attemptId === attemptId)
+  const windows = [
+    ...Object.values(state.questions)
+      .filter((q) => q.attemptId === attemptId)
+      .map((q) => ({ from: q.askedAt, to: q.answeredAt })),
+    ...(rateLimits ? (state.attempts[attemptId]?.rateLimitWindows ?? []) : []),
+  ];
+  const intervals = windows
     .map(
-      (q) =>
-        [
-          Date.parse(q.askedAt),
-          Math.min(end, Date.parse(q.answeredAt ?? now)),
-        ] as const,
+      (w) =>
+        [Date.parse(w.from), Math.min(end, Date.parse(w.to ?? now))] as const,
     )
     .filter(
       ([start, stop]) =>

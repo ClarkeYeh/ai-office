@@ -153,7 +153,10 @@ describe('nudge protocol', () => {
       'runtime',
     );
     expect(
-      sim.eventsOf('timer.cancelled').map((e) => e.payload.reason),
+      sim
+        .eventsOf('timer.cancelled')
+        .filter((e) => !e.payload.timerId.includes('/spawn-stall/'))
+        .map((e) => e.payload.reason),
     ).toEqual(['satisfied']);
     sim.advance(NUDGE_GRACE_MS * 2);
     expect(sim.internal.some((c) => c.type === 'OpenGate')).toBe(false);

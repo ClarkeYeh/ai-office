@@ -215,7 +215,10 @@ export class Simulator {
     const target = this.now + ms;
     while (!this.paused) {
       const due = Object.values(this.state.timers)
-        .filter((timer) => Date.parse(timer.fireAt) <= target)
+        .filter(
+          (timer) =>
+            timer.pausedAt === undefined && Date.parse(timer.fireAt) <= target,
+        )
         .sort(
           (a, b) =>
             Date.parse(a.fireAt) - Date.parse(b.fireAt) ||
@@ -265,7 +268,11 @@ export class Simulator {
 
   /** The runner's timer delivery: fires only a pending timer, never while paused. */
   private fire(timerId: string): void {
-    if (Object.hasOwn(this.state.timers, timerId) && !this.paused)
+    if (
+      Object.hasOwn(this.state.timers, timerId) &&
+      this.state.timers[timerId]!.pausedAt === undefined &&
+      !this.paused
+    )
       this.append(this.draft('timer.fired', { timerId }));
   }
 
@@ -389,7 +396,11 @@ export class Simulator {
       !this.paused
     )
       Object.values(this.state.timers)
-        .filter((timer) => Date.parse(timer.fireAt) <= this.now)
+        .filter(
+          (timer) =>
+            timer.pausedAt === undefined &&
+            Date.parse(timer.fireAt) <= this.now,
+        )
         .sort(
           (a, b) =>
             Date.parse(a.fireAt) - Date.parse(b.fireAt) ||

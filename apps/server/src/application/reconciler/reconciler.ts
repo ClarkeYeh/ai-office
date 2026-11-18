@@ -170,9 +170,12 @@ export class Reconciler {
           name: command.args.name,
           commandId,
         });
+        // Only a pinned sha base is comparable (§6.5); an unpinned `origin/<x>`
+        // base matches by commandId and keeps the sha recorded at creation.
         if (
           result &&
           command.args.fetchBranch !== undefined &&
+          /^[0-9a-f]{40}$/.test(command.args.baseBranch) &&
           result.baseSha !== command.args.baseBranch
         )
           throw new PortError(

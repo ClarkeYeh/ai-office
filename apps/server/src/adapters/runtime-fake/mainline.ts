@@ -43,3 +43,15 @@ export const mainlineScenario: RuntimeScenario = {
     integrator: { spawn: integration },
   },
 };
+
+/** The mainline scenario with the given roles spawned silent (spawn stall, §7.1). */
+export const withSilentRoles = (
+  roles: readonly string[],
+  base: RuntimeScenario = mainlineScenario,
+): RuntimeScenario => ({
+  ...base,
+  roles: {
+    ...base.roles,
+    ...Object.fromEntries(roles.map((role) => [role, { silent: true }])),
+  },
+});

@@ -12,3 +12,9 @@ export type {
   InstanceLock,
   RuntimeInfo,
 } from './instance-lock.js';
+export {
+  resolveExecutable,
+  resolveRuntimeConfig,
+  subprocessEnvironments,
+  codexEnvironmentWarnings,
+} from './runtime-config.js';

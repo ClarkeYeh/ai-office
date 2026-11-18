@@ -99,9 +99,9 @@ const rerun = (ctx: ReactContext, gate: Gate): Effect[] => {
         stageId: stage.id,
         attempt: stage.attempt,
         reason:
-          gate.exceptionKind === 'stage-violation'
-            ? 'violation'
-            : 'budget_hard_limit',
+          gate.exceptionKind === 'budget-hard-limit'
+            ? 'budget_hard_limit'
+            : 'violation',
         detail: gate.gateId,
       }),
     ];
@@ -317,6 +317,15 @@ export const exceptionsPolicy: Policy = (ctx) => {
   if (event.type === 'seat.policy_violation') {
     const attempt = ctx.state.attempts[event.payload.attemptId];
     if (!attempt) return [];
+    // A worker that run-uses another run hijacks it (M2-T16 P4). Reclaiming
+    // the run is the gate's job; stop the offender once, whatever the severity.
+    // Our own rebinds go through CoordinatorIdentity, never an attempt transcript.
+    if (event.payload.hits.some((h) => h.rule === 'orca-run-use'))
+      return ctx.state.commands[
+        commandId(ctx, 'stop', attempt.attemptId, 'run-use')
+      ]
+        ? []
+        : stopAttempt(ctx, attempt, 'run-use');
     if (event.payload.hits.some((h) => h.severity === 'high'))
       return stopAttempt(ctx, attempt, 'policy', event.id);
     return attempt.agentRef
@@ -466,6 +475,12 @@ export const exceptionsPolicy: Policy = (ctx) => {
         !gate.content.itemKey &&
         ((gate.exceptionKind === 'stage-violation' &&
           ['rerun', 'reassign'].includes(gate.decision?.optionId ?? '')) ||
+          // A stalled stage agent retries as a stage rerun; on-demand
+          // instances are replaced by their own queue handling (§7.5).
+          (gate.exceptionKind === 'spawn-stall' &&
+            ['retry', 'reassign'].includes(gate.decision?.optionId ?? '') &&
+            ctx.state.attempts[gate.content.attemptId ?? '']?.ondemand ===
+              undefined) ||
           (gate.exceptionKind === 'budget-hard-limit' &&
             gate.decision?.optionId === 'top-up-rerun'))
       )

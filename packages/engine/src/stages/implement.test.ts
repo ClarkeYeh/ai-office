@@ -80,6 +80,12 @@ function setup(
     },
   };
 }
+const workerPrs = (sim: Simulator) =>
+  sim
+    .eventsOf('artifact.created')
+    .flatMap(({ payload: p }) =>
+      p.kind === 'pr' && p.purpose === 'worker' ? [p] : [],
+    );
 const done = (sim: Simulator, key: string) =>
   sim.dispatch({
     type: 'ObserveAttemptStatus',
@@ -126,6 +132,29 @@ it('golden: parallel workers queue PRs and only merged dependencies unlock a fre
   done(sim, 'C');
   merge(sim, 'C');
   expect(sim.state.stages.implement?.status).toBe('done');
+  // Each worker PR is recorded once, before its item is queued for merge.
+  const integration = sim.state.workflow!.integrationBranch;
+  expect(workerPrs(sim)).toEqual(
+    ['A', 'B', 'C'].map((key) => ({
+      kind: 'pr',
+      artifactId: expect.any(String),
+      number: sim.state.workItems[key]!.pr,
+      url: `https://github.com/octo/demo/pull/${sim.state.workItems[key]!.pr}`,
+      purpose: 'worker',
+      head: sim.state.workItems[key]!.branch,
+      base: integration,
+      itemKey: key,
+    })),
+  );
+  for (const key of ['A', 'B', 'C']) {
+    const seqOf = (type: 'artifact.created' | 'workitem.merge_queued') =>
+      sim
+        .eventsOf(type)
+        .find((e) => 'itemKey' in e.payload && e.payload.itemKey === key)!.seq;
+    expect(seqOf('artifact.created')).toBeLessThan(
+      seqOf('workitem.merge_queued'),
+    );
+  }
   expect(sim.liveAgents()).toBe(0);
   expect(sim.rejections).toEqual([]);
   expect(sim.warnings).toEqual([]);
@@ -133,7 +162,9 @@ it('golden: parallel workers queue PRs and only merged dependencies unlock a fre
     sim
       .trace()
       .filter((l) =>
-        /workitem\.|stage.completed|scm.compareBranch|scm.openPR/.test(l),
+        /workitem\.|stage.completed|scm.compareBranch|scm.openPR|artifact.created/.test(
+          l,
+        ),
       ),
   ).toMatchSnapshot();
 });
@@ -146,9 +177,7 @@ it('counts on-demand agents against the global limit', () => {
   expect(sim.rejections).toEqual([]);
 });
 
-it('reworks on the same branch and PR with a fresh workspace and attempt', () => {
-  const { sim } = setup({ items: [item('A')] });
-  done(sim, 'A');
+const requestRework = (sim: Simulator) => {
   const first = { ...sim.state.workItems.A! };
   sim.inject('workitem.rework_requested', {
     itemKey: 'A',
@@ -158,32 +187,153 @@ it('reworks on the same branch and PR with a fresh workspace and attempt', () =>
     reasons: ['Add a regression test'],
     rework: 1,
   });
+  return first;
+};
+const spawnedWorkspace = (sim: Simulator) =>
+  sim.issued
+    .filter((c) => c.command.kind === 'runtime.spawnAgent')
+    .map((c) =>
+      c.command.kind === 'runtime.spawnAgent' &&
+      c.command.args.workspace.kind === 'existing-worktree'
+        ? c.command.args.workspace.workspace
+        : undefined,
+    );
+
+it('reworks in the kept worktree of the previous attempt on the same branch and PR (W1)', () => {
+  const { sim } = setup({ items: [item('A')] });
+  done(sim, 'A');
+  const firstAttempt = sim.state.workItems.A!.currentAttemptId!;
+  const first = requestRework(sim);
   expect(sim.state.workItems.A).toMatchObject({
     attempt: 2,
     branch: first.branch,
     pr: first.pr,
     reworkOf: 'review-1',
+    status: 'in_progress',
+  });
+  const kinds = sim.issued.map((c) => c.command.kind);
+  const after = kinds.slice(kinds.lastIndexOf('scm.compareBranch'));
+  expect(after).toEqual([
+    'scm.compareBranch',
+    'runtime.release',
+    'runtime.inspectWorkspace',
+    'runtime.spawnAgent',
+  ]);
+  expect(
+    sim.issued.find((c) => c.command.kind === 'runtime.release')?.command,
+  ).toMatchObject({ args: { removeWorkspace: false } });
+  expect(sim.state.attempts[firstAttempt]).toMatchObject({
+    released: true,
+    removeWorkspace: false,
   });
   expect(
-    sim.issued
-      .filter((c) => c.command.kind === 'runtime.prepareWorkspace')
-      .at(-1)?.command,
-  ).toMatchObject({
-    args: {
-      checkoutExisting: true,
-      branch: first.branch,
-      fetchBranch: first.branch,
-      name: `${first.workspaceName}-r1`,
-    },
-  });
+    sim.issued.filter((c) => c.command.kind === 'runtime.prepareWorkspace'),
+  ).toHaveLength(1);
+  const [kept, reused] = spawnedWorkspace(sim);
+  expect(reused).toBe(kept);
   done(sim, 'A');
   expect(sim.state.workItems.A?.status).toBe('merge_queued');
   expect(
     sim.issued.filter((c) => c.command.kind === 'scm.openPR'),
   ).toHaveLength(1);
+  // Same branch, same PR: rework does not record the PR again.
+  expect(workerPrs(sim).map((p) => p.number)).toEqual([first.pr]);
   merge(sim, 'A');
+  expect(
+    sim.issued
+      .filter((c) => c.command.kind === 'runtime.release')
+      .map((c) => c.command.kind === 'runtime.release' && c.command.args),
+  ).toEqual([
+    expect.objectContaining({ removeWorkspace: false }),
+    expect.objectContaining({ removeWorkspace: true }),
+  ]);
   expect(sim.liveAgents()).toBe(0);
   expect(sim.rejections).toEqual([]);
+});
+
+it.each([
+  {
+    name: 'dirty: disposes it, then checks the branch out fresh',
+    inspect: {
+      ok: true as const,
+      result: { clean: false, changedFiles: ['notes.txt'] },
+    },
+    steps: ['runtime.disposeWorkspace', 'runtime.prepareWorkspace'],
+  },
+  {
+    name: 'missing: checks the branch out fresh',
+    inspect: {
+      ok: false as const,
+      error: {
+        category: 'guard' as const,
+        code: 'unknown_workspace',
+        message: 'gone',
+        retryable: false,
+      },
+    },
+    steps: ['runtime.prepareWorkspace'],
+  },
+])(
+  'rework falls back to checkoutExisting when the kept worktree is $name',
+  ({ inspect, steps }) => {
+    const { sim } = setup({
+      items: [item('A')],
+      world: (issued) =>
+        issued.command.kind === 'runtime.inspectWorkspace'
+          ? inspect
+          : undefined,
+    });
+    done(sim, 'A');
+    const first = requestRework(sim);
+    const kinds = sim.issued.map((c) => c.command.kind);
+    expect(
+      kinds.slice(kinds.lastIndexOf('runtime.inspectWorkspace') + 1),
+    ).toEqual([...steps, 'runtime.spawnAgent']);
+    expect(
+      sim.issued
+        .filter((c) => c.command.kind === 'runtime.prepareWorkspace')
+        .at(-1)?.command,
+    ).toMatchObject({
+      args: {
+        checkoutExisting: true,
+        branch: first.branch,
+        fetchBranch: first.branch,
+        baseBranch: sim.state.workItems.A!.baseSha,
+        name: `${first.workspaceName}-r1`,
+      },
+    });
+    const [kept, fresh] = spawnedWorkspace(sim);
+    expect(fresh).toBe(`ws:${first.workspaceName}-r1`);
+    expect(fresh).not.toBe(kept);
+    done(sim, 'A');
+    merge(sim, 'A');
+    expect(sim.state.workItems.A?.status).toBe('merged');
+    expect(sim.rejections).toEqual([]);
+  },
+);
+
+it('fails a rework whose previous attempt cannot be released', () => {
+  const { sim } = setup({
+    items: [item('A')],
+    world: (issued) =>
+      issued.command.kind === 'runtime.release'
+        ? {
+            ok: false,
+            error: {
+              category: 'guard',
+              code: 'release_unknown',
+              message: 'release failed',
+              retryable: false,
+            },
+          }
+        : undefined,
+  });
+  done(sim, 'A');
+  requestRework(sim);
+  expect(sim.state.workItems.A?.status).toBe('needs_attention');
+  expect(
+    sim.issued.filter((c) => c.command.kind === 'runtime.inspectWorkspace'),
+  ).toHaveLength(0);
 });
 
 it('raises transitive dependency exceptions when a prerequisite fails', () => {
@@ -291,6 +441,12 @@ it('a failed-attempt retry uses -a2, changes agent, and closes and links the old
   expect(
     sim.issued.filter((c) => c.command.kind === 'scm.comment').at(-1)?.command,
   ).toMatchObject({ args: { body: expect.stringContaining('/pull/21') } });
+  // The retry opened a new PR on a new branch, so it gets its own artifact.
+  expect(workerPrs(sim).map((p) => [p.number, p.head])).toEqual([
+    [first.pr, first.branch],
+    [21, 'ai-office/ab12/A-a2'],
+  ]);
+  expect(sim.state.workItems.A?.pr).toBe(21);
   expect(sim.rejections).toEqual([]);
 });
 

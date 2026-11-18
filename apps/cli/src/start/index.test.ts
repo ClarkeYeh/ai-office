@@ -97,6 +97,30 @@ describe('ai-office start', () => {
     expect(await new Promise((done) => cli.once('exit', done))).toBe(0);
   }, 60_000);
 
+  it('the backend closes cleanly on a stop right after printing its bootstrap URL', async () => {
+    // The URL is printed before startServer resolves, and `start` forwards
+    // Ctrl-C as soon as it can: the backend must close, not die by signal.
+    const directory = home();
+    const server = spawn(
+      process.execPath,
+      [serverPath, '--dev', '--fake', 'mainline', '--port', '0'],
+      {
+        env: { ...process.env, AI_OFFICE_HOME: directory },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    let output = '';
+    server.stdout.on('data', (chunk) => {
+      output += String(chunk);
+      if (output.includes('/auth/bootstrap?code=')) server.kill('SIGTERM');
+    });
+    const [code, signal] = await new Promise<unknown[]>((done) =>
+      server.once('exit', (...result) => done(result)),
+    );
+    expect({ code, signal }).toEqual({ code: 0, signal: null });
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+  }, 30_000);
+
   it('shuts down gracefully when SIGTERM repeats during shutdown', async () => {
     const directory = home();
     const child = spawn(

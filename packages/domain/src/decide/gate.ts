@@ -17,6 +17,7 @@ import { validateWorkItemDrafts } from './workitem-drafts.js';
 export const EXCEPTION_OPTIONS = {
   ...WORKITEM_EXCEPTION_OPTIONS,
   'stage-violation': ['rerun', 'reassign', 'abort'],
+  'spawn-stall': ['retry', 'reassign', 'abort'],
   'workitem-failed': ['retry', 'reassign', 'skip', 'abort'],
   'budget-exceeded': ['top-up', 'finish', 'abort'],
   'budget-hard-limit': ['top-up-rerun', 'use-output', 'abort'],
