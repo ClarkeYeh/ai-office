@@ -11,6 +11,7 @@ export type {
   GateQuiet,
   GateStatus,
   GateView,
+  WorkflowModel,
 } from './gateHeader.js';
 export {
   conclusionFromDraft,

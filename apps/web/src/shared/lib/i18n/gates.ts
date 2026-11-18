@@ -33,6 +33,7 @@ export const gatesMessagesZhTW = {
     '注意：還有 {count} 個 agent 看起來在執行（{who}）。階段關卡開啟時應該沒有任何 agent 在執行。',
   'gates.thumbnail': '靜場的辦公室：只有你的辦公室亮燈',
   'gates.decision': '決策',
+  'gates.replayReadOnly': '正在回放歷史狀態，回到即時後才能決策。',
   'gates.needs': '需要你：{title}',
   'gates.needsStage': '{total} 個階段關卡的第 {index} 個。',
   'gates.decidedNote': '{status}（{by}決定）。',

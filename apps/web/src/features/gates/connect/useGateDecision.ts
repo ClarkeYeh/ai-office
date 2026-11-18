@@ -5,6 +5,7 @@ import {
   type ApiBody,
   type ApiClient,
 } from '../../../api/index.js';
+import { useWebState } from '../../../realtime/index.js';
 import { t, type MessageKey } from '../../../shared/lib/i18n/index.js';
 import type { GateView } from '../model/index.js';
 
@@ -52,9 +53,12 @@ export function useGateDecision(
   const [notice, setNotice] = useState<GateNoticeState | null>(null);
   const [conflicts, setConflicts] = useState(0);
   const action = useRef<{ fingerprint: string; key: string } | null>(null);
+  const replaying = useWebState((state) => state.replay !== null);
   const { gateId, version } = gate;
   const decide = useCallback(
     async (body: DecisionBody, success: MessageKey) => {
+      // Never decide from a historical state (T14 replay).
+      if (replaying) return false;
       const request = { ...body, expectedVersion: version };
       const fingerprint = JSON.stringify([gateId, request]);
       const key =
@@ -92,7 +96,7 @@ export function useGateDecision(
         setPending(false);
       }
     },
-    [api, gateId, version, refetch],
+    [api, gateId, version, refetch, replaying],
   );
   return { pending, notice, conflicts, decide };
 }
