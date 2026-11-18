@@ -14,5 +14,13 @@ export { DispatchLedger } from './ledger.js';
 export * from './refs.js';
 export * from './env-allowlist.js';
 export type * from './coordinator-identity/index.js';
+export {
+  ShimCoordinatorIdentity,
+  shimMarker,
+} from './coordinator-identity/shim.js';
+export type {
+  ShimIdentityOptions,
+  IdentityHealth,
+} from './coordinator-identity/shim.js';
 export type * from './observe/index.js';
 export type { AdapterState } from './state.js';

@@ -51,3 +51,33 @@ receipts: only orchestration mutate/consume commands receive `--full` and
 `--retry-request`, and require a shim identity. This resolves the general T3
 wording against SPEC §6.5's explicit native-command exception; T4 remains
 responsible for bootstrap/reclaim identity policy.
+
+## CoordinatorIdentity (M2-T4)
+
+`ShimCoordinatorIdentity` implements SPEC §6.2 F2. Shim title
+`AI Office · 請勿關閉 aio-shim:<sha256(dataDir)[0:12]>`; state lives under
+`orca:shim` (handle, incarnation, location, handle history, per-run
+`coordinator_handle`/`consumer_generation`/hijacked flag).
+
+- Location: `folder-workspace` = `<dataDir>/orca-home`, detected via `repo list`;
+  never registered here. Unregistered → `guard{shim_folder_workspace_unregistered}`,
+  or the configured `repoMainWorktree` with the `shim_folder_fallback` warning.
+- `ensure({force})`: 30 s throttle unless forced (startup, identity errors).
+  `terminal list --worktree path:<location>`: the stored handle with an unchanged
+  incarnation is reused (P2a: titles may be null after an app restart). Otherwise
+  the newest title-matching shim is adopted or a new one created; other
+  title-matching shims are closed. Runs bound to a previous shim of ours (and not
+  hijacked) get one `run-use` each and their new generation is recorded at once;
+  then `runtime.identity_restored` is queued.
+- `checkOwnership(run, {force})`: per-run 30 s throttle; `run-show --full`; a
+  different handle or generation queues `runtime.identity_hijacked` once per
+  generation. Never takes the run back.
+- `withIdentity(run, op)`: `identity` → `ensure({force})` + one retry of `op`
+  (which keeps its request id); `hijacked` (`consumer_fenced`) → immediate
+  ownership check, then rethrow.
+- `reclaimSession(run)` is idempotent; `track`/`untrack` register runs (T5 on
+  run-create); `drainEvents()` hands identity events to T6, whose backfill and
+  check re-issue follow `identity_restored`; `health()` feeds T10; `close()`
+  honours `orca.shim.closeOnExit`.
+- `RunOptions.terminal` (additive) carries the native `terminal show|read|close`
+  target; `argsFor` only permits closing shims this class matched by title.

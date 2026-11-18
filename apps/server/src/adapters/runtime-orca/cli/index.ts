@@ -79,6 +79,7 @@ export class DefaultOrcaCli implements OrcaCli {
     const identity = await this.options.identity.argsFor(opts.kind, opts.run, {
       command: args.slice(0, 2),
       ...(opts.mailbox ? { mailbox: opts.mailbox } : {}),
+      ...(opts.terminal ? { terminal: opts.terminal } : {}),
     });
     if (orchestration && opts.kind === 'mutate' && !identity.includes('--from'))
       throw guard('mutate_identity_required');
