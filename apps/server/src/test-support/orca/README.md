@@ -25,7 +25,7 @@ Set `AIO_REAL_ORCA=1`, `AIO_TEST_REPO_PATH` to the spike clone,
 origins identify the same repository; lookalike hosts/repos are rejected.
 The owner-approved `~/.ai-office/orca-home` folder must already be registered.
 
-Run `pnpm test:orca --maxWorkers=2` or `pnpm orca:record smoke`. The lifecycle is
+Run `pnpm test:orca` (files run serially; the leak scan is global) or `pnpm orca:record smoke`. The lifecycle is
 shim → run → pre-created local branch → worktree → cleanup. No agent is launched.
 Each file/session has its own private temporary dataDir; set `AI_OFFICE_HOME` to
 `harness.ledger.dataDir` when launching a test backend. Do not mutate global env

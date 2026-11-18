@@ -23,6 +23,9 @@ export default defineConfig({
         test: {
           name: '@ai-office/server-orca',
           include: ['apps/server/src/**/*.orca.test.ts'],
+          // Live files share one Orca and a global post-cleanup leak scan,
+          // so a concurrent file's resources would false-fail another file.
+          fileParallelism: false,
         },
       },
       {
