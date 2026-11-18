@@ -12,6 +12,8 @@ const EntrySchema = z.object({
   attemptId: z.string().optional(),
   keepOpen: z.boolean(),
   stoppedByBackend: z.boolean(),
+  /** Last terminal Orca reported for this dispatch (M2-FX12 D10 follow-up). */
+  terminal: z.string().optional(),
 });
 export type LedgerEntry = z.infer<typeof EntrySchema>;
 const WorkerSchema = z.object({
@@ -159,16 +161,28 @@ export class DispatchLedger {
     },
   ) {
     const parent = this.byDispatch(parentDispatch);
+    // Once Orca's turn owns the resource, the origin row reports no
+    // terminal: fall back to the one it reported while it owned it.
     if (
       !trustedOrigin(parent, seen.run) ||
       dispatch === parentDispatch ||
       !seen.terminal ||
-      seen.terminal !== seen.originTerminal
+      seen.terminal !== (seen.originTerminal ?? parent.terminal)
     )
       return undefined;
     if (!this.byDispatch(dispatch))
       this.commit([...this.entries, native(dispatch, parent)]);
     return this.agentFor(dispatch);
+  }
+  /** Remember the terminal Orca reports for one of our dispatches. */
+  noteTerminal(dispatch: string, terminal: string | null | undefined): void {
+    const entry = this.byDispatch(dispatch);
+    if (!terminal || !entry || entry.terminal === terminal) return;
+    this.commit(
+      this.entries.map((e) =>
+        e.dispatch === dispatch ? { ...e, terminal } : e,
+      ),
+    );
   }
   stopped(dispatch: string): void {
     if (!this.byDispatch(dispatch)) throw guard('ledger_dispatch_unknown');
@@ -213,6 +227,7 @@ export class DispatchLedger {
           worker.resource?.retainedReason === 'user_requested',
         stoppedByBackend: previous?.stoppedByBackend ?? false,
         ...(previous?.attemptId ? { attemptId: previous.attemptId } : {}),
+        ...(previous?.terminal ? { terminal: previous.terminal } : {}),
       };
       const index = next.findIndex((e) => sameCommand(e.commandId, commandId));
       if (index < 0) next.push(recovered);
@@ -239,7 +254,10 @@ export class DispatchLedger {
           !entry &&
           trustedOrigin(parent, run) &&
           terminal &&
-          terminal === (origin?.agentTerminalHandle ?? origin?.terminal)
+          terminal ===
+            (origin?.agentTerminalHandle ??
+              origin?.terminal ??
+              parent!.terminal)
         )
           next.push(native(worker.dispatchId, parent!));
         if (entry && parent && entry !== parent) {

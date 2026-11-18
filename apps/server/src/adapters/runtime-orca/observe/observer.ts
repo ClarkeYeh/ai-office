@@ -810,11 +810,13 @@ export class OrcaObserver {
     );
     if (!listed.ok) return this.recover(b, listed.error);
     const groups = new Map<AgentRef, Worker[]>();
-    for (const worker of listed.data.workers)
-      b.terminals.set(
-        worker.dispatchId,
-        worker.agentTerminalHandle ?? worker.terminal,
-      );
+    for (const worker of listed.data.workers) {
+      const terminal = worker.agentTerminalHandle ?? worker.terminal;
+      b.terminals.set(worker.dispatchId, terminal);
+      // D10 adoption needs it after Orca's own turn takes the resource.
+      if (worker.runId === b.run)
+        this.options.ledger.noteTerminal(worker.dispatchId, terminal);
+    }
     for (const worker of listed.data.workers) {
       if (worker.runId !== b.run) continue;
       if (p.seen[worker.dispatchId] === 'unmanaged') continue;

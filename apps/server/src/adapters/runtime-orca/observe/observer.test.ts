@@ -50,6 +50,8 @@ type W = {
   origin?: string | null;
   parent?: unknown;
   provider?: string;
+  /** Agent terminal handle; default `term_x`, null once the resource moved. */
+  terminal?: string | null;
 };
 type TxMessage = { id: string; role: string; text: string };
 const ok = (result: unknown) => JSON.stringify({ ok: true, result });
@@ -197,7 +199,8 @@ class World {
             runId: RUN,
             workerState: w.workerState ?? 'ready',
             dispatchStatus: 'dispatched',
-            agentTerminalHandle: 'term_x',
+            agentTerminalHandle:
+              w.terminal === undefined ? 'term_x' : w.terminal,
             terminalState: w.terminalState ?? 'retained',
             coordinatedFrom: null,
             resource:
@@ -772,6 +775,44 @@ describe('OrcaObserver: mapping', () => {
     expect(
       ofType(next.events, 'agent.unmanaged').map((e) => e.dispatch),
     ).toEqual(['ctx_x']);
+  });
+
+  it("adopts Orca's own turn after the origin row lost its terminal (M2-FX12 D10)", async () => {
+    // Live FX12 run: once Orca's "New messages" turn owns the resource, the
+    // on-call row reports resource null and no terminal.
+    spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    const origin = r.world.workers[0]!;
+    origin.owner = null;
+    origin.terminal = null;
+    origin.workerState = 'succeeded';
+    r.world.tasks.push({ id: 'task_n', title: 'New messages' });
+    r.world.workers.push({
+      dispatchId: 'ctx_n',
+      taskId: 'task_n',
+      origin: 'ctx_a',
+    });
+    r.world.tasks.push({ id: 'task_x', title: 'New messages' });
+    r.world.workers.push({
+      dispatchId: 'ctx_x',
+      taskId: 'task_x',
+      origin: 'ctx_a',
+      terminal: 'term_other',
+    });
+    const next = await r.observe(first.cursor);
+    expect(
+      ofType(next.events, 'agent.unmanaged').map((e) => e.dispatch),
+    ).toEqual(['ctx_x']);
+    expect(r.ledger.agentFor('ctx_n')).toBe('ctx_a');
+    // The remembered terminal survives a rebuild of the same ledger.
+    r.ledger.rebuild(
+      RUN,
+      {
+        workers: [{ dispatchId: 'ctx_a', taskId: 'task_ctx_a', runId: RUN }],
+      },
+      { tasks: [{ id: 'task_ctx_a', title: 'aio:cmd-ctx_a work' }] },
+    );
+    expect(r.ledger.byDispatch('ctx_a')?.terminal).toBe('term_x');
   });
 
   it('persists only the id of a held question and refetches its body on release', async () => {
