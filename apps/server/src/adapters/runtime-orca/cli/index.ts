@@ -48,6 +48,7 @@ export class DefaultOrcaCli implements OrcaCli {
       'orchestration worker-show',
       'orchestration worker-read',
       'orchestration run-show',
+      'orchestration run-list',
       'orchestration task-list',
       'orchestration request-show',
       'orchestration inbox',
