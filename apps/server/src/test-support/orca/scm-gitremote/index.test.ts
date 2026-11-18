@@ -52,7 +52,8 @@ async function fixture() {
 }
 scmPortContract(fixture);
 
-describe('git remote SCM', () => {
+// Each case runs dozens of git subprocesses; 5 s is too tight on a loaded machine.
+describe('git remote SCM', { timeout: 30_000 }, () => {
   let f: Awaited<ReturnType<typeof fixture>> | undefined;
   afterEach(async () => {
     await f?.dispose();
