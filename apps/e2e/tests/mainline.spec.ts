@@ -18,9 +18,11 @@ test('mainline reaches the final PR and ends only after an explicit merge', asyn
   page,
 }) => {
   await office().login(page);
-  await expect(page.locator('#root')).not.toBeEmpty();
+  await expect(page.getByTestId('home-link')).toBeVisible();
 
   const workflowId = await startWorkflow(office());
+  // The live overview lists the new workflow without a reload.
+  await expect(page.getByTestId(`workflow-${workflowId}`)).toBeVisible();
   await approveStageGates(office(), workflowId, (_model, open) =>
     open.some((gate) => gate.stageKind === 'final-pr'),
   );

@@ -15,7 +15,7 @@ test('the bootstrap URL logs the browser in once and lands on /', async ({
   expect(new URL(page.url()).pathname).toBe('/');
   // The one-time code must not stay in the address bar or history.
   expect(page.url()).not.toContain('code=');
-  await expect(page.locator('#root')).not.toBeEmpty();
+  await expect(page.getByTestId('home-link')).toBeVisible();
 
   const session = (await context.cookies(office().url)).find(
     (cookie) => cookie.name === 'aio_session',
@@ -34,6 +34,9 @@ test('the bootstrap URL logs the browser in once and lands on /', async ({
     expect(reused.headers()['set-cookie']).toBeUndefined();
     const denied = await other.request.get(office().url + '/api/v1/health');
     expect(denied.status()).toBe(401);
+    const anonymous = await other.newPage();
+    await anonymous.goto(office().url + '/');
+    await expect(anonymous.getByTestId('auth-required')).toBeVisible();
   } finally {
     await other.close();
   }

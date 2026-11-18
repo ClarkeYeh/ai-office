@@ -36,8 +36,10 @@ test('the built UI is served same-origin, including client-side routes', async (
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await office().login(page);
-  await expect(page).toHaveTitle('AI Office');
-  await expect(page.locator('#root')).not.toBeEmpty();
+  await expect(page).toHaveTitle(/AI Office/);
+  await expect(page.getByTestId('home-link')).toBeVisible();
+  // health.runtime.mode === 'fake' reaches the UI as a banner (Q7).
+  await expect(page.getByTestId('banner-fake')).toBeVisible();
   const deep = await page.goto(office().url + '/workflows/unknown');
   expect(deep?.status()).toBe(200);
   expect(deep?.headers()['content-type']).toContain('text/html');
