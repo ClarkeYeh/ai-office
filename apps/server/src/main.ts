@@ -672,22 +672,30 @@ export function parseArgs(argv: readonly string[]): StartOptions {
 }
 
 async function main(argv: readonly string[]): Promise<void> {
-  let server: RunningServer;
-  try {
-    server = await startServer(parseArgs(argv));
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : 'Startup failed');
-    process.exitCode = 1;
-    return;
-  }
+  // Listen before starting: the bootstrap URL is printed (and runtime.json
+  // written) before startServer resolves, so a stop can arrive mid-startup.
+  // It then closes the server once it is up instead of killing it outright.
+  const starting = (async () => startServer(parseArgs(argv)))().catch(
+    (error: unknown) => {
+      console.error(error instanceof Error ? error.message : 'Startup failed');
+      process.exitCode = 1;
+      return undefined;
+    },
+  );
   let stopping = false;
   const stop = () => {
     if (stopping) return;
     stopping = true;
-    void server.close().finally(() => process.exit(process.exitCode ?? 0));
+    void starting
+      .then((server) => server?.close())
+      .finally(() => process.exit(process.exitCode ?? 0));
   };
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
+  if ((await starting) === undefined) {
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+  }
 }
 
 if (
