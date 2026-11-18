@@ -29,6 +29,7 @@ import {
 } from './checks.js';
 import {
   adoptRun,
+  agentCliWrapper,
   backendHome,
   decide,
   drive,
@@ -123,7 +124,10 @@ export const ITEMS = [
   },
 ];
 
-/** Holds every SCM call until the workflow namespace claim is journaled. */
+/** Git-writing SCM calls; issues, labels and PRs live in memory. */
+const SCM_WRITES = new Set(['ensureBranch', 'deleteBranch', 'mergePR']);
+
+/** Holds every SCM write until the workflow namespace claim is journaled. */
 function gatedScm(
   inner: GitRemoteScm,
   claimed: Promise<void>,
@@ -134,9 +138,10 @@ function gatedScm(
       const value = Reflect.get(target, property, target) as unknown;
       if (typeof value !== 'function') return value;
       const bound = (value as (...a: unknown[]) => unknown).bind(target);
-      if (property === 'health' || property === 'inspectRepo') return bound;
+      if (property !== 'openPR' && !SCM_WRITES.has(String(property)))
+        return bound;
       return async (...args: unknown[]) => {
-        await claimed;
+        if (SCM_WRITES.has(String(property))) await claimed;
         const result = await bound(...args);
         if (
           property === 'openPR' &&
@@ -176,6 +181,7 @@ export async function run(h: OrcaHarness): Promise<void> {
     env: { ...process.env, AI_OFFICE_HOME: dir },
     webDist: join(dir, 'no-web'),
     print: () => undefined,
+    cliPath: await agentCliWrapper(dir),
     ...seam,
     testOnly: { ...testOnly, scm },
   });

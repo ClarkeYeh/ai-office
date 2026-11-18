@@ -4,7 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { PortError } from '../../../ports/errors.js';
-import { assertTestRepo, repoIdentity, testBranch } from '../safety.js';
+import {
+  assertTestRepo,
+  claimedBranch,
+  repoIdentity,
+  testBranch,
+} from '../safety.js';
 import type { ResourceLedger } from '../ledger.js';
 
 const execute = promisify(execFile);
@@ -165,6 +170,13 @@ export class TestGitRemote {
       (b) => b.id === branch && !b.done,
     );
     if (entry) return;
+    // T17: an active workflow-namespace claim proves ownership of every branch
+    // in it (workers push their own); ledger it so cleanup deletes it.
+    if (claimedBranch(branch, this.claims())) {
+      harness.ledger.remoteBranches.push({ id: branch, done: false });
+      await harness.persist();
+      return;
+    }
     if (!creating || (await this.heads()).has(branch))
       throw new PortError(
         'guard',

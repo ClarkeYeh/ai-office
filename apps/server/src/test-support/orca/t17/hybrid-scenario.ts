@@ -28,6 +28,7 @@ import {
 } from './checks.js';
 import {
   adoptRun,
+  agentCliWrapper,
   backendHome,
   drive,
   events,
@@ -81,10 +82,12 @@ export async function run(h: OrcaHarness): Promise<void> {
     templates: { 't17-feature-to-pr.yaml': await builtinWithoutEffort() },
   });
   const effects = await h.composedBackend(dir);
+  const cliPath = await agentCliWrapper(dir);
   let backend: BackendProcess = await startBackendProcess({
     home: dir,
     orcaHome,
     effects,
+    cliPath,
     logName: 'backend-1.log',
   });
   await effects.settle();
@@ -156,6 +159,7 @@ export async function run(h: OrcaHarness): Promise<void> {
       backend = await startBackendProcess({
         home: dir,
         orcaHome,
+        cliPath,
         logName: 'backend-2.log',
       });
       api = await session(backend.url, backend.bootstrapUrl);
