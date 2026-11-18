@@ -470,3 +470,19 @@ describe('git and versions', () => {
     });
   });
 });
+
+it('delays call 121 until the oldest start leaves the sliding window', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  const scheduler = new CliScheduler();
+  const work = vi.fn(async () => {});
+  const calls = Array.from({ length: 121 }, () =>
+    scheduler.schedule('worker-read', work),
+  );
+  await vi.advanceTimersByTimeAsync(59_999);
+  expect(work).toHaveBeenCalledTimes(120);
+  await vi.advanceTimersByTimeAsync(1);
+  await Promise.all(calls);
+  expect(work).toHaveBeenCalledTimes(121);
+  scheduler.close();
+});

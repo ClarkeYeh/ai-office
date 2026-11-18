@@ -63,7 +63,7 @@ export class DefaultOrcaCli implements OrcaCli {
     const priority = opts.kind === 'read' ? opts.priority : opts.kind;
     return this.scheduler.schedule(priority, async () => {
       if (opts.signal?.aborted) throw guard('cli_aborted');
-      const cwd = await this.options.cwdGuard.check();
+      const cwd = await this.options.cwdGuard.check(false);
       const start = Date.now();
       let failed = true;
       try {

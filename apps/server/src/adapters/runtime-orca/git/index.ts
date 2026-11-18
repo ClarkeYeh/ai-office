@@ -29,7 +29,10 @@ function ref(value: string): string {
   if (
     !value ||
     value.startsWith('-') ||
-    /[\s\x00-\x1f~^:?*\[\\]/.test(value) ||
+    /[\s~^:?*[\\]/.test(value) ||
+    [...value].some(
+      (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+    ) ||
     value.includes('..') ||
     value.includes('@{')
   )

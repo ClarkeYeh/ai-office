@@ -14,9 +14,10 @@ export class CwdGuard {
   ) {
     this.cwd = resolve(dataDir, 'cli-cwd');
   }
-  async check(): Promise<string> {
+  async check(refresh = true): Promise<string> {
     await mkdir(this.cwd, { recursive: true });
     if (this.now() - this.checkedAt >= 60_000) {
+      if (!refresh) throw guard('cwd_inventory_expired');
       this.refresh ??= this.listPaths()
         .then((paths) => {
           this.paths = paths;
