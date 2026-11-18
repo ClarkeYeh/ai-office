@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HealthViewSchema } from '@ai-office/contracts/api';
+import { evolveGlobal, initialGlobalReadModel } from '@ai-office/projection';
 import { PortError } from '../../ports/errors.js';
 import {
   FakeClock,
@@ -23,9 +24,12 @@ import type { HealthComponent } from './health-monitor.js';
 
 const transient = () =>
   new PortError('transient', 'unavailable', 'sensitive raw error');
-function setup(handlers: CommandHandlers = {}, react: RunnerReact = () => []) {
+function setup(
+  handlers: CommandHandlers = {},
+  react: RunnerReact = () => [],
+  store = new InMemoryEventStore(),
+) {
   const clock = new FakeClock();
-  const store = new InMemoryEventStore();
   const probes = {
     runtime: vi.fn(async () => {}),
     scm: vi.fn(async () => {}),
@@ -354,5 +358,119 @@ describe('HealthMonitor', () => {
     expect(
       h.store.read({}).filter((e) => e.type === 'workflow.resumed'),
     ).toHaveLength(1);
+  });
+
+  describe('initial publication (FX5)', () => {
+    const healthEvents = (store: InMemoryEventStore) =>
+      store
+        .read({})
+        .filter((e) => e.type === 'health.changed')
+        .map((e) => e.payload);
+    const projected = (store: InMemoryEventStore) =>
+      store.read({}).reduce(evolveGlobal, initialGlobalReadModel('fake'))
+        .health;
+
+    it('publishes every healthy component and runtimeVerified, so the projection shows no banners', async () => {
+      const h = setup();
+      await h.health.runtimeIdentityVerified(true);
+      expect(healthEvents(h.store)).toEqual([]);
+      await h.health.publishInitial();
+      expect(healthEvents(h.store)).toEqual([
+        {
+          component: 'runtime',
+          status: 'healthy',
+          breaker: 'closed',
+          runtimeVerified: true,
+        },
+        { component: 'scm', status: 'healthy', breaker: 'closed' },
+        { component: 'store', status: 'healthy', breaker: 'closed' },
+        { component: 'usage', status: 'healthy', breaker: 'closed' },
+      ]);
+      for (const probe of Object.values(h.probes))
+        expect(probe).toHaveBeenCalledTimes(1);
+      const view = projected(h.store);
+      expect(view.status).toBe('healthy');
+      for (const component of ['runtime', 'scm', 'store', 'usage'] as const) {
+        expect(view[component].status).toBe('healthy');
+        expect(view[component].checkedAt).toBe(h.clock.now().toISOString());
+      }
+      expect(view.runtime.verified).toBe(true);
+    });
+
+    it('does not republish an unchanged state after a restart', async () => {
+      const first = setup();
+      await first.health.runtimeIdentityVerified(true);
+      await first.health.publishInitial();
+      const restarted = setup(undefined, undefined, first.store);
+      await restarted.health.restore();
+      await restarted.health.runtimeIdentityVerified(true);
+      await restarted.health.publishInitial();
+      await restarted.health.runtimeIdentityVerified(true);
+      expect(healthEvents(restarted.store)).toHaveLength(4);
+      // A changed verdict is published once.
+      await restarted.health.runtimeIdentityVerified(false);
+      await restarted.health.runtimeIdentityVerified(false);
+      expect(healthEvents(restarted.store).slice(4)).toEqual([
+        {
+          component: 'runtime',
+          status: 'healthy',
+          breaker: 'closed',
+          runtimeVerified: false,
+        },
+      ]);
+      expect(projected(restarted.store).runtime.verified).toBe(false);
+    });
+
+    it('corrects a stale persisted outage on restart', async () => {
+      const first = setup();
+      await first.health.publishInitial();
+      await first.fail('scm');
+      expect(projected(first.store).scm.status).toBe('unhealthy');
+      const restarted = setup(undefined, undefined, first.store);
+      await restarted.health.publishInitial();
+      expect(healthEvents(restarted.store).at(-1)).toEqual({
+        component: 'scm',
+        status: 'healthy',
+        breaker: 'closed',
+      });
+      expect(projected(restarted.store).status).toBe('healthy');
+    });
+
+    it('publishes a failed initial probe as degraded, then healthy on the next success', async () => {
+      const h = setup();
+      h.probes.scm.mockRejectedValueOnce(transient());
+      await h.health.publishInitial();
+      expect(projected(h.store).scm.status).toBe('degraded');
+      expect(h.health.dispatchBlocked).toBe(false);
+      await h.health.record('scm', h.clock.now().getTime());
+      await h.health.record('scm', h.clock.now().getTime());
+      expect(
+        healthEvents(h.store).filter((p) => p.component === 'scm'),
+      ).toEqual([
+        { component: 'scm', status: 'degraded', breaker: 'closed' },
+        { component: 'scm', status: 'healthy', breaker: 'closed' },
+      ]);
+    });
+
+    it('still publishes a breaker trip as unhealthy (degraded for usage) after the initial publication', async () => {
+      const h = setup();
+      await h.health.runtimeIdentityVerified(true);
+      await h.health.publishInitial();
+      await h.fail('runtime');
+      await h.fail('usage');
+      expect(healthEvents(h.store).slice(4)).toEqual([
+        {
+          component: 'runtime',
+          status: 'unhealthy',
+          breaker: 'open',
+          runtimeVerified: true,
+        },
+        { component: 'usage', status: 'degraded', breaker: 'open' },
+      ]);
+      const view = projected(h.store);
+      expect(view.runtime.status).toBe('unhealthy');
+      expect(view.usage.status).toBe('degraded');
+      expect(view.status).toBe('unhealthy');
+    });
   });
 });
