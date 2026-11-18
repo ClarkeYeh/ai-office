@@ -6,16 +6,16 @@
     "terminal",
     "read",
     "--terminal",
-    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "term_00000000-0000-4000-8000-000000000001",
     "--json"
   ],
   "exitCode": 0,
   "response": {
-    "id": "2053c9eb-abed-422b-b095-5bdfac1aed82",
+    "id": "00000000-0000-4000-8000-000000000019",
     "ok": true,
     "result": {
       "terminal": {
-        "handle": "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+        "handle": "term_00000000-0000-4000-8000-000000000001",
         "status": "running",
         "tail": ["❯ exec cat > /dev/null"],
         "truncated": false,
@@ -28,7 +28,7 @@
       }
     },
     "_meta": {
-      "runtimeId": "20f39d2e-be5c-4530-bd9a-880f4e4a08a5"
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
     }
   },
   "stderrLines": []

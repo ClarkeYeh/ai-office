@@ -102,6 +102,7 @@
 ## 錄製（fixtures）
 
 - 位置：`fixtures/orca/1.4.259/*.json`（52 份；其中 `after-restart.*` 9 份為 P2a 重啟後的 status、run-show、shim terminal-read、worker-list、check 重播、inbox、consuming check、follow-up send，另有 `task-update.failed.ok`），全部經 `scripts/fixtures/sanitize`，`pnpm fixtures:scan` 通過。
+- **正規化（T0 的 fixtures README 要求；T8 尚未合併，手動完成）**：sanitize 之後，把所有 UUID（terminal handle、pane key、repo id、worktree instance、request id、runtimeId、incarnation）以跨檔一致的對應換成 `00000000-0000-4000-8000-<流水號>`（共 99 個），相同的值在各檔中仍相同（例如重播的 request id、同一個 shim handle）；`run_`／`ctx_`／`task_`／`msg_` 短 id 保留。ptyId 的 `@@<8 hex>` 後綴未改。整合者仍需人工檢查。
 - 外層格式（T8 未合併，暫定）：`{orcaVersion, recordedAt, argv, exitCode, response, stderrLines[, note]}`。**不用 `stdout`／`stderr` 當鍵名**：sanitizer 會把這兩個鍵的整個值摘要成 hash。argv 中 `--body/--prompt/--spec-file/--question/--objective` 的值已換成 `<redacted:test-input>`。
 - sanitizer 的副作用（T3／T6 寫 Zod 時要知道）：`deliveryId`（`delivery_…`）被高熵規則遮成 `<redacted>`；所有 `body` 變成長度＋sha256；home 路徑變 `/Users/<redacted>/…`；`projectId` 中的 owner 名稱被遮。
 - 成功：status、repo add、terminal create／read、run-create（含 replay）、request-show、worktree create（sha／origin ref／過時本機名／遠端名後綴／本機名沿用／本機名分歧後綴）、worktree show／rm、worker-start（claude；codex keep-open）、check `--wait`、worker-list（reclaimable／retained／follow-up）、worker-show、send（follow-up ×2）、reply、inbox（run／dispatch）、worker-stop（already settled）、worker-release、agent launch（chat）。

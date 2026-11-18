@@ -12,7 +12,7 @@
   ],
   "exitCode": 0,
   "response": {
-    "id": "bfe594b9-07ec-4232-b4da-f8d448af9367",
+    "id": "00000000-0000-4000-8000-000000000060",
     "ok": true,
     "result": {
       "removed": true,
@@ -22,7 +22,7 @@
       }
     },
     "_meta": {
-      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
     }
   },
   "stderrLines": []

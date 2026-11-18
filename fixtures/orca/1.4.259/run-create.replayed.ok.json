@@ -8,33 +8,33 @@
     "--objective",
     "<redacted:test-input>",
     "--from",
-    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "term_00000000-0000-4000-8000-000000000001",
     "--retry-request",
-    "c489fe92-a282-47fe-8aa2-e3323a149e69",
+    "00000000-0000-4000-8000-000000000030",
     "--json",
     "--full"
   ],
   "exitCode": 0,
   "response": {
-    "id": "a6384b3e-3303-4715-8cf4-254db6aa9e41",
+    "id": "00000000-0000-4000-8000-000000000032",
     "ok": true,
     "result": {
       "run": {
         "id": "run_3d70ed17e5de",
         "objective": "aio-test p1 aio:p1",
-        "coordinator_handle": "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+        "coordinator_handle": "term_00000000-0000-4000-8000-000000000001",
         "consumer_generation": 1,
         "legacy": 0,
         "created_at": "2026-11-18T05:46:35Z",
         "updated_at": "2026-11-18T05:46:35Z"
       },
       "mutation": {
-        "requestId": "c489fe92-a282-47fe-8aa2-e3323a149e69",
+        "requestId": "00000000-0000-4000-8000-000000000030",
         "replayed": true
       }
     },
     "_meta": {
-      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
     }
   },
   "stderrLines": []

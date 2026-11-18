@@ -8,7 +8,7 @@
     "--run",
     "run_3d70ed17e5de",
     "--from",
-    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "term_00000000-0000-4000-8000-000000000001",
     "--to",
     "dispatch:ctx_13c3f9458cc1",
     "--subject",
@@ -16,13 +16,13 @@
     "--body",
     "<redacted:test-input>",
     "--retry-request",
-    "c9f86f27-e4a9-439d-aa0b-525e3525c1d2",
+    "00000000-0000-4000-8000-000000000037",
     "--json",
     "--full"
   ],
   "exitCode": 0,
   "response": {
-    "id": "d63b632e-d81e-4c64-bdac-ca61d325272a",
+    "id": "00000000-0000-4000-8000-000000000038",
     "ok": true,
     "result": {
       "state": "ready",
@@ -62,7 +62,7 @@
         {
           "kind": "worktree",
           "action": "reused",
-          "id": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>"
+          "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>"
         },
         {
           "kind": "setup",
@@ -73,12 +73,12 @@
           "kind": "terminal",
           "role": "agent",
           "action": "reused",
-          "id": "term_03215e44-8f01-4511-af19-888b18540987"
+          "id": "term_00000000-0000-4000-8000-000000000004"
         },
         {
           "kind": "dispatch_input",
           "role": "agent",
-          "id": "term_03215e44-8f01-4511-af19-888b18540987",
+          "id": "term_00000000-0000-4000-8000-000000000004",
           "state": "accepted"
         }
       ],
@@ -87,7 +87,7 @@
         "stages": ["input_accepted", "turn_started"],
         "provider": "claude",
         "observation": "supported",
-        "processIncarnation": "4a8ed956-7c2f-4b72-bcc6-4cb210bb65f8",
+        "processIncarnation": "00000000-0000-4000-8000-00000000001c",
         "generation": 162,
         "baselineWorkingSequence": 1,
         "baselineExplicitWorkingStartedAt": null,
@@ -103,12 +103,12 @@
       "delivery": "follow_up",
       "followUpOf": "ctx_13c3f9458cc1",
       "mutation": {
-        "requestId": "c9f86f27-e4a9-439d-aa0b-525e3525c1d2",
+        "requestId": "00000000-0000-4000-8000-000000000037",
         "replayed": false
       }
     },
     "_meta": {
-      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
     }
   },
   "stderrLines": []

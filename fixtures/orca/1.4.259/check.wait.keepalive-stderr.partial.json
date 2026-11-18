@@ -6,7 +6,7 @@
     "orchestration",
     "check",
     "--terminal",
-    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "term_00000000-0000-4000-8000-000000000001",
     "--run",
     "run_3d70ed17e5de",
     "--wait",

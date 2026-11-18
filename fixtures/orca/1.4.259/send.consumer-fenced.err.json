@@ -8,7 +8,7 @@
     "--run",
     "run_3d70ed17e5de",
     "--from",
-    "term_38f2852f-3fb1-4218-a418-2702f692dd7d",
+    "term_00000000-0000-4000-8000-000000000023",
     "--to",
     "dispatch:ctx_89eb9ce72392",
     "--subject",
@@ -16,19 +16,19 @@
     "--body",
     "<redacted:test-input>",
     "--retry-request",
-    "b6133b69-709c-4854-a741-1317e716f0e0",
+    "00000000-0000-4000-8000-000000000035",
     "--json",
     "--full"
   ],
   "exitCode": 1,
   "response": {
-    "id": "37dccc5d-02d0-4ee1-9d12-c54ff071cead",
+    "id": "00000000-0000-4000-8000-000000000036",
     "ok": false,
     "error": {
       "code": "consumer_fenced",
-      "message": "worker-start needs the coordinator bound to the Run, or a worker on an active Dispatch in it. Orchestration mutation request ID: b6133b69-709c-4854-a741-1317e716f0e0.",
+      "message": "worker-start needs the coordinator bound to the Run, or a worker on an active Dispatch in it. Orchestration mutation request ID: 00000000-0000-4000-8000-000000000035.",
       "data": {
-        "orchestrationRequestId": "b6133b69-709c-4854-a741-1317e716f0e0",
+        "orchestrationRequestId": "00000000-0000-4000-8000-000000000035",
         "originalCommand": [
           "orca",
           "orchestration",
@@ -36,7 +36,7 @@
           "--run",
           "run_3d70ed17e5de",
           "--from",
-          "term_38f2852f-3fb1-4218-a418-2702f692dd7d",
+          "term_00000000-0000-4000-8000-000000000023",
           "--to",
           "dispatch:ctx_89eb9ce72392",
           "--subject",
@@ -49,7 +49,7 @@
       }
     },
     "_meta": {
-      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
     }
   },
   "stderrLines": []

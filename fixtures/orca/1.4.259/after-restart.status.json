@@ -19,7 +19,7 @@
         "state": "ready",
         "reachable": true,
         "connectionState": "connected",
-        "runtimeId": "20f39d2e-be5c-4530-bd9a-880f4e4a08a5",
+        "runtimeId": "00000000-0000-4000-8000-000000000005",
         "appVersion": "1.4.259",
         "remoteUpdateSupport": {
           "installMode": "interactive",
@@ -343,7 +343,7 @@
       }
     },
     "_meta": {
-      "runtimeId": "20f39d2e-be5c-4530-bd9a-880f4e4a08a5"
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
     }
   },
   "stderrLines": []

@@ -6,7 +6,7 @@
     "orchestration",
     "check",
     "--terminal",
-    "term_00000000-0000-0000-0000-000000000000",
+    "term_00000000-0000-4000-8000-000000000026",
     "--run",
     "run_3d70ed17e5de",
     "--json"
@@ -16,15 +16,15 @@
     "ok": false,
     "error": {
       "code": "stable_pane_required",
-      "message": "The coordinator terminal has no stable pane identity. Orchestration mutation request ID: 1b516b93-11f2-4ac7-9e08-df84132ff71f.",
+      "message": "The coordinator terminal has no stable pane identity. Orchestration mutation request ID: 00000000-0000-4000-8000-000000000027.",
       "data": {
-        "orchestrationRequestId": "1b516b93-11f2-4ac7-9e08-df84132ff71f",
+        "orchestrationRequestId": "00000000-0000-4000-8000-000000000027",
         "originalCommand": [
           "orca",
           "orchestration",
           "check",
           "--terminal",
-          "term_00000000-0000-0000-0000-000000000000",
+          "term_00000000-0000-4000-8000-000000000026",
           "--run",
           "run_3d70ed17e5de",
           "--json"

@@ -8,21 +8,21 @@
     "--objective",
     "<redacted:test-input>",
     "--from",
-    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "term_00000000-0000-4000-8000-000000000001",
     "--retry-request",
-    "c489fe92-a282-47fe-8aa2-e3323a149e69",
+    "00000000-0000-4000-8000-000000000030",
     "--json",
     "--full"
   ],
   "exitCode": 1,
   "response": {
-    "id": "829ca53a-0697-4b0d-a57c-a45323042d52",
+    "id": "00000000-0000-4000-8000-000000000033",
     "ok": false,
     "error": {
       "code": "request_mismatch",
-      "message": "Mutation request c489fe92-a282-47fe-8aa2-e3323a149e69 was already used with different input. Orchestration mutation request ID: c489fe92-a282-47fe-8aa2-e3323a149e69.",
+      "message": "Mutation request 00000000-0000-4000-8000-000000000030 was already used with different input. Orchestration mutation request ID: 00000000-0000-4000-8000-000000000030.",
       "data": {
-        "orchestrationRequestId": "c489fe92-a282-47fe-8aa2-e3323a149e69",
+        "orchestrationRequestId": "00000000-0000-4000-8000-000000000030",
         "originalCommand": [
           "orca",
           "orchestration",
@@ -30,14 +30,14 @@
           "--objective",
           "aio-test DIFFERENT aio:fail",
           "--from",
-          "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+          "term_00000000-0000-4000-8000-000000000001",
           "--json",
           "--full"
         ]
       }
     },
     "_meta": {
-      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
     }
   },
   "stderrLines": []

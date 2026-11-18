@@ -12,7 +12,7 @@
   ],
   "exitCode": 0,
   "response": {
-    "id": "701f6020-de68-4dae-9f28-e8a585d15272",
+    "id": "00000000-0000-4000-8000-000000000047",
     "ok": true,
     "result": {
       "dispatch": {
@@ -21,9 +21,9 @@
         "taskId": "task_f3f9b2d65501",
         "task_id": "task_f3f9b2d65501",
         "contractVersion": 1,
-        "assigneeHandle": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
-        "assigneePaneKey": "cce16beb-72e8-40cd-a9bf-543ec88d7c1f:87fdfd02-93ac-4efc-a073-8c1ce06a91a5",
-        "processIncarnation": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>@@039d1bf9:01a251d8-9790-4a72-8c48-f07038cfb76f",
+        "assigneeHandle": "term_00000000-0000-4000-8000-000000000011",
+        "assigneePaneKey": "00000000-0000-4000-8000-000000000012:00000000-0000-4000-8000-000000000013",
+        "processIncarnation": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@039d1bf9:00000000-0000-4000-8000-000000000020",
         "capabilityRevokedAt": "2026-11-18T05:47:07.516Z",
         "retryOfDispatchId": null,
         "creatorDispatchId": null,
@@ -44,17 +44,17 @@
       },
       "worker": {
         "dispatchId": "ctx_f91f0c1b897a",
-        "runtimeEpoch": "c3b09d0f-aedb-4069-a992-5f6271f20f92",
+        "runtimeEpoch": "00000000-0000-4000-8000-00000000001b",
         "state": "succeeded",
         "stage": "settled",
-        "worktreeId": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>",
-        "agentTerminalHandle": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
+        "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+        "agentTerminalHandle": "term_00000000-0000-4000-8000-000000000011",
         "setupState": "not_applicable",
         "effects": [
           {
             "kind": "worktree",
             "action": "reused",
-            "id": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>"
+            "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>"
           },
           {
             "kind": "setup",
@@ -65,13 +65,13 @@
             "kind": "terminal",
             "role": "agent",
             "action": "created",
-            "id": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
+            "id": "term_00000000-0000-4000-8000-000000000011",
             "surface": "visible"
           },
           {
             "kind": "dispatch_input",
             "role": "agent",
-            "id": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
+            "id": "term_00000000-0000-4000-8000-000000000011",
             "state": "accepted"
           }
         ],
@@ -80,7 +80,7 @@
             "kind": "terminal",
             "role": "agent",
             "action": "created",
-            "id": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
+            "id": "term_00000000-0000-4000-8000-000000000011",
             "surface": "visible"
           }
         ],
@@ -92,7 +92,7 @@
             "reason": "user_default",
             "detail": "Started a terminal agent worker, the default for new agent tabs in your settings."
           },
-          "resolvedWorktreeId": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>",
+          "resolvedWorktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
           "name": null,
           "repo": null,
           "baseBranch": null,
@@ -131,7 +131,7 @@
         },
         "host": "<redacted>",
         "workspace": {
-          "id": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>",
+          "id": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
           "kind": "folder_or_worktree"
         },
         "stage": {
@@ -169,15 +169,15 @@
         }
       },
       "terminal": {
-        "handle": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
-        "ptyId": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>@@039d1bf9",
-        "incarnationId": "01a251d8-9790-4a72-8c48-f07038cfb76f",
+        "handle": "term_00000000-0000-4000-8000-000000000011",
+        "ptyId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@039d1bf9",
+        "incarnationId": "00000000-0000-4000-8000-000000000020",
         "orphaned": false,
-        "worktreeId": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>",
+        "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
         "worktreePath": "/Users/<redacted><redacted>",
         "branch": "<redacted>",
-        "tabId": "cce16beb-72e8-40cd-a9bf-543ec88d7c1f",
-        "leafId": "87fdfd02-93ac-4efc-a073-8c1ce06a91a5",
+        "tabId": "00000000-0000-4000-8000-000000000012",
+        "leafId": "00000000-0000-4000-8000-000000000013",
         "title": "Orca AI Office p1 stub submit",
         "paneTitle": "<redacted>",
         "connected": true,
@@ -200,10 +200,10 @@
         "ownershipState": "owned",
         "releaseState": "not_requested",
         "retainedReason": null,
-        "terminalHandle": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
-        "worktreeId": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>",
-        "endpointId": "c3b09d0f-aedb-4069-a992-5f6271f20f92",
-        "endpointIncarnation": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>@@039d1bf9:01a251d8-9790-4a72-8c48-f07038cfb76f",
+        "terminalHandle": "term_00000000-0000-4000-8000-000000000011",
+        "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
+        "endpointId": "00000000-0000-4000-8000-00000000001b",
+        "endpointIncarnation": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>@@039d1bf9:00000000-0000-4000-8000-000000000020",
         "originDispatchId": "ctx_f91f0c1b897a",
         "ownerDispatchId": "ctx_f91f0c1b897a",
         "releaseRequestedAt": null,
@@ -221,7 +221,7 @@
       "coordinatedFrom": null
     },
     "_meta": {
-      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
     }
   },
   "stderrLines": []

@@ -12,13 +12,13 @@
   ],
   "exitCode": 0,
   "response": {
-    "id": "09498cde-673d-4a44-852e-a09fb4e3454a",
+    "id": "00000000-0000-4000-8000-000000000014",
     "ok": true,
     "result": {
       "run": {
         "id": "run_3d70ed17e5de",
         "objective": "aio-test p1 aio:p1",
-        "coordinator_handle": "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+        "coordinator_handle": "term_00000000-0000-4000-8000-000000000001",
         "consumer_generation": 1,
         "legacy": 0,
         "created_at": "2026-11-18T05:46:35Z",
@@ -36,7 +36,7 @@
       }
     },
     "_meta": {
-      "runtimeId": "20f39d2e-be5c-4530-bd9a-880f4e4a08a5"
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
     }
   },
   "stderrLines": []

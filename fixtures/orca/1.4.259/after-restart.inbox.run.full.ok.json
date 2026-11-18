@@ -14,7 +14,7 @@
   ],
   "exitCode": 0,
   "response": {
-    "id": "7ffc78f8-3418-436a-8785-3c3248526699",
+    "id": "00000000-0000-4000-8000-000000000009",
     "ok": true,
     "result": {
       "messages": [
@@ -22,7 +22,7 @@
           "id": "msg_0f5f9db25307",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_03215e44-8f01-4511-af19-888b18540987",
+          "from_handle": "term_00000000-0000-4000-8000-000000000004",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio:p2a pre-restart status",
           "body": "<redacted length=18 sha256=0318e18b9f6f1723faee92321758a457e0f2d57316d07aa7d3cbe0190b46432d>",
@@ -34,7 +34,7 @@
           "sequence": 621,
           "created_at": "2026-11-18T05:55:22Z",
           "delivered_at": null,
-          "sender_pane_key": "dea1ffb2-17b5-4956-896b-7db099a7e90d:f638c202-cdd7-4425-8c46-9c18d781a466",
+          "sender_pane_key": "00000000-0000-4000-8000-00000000000a:00000000-0000-4000-8000-00000000000b",
           "pointer_enter_pending": 0,
           "pointer_pty_id": null,
           "pointer_process_incarnation": null
@@ -64,7 +64,7 @@
           "id": "msg_cdf9848adccc",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_2d6e283d-409c-4ed0-a2db-4b8bb26f5fd2",
+          "from_handle": "term_00000000-0000-4000-8000-000000000008",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio unobs",
           "body": "<redacted length=9 sha256=2f443362ce5608a3d93b997fc9f74084946ca92f6e549ebd5a423675dbcc1ead>",
@@ -76,7 +76,7 @@
           "sequence": 617,
           "created_at": "2026-11-18T05:54:10Z",
           "delivered_at": null,
-          "sender_pane_key": "8a51b34d-8141-477d-ae3b-3779fb7acddf:1c678e64-f5e9-4b04-9138-ed5042c098b2",
+          "sender_pane_key": "00000000-0000-4000-8000-00000000000c:00000000-0000-4000-8000-00000000000d",
           "pointer_enter_pending": 0,
           "pointer_pty_id": null,
           "pointer_process_incarnation": null
@@ -85,7 +85,7 @@
           "id": "msg_aec49fadf97a",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_360b2633-9a7e-4e35-83aa-52680205c87e",
+          "from_handle": "term_00000000-0000-4000-8000-00000000000e",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio p6x round 2 complete",
           "body": "<redacted length=15 sha256=9449da56d32d35ce60aacf73346e2452a32bef2fc205fc7c748b6dbde2432cb7>",
@@ -97,7 +97,7 @@
           "sequence": 614,
           "created_at": "2026-11-18T05:53:19Z",
           "delivered_at": null,
-          "sender_pane_key": "5490447f-c547-4c0d-ab25-e88b37b8fad4:d6e36b40-5ee7-4f9e-bb61-c0d1e45f7b6e",
+          "sender_pane_key": "00000000-0000-4000-8000-00000000000f:00000000-0000-4000-8000-000000000010",
           "pointer_enter_pending": 0,
           "pointer_pty_id": null,
           "pointer_process_incarnation": null
@@ -106,7 +106,7 @@
           "id": "msg_9d4a30c6b36b",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_03215e44-8f01-4511-af19-888b18540987",
+          "from_handle": "term_00000000-0000-4000-8000-000000000004",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio p6c round 2 done",
           "body": "<redacted length=15 sha256=267641ccc4b15ff8ab11bdc49098a9ac4beb079b27e676b4178f7411a457ec22>",
@@ -118,7 +118,7 @@
           "sequence": 613,
           "created_at": "2026-11-18T05:53:15Z",
           "delivered_at": null,
-          "sender_pane_key": "dea1ffb2-17b5-4956-896b-7db099a7e90d:f638c202-cdd7-4425-8c46-9c18d781a466",
+          "sender_pane_key": "00000000-0000-4000-8000-00000000000a:00000000-0000-4000-8000-00000000000b",
           "pointer_enter_pending": 0,
           "pointer_pty_id": null,
           "pointer_process_incarnation": null
@@ -169,7 +169,7 @@
           "id": "msg_fa43673ec39e",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_03215e44-8f01-4511-af19-888b18540987",
+          "from_handle": "term_00000000-0000-4000-8000-000000000004",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio p6c round 1 done",
           "body": "<redacted length=15 sha256=64da82a089999c0c1e04662ef50e1a9b0ffaba4adf622c5d2a345da7ee34c243>",
@@ -181,7 +181,7 @@
           "sequence": 608,
           "created_at": "2026-11-18T05:48:07Z",
           "delivered_at": null,
-          "sender_pane_key": "dea1ffb2-17b5-4956-896b-7db099a7e90d:f638c202-cdd7-4425-8c46-9c18d781a466",
+          "sender_pane_key": "00000000-0000-4000-8000-00000000000a:00000000-0000-4000-8000-00000000000b",
           "pointer_enter_pending": 0,
           "pointer_pty_id": null,
           "pointer_process_incarnation": null
@@ -190,7 +190,7 @@
           "id": "msg_8515efa62222",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_360b2633-9a7e-4e35-83aa-52680205c87e",
+          "from_handle": "term_00000000-0000-4000-8000-00000000000e",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio p6x round 1 complete",
           "body": "<redacted length=15 sha256=b8fa17bd4165b4729dde51cb404f8bd29b81ee078c310ce215a2cf6f6d99ccb7>",
@@ -202,7 +202,7 @@
           "sequence": 607,
           "created_at": "2026-11-18T05:48:03Z",
           "delivered_at": null,
-          "sender_pane_key": "5490447f-c547-4c0d-ab25-e88b37b8fad4:d6e36b40-5ee7-4f9e-bb61-c0d1e45f7b6e",
+          "sender_pane_key": "00000000-0000-4000-8000-00000000000f:00000000-0000-4000-8000-000000000010",
           "pointer_enter_pending": 0,
           "pointer_pty_id": null,
           "pointer_process_incarnation": null
@@ -211,7 +211,7 @@
           "id": "msg_ae1bda806148",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_e9907a15-be95-4be7-b155-d9b76caf664e",
+          "from_handle": "term_00000000-0000-4000-8000-000000000011",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio p1 done",
           "body": "<redacted length=21 sha256=0a7f342773a4b045b126809a9d4e495e48d100d42ed2c8e1d4d3b052621d2129>",
@@ -223,7 +223,7 @@
           "sequence": 606,
           "created_at": "2026-11-18T05:47:07Z",
           "delivered_at": null,
-          "sender_pane_key": "cce16beb-72e8-40cd-a9bf-543ec88d7c1f:87fdfd02-93ac-4efc-a073-8c1ce06a91a5",
+          "sender_pane_key": "00000000-0000-4000-8000-000000000012:00000000-0000-4000-8000-000000000013",
           "pointer_enter_pending": 0,
           "pointer_pty_id": null,
           "pointer_process_incarnation": null
@@ -232,7 +232,7 @@
       "count": 10
     },
     "_meta": {
-      "runtimeId": "20f39d2e-be5c-4530-bd9a-880f4e4a08a5"
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
     }
   },
   "stderrLines": []

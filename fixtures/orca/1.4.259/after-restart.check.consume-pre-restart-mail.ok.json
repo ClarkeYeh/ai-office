@@ -6,17 +6,17 @@
     "orchestration",
     "check",
     "--terminal",
-    "term_64deb21b-e1c0-4fc2-b59f-09b3fd638444",
+    "term_00000000-0000-4000-8000-000000000001",
     "--run",
     "run_3d70ed17e5de",
     "--retry-request",
-    "4110d4a2-c623-46b6-bd8f-47a0f38e9be4",
+    "00000000-0000-4000-8000-000000000002",
     "--json",
     "--full"
   ],
   "exitCode": 0,
   "response": {
-    "id": "bccfbd8c-b0d1-4358-99e7-f4b226edda41",
+    "id": "00000000-0000-4000-8000-000000000003",
     "ok": true,
     "result": {
       "runId": "run_3d70ed17e5de",
@@ -26,7 +26,7 @@
           "id": "msg_0f5f9db25307",
           "run_id": "run_3d70ed17e5de",
           "delivery_contract": "current_delivery",
-          "from_handle": "term_03215e44-8f01-4511-af19-888b18540987",
+          "from_handle": "term_00000000-0000-4000-8000-000000000004",
           "to_handle": "run:run_3d70ed17e5de",
           "subject": "aio:p2a pre-restart status",
           "body": "<redacted length=18 sha256=0318e18b9f6f1723faee92321758a457e0f2d57316d07aa7d3cbe0190b46432d>",
@@ -46,12 +46,12 @@
       "cancelled": false,
       "connectionLost": false,
       "mutation": {
-        "requestId": "4110d4a2-c623-46b6-bd8f-47a0f38e9be4",
+        "requestId": "00000000-0000-4000-8000-000000000002",
         "replayed": false
       }
     },
     "_meta": {
-      "runtimeId": "20f39d2e-be5c-4530-bd9a-880f4e4a08a5"
+      "runtimeId": "00000000-0000-4000-8000-000000000005"
     }
   },
   "stderrLines": []

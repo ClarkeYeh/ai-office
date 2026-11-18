@@ -17,7 +17,7 @@
   ],
   "exitCode": 0,
   "response": {
-    "id": "a5a26c36-5e37-4ee4-b7b6-03d69117439c",
+    "id": "00000000-0000-4000-8000-000000000021",
     "ok": true,
     "result": {
       "outcome": {
@@ -26,7 +26,7 @@
         "handle": "<redacted>",
         "tabId": "<redacted>"
       },
-      "worktreeId": "9403ea2c-1e07-4c06-a4bb-6090f4040959::/Users/<redacted><redacted>",
+      "worktreeId": "00000000-0000-4000-8000-000000000017::/Users/<redacted><redacted>",
       "receipt": {
         "mode": "structured",
         "preferred": "structured",
@@ -41,7 +41,7 @@
       "operationId": "<redacted>"
     },
     "_meta": {
-      "runtimeId": "c3b09d0f-aedb-4069-a992-5f6271f20f92"
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
     }
   },
   "stderrLines": []
