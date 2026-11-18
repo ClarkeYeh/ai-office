@@ -1070,3 +1070,105 @@ describe('M1-T10b transitions', () => {
     },
   ]);
 });
+
+// M2-T14: spawn-stall exception gate (§7.1, §8.3) ------------------------------
+import type { Harness } from './test-support/fixtures.js';
+import {
+  choose as pmChoose,
+  implementation as pmImplementation,
+  status as pmStatus,
+} from './test-support/progressive-merge.js';
+
+const stallGate = (itemKey?: string): DomainCommand => ({
+  type: 'OpenGate',
+  meta: meta(),
+  noLiveAttempts: false,
+  gate: {
+    kind: 'exception',
+    gateId: 'stall',
+    stageId: itemKey ? 'implement' : 'meeting',
+    exceptionKind: 'spawn-stall',
+    title: 'Agent did not start',
+    options: [
+      { optionId: 'retry', label: 'retry' },
+      { optionId: 'reassign', label: 'reassign', input: 'agent' },
+      { optionId: 'abort', label: 'abort' },
+    ],
+    content: {
+      type: 'exception',
+      summary: 'No activity or submission after spawn',
+      attemptId: itemKey ? 'worker' : 'att-1',
+      ...(itemKey ? { itemKey } : {}),
+    },
+  },
+});
+const stalledItem = (h: Harness) =>
+  h.given(
+    ...pmImplementation().given(
+      pmDispatch(),
+      spawn('worker', 'engineer', 'implement', {
+        purpose: 'worker',
+        itemKey: 'A',
+      }),
+      pmStatus('A', 'in_progress'),
+    ).events,
+  );
+describe('M2-T14 spawn-stall transitions', () => {
+  runTransitionRows([
+    {
+      name: 'stage agent stall opens the gate',
+      given: withAttempt,
+      when: stallGate(),
+      then: ['gate.opened'],
+    },
+    {
+      name: 'stage stall retry is decided without item effects',
+      given: [...withAttempt, stallGate()],
+      when: pmChoose('stall', 'retry'),
+      then: ['gate.decided'],
+    },
+    {
+      name: 'stage stall reassign requires an agent',
+      given: [...withAttempt, stallGate()],
+      when: {
+        type: 'DecideGate',
+        meta: meta(),
+        gateId: 'stall',
+        expectedVersion: 1,
+        by: 'user',
+        decision: 'option',
+        optionId: 'reassign',
+      },
+      then: { error: 'agent_required' },
+    },
+    {
+      name: 'stage stall offers no skip',
+      given: [...withAttempt, stallGate()],
+      when: pmChoose('stall', 'skip'),
+      then: { error: 'invalid_gate_decision' },
+    },
+    {
+      name: 'stall abort requests cancellation',
+      given: [...withAttempt, stallGate()],
+      when: pmChoose('stall', 'abort'),
+      then: ['gate.decided', 'workflow.cancel_requested'],
+    },
+    {
+      name: 'item stall retry puts the item in needs_attention',
+      given: (h) => stalledItem(h).given(stallGate('A')),
+      when: pmChoose('stall', 'retry'),
+      then: ['gate.decided', 'workitem.status'],
+      check: (h) =>
+        expect(h.state.workItems.A).toMatchObject({
+          status: 'needs_attention',
+          statusReason: 'stall',
+        }),
+    },
+    {
+      name: 'item stall reassign puts the item in needs_attention',
+      given: (h) => stalledItem(h).given(stallGate('A')),
+      when: pmChoose('stall', 'reassign'),
+      then: ['gate.decided', 'workitem.status'],
+    },
+  ]);
+});

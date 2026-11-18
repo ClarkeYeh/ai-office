@@ -147,7 +147,8 @@
             "item-timeout",
             "question-timeout",
             "review-timeout",
-            "budget-wrap-up"
+            "budget-wrap-up",
+            "spawn-stall"
           ]
         }
       },
@@ -179,6 +180,31 @@
       "required": [
         "purpose",
         "stageId",
+        "phase"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "spawn-stall"
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "nudge",
+            "gate"
+          ]
+        }
+      },
+      "required": [
+        "purpose",
+        "attemptId",
         "phase"
       ]
     },

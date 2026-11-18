@@ -7,6 +7,7 @@ import { reactLifecycle } from './lifecycle.js';
 import { budgetPolicy, filterPolicyEffects } from './policies/budget.js';
 import { cancelPolicy } from './policies/cancel.js';
 import { exceptionsPolicy } from './policies/exceptions.js';
+import { spawnStallPolicy } from './policies/spawn-stall.js';
 import { reactStageClose } from './protocols/stage-close.js';
 import type { StageGateBuilder } from './protocols/stage-close.js';
 import { finalPrStage } from './stages/final-pr.js';
@@ -38,7 +39,7 @@ export const DEFAULT_MODULES: EngineModules = {
     integrate: integrateStage,
     'final-pr': finalPrStage,
   },
-  policies: [budgetPolicy, exceptionsPolicy, cancelPolicy],
+  policies: [budgetPolicy, exceptionsPolicy, spawnStallPolicy, cancelPolicy],
 };
 
 export type React = (state: WorkflowState, event: DomainEvent) => Effect[];
