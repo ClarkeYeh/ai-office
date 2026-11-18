@@ -23,16 +23,30 @@ export const CursorPayloadSchema = z.object({
   questions: z.array(
     z.object({ id: z.string(), dispatch: z.string(), since: z.string() }),
   ),
-  /** Events of a spawn still in flight; `agent` holds the raw dispatch until resolved. */
+  /**
+   * Events of a spawn still in flight; `agent` holds the raw dispatch until resolved.
+   * A question keeps only its message id: the body is refetched from the inbox on
+   * release, so the persisted cursor never stores question text.
+   */
   held: z.array(
-    z.object({
-      dispatch: z.string(),
-      commandId: z.string(),
-      event: RuntimeEventSchema,
-    }),
+    z.union([
+      z.object({
+        dispatch: z.string(),
+        commandId: z.string(),
+        event: RuntimeEventSchema,
+      }),
+      z.object({
+        dispatch: z.string(),
+        commandId: z.string(),
+        question: z.object({ id: z.string(), occurredAt: z.string() }),
+      }),
+    ]),
   ),
 });
 export type CursorPayload = z.infer<typeof CursorPayloadSchema>;
+export type HeldItem = CursorPayload['held'][number];
+export const heldKey = (item: HeldItem) =>
+  'event' in item ? item.event.externalKey : `orca:msg:${item.question.id}`;
 
 /** RFC 4122 version 5 (SHA-1) UUID. */
 export function uuidV5(name: string, namespace = AIO_NAMESPACE): string {

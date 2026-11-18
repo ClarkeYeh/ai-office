@@ -14,6 +14,8 @@ import {
 
 interface Scenario {
   run(harness: OrcaHarness): Promise<void>;
+  /** Assert ledger 0 and scan 0 after cleanup, as the built-in smoke does. */
+  assertClean?: boolean;
   prepare?(
     harness: OrcaHarness,
     confirmation: { stdinTTY: boolean; stdoutTTY: boolean; answer: string },
@@ -254,7 +256,8 @@ export async function runHarnessCli(
   } finally {
     try {
       await finish?.();
-      if (scenarioName === 'smoke') await harness.assertClean();
+      if (scenarioName === 'smoke' || scenario.assertClean === true)
+        await harness.assertClean();
     } finally {
       await recording.save(
         join(harness.ledger.dataDir, `recording-${Date.now()}.json`),

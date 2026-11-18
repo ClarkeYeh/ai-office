@@ -646,6 +646,48 @@ describe('OrcaObserver: mapping', () => {
     expect(decodeCursor(released.cursor, CursorPayloadSchema).held).toEqual([]);
   });
 
+  it('persists only the id of a held question and refetches its body on release', async () => {
+    r.ledger.pending({ commandId: 'cmd-s', run: RUN, keepOpen: false });
+    r.world.tasks.push({ id: 'task_s', title: 'aio:cmd-s implement' });
+    r.world.workers.push({ dispatchId: 'ctx_s', taskId: 'task_s' });
+    r.world.post({
+      id: 'msg_qs',
+      type: 'question',
+      dispatch: 'ctx_s',
+      task: 'task_s',
+    });
+    const held = await r.observe(null);
+    const persisted = Buffer.from(held.cursor, 'base64url').toString('utf8');
+    expect(persisted).toContain('msg_qs');
+    expect(persisted).not.toContain('Q msg_qs?');
+    expect(persisted).not.toContain('raw question body');
+    expect(decodeCursor(held.cursor, CursorPayloadSchema).held).toEqual([
+      {
+        dispatch: 'ctx_s',
+        commandId: 'cmd-s',
+        question: { id: 'msg_qs', occurredAt: '2026-11-18T05:50:51.000Z' },
+      },
+    ]);
+    r.ledger.started('cmd-s', 'ctx_s');
+    // The body refetch fails once: the question stays held and is not dropped.
+    r.world.failNext.set('orchestration inbox', 'ECONNRESET');
+    const retried = await r.observe(held.cursor);
+    expect(ofType(retried.events, 'agent.question')).toEqual([]);
+    expect(decodeCursor(retried.cursor, CursorPayloadSchema).held).toHaveLength(
+      1,
+    );
+    const released = await r.observe(retried.cursor);
+    expect(ofType(released.events, 'agent.question')).toEqual([
+      expect.objectContaining({
+        agent: 'ctx_s',
+        externalKey: 'orca:msg:msg_qs',
+        question: questionRef('msg_qs'),
+        body: 'Q msg_qs?',
+      }),
+    ]);
+    expect(decodeCursor(released.cursor, CursorPayloadSchema).held).toEqual([]);
+  });
+
   it('flags unmanaged: a parent, no aio: title, and a foreign command id', async () => {
     r.observer.close();
     r = await rig({ ownsCommand: (id) => id === 'cmd-own' });

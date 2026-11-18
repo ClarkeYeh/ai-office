@@ -9,6 +9,7 @@ import type {
   ExecResult,
 } from '../../adapters/runtime-orca/cli/types.js';
 import { subprocessEnv } from '../../adapters/runtime-orca/env-allowlist.js';
+import { shimMarker } from '../../adapters/runtime-orca/coordinator-identity/shim.js';
 import { scanResources, assertScanClean, type ScanResource } from './scan.js';
 import { assertCommand } from './command-gate.js';
 import {
@@ -61,6 +62,36 @@ export class HarnessExec implements Exec {
       });
     });
   }
+}
+/**
+ * Orca 1.4.259 request_mismatch details: exactly the reused request id (ours) and
+ * the original argv. Any other key may describe residual resources: stay pending.
+ */
+function mismatchData(data: unknown, args: readonly string[]): boolean {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  const keys = Object.keys(data).sort();
+  const { orchestrationRequestId: id, originalCommand } = data as Record<
+    string,
+    unknown
+  >;
+  const requestIndex = args.indexOf('--retry-request');
+  return (
+    keys.length === 2 &&
+    keys[0] === 'orchestrationRequestId' &&
+    keys[1] === 'originalCommand' &&
+    requestIndex >= 0 &&
+    id === args[requestIndex + 1] &&
+    Array.isArray(originalCommand) &&
+    originalCommand.every((arg) => typeof arg === 'string')
+  );
+}
+/** Ledger hooks for resources a composed backend creates itself. */
+export interface ComposedEffects {
+  /** `aio-shim:<hash>` in the backend's shim title; scanned after cleanup. */
+  readonly marker: string;
+  shim(handle: string): Promise<void>;
+  /** Clears the startup intent once the backend has reported its shim. */
+  settle(): Promise<void>;
 }
 export interface HarnessOptions {
   repoPath: string;
@@ -275,8 +306,10 @@ export class OrcaHarness {
       ) &&
       parsed.error?.code === 'request_mismatch' &&
       Object.keys(parsed.error).every((key) =>
-        ['code', 'message'].includes(key),
+        ['code', 'message', 'data'].includes(key),
       ) &&
+      (parsed.error.data === undefined ||
+        mismatchData(parsed.error.data, args)) &&
       (parsed.result == null ||
         (typeof parsed.result === 'object' &&
           !Array.isArray(parsed.result) &&
@@ -411,6 +444,43 @@ export class OrcaHarness {
     if (!terminal?.handle) throw new Error('Missing shim receipt');
     return terminal.handle;
   }
+  /**
+   * Journals a composed backend before it starts: its shim marker joins the scan
+   * and an intent stays pending until `settle`. Reported shims are ledgered
+   * (and persisted) before the backend uses them. A backend that never
+   * reports a shim leaves the intent pending for reconciliation.
+   */
+  async composedBackend(backendDataDir: string): Promise<ComposedEffects> {
+    await this.verify();
+    await assertOutside(backendDataDir, [
+      this.options.sourceRoot,
+      this.ledger.repoPath,
+      ...(await this.options.worktreePaths()),
+    ]);
+    const marker = shimMarker(backendDataDir);
+    if (!this.ledger.shimMarkers.includes(marker))
+      this.ledger.shimMarkers.push(marker);
+    const intent = await this.beginMutation('composed-backend');
+    let shims = 0;
+    return {
+      marker,
+      shim: async (handle) => {
+        if (!/^term_[A-Za-z0-9-]+$/.test(handle))
+          throw new Error('Unexpected composed shim handle');
+        if (!this.ledger.shims.some((s) => s.id === handle))
+          this.ledger.shims.push({ id: handle, done: false });
+        shims++;
+        await this.persist();
+      },
+      settle: async () => {
+        if (!shims)
+          throw new Error(
+            'Composed backend reported no shim; reconcile private ledger',
+          );
+        await this.endMutation(intent);
+      },
+    };
+  }
   async createRun(shim: string, name: string): Promise<string> {
     const result = await this.command([
       'orchestration',
@@ -449,6 +519,7 @@ export class OrcaHarness {
           args,
         );
       },
+      this.ledger.shimMarkers,
     );
   }
   async assertClean(): Promise<void> {

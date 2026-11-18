@@ -26,6 +26,8 @@ export const LedgerSchema = z.object({
     }),
   ),
   shims: z.array(resource),
+  /** `aio-shim:<hash>` titles of composed backends started by this ledger. */
+  shimMarkers: z.array(z.string()).default([]),
   remoteBranches: z.array(resource),
   localBranches: z.array(resource),
   tasks: z.array(resource),
@@ -55,6 +57,7 @@ export function emptyLedger(
     dispatches: [],
     worktrees: [],
     shims: [],
+    shimMarkers: [],
     remoteBranches: [],
     localBranches: [],
     tasks: [],

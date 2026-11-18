@@ -12,10 +12,12 @@ import type { OrcaCli, RunOptions } from '../cli/types.js';
 import type { CoordinatorIdentity } from '../coordinator-identity/index.js';
 import { guard } from '../errors.js';
 import type { DispatchLedger } from '../ledger.js';
-import { decodeCursor, encodeCursor } from '../refs.js';
+import { decodeCursor, encodeCursor, questionRef } from '../refs.js';
 import {
   CursorPayloadSchema,
   type CursorPayload,
+  type HeldItem,
+  heldKey,
   initialPayload,
   nextCheckId,
 } from './cursor.js';
@@ -535,7 +537,7 @@ export class OrcaObserver {
     );
     if (!event) return;
     // A check replay and an inbox backfill may both return a message across batches.
-    if (b.p.held.some((h) => h.event.externalKey === event.externalKey)) return;
+    if (b.p.held.some((h) => heldKey(h) === event.externalKey)) return;
     if (
       message.type === 'question' &&
       !b.p.questions.some((q) => q.id === message.id)
@@ -546,7 +548,16 @@ export class OrcaObserver {
         since: event.occurredAt,
       });
     if (resolved.kind === 'held') {
-      b.p.held.push({ dispatch, commandId: resolved.commandId, event });
+      const { commandId } = resolved;
+      b.p.held.push(
+        event.type === 'agent.question'
+          ? {
+              dispatch,
+              commandId,
+              question: { id: message.id, occurredAt: event.occurredAt },
+            }
+          : { dispatch, commandId, event },
+      );
       return;
     }
     if (message.type === 'worker_done') this.clearQuestions(b, resolved.agent);
@@ -625,12 +636,12 @@ export class OrcaObserver {
     }
   }
   private async releaseHeld(b: Batch): Promise<void> {
-    const keep: CursorPayload['held'] = [];
+    const keep: HeldItem[] = [];
+    const release: { item: HeldItem; agent: AgentRef }[] = [];
     for (const item of b.p.held) {
       const agent = this.options.ledger.agentFor(item.dispatch);
       if (agent) {
-        if (item.event.type === 'agent.done') this.clearQuestions(b, agent);
-        b.events.push({ ...item.event, agent } as RuntimeEvent);
+        release.push({ item, agent });
         continue;
       }
       const entry = this.options.ledger.byCommand(item.commandId);
@@ -640,14 +651,80 @@ export class OrcaObserver {
       }
       const resolved = await this.resolve(b, item.dispatch, undefined);
       if (resolved.kind === 'agent')
-        b.events.push({ ...item.event, agent: resolved.agent } as RuntimeEvent);
+        release.push({ item, agent: resolved.agent });
       else
         this.log(
           { run: b.run, dispatch: item.dispatch },
           'Held events dropped: spawn did not start',
         );
     }
+    const ids = new Set(
+      release.flatMap(({ item }) =>
+        'question' in item ? [item.question.id] : [],
+      ),
+    );
+    const bodies = ids.size ? await this.heldQuestions(b, ids) : new Map();
+    // A failed inbox read keeps everything held, in order, for the next batch.
+    if (!bodies) return;
+    for (const { item, agent } of release) {
+      if ('event' in item) {
+        if (item.event.type === 'agent.done') this.clearQuestions(b, agent);
+        b.events.push({ ...item.event, agent } as RuntimeEvent);
+        continue;
+      }
+      const message = bodies.get(item.question.id);
+      if (!message)
+        this.log(
+          { run: b.run, dispatch: item.dispatch, message: item.question.id },
+          'Held question body not found in the inbox',
+        );
+      b.events.push(
+        (message && messageEvent(message, agent, this.now())) ?? {
+          type: 'agent.question',
+          agent,
+          externalKey: heldKey(item),
+          occurredAt: item.question.occurredAt,
+          question: questionRef(item.question.id),
+          body: '',
+        },
+      );
+    }
     b.p.held = keep;
+  }
+  /** Held questions persist ids only: refetch their bodies from the run inbox. */
+  private async heldQuestions(
+    b: Batch,
+    ids: ReadonlySet<string>,
+  ): Promise<Map<string, MailMessage> | undefined> {
+    let limit = 50;
+    for (;;) {
+      const inbox = await this.call(
+        b,
+        'orchestration inbox',
+        ['orchestration', 'inbox', '--full', '--limit', String(limit)],
+        {
+          kind: 'read',
+          priority: 'consume',
+          mailbox: { kind: 'run', id: b.run },
+        },
+        InboxResultSchema,
+      );
+      if (!inbox.ok) {
+        await this.recover(b, inbox.error);
+        return undefined;
+      }
+      const messages = inbox.data.messages;
+      const found = new Map(
+        messages.filter((m) => ids.has(m.id)).map((m) => [m.id, m]),
+      );
+      if (
+        found.size === ids.size ||
+        messages.length < limit ||
+        limit >= MAX_INBOX
+      )
+        return found;
+      limit = Math.min(limit * 4, MAX_INBOX);
+    }
   }
 
   private applyAnswered(b: Batch): void {

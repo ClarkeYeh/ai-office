@@ -42,6 +42,22 @@ usage totals and persists calibration samples without imposing token limits.
 `detectRateLimitPause` delegates recognition to the pure detector supplied by T6;
 transcript tails are passed only in memory.
 
+## Composed backend smoke (integrator)
+
+`composed.orca.test.ts` runs `composed-live.ts`: start `--dev --runtime orca` in
+process with `AI_OFFICE_HOME` under the private dataDir and the approved
+`~/.ai-office/orca-home` folder, settle the startup shim, shut down, then clean
+and assert ledger 0 and scan 0. `harness.composedBackend(dir)` journals a pending
+intent and the backend's `aio-shim:<hash>` marker before startup; the backend's
+reported shim handles and runs are persisted before use. The scoped scan matches
+only markers in this ledger, never the owner's own AI Office shim.
+
+The scenario uses T10's dev-only shim-folder seam only through
+`composed-shim-seam.ts`: `orcaHome` (CLI `--orca-home`) selects the registered
+folder and the awaited `testOnly.onShimCreated(handle)` ledgers each new shim. A
+backend that reports no shim fails closed with the intent pending; reconcile with
+the janitor scan. Startup in a fresh isolated home creates no run.
+
 ## Cleanup and recovery
 
 `pnpm orca:janitor --ledger /private/dataDir/resources.json` prints a residual count.
