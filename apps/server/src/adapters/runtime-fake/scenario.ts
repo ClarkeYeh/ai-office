@@ -22,6 +22,11 @@ export type ScenarioAction =
   | { type: 'output'; blocks: RawBlock[] }
   | { type: 'lost' }
   | {
+      type: 'rate-limited';
+      evidence: 'worker-show' | 'transcript';
+      resetsAt?: string;
+    }
+  | {
       type: 'degraded';
       reason: 'source_changed' | 'no_transcript_source' | 'transcript_clipped';
     }

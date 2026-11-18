@@ -15,10 +15,21 @@ export type RuntimeContractFixture = {
     checkoutExisting: true;
   };
   spawnRequest: Parameters<RuntimePort['spawnAgent']>[0];
+  /** Advancing also completes a spawn held by the spawn-in-flight stimulus. */
   advance(ms: number): void | Promise<void>;
   stimulus(
     agent: AgentRef,
-    action: 'done' | 'ask-with-false-escalation' | 'turn-start-unobserved',
+    action:
+      | 'done'
+      | 'ask-with-false-escalation'
+      | 'turn-start-unobserved'
+      | 'identity-lost'
+      | 'hijack'
+      | 'check-timeout'
+      | 'response-lost'
+      | 'receipt-absent-after-consume'
+      | 'spawn-in-flight'
+      | 'rate-limited',
   ): void | Promise<void>;
   identity(agent: AgentRef): { terminalHandle: string; paneKey?: string };
   dispose?(): void | Promise<void>;
@@ -33,6 +44,157 @@ export function runtimePortContract(
     });
     afterEach(async () => {
       await f.dispose?.();
+    });
+
+    it('restores a missing identity on observe and can send afterward', async () => {
+      const a = await f.runtime.spawnAgent(f.spawnRequest);
+      await f.stimulus(a, 'identity-lost');
+      const batch = await f.runtime.observe(f.session, null);
+      expect(
+        batch.events.filter((e) => e.type === 'runtime.identity_restored'),
+      ).toHaveLength(1);
+      await f.runtime.send(a, {
+        subject: 'resume',
+        body: 'Continue',
+        correlation: { workflowId: 'wf', commandId: 'restore-send' },
+      });
+      const next = await f.runtime.observe(f.session, batch.cursor);
+      expect(
+        next.events.some((e) => e.type === 'runtime.identity_restored'),
+      ).toBe(false);
+    });
+    it('does not steal a hijacked session and resumes only after reclaim', async () => {
+      const a = await f.runtime.spawnAgent(f.spawnRequest);
+      await f.stimulus(a, 'hijack');
+      const batch = await f.runtime.observe(f.session, null);
+      expect(
+        batch.events.some((e) => e.type === 'runtime.identity_hijacked'),
+      ).toBe(true);
+      const message = {
+        subject: 'resume',
+        body: 'Continue',
+        correlation: { workflowId: 'wf', commandId: 'hijack-send' },
+      };
+      await expect(f.runtime.send(a, message)).rejects.toMatchObject({
+        category: 'hijacked',
+      });
+      expect(await f.runtime.reclaimSession(f.session)).toEqual({
+        reclaimed: true,
+      });
+      await f.runtime.send(a, message);
+    });
+    for (const fault of [
+      'check-timeout',
+      'receipt-absent-after-consume',
+    ] as const) {
+      it(
+        fault + ' recovers each message once using the unchanged cursor',
+        async () => {
+          const a = await f.runtime.spawnAgent(f.spawnRequest);
+          const initial = await f.runtime.observe(f.session, null);
+          await f.stimulus(a, 'ask-with-false-escalation');
+          await f.stimulus(a, fault);
+          // An adapter may recover internally or expose a transient failure.
+          const recovered = await f.runtime
+            .observe(f.session, initial.cursor)
+            .catch(async (error) => {
+              expect(error).toMatchObject({ category: 'transient' });
+              return f.runtime.observe(f.session, initial.cursor);
+            });
+          const questions = recovered.events.filter(
+            (e) => e.type === 'agent.question',
+          );
+          expect(questions).toHaveLength(1);
+          expect(await f.runtime.observe(f.session, initial.cursor)).toEqual(
+            recovered,
+          );
+          const next = await f.runtime.observe(f.session, recovered.cursor);
+          expect(next.events.some((e) => e.type === 'agent.question')).toBe(
+            false,
+          );
+          expect(
+            new Set(
+              [...recovered.events, ...next.events].map((e) => e.externalKey),
+            ).size,
+          ).toBe(recovered.events.length + next.events.length);
+        },
+      );
+    }
+    it('retries a lost spawn response with the same command ID and AgentRef', async () => {
+      const existing = await f.runtime.spawnAgent(f.spawnRequest);
+      await f.stimulus(existing, 'response-lost');
+      const request = {
+        ...f.spawnRequest,
+        correlation: { ...f.spawnRequest.correlation, commandId: 'lost-spawn' },
+      };
+      await expect(f.runtime.spawnAgent(request)).rejects.toMatchObject({
+        category: 'transient',
+      });
+      const marker = await f.runtime.findCommandByMarker('lost-spawn');
+      const a = await f.runtime.spawnAgent(request);
+      expect(marker).toMatchObject({
+        kind: 'runtime.spawnAgent',
+        result: { agent: a },
+      });
+      expect(await f.runtime.spawnAgent(request)).toBe(a);
+      const batch = await f.runtime.observe(f.session, null);
+      expect(
+        batch.events.filter((e) => e.type === 'agent.status' && e.agent === a),
+      ).toHaveLength(1);
+    });
+    it('defers pending spawn events without treating the worker as unmanaged', async () => {
+      const a = await f.runtime.spawnAgent(f.spawnRequest);
+      const initial = await f.runtime.observe(f.session, null);
+      await f.stimulus(a, 'spawn-in-flight');
+      const pending = f.runtime.spawnAgent({
+        ...f.spawnRequest,
+        correlation: {
+          ...f.spawnRequest.correlation,
+          commandId: 'pending-spawn',
+        },
+      });
+      let settled = false;
+      void pending.then(() => {
+        settled = true;
+      });
+      const during = await f.runtime.observe(f.session, initial.cursor);
+      expect(settled).toBe(false);
+      expect(during.events).toEqual([]);
+      await f.advance(0);
+      const spawned = await pending;
+      const after = await f.runtime.observe(f.session, during.cursor);
+      expect(
+        after.events.some((e) => 'agent' in e && e.agent === spawned),
+      ).toBe(true);
+      expect(after.events.some((e) => e.type === 'agent.unmanaged')).toBe(
+        false,
+      );
+    });
+    it('returns a fresh cursor for each new empty batch', async () => {
+      const first = await f.runtime.observe(f.session, null);
+      const second = await f.runtime.observe(f.session, first.cursor);
+      const third = await f.runtime.observe(f.session, second.cursor);
+      expect(new Set([first.cursor, second.cursor, third.cursor]).size).toBe(3);
+      expect([...first.events, ...second.events, ...third.events]).toEqual([]);
+    });
+    it('reports provider rate limits as information without failing the agent', async () => {
+      const a = await f.runtime.spawnAgent(f.spawnRequest);
+      await f.stimulus(a, 'rate-limited');
+      const batch = await f.runtime.observe(f.session, null);
+      batch.events.forEach((e) => RuntimeEventSchema.parse(e));
+      expect(
+        batch.events.filter((e) => e.type === 'agent.rate_limited'),
+      ).toMatchObject([{ agent: a, evidence: 'worker-show' }]);
+      expect(
+        batch.events.some(
+          (e) => e.type === 'agent.status' && e.state === 'error',
+        ),
+      ).toBe(false);
+      expect(
+        batch.events.some(
+          (e) => e.type === 'agent.done' || e.type === 'agent.exited',
+        ),
+      ).toBe(false);
     });
     it('explicitly reclaims a session idempotently without a request ID', async () => {
       expect(await f.runtime.reclaimSession(f.session)).toEqual({
