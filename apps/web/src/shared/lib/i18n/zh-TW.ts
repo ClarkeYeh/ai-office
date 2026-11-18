@@ -1,7 +1,9 @@
+import { gatesMessagesZhTW } from './gates.js';
 import { officeMessagesZhTW } from './office.js';
 
 export const zhTW = {
   ...officeMessagesZhTW,
+  ...gatesMessagesZhTW,
   'app.name': 'AI Office',
   'app.home': '流程',
   'app.office': '辦公室',
