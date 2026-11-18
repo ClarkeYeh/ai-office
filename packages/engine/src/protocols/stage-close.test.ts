@@ -104,7 +104,10 @@ describe('pre-gate clearing (§8.1)', () => {
       'runtime.release',
     ]);
     expect(
-      sim.eventsOf('timer.cancelled').map((e) => e.payload.reason),
+      sim
+        .eventsOf('timer.cancelled')
+        .filter((e) => !e.payload.timerId.includes('/spawn-stall/'))
+        .map((e) => e.payload.reason),
     ).toEqual(['agents_ended']);
     expect(openGates(sim)).toEqual([
       expect.objectContaining({
@@ -172,7 +175,10 @@ describe('pre-gate clearing (§8.1)', () => {
       expect.objectContaining({ noLiveAttempts: true }),
     ]);
     expect(
-      sim.eventsOf('timer.cancelled').map((e) => e.payload.timerId),
+      sim
+        .eventsOf('timer.cancelled')
+        .map((e) => e.payload.timerId)
+        .filter((id) => !id.includes('/spawn-stall/')),
     ).toEqual([expect.stringContaining('/gate-precheck/phase=restop/')]);
     expect(sim.state.workflow?.pausedReasons).toEqual([]);
     expect(restopErrors(sim)).toEqual(['stage_close_restop']);
@@ -293,12 +299,15 @@ describe('pre-gate clearing (§8.1)', () => {
     const a = run(ignoring).advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);
     const b = run(ignoring).advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);
     expect(b.events).toEqual(a.events);
-    expect(a.eventsOf('timer.scheduled').map((e) => e.payload.timerId)).toEqual(
-      [
-        `${WORKFLOW_ID}/timer/gate-precheck/phase=wait/stageId=meeting/meeting#1@13`,
-        `${WORKFLOW_ID}/timer/gate-precheck/phase=restop/stageId=meeting/meeting#1@19`,
-      ],
-    );
+    expect(
+      a
+        .eventsOf('timer.scheduled')
+        .map((e) => e.payload.timerId)
+        .filter((id) => !id.includes('/spawn-stall/')),
+    ).toEqual([
+      `${WORKFLOW_ID}/timer/gate-precheck/phase=wait/stageId=meeting/meeting#1@15`,
+      `${WORKFLOW_ID}/timer/gate-precheck/phase=restop/stageId=meeting/meeting#1@21`,
+    ]);
   });
 
   test('"再次停止並開啟關卡" resumes and runs the clearing again', () => {

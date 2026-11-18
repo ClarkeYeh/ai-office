@@ -195,6 +195,10 @@ export const decideBudget = (
           command.usage,
         ),
   ];
+  // S25 (§10.1): with enforcement off, usage is still recorded but no budget
+  // rule (stage, workflow or perItem) is evaluated. Wallclock timeouts above
+  // are stage-contract limits (§7.1), not budgets, and stay in force.
+  if (workflow.limits.budgetEnforcement === 'off') return accept(...events);
   const configured = workflow.budgets.stages[attempt.stageId];
   const stageBudget =
     metric === 'tokens' ? configured?.tokens : configured?.maxTurns;

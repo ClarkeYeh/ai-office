@@ -5,6 +5,11 @@ import type { AttemptPurpose } from '../state/index.js';
 export interface SpecParams {
   /** Absolute path of `<installDir>/apps/cli/dist/main.js` (Q8). */
   cliPath: string;
+  /**
+   * Absolute backend data directory (`AI_OFFICE_HOME`). Agents inherit Orca's
+   * environment, not the backend's, so the submit command names it (§9.2).
+   */
+  dataDir: string;
   /** This attempt's `aio_seat_` token — the only secret a spec may contain (§9.3). */
   seatToken: string;
 }

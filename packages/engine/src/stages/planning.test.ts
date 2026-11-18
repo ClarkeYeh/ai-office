@@ -176,6 +176,19 @@ it('holds a stage timeout through a hijack pause and resumes its remaining time 
     sim
       .eventsOf('message.nudge')
       .filter((e) => e.payload.reason === 'missing-submission');
+  // The lead shows activity, so only the stage timeout watches it (not spawn stall).
+  sim.inject('seat.activity', {
+    attemptId: 'wf-1/breakdown/1/attempt/lead',
+    activity: [
+      {
+        messageId: 'm',
+        category: 'other',
+        inputLen: 0,
+        outputLen: 0,
+        inputHash: 'a'.repeat(64),
+      },
+    ],
+  });
   const remaining = Date.parse(stageTimer.fireAt) - Date.parse(sim.clock);
   sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
   sim.advance(40 * 60_000);

@@ -21,7 +21,8 @@ export const questionWaitMilliseconds = (
 
 /**
  * Wallclock an attempt spent suspended: waiting for answers and, with
- * `pauses` (FX8b), in a workflow pause since it spawned. Overlaps count once.
+ * `pauses`, rate-limited by its provider (S26) or in a workflow pause since
+ * it spawned (FX8b). Overlaps count once.
  */
 export const suspendedMilliseconds = (
   state: WorkflowState,
@@ -35,6 +36,7 @@ export const suspendedMilliseconds = (
     ...Object.values(state.questions)
       .filter((q) => q.attemptId === attemptId)
       .map((q) => ({ from: q.askedAt, to: q.answeredAt })),
+    ...(pauses ? (state.attempts[attemptId]?.rateLimitWindows ?? []) : []),
     ...(pauses && Number.isFinite(spawned)
       ? (state.workflow?.pauseWindows ?? []).map((w) => ({
           from: new Date(Math.max(spawned, Date.parse(w.from))).toISOString(),

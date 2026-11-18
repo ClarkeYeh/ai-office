@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import {
   AgentSubmissionSchema,
   CLI_EXIT_CODES,
@@ -105,6 +105,7 @@ export async function submit(
   const kind = args[0];
   let token: string | undefined;
   let file: string | undefined;
+  let home: string | undefined;
   let stdin = false;
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -112,6 +113,9 @@ export async function submit(
       token = args[++i];
     } else if (arg === '--file' && file === undefined && args[i + 1]) {
       file = args[++i];
+    } else if (arg === '--home' && home === undefined && args[i + 1]) {
+      // Agents inherit Orca's environment, not the backend's (§9.2).
+      home = args[++i];
     } else if (arg === '-' && !stdin) {
       stdin = true;
     } else {
@@ -121,9 +125,11 @@ export async function submit(
   if (!token || (file !== undefined) === stdin) {
     return error(
       CLI_EXIT_CODES.SCHEMA_ERROR,
-      'Usage: ai-office submit <kind> --seat-token <token> (--file <path> | -)',
+      'Usage: ai-office submit <kind> --seat-token <token> [--home <dataDir>] (--file <path> | -)',
     );
   }
+  if (home !== undefined && !isAbsolute(home))
+    return error(CLI_EXIT_CODES.SCHEMA_ERROR, '--home must be absolute.');
 
   let payload: unknown;
   try {
@@ -170,7 +176,7 @@ export async function submit(
     );
   }
   try {
-    const home =
+    home ??=
       env.AI_OFFICE_HOME ||
       (env.HOME ? join(env.HOME, '.ai-office') : undefined);
     if (!home)

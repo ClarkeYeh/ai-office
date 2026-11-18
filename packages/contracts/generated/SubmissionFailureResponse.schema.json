@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "./SubmissionFailureCode.schema.json"
+        },
+        "category": {
+          "$ref": "./ErrorCategory.schema.json"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "requestId"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "category",
+        "message",
+        "retryable",
+        "details"
+      ]
+    }
+  },
+  "required": [
+    "error"
+  ]
+}

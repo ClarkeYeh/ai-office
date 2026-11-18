@@ -17,6 +17,7 @@ import {
   isAttemptPossiblyAlive,
   isTimerHeld,
   replay,
+  TIMER_PAUSE_REASON,
 } from '@ai-office/domain';
 import type {
   CommandMeta,
@@ -64,6 +65,8 @@ export interface WorkflowRunnerDeps {
   specStore: SpecStore;
   /** `<installDir>/apps/cli/dist/main.js` (Q8), passed to SpecBuilder. */
   cliPath: string;
+  /** Absolute data directory; agents' submit commands name it with `--home` (§9.2). */
+  dataDir: string;
   /** Defaults to `@ai-office/engine`'s `react`. */
   react?: RunnerReact;
 }
@@ -269,11 +272,12 @@ export class WorkflowRunner {
   /** Hands every pending timer to the Scheduler (after a restart). */
   rearmTimers(): void {
     for (const timer of Object.values(this.current.timers))
-      this.deps.scheduler.schedule({
-        id: timer.id,
-        workflowId: this.workflowId,
-        fireAt: timer.fireAt,
-      });
+      if (timer.pausedAt === undefined)
+        this.deps.scheduler.schedule({
+          id: timer.id,
+          workflowId: this.workflowId,
+          fireAt: timer.fireAt,
+        });
   }
 
   /** Resolves once the queue is empty and no command is executing. */
@@ -337,9 +341,11 @@ export class WorkflowRunner {
           this.record(input.issued, input.outcome);
           return;
         case 'timer':
-          // FX8: a workflow pause holds the timer pending; FX8b's shift re-arms it.
+          // A rate-limit pause (S26) keeps the timer pending but unfired; so
+          // does a workflow pause (FX8) until FX8b's shift re-arms it.
           if (
             Object.hasOwn(this.current.timers, input.timerId) &&
+            this.current.timers[input.timerId]!.pausedAt === undefined &&
             !isTimerHeld(this.current, this.current.timers[input.timerId]!)
           )
             this.commit([
@@ -426,24 +432,31 @@ export class WorkflowRunner {
     const shifts = heldTimerShifts(this.current, this.now());
     if (shifts.length === 0) return;
     this.commit(
-      shifts.map(({ timer, fireAt }) =>
+      shifts.flatMap(({ timer, fireAt, repause }) => [
         this.draft(
           'timer.scheduled',
-          {
-            timerId: timer.id,
-            fireAt,
-            payload: timer.payload,
-          },
+          { timerId: timer.id, fireAt, payload: timer.payload },
           {},
         ),
-      ),
+        // Still rate-limited: S26 resumes it with the remaining time.
+        ...(repause
+          ? [
+              this.draft(
+                'timer.cancelled',
+                { timerId: timer.id, reason: TIMER_PAUSE_REASON },
+                {},
+              ),
+            ]
+          : []),
+      ]),
     );
-    for (const { timer, fireAt } of shifts)
-      this.deps.scheduler.schedule({
-        id: timer.id,
-        workflowId: this.workflowId,
-        fireAt,
-      });
+    for (const { timer, fireAt, repause } of shifts)
+      if (!repause)
+        this.deps.scheduler.schedule({
+          id: timer.id,
+          workflowId: this.workflowId,
+          fireAt,
+        });
   }
 
   private effectCursor(event: DomainEvent, index: number): CursorWrite {

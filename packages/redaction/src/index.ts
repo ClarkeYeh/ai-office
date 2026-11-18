@@ -157,3 +157,94 @@ export function createRedactor({
 }
 
 export const { maskText, sanitize, hasLeaks } = createRedactor();
+
+const uuid = /[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}/gi;
+const inputFlags = new Set([
+  '--body',
+  '--prompt',
+  '--spec',
+  '--spec-file',
+  '--question',
+  '--objective',
+]);
+/** One instance per recording session preserves identities across response files. */
+export class FixtureNormalizer {
+  private readonly ids = new Map<string, string>();
+  constructor(
+    private readonly redactor = createRedactor({
+      preservedRepoUrls: ['https://github.com/ClarkeYeh/ai-office-spike'],
+    }),
+  ) {}
+  text(value: string): string {
+    const normalized = value
+      .replace(uuid, (id) => {
+        if (/^00000000-0000-4000-8000-/.test(id)) return id;
+        let mapped = this.ids.get(id);
+        if (!mapped) {
+          mapped = `00000000-0000-4000-8000-${(this.ids.size + 1).toString(16).padStart(12, '0')}`;
+          this.ids.set(id, mapped);
+        }
+        return mapped;
+      })
+      .replace(/\/(?:Users|home)\/(?:<redacted>|[^/\s"<>]+)/g, '<home>')
+      .replace(/[A-Z]:\\Users\\[^\\\s"<>]+/gi, '<home>');
+    return this.redactor.maskText(normalized);
+  }
+  bind(actual: string, expected: string): void {
+    const a = actual.match(uuid) ?? [];
+    const b = expected.match(uuid) ?? [];
+    if (a.length !== b.length) return;
+    for (let i = 0; i < a.length; i++) {
+      // Callers may use the already-normalized identity returned by replay.
+      if (a[i] === b[i]) continue;
+      const prior = this.ids.get(a[i]!);
+      if (prior && prior !== b[i]) throw new Error('Replay identity mismatch');
+      if (
+        !prior &&
+        [...this.ids.entries()].some(
+          ([key, value]) => value === b[i] && key !== a[i],
+        )
+      )
+        throw new Error('Replay identity alias');
+      this.ids.set(a[i]!, b[i]!);
+    }
+  }
+  argv(args: readonly string[]): string[] {
+    return args.map((arg, i) =>
+      inputFlags.has(args[i - 1] ?? '')
+        ? '<redacted:test-input>'
+        : this.text(arg),
+    );
+  }
+  value(value: unknown): unknown {
+    const walk = (item: unknown): unknown => {
+      if (typeof item === 'string') return this.text(item);
+      if (Array.isArray(item)) return item.map(walk);
+      if (item && typeof item === 'object')
+        return Object.fromEntries(
+          Object.entries(item).map(([key, child]) => [
+            key,
+            /^(?:body|content|text|input|output|preview|spec|prompt|question|objective|stderrLines)$/i.test(
+              key,
+            ) &&
+            (typeof child === 'string' || key === 'stderrLines')
+              ? summarize(child)
+              : /^(?:username|gitUsername|ownerName)$/i.test(key) &&
+                  typeof child === 'string'
+                ? '<redacted>'
+                : key === 'projectId' && typeof child === 'string'
+                  ? this.text(
+                      child.replace(/^(github:)[^/]+\//, '$1<redacted>/'),
+                    )
+                  : key === 'argv' &&
+                      Array.isArray(child) &&
+                      child.every((arg) => typeof arg === 'string')
+                    ? this.argv(child as string[])
+                    : walk(child),
+          ]),
+        );
+      return item;
+    };
+    return this.redactor.sanitize(walk(value));
+  }
+}

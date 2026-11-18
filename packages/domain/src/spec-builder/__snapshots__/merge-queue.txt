@@ -55,8 +55,9 @@ Acceptance criteria:
 The current directory is your own worktree, based on the latest integration branch `ai-office/ab12-add-dark-mode-toggle`. It stays yours between reviews and is removed when AI Office stops you.
 
 - Read a pull request with git: `git fetch origin`, then `git log` and `git diff origin/ai-office/ab12-add-dark-mode-toggle...origin/<worker branch>`.
-- To build and test it, check out the worker branch: `git checkout -B <worker branch> origin/<worker branch>`, then run the project's build and test commands.
-- On a conflict: in the worker branch, `git merge origin/ai-office/ab12-add-dark-mode-toggle`, resolve, verify and `git push origin <worker branch>` (never force-push); then request the merge with the new head sha. Fix only what integration needs; send everything else back with `rework-request`, because the worker owns the item.
+- To build and test it, check out the worker branch detached: `git checkout --detach origin/<worker branch>`, then run the project's build and test commands.
+- On a conflict: from that detached checkout, `git merge origin/ai-office/ab12-add-dark-mode-toggle`, resolve, verify and `git push origin HEAD:refs/heads/<worker branch>` (never force-push); then request the merge with the new head sha. Fix only what integration needs; send everything else back with `rework-request`, because the worker owns the item.
+- Never `git checkout -B`, `git switch -C` or otherwise check out a worker branch by name: the worker's worktree still holds it. Work detached and push with `HEAD:refs/heads/<worker branch>`.
 - Never push `ai-office/ab12-add-dark-mode-toggle` or any branch other than the worker branch under review. During implementation `ai-office/ab12-add-dark-mode-toggle` moves only through merges AI Office performs.
 - Do not open, merge, close, edit or comment on pull requests or issues, and do not run `gh` in any form.
 - Leave no uncommitted changes behind when you finish a review.
@@ -89,7 +90,7 @@ AI Office alone starts, stops and releases agents, merges pull requests and writ
 Submit structured results with the AI Office CLI at its absolute path (do not rely on `PATH`). Pass the JSON payload on standard input through a quoted heredoc exactly as shown; do not write payload files into the worktree.
 
 ```sh
-node '/opt/ai-office/apps/cli/dist/main.js' submit <kind> --seat-token 'aio_seat_Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9' - <<'AIO_JSON'
+node '/opt/ai-office/apps/cli/dist/main.js' submit <kind> --home '/Users/dev/aio home' --seat-token 'aio_seat_Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9' - <<'AIO_JSON'
 <payload JSON>
 AIO_JSON
 ```
@@ -97,7 +98,7 @@ AIO_JSON
 - The seat token identifies this attempt. Use it only in this command; never write it into files, commits, issues, pull requests or messages.
 - Exit 0: accepted; stdout is `{"status":"accepted","submissionId":…}`.
 - Exit 2: schema error; stdout is `{"issues":[{"path":…,"code":…,"message":…}]}`. Fix every listed issue and submit again.
-- Exit 3: identity or state error (for example the gate is already open or this kind is not allowed now). Unless a note below says otherwise, do not retry the same submission; quote the error in your `worker_done` report.
+- Exit 3: identity or state error (for example the gate is already open or this kind is not allowed now), or the backend failed to process the submission (`submission_failed` with a `requestId`). Unless a note below says otherwise, do not retry the same submission; quote the error in your `worker_done` report.
 - Exit 4: the AI Office backend is unreachable. Wait 30 seconds and run the same command again, at most 5 times.
 - Submitting the same kind again before the stage gate opens replaces your earlier submission.
 - `merge-request`: `expectedHeadSha` is the worker branch head you verified (`git rev-parse origin/<worker branch>` after any push). AI Office checks it and merges the pull request into `ai-office/ab12-add-dark-mode-toggle`; the command waits up to 120 seconds for the result.

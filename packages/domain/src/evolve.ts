@@ -12,6 +12,7 @@ import {
   initialState,
   isTimerHeld,
   stageKey,
+  TIMER_PAUSE_REASON,
 } from './state/index.js';
 import type {
   Attempt,
@@ -117,6 +118,40 @@ const updateAttempt = (
   return 'skip' in next
     ? next
     : { ...state, attempts: put(state.attempts, attemptId, next) };
+};
+
+/**
+ * S26: an object enters (or refreshes) the provider rate limit, keeping the
+ * first `since`; `null` lifts it; `undefined` leaves it unchanged. Windows are
+ * stamped with event times, the same instants engine pauses and resumes timers.
+ */
+const rateLimit = (
+  attempt: Attempt,
+  update: EventPayload<'seat.status'>['rateLimited'],
+  at: string,
+): Attempt => {
+  if (update === undefined) return attempt;
+  const windows = attempt.rateLimitWindows ?? [];
+  if (update === null) {
+    if (attempt.rateLimited === undefined) return attempt;
+    return {
+      ...omit(attempt, 'rateLimited'),
+      rateLimitWindows: windows.map((w, i) =>
+        i === windows.length - 1 && w.to === undefined ? { ...w, to: at } : w,
+      ),
+    };
+  }
+  return {
+    ...attempt,
+    rateLimited: {
+      since: attempt.rateLimited?.since ?? update.since,
+      evidence: update.evidence,
+      ...(update.resetsAt === undefined ? {} : { resetsAt: update.resetsAt }),
+      lastEvidenceAt: at,
+    },
+    rateLimitWindows:
+      attempt.rateLimited === undefined ? [...windows, { from: at }] : windows,
+  };
 };
 
 const workflowEnd = (
@@ -541,16 +576,20 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
           'invalid_attempt_transition',
           `Attempt ${attempt.attemptId}: ${attempt.state} → ${p.state}`,
         );
-      return {
-        ...omit(attempt, 'waitingSince'),
-        state: p.state,
-        ...(p.state === 'waiting_input'
-          ? {
-              waitingSince:
-                p.waitingSince ?? attempt.waitingSince ?? event.occurredAt,
-            }
-          : {}),
-      };
+      return rateLimit(
+        {
+          ...omit(attempt, 'waitingSince'),
+          state: p.state,
+          ...(p.state === 'waiting_input'
+            ? {
+                waitingSince:
+                  p.waitingSince ?? attempt.waitingSince ?? event.occurredAt,
+              }
+            : {}),
+        },
+        p.rateLimited,
+        event.occurredAt,
+      );
     }),
   'seat.activity': (state, event) =>
     updateAttempt(state, event.payload.attemptId, (attempt) => ({
@@ -567,15 +606,20 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       ...attempt,
       policyHits: [...attempt.policyHits, ...p.hits],
     })),
-  'seat.exited': (state, { payload: p }) =>
+  'seat.exited': (state, { payload: p, occurredAt }) =>
     updateAttempt(state, p.attemptId, (attempt) => {
       if (attempt.state === 'exited')
         return skip('already_exited', `Attempt ${p.attemptId} already exited`);
-      return {
-        ...omit(attempt, 'waitingSince'),
-        state: 'exited',
-        exit: { reason: p.reason, expected: p.expected },
-      };
+      // An exited attempt no longer waits for quota (S26).
+      return rateLimit(
+        {
+          ...omit(attempt, 'waitingSince'),
+          state: 'exited',
+          exit: { reason: p.reason, expected: p.expected },
+        },
+        null,
+        occurredAt,
+      );
     }),
   'seat.released': (state, { payload: p }) =>
     updateAttempt(state, p.attemptId, (attempt) => {
@@ -1119,11 +1163,14 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
   // timers ------------------------------------------------------------------
   'timer.scheduled': (state, event) => {
     const p = event.payload;
-    // Rescheduling a timer a past pause held shifts it (FX8b); otherwise ids are unique.
+    const timer = state.timers[p.timerId];
+    // Rescheduling resumes a rate-limit-paused timer (S26) or shifts one a past
+    // workflow pause held (FX8b); otherwise ids are unique.
     if (
       has(state.timers, p.timerId) &&
-      (state.workflow?.pausedReasons.length ||
-        !isTimerHeld(state, state.timers[p.timerId]!))
+      timer !== undefined &&
+      !timer.pausedAt &&
+      (state.workflow?.pausedReasons.length || !isTimerHeld(state, timer))
     )
       return skip('duplicate_timer', `Timer ${p.timerId} is already scheduled`);
     return {
@@ -1137,13 +1184,28 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     };
   },
   'timer.fired': (state, { payload: p }) =>
-    has(state.timers, p.timerId)
-      ? { ...state, timers: drop(state.timers, p.timerId) }
-      : skip('unknown_timer', `Timer ${p.timerId} is not pending`),
-  'timer.cancelled': (state, { payload: p }) =>
-    has(state.timers, p.timerId)
-      ? { ...state, timers: drop(state.timers, p.timerId) }
-      : skip('unknown_timer', `Timer ${p.timerId} is not pending`),
+    !has(state.timers, p.timerId)
+      ? skip('unknown_timer', `Timer ${p.timerId} is not pending`)
+      : state.timers[p.timerId]!.pausedAt
+        ? skip('timer_paused', `Timer ${p.timerId} is paused`)
+        : { ...state, timers: drop(state.timers, p.timerId) },
+  'timer.cancelled': (state, event) => {
+    const p = event.payload;
+    const timer = state.timers[p.timerId];
+    if (!has(state.timers, p.timerId) || timer === undefined)
+      return skip('unknown_timer', `Timer ${p.timerId} is not pending`);
+    if (p.reason !== TIMER_PAUSE_REASON)
+      return { ...state, timers: drop(state.timers, p.timerId) };
+    if (timer.pausedAt)
+      return skip('timer_paused', `Timer ${p.timerId} is already paused`);
+    return {
+      ...state,
+      timers: put(state.timers, p.timerId, {
+        ...timer,
+        pausedAt: event.occurredAt,
+      }),
+    };
+  },
 
   // system: no per-workflow state ---------------------------------------------
   'repo.registered': unchanged,

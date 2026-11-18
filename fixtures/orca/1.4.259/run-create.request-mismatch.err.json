@@ -1,0 +1,44 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:53:48Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "run-create",
+    "--objective",
+    "<redacted:test-input>",
+    "--from",
+    "term_00000000-0000-4000-8000-000000000001",
+    "--retry-request",
+    "00000000-0000-4000-8000-000000000030",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 1,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000033",
+    "ok": false,
+    "error": {
+      "code": "request_mismatch",
+      "message": "Mutation request 00000000-0000-4000-8000-000000000030 was already used with different input. Orchestration mutation request ID: 00000000-0000-4000-8000-000000000030.",
+      "data": {
+        "orchestrationRequestId": "00000000-0000-4000-8000-000000000030",
+        "originalCommand": [
+          "orca",
+          "orchestration",
+          "run-create",
+          "--objective",
+          "aio-test DIFFERENT aio:fail",
+          "--from",
+          "term_00000000-0000-4000-8000-000000000001",
+          "--json",
+          "--full"
+        ]
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

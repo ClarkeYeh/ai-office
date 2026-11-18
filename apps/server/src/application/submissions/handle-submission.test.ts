@@ -15,7 +15,16 @@ import { createRedactor } from '../../adapters/redactor/index.js';
 import { harness, flush, StubWorld } from '../runner/test-support/harness.js';
 import { WorkflowRunner } from '../runner/workflow-runner.js';
 import type { RunnerReact } from '../runner/workflow-runner.js';
-import { HandleSubmission } from './handle-submission.js';
+import {
+  HandleSubmission,
+  SUBMISSION_FAILURE_STREAK,
+} from './handle-submission.js';
+import { PortError } from '../../ports/errors.js';
+import {
+  CLI_EXIT_CODES,
+  SubmissionFailureResponseSchema,
+  exitCodeForHttpStatus,
+} from '@ai-office/contracts/agent-submission';
 
 const agenda: AgentSubmission = {
   kind: 'agenda',
@@ -74,6 +83,7 @@ const setup = (
     {
       ...h,
       cliPath: '/opt/ai-office/apps/cli/dist/main.js',
+      dataDir: '/opt/ai-office-home',
       react,
     },
     domain.state,
@@ -233,6 +243,128 @@ describe('submission identity, validation and artifacts', () => {
   });
 });
 
+describe('submission failures (D4)', () => {
+  const failures = (h: ReturnType<typeof setup>) =>
+    h.logger.entries.filter((e) => e.msg === 'agent submission failed');
+  const recorded = (h: ReturnType<typeof setup>) =>
+    h.events().filter((e) => e.type === 'error.recorded');
+
+  test('a retryable failure answers a typed 503 (exit 4) and logs a request id without secrets', async () => {
+    const h = setup();
+    h.runtime.resolveCaller.mockRejectedValue(
+      new PortError(
+        'transient',
+        'runtime_unavailable',
+        'Orca unavailable',
+        true,
+      ),
+    );
+    const result = await h.useCase.handle(h.headers, agenda);
+    expect(result.status).toBe(503);
+    expect(exitCodeForHttpStatus(result.status)).toBe(
+      CLI_EXIT_CODES.BACKEND_UNREACHABLE,
+    );
+    const body = SubmissionFailureResponseSchema.parse(result.body);
+    expect(body.error).toMatchObject({
+      code: 'submission_unavailable',
+      category: 'transient',
+      retryable: true,
+    });
+    const [entry] = failures(h);
+    expect(entry).toMatchObject({
+      level: 'error',
+      obj: {
+        requestId: body.error.details.requestId,
+        workflowId: 'wf-1',
+        attemptId: h.attemptId,
+        category: 'transient',
+        code: 'runtime_unavailable',
+      },
+    });
+    const logged = JSON.stringify(h.logger.entries);
+    expect(logged).not.toContain(h.headers.authorization.slice(7));
+    expect(logged).not.toContain('Discussion');
+  });
+
+  test('an unexpected failure answers a typed 500 (exit 3) and never logs its message', async () => {
+    const h = setup();
+    const token = h.headers.authorization.slice(7);
+    vi.spyOn(h.runner, 'dispatch').mockRejectedValue(
+      new Error(`boom ${token} Discussion`),
+    );
+    const result = await h.useCase.handle(h.headers, agenda);
+    expect(result.status).toBe(500);
+    expect(exitCodeForHttpStatus(result.status)).toBe(
+      CLI_EXIT_CODES.IDENTITY_OR_STATE_ERROR,
+    );
+    expect(result.body).toMatchObject({
+      error: {
+        code: 'submission_failed',
+        category: 'bug',
+        retryable: false,
+      },
+    });
+    expect(JSON.stringify(result.body)).not.toContain(token);
+    expect(failures(h)[0]?.obj).toMatchObject({
+      category: 'bug',
+      code: 'unexpected_error',
+    });
+    expect(failures(h)[0]?.obj).not.toHaveProperty('message');
+    expect(JSON.stringify(h.logger.entries)).not.toContain(token);
+  });
+
+  test(`${SUBMISSION_FAILURE_STREAK} consecutive failures record one error.recorded on the attempt; an answer resets the streak`, async () => {
+    const h = setup();
+    const dispatch = vi
+      .spyOn(h.runner, 'dispatch')
+      .mockRejectedValue(new PortError('bug', 'store_failed', 'Store failed'));
+    for (let i = 1; i < SUBMISSION_FAILURE_STREAK; i++)
+      await h.useCase.handle(h.headers, agenda);
+    expect(recorded(h)).toHaveLength(0);
+    const last = await h.useCase.handle(h.headers, agenda);
+    const requestId = SubmissionFailureResponseSchema.parse(last.body).error
+      .details.requestId;
+    expect(recorded(h)).toEqual([
+      expect.objectContaining({
+        workflowId: 'wf-1',
+        attemptId: h.attemptId,
+        payload: {
+          category: 'bug',
+          code: 'submission_failed',
+          message: expect.stringContaining('store_failed'),
+          detail: `last requestId ${requestId}`,
+        },
+      }),
+    ]);
+    // Further failures in the same streak do not repeat the event.
+    await h.useCase.handle(h.headers, agenda);
+    expect(recorded(h)).toHaveLength(1);
+    // An answered submission resets the streak.
+    dispatch.mockRestore();
+    expect((await h.useCase.handle(h.headers, agenda)).status).toBe(200);
+    vi.spyOn(h.runner, 'dispatch').mockRejectedValue(
+      new PortError('bug', 'store_failed', 'Store failed'),
+    );
+    for (let i = 1; i < SUBMISSION_FAILURE_STREAK; i++)
+      await h.useCase.handle(h.headers, agenda);
+    expect(recorded(h)).toHaveLength(1);
+    await h.useCase.handle(h.headers, agenda);
+    expect(recorded(h)).toHaveLength(2);
+  });
+
+  test('a failure before the attempt is known is logged and answered without an event', async () => {
+    const h = setup();
+    vi.spyOn(h.seatTokens, 'verify').mockImplementation(() => {
+      throw new PortError('transient', 'store_busy', 'Store busy', true);
+    });
+    for (let i = 0; i < SUBMISSION_FAILURE_STREAK; i++)
+      expect((await h.useCase.handle(h.headers, agenda)).status).toBe(503);
+    expect(failures(h)).toHaveLength(SUBMISSION_FAILURE_STREAK);
+    expect(failures(h)[0]?.obj).not.toHaveProperty('attemptId');
+    expect(recorded(h)).toHaveLength(0);
+  });
+});
+
 describe('progressive merge and rework', () => {
   test('implement merge waits for the matching ScmPort result', async () => {
     const h = setup(reviewing(), mergeReact);
@@ -296,6 +428,51 @@ describe('progressive merge and rework', () => {
             e.type === 'command.issued' && e.payload.kind === 'scm.mergePR',
         ),
     ).toHaveLength(1);
+  });
+  test('close releases all waits and racing acceptance, then a restarted query returns the result', async () => {
+    const h = setup(reviewing(), mergeReact, new StubWorld().hang('mergePR'));
+    const cancel = vi.spyOn(h.scheduler, 'cancel');
+    const first = h.useCase.handle(h.headers, merge);
+    const second = h.useCase.handle(h.headers, merge);
+    await flush();
+    h.useCase.close();
+    h.useCase.close();
+    const pending = await first;
+    expect(pending).toMatchObject({ status: 202, body: { status: 'pending' } });
+    expect(await second).toEqual(pending);
+    expect(cancel).toHaveBeenCalledTimes(2);
+    expect(await h.useCase.handle(h.headers, merge)).toEqual(pending);
+    const issued = h
+      .events()
+      .find(
+        (e) => e.type === 'command.issued' && e.payload.kind === 'scm.mergePR',
+      );
+    if (issued?.type !== 'command.issued') throw new Error('missing merge');
+    await h.runner.append([
+      eventDraft('command.succeeded', {
+        commandId: issued.payload.commandId,
+        kind: 'scm.mergePR',
+        result: { mergeCommitSha: 'abcdef3' },
+      }),
+    ]);
+    expect(
+      await new HandleSubmission(h.deps).handle(h.headers, merge),
+    ).toMatchObject({
+      status: 200,
+      body: { status: 'merged', mergeCommitSha: 'abcdef3' },
+    });
+    expect(h.accepted()).toHaveLength(1);
+    const racing = setup(
+      reviewing(),
+      mergeReact,
+      new StubWorld().hang('mergePR'),
+    );
+    const response = racing.useCase.handle(racing.headers, merge);
+    racing.useCase.close();
+    expect(await response).toMatchObject({
+      status: 202,
+      body: { status: 'pending' },
+    });
   });
   test('matching failure returns 409, unrelated results do not finish the wait', async () => {
     const h = setup(reviewing(), mergeReact, new StubWorld().hang('mergePR'));

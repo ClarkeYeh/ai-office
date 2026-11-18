@@ -3,6 +3,7 @@ import {
   type SpawnSyncOptionsWithStringEncoding,
   type SpawnSyncReturns,
 } from 'node:child_process';
+import { resolveExecutable, subprocessEnvironments } from './runtime-config.js';
 import type { Settings } from './settings.js';
 
 export type GhTokenSpawn = (
@@ -25,36 +26,20 @@ export function readGhToken(
   }
   if (settings.github.tokenSource === 'env')
     throw new Error('Set AI_OFFICE_GITHUB_TOKEN to authenticate GitHub');
-  const childEnv: NodeJS.ProcessEnv = {};
-  const keys = [
-    'PATH',
-    'HOME',
-    'USER',
-    'LOGNAME',
-    'LANG',
-    'LC_ALL',
-    'TMPDIR',
-    ...settings.env.passthrough,
-  ];
-  for (const key of keys) {
-    // Passthrough permits gh configuration, never identity or token overrides.
-    if (
-      /^(ORCA_|CLAUDE|CODEX_|AI_OFFICE_|GITHUB_)/.test(key) ||
-      (key.startsWith('GH_') && key !== 'GH_CONFIG_DIR')
-    )
-      continue;
-    if (env[key] !== undefined) childEnv[key] = env[key];
-  }
   try {
-    const result = spawn(settings.github.ghBin || 'gh', ['auth', 'token'], {
-      shell: false,
-      cwd: `${dataDir}/cli-cwd`,
-      env: childEnv,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 10_000,
-      maxBuffer: 64 * 1024,
-    });
+    const result = spawn(
+      resolveExecutable('gh', settings.github.ghBin, env),
+      ['auth', 'token'],
+      {
+        shell: false,
+        cwd: `${dataDir}/cli-cwd`,
+        env: subprocessEnvironments(settings, env).gitFetchEnv,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 10_000,
+        maxBuffer: 64 * 1024,
+      },
+    );
     if (!result.error && result.status === 0 && result.stdout?.trim())
       return result.stdout.trim();
   } catch {

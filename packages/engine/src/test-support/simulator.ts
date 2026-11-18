@@ -17,6 +17,7 @@ import {
   initialState,
   isTimerHeld,
   possiblyLiveAttempts,
+  TIMER_PAUSE_REASON,
 } from '@ai-office/domain';
 import type {
   CommandMeta,
@@ -216,10 +217,11 @@ export class Simulator {
   /** Moves the clock forward, firing due timers in `fireAt` order (held while paused). */
   advance(ms: number): this {
     const target = this.now + ms;
-    while (!this.paused) {
+    for (;;) {
       const due = Object.values(this.state.timers)
         .filter(
           (timer) =>
+            timer.pausedAt === undefined &&
             Date.parse(timer.fireAt) <= target &&
             !isTimerHeld(this.state, timer),
         )
@@ -267,14 +269,11 @@ export class Simulator {
     return this;
   }
 
-  private get paused(): boolean {
-    return (this.state.workflow?.pausedReasons.length ?? 0) > 0;
-  }
-
   /** The runner's timer delivery: fires only a pending timer a pause does not hold. */
   private fire(timerId: string): void {
     if (
       Object.hasOwn(this.state.timers, timerId) &&
+      this.state.timers[timerId]!.pausedAt === undefined &&
       !isTimerHeld(this.state, this.state.timers[timerId]!)
     )
       this.append(this.draft('timer.fired', { timerId }));
@@ -282,7 +281,10 @@ export class Simulator {
 
   /** The runner's FX8b shift: held timers get their remaining time back. */
   private shift(): void {
-    for (const { timer, fireAt } of heldTimerShifts(this.state, this.clock))
+    for (const { timer, fireAt, repause } of heldTimerShifts(
+      this.state,
+      this.clock,
+    )) {
       this.append(
         this.draft('timer.scheduled', {
           timerId: timer.id,
@@ -290,6 +292,14 @@ export class Simulator {
           payload: timer.payload,
         }),
       );
+      if (repause)
+        this.append(
+          this.draft('timer.cancelled', {
+            timerId: timer.id,
+            reason: TIMER_PAUSE_REASON,
+          }),
+        );
+    }
   }
 
   private run(command: DomainCommand): void {

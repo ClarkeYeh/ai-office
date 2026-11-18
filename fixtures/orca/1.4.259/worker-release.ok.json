@@ -1,0 +1,35 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:54:28Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "worker-release",
+    "--dispatch",
+    "ctx_95a2dd7598c2",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000045",
+    "ok": true,
+    "result": {
+      "dispatchId": "ctx_95a2dd7598c2",
+      "state": "released",
+      "processAction": "closed_agent_terminal",
+      "archive": {
+        "source": "terminal",
+        "status": "unavailable"
+      },
+      "mutation": {
+        "requestId": "00000000-0000-4000-8000-000000000046",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

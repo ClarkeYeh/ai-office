@@ -9,7 +9,21 @@ import type {
   RuntimeCursor,
 } from './refs.js';
 import type { RuntimeEvent } from './runtime-events.js';
+export type RuntimeWarning =
+  | 'codex_env_filtered'
+  | 'shim_folder_fallback'
+  | 'version_changed'
+  | 'host_slept'
+  | 'orphan_resources'
+  | 'chat_worker_identity_degraded';
+
 export type RuntimeHealth = {
+  binPath?: string;
+  supportedRange?: string;
+  shimLocation?: string;
+  cliCallsPerMinute?: number;
+  cpuSecondsPerMinute?: number;
+  warnings?: RuntimeWarning[];
   available: boolean;
   version: string;
   verified: boolean;
@@ -103,6 +117,7 @@ export interface RuntimePort {
     session: SessionRef,
     cursor: RuntimeCursor | null,
   ): Promise<{ events: RuntimeEvent[]; cursor: RuntimeCursor }>;
+  /** @deprecated Reconcile with inspectRequest and findCommandByMarker instead. */
   findByCorrelation(
     session: SessionRef,
     commandId: string,

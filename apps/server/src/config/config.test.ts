@@ -70,8 +70,15 @@ describe('settings', () => {
         shim: { closeOnExit: false },
         cliConcurrency: 4,
         maxCallsPerMinute: 120,
+        preventSleep: true,
       },
-      usage: { budgetFormula: 'inputUncached + output + cacheWrite' },
+      engine: { spawnStallMs: 600000 },
+      budget: { enforcement: 'on' },
+      usage: {
+        budgetFormula: 'inputUncached + output + cacheWrite',
+        claudeConfigDirs: [],
+        codexHomes: [],
+      },
       github: { tokenSource: 'auto', ghBin: '' },
       env: { passthrough: ['GH_CONFIG_DIR', 'XDG_CONFIG_HOME'] },
       limits: { globalAgents: 10 },
@@ -317,23 +324,34 @@ describe('instance lock and runtime information', () => {
       child.kill();
     }
   });
-  it('waits briefly for a holder that has created but not yet written the lock', async () => {
+  it('waits briefly for a holder that has created but not yet written the lock', () => {
     const directory = home();
     const path = `${directory}/data/.lock`;
     writeFileSync(path, '');
-    const child = spawn(
-      process.execPath,
-      [
-        '-e',
-        `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(path)}, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })), 50); setInterval(() => {}, 1000)`,
-      ],
-      { stdio: 'ignore' },
+    // The holder writes between our reads; the vitest parent is a live pid that is not ours.
+    const pause = vi.fn((attempt: number) => {
+      if (attempt === 2)
+        writeFileSync(
+          path,
+          JSON.stringify({
+            pid: process.ppid,
+            startedAt: '2026-01-01T00:00:00Z',
+          }),
+        );
+    });
+    expect(() => acquireInstanceLock(directory, { pause })).toThrow(
+      String(process.ppid),
     );
-    await new Promise<void>((resolve) => child.once('spawn', resolve));
-    try {
-      expect(() => acquireInstanceLock(directory)).toThrow(String(child.pid));
-    } finally {
-      child.kill();
-    }
+    expect(pause).toHaveBeenCalledTimes(3);
+    expect(existsSync(`${path}.reclaim`)).toBe(false);
+  });
+  it('fails closed when the holder never writes the lock within the retry budget', () => {
+    const directory = home();
+    writeFileSync(`${directory}/data/.lock`, '');
+    const pause = vi.fn();
+    expect(() => acquireInstanceLock(directory, { pause })).toThrow(
+      'Invalid instance lock',
+    );
+    expect(pause).toHaveBeenCalledTimes(10);
   });
 });

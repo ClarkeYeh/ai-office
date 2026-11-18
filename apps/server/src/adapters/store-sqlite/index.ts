@@ -1,3 +1,4 @@
+import { SqliteAdapterStateStore } from './adapter-state.js';
 import { chmodSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import type { Clock, IdGen } from '../../ports/services.js';
@@ -40,6 +41,7 @@ export function openSqliteStores<T = unknown>(options: SqliteStoreOptions) {
       seatTokens: new SqliteSeatTokenStore(db),
       sessions: new SqliteSessionStore(db, options.clock),
       idempotency: new SqliteIdempotencyStore(db, options.clock),
+      adapterState: (name: string) => new SqliteAdapterStateStore(db, name),
       backupPath,
       close: () => {
         if (db.open) db.close();
@@ -62,3 +64,4 @@ export {
   type Upcasters,
   type UpcastPlan,
 } from './upcasters/index.js';
+export { SqliteAdapterStateStore } from './adapter-state.js';

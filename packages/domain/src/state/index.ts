@@ -93,6 +93,13 @@ export const isAttemptPossiblyAlive = (attempt: Attempt): boolean =>
 export const possiblyLiveAttempts = (state: WorkflowState): Attempt[] =>
   Object.values(state.attempts).filter(isAttemptPossiblyAlive);
 
+/** `timer.cancelled` reason that pauses a timer instead of dropping it (S26). */
+export const TIMER_PAUSE_REASON = 'rate_limited';
+
+/** A live attempt the provider currently rate-limits; its engine timers are paused (S26). */
+export const isRateLimited = (attempt: Attempt): boolean =>
+  attempt.rateLimited !== undefined && isAttemptAlive(attempt);
+
 export const latestAttempt = (
   state: WorkflowState,
   seatId: string,

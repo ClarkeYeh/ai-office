@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { GitShaSchema } from '../events/common.js';
+import { ErrorCategorySchema, GitShaSchema } from '../events/common.js';
 
 // Submission payloads are defined in contracts/events so domain can validate them (§9.1).
 export {
@@ -78,6 +78,36 @@ export const SUBMISSION_RESPONSE_HTTP_STATUS = {
 } as const satisfies Record<SubmissionResponse['status'], number>;
 
 /**
+ * §13 error body for a submission the backend failed to process (it threw, as
+ * opposed to rejecting it). `retryable` failures (§15 transient, rate_limited,
+ * identity) answer 503 so the CLI exits 4 and the agent retries; others answer
+ * 500 and exit 3. `details.requestId` matches the server log line.
+ */
+export const SubmissionFailureCodeSchema = z.enum([
+  'submission_unavailable',
+  'submission_failed',
+]);
+export const SubmissionFailureResponseSchema = z.object({
+  error: z.object({
+    code: SubmissionFailureCodeSchema,
+    category: ErrorCategorySchema,
+    message: z.string(),
+    retryable: z.boolean(),
+    details: z.object({ requestId: z.string().min(1) }),
+  }),
+});
+export type SubmissionFailureResponse = z.infer<
+  typeof SubmissionFailureResponseSchema
+>;
+export const SUBMISSION_FAILURE_HTTP_STATUS = {
+  submission_unavailable: 503,
+  submission_failed: 500,
+} as const satisfies Record<
+  z.infer<typeof SubmissionFailureCodeSchema>,
+  number
+>;
+
+/**
  * Shared by agent-gateway and CLI so both agree on outcomes. Statuses not listed
  * fall back to {@link exitCodeForHttpStatus}; network failures map to 4.
  */
@@ -93,6 +123,9 @@ export const HTTP_STATUS_EXIT_CODES = {
   404: CLI_EXIT_CODES.IDENTITY_OR_STATE_ERROR,
   409: CLI_EXIT_CODES.IDENTITY_OR_STATE_ERROR,
   410: CLI_EXIT_CODES.IDENTITY_OR_STATE_ERROR,
+  // The backend answered but cannot process this submission; retrying won't help.
+  500: CLI_EXIT_CODES.IDENTITY_OR_STATE_ERROR,
+  503: CLI_EXIT_CODES.BACKEND_UNREACHABLE,
 } as const satisfies Record<number, CliExitCode>;
 export const exitCodeForHttpStatus = (status: number): CliExitCode => {
   const known = (HTTP_STATUS_EXIT_CODES as Record<number, CliExitCode>)[status];

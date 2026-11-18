@@ -84,7 +84,7 @@ AI Office alone starts, stops and releases agents, merges pull requests and writ
 Submit structured results with the AI Office CLI at its absolute path (do not rely on `PATH`). Pass the JSON payload on standard input through a quoted heredoc exactly as shown; do not write payload files into the worktree.
 
 ```sh
-node '/opt/ai-office/apps/cli/dist/main.js' submit <kind> --seat-token 'aio_seat_Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9' - <<'AIO_JSON'
+node '/opt/ai-office/apps/cli/dist/main.js' submit <kind> --home '/Users/dev/aio home' --seat-token 'aio_seat_Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9Zx9' - <<'AIO_JSON'
 <payload JSON>
 AIO_JSON
 ```
@@ -92,7 +92,7 @@ AIO_JSON
 - The seat token identifies this attempt. Use it only in this command; never write it into files, commits, issues, pull requests or messages.
 - Exit 0: accepted; stdout is `{"status":"accepted","submissionId":…}`.
 - Exit 2: schema error; stdout is `{"issues":[{"path":…,"code":…,"message":…}]}`. Fix every listed issue and submit again.
-- Exit 3: identity or state error (for example the gate is already open or this kind is not allowed now). Unless a note below says otherwise, do not retry the same submission; quote the error in your `worker_done` report.
+- Exit 3: identity or state error (for example the gate is already open or this kind is not allowed now), or the backend failed to process the submission (`submission_failed` with a `requestId`). Unless a note below says otherwise, do not retry the same submission; quote the error in your `worker_done` report.
 - Exit 4: the AI Office backend is unreachable. Wait 30 seconds and run the same command again, at most 5 times.
 - Submitting the same kind again before the stage gate opens replaces your earlier submission.
 - Answer each question with exactly one submission that carries its `questionId`.

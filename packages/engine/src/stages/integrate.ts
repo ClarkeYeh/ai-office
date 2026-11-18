@@ -267,6 +267,38 @@ export const integrateStage: StageModule = {
         5 * MINUTE_MS,
       );
     if (integrator) return [];
+    // W1: a wrap-up worktree kept after a violation still holds the integration
+    // branch, so a rerun removes it before checking the branch out again.
+    const kept = Object.values(ctx.state.commands).flatMap((c) => {
+      const result = c.result;
+      if (
+        c.issued.kind !== 'runtime.prepareWorkspace' ||
+        !c.issued.args.checkoutExisting ||
+        c.issued.args.branch !== workflow.integrationBranch ||
+        c.id === stageCommandId(ctx, stageId, 'workspace') ||
+        result?.kind !== 'runtime.prepareWorkspace' ||
+        !result.result ||
+        !('workspace' in result.result)
+      )
+        return [];
+      const workspace = result.result.workspace;
+      const removed = Object.values(ctx.state.commands).some(
+        (s) =>
+          s.issued.kind === 'runtime.spawnAgent' &&
+          s.issued.args.workspace.kind === 'existing-worktree' &&
+          s.issued.args.workspace.workspace === workspace &&
+          ctx.state.attempts[s.attemptId ?? '']?.removeWorkspace === true,
+      );
+      return removed ? [] : [{ id: `${c.id}/dispose`, workspace }];
+    });
+    const failed =
+      ctx.event.type === 'command.failed' && ctx.event.payload.commandId;
+    if (failed && kept.some((k) => k.id === failed))
+      return stageViolation(
+        ctx,
+        stageId,
+        'An earlier wrap-up worktree could not be removed',
+      );
     if (
       ![
         'workflow.resumed',
@@ -320,6 +352,20 @@ export const integrateStage: StageModule = {
         ),
       ];
     if (ctx.state.commands[workspaceId]) return [];
+    const pending = kept.filter((k) => !ctx.state.commands[k.id]?.result);
+    if (pending.length)
+      return pending
+        .filter((k) => !ctx.state.commands[k.id])
+        .map((k) =>
+          external(
+            k.id,
+            {
+              kind: 'runtime.disposeWorkspace',
+              args: { workspace: k.workspace },
+            },
+            { stageId },
+          ),
+        );
     return [
       external(
         workspaceId,

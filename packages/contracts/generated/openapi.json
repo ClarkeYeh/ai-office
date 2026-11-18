@@ -2215,6 +2215,31 @@
           },
           "usage": {
             "$ref": "#/components/schemas/TokenUsage"
+          },
+          "rateLimited": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "resetsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "since"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2317,6 +2342,13 @@
               "ok",
               "exceeded",
               "hard_limit"
+            ]
+          },
+          "enforcement": {
+            "type": "string",
+            "enum": [
+              "on",
+              "off"
             ]
           }
         },
@@ -9422,7 +9454,8 @@
           "dependency-blocked",
           "merge-blocked",
           "rework-limit",
-          "merge-review-failed"
+          "merge-review-failed",
+          "spawn-stall"
         ]
       },
       "ExternalCommand": {
@@ -11022,6 +11055,22 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "binPath": {
+                "type": "string"
+              },
+              "supportedRange": {
+                "type": "string"
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cpuSecondsPerMinute": {
+                "type": "number",
+                "minimum": 0
               }
             },
             "required": [
@@ -11060,6 +11109,9 @@
               "login": {
                 "type": "string",
                 "minLength": 1
+              },
+              "ghBinPath": {
+                "type": "string"
               },
               "rateLimit": {
                 "type": "object",
@@ -11162,6 +11214,9 @@
                       "type": "string"
                     },
                     "available": {
+                      "type": "boolean"
+                    },
+                    "formatVerified": {
                       "type": "boolean"
                     }
                   },
@@ -11679,7 +11734,8 @@
               "item-timeout",
               "question-timeout",
               "review-timeout",
-              "budget-wrap-up"
+              "budget-wrap-up",
+              "spawn-stall"
             ]
           },
           "subject": {
@@ -12864,6 +12920,39 @@
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "rateLimited": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "evidence": {
+                    "type": "string",
+                    "enum": [
+                      "worker-show",
+                      "transcript"
+                    ]
+                  },
+                  "resetsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": [
+                  "since",
+                  "evidence"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -13781,6 +13870,57 @@
           "submission"
         ]
       },
+      "SubmissionFailureCode": {
+        "type": "string",
+        "enum": [
+          "submission_unavailable",
+          "submission_failed"
+        ]
+      },
+      "SubmissionFailureResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/SubmissionFailureCode"
+              },
+              "category": {
+                "$ref": "#/components/schemas/ErrorCategory"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "requestId"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "category",
+              "message",
+              "retryable",
+              "details"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
       "SubmissionHeaders": {
         "type": "object",
         "properties": {
@@ -14192,7 +14332,8 @@
                   "item-timeout",
                   "question-timeout",
                   "review-timeout",
-                  "budget-wrap-up"
+                  "budget-wrap-up",
+                  "spawn-stall"
                 ]
               }
             },
@@ -14225,6 +14366,48 @@
               "purpose",
               "stageId",
               "phase"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "purpose": {
+                "type": "string",
+                "const": "spawn-stall"
+              },
+              "attemptId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "nudge",
+                  "gate"
+                ]
+              }
+            },
+            "required": [
+              "purpose",
+              "attemptId",
+              "phase"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "purpose": {
+                "type": "string",
+                "const": "rate-limit-lift"
+              },
+              "attemptId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "purpose",
+              "attemptId"
             ]
           },
           {
@@ -14508,6 +14691,18 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
+          },
+          "spawnStallMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "budgetEnforcement": {
+            "type": "string",
+            "enum": [
+              "on",
+              "off"
+            ]
           }
         },
         "required": [
