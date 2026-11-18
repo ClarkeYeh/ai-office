@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { OfficeSeat, Point } from '../model/index.js';
 import css from './scene.module.css';
 
@@ -32,14 +33,17 @@ export function SpeechBubble({
       role="img"
       aria-label={bubble.label}
       title={bubble.label}
-      style={{
-        left: (zone.x - origin.x) * s,
-        top: (zone.y - origin.y) * s,
-        width: zone.w * s,
-        maxHeight: 22 * s,
-        fontSize: Math.max(10, Math.round(4 * s)),
-        borderWidth: s,
-      }}
+      style={
+        {
+          '--tail-x': `${Math.max(3, Math.min(zone.w - 5, seat.x + 8 - zone.x)) * s}px`,
+          left: (zone.x - origin.x) * s,
+          top: (zone.y - origin.y) * s,
+          width: zone.w * s,
+          maxHeight: 22 * s,
+          fontSize: Math.max(10, Math.round(4 * s)),
+          borderWidth: s,
+        } as CSSProperties
+      }
     >
       <span>{bubble.position}</span>
     </span>

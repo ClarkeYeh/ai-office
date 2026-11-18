@@ -355,7 +355,7 @@
   height: 4px;
   background: white;
   bottom: -5px;
-  left: 45%;
+  left: var(--tail-x);
   box-shadow:
     2px 2px 0 #262b44,
     4px 4px 0 #262b44;
