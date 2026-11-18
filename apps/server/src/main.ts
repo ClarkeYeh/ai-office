@@ -657,7 +657,8 @@ async function composeOrca(
     }
   };
   cleanup.push(close);
-  if (!dev) return { runtime, observer, close, setActive };
+  if (!dev)
+    return { runtime, observer, close, setActive, identityEnsured: false };
   await cwdGuard.check();
   await cleanupOrphanProcesses(groups, { exec, cwdGuard, env: config.orcaEnv });
   await version.check();
@@ -701,7 +702,8 @@ async function composeOrca(
     );
     ledger.rebuild(run, { workers }, tasks);
   }
-  return { runtime, observer, close, setActive };
+  // The runtime identity probe succeeded (FX5: runtimeVerified may be published).
+  return { runtime, observer, close, setActive, identityEnsured: true };
 }
 
 async function compose(
@@ -853,8 +855,15 @@ async function compose(
   cleanup.push(() => projectionScheduler.close());
 
   const runtimeMetadata = { mode: runtimeMode, ...(await runtime.health()) };
+  // FX5: runtimeVerified is published only after the runtime identity probe
+  // succeeded: the fake runtime is up once composed; orca mode needs
+  // CoordinatorIdentity ensure() (composeOrca).
+  const identityProbed = orca === undefined || orca.identityEnsured;
   const refreshRuntimeHealth = async () => {
     Object.assign(runtimeMetadata, await runtime.health());
+    // Version re-reads can turn the runtime unverified (§19); publish changes.
+    if (identityProbed)
+      await health.runtimeIdentityVerified(runtimeMetadata.verified);
     if (!runtimeMetadata.available)
       throw new PortError(
         'transient',
@@ -977,9 +986,9 @@ async function compose(
     await delay(Math.min(1000 * pass, 5000));
   }
   await runners.idle();
-  // Publish each component's actual state before serving (FX5): the fake
-  // runtime is up once composed, so its identity counts as probed here.
-  await health.runtimeIdentityVerified((await runtime.health()).verified);
+  // Publish each component's actual state before serving (FX5).
+  if (identityProbed)
+    await health.runtimeIdentityVerified(runtimeMetadata.verified);
   await health.publishInitial();
 
   const projections = new ProjectionService(
