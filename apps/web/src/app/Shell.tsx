@@ -13,11 +13,24 @@ export interface ShellNeed {
   title: string;
   href: string;
 }
+/** A stage's template gate in the strip: a muted flag, the open gate, or a check. */
+export interface ShellStageGate {
+  id: string;
+  title: string;
+  state: 'pending' | 'open' | 'done';
+  /** The open gate instance and its page. */
+  gateId?: string;
+  href?: string;
+}
 export interface ShellStage {
   id: string;
   name: string;
   status: string;
   current?: boolean;
+  gate?: ShellStageGate;
+  /** The stage is its gate (final PR): draw only the gate chip. */
+  gateOnly?: boolean;
+  /** Other open gates of the stage (exceptions). */
   gates?: readonly ShellNeed[];
 }
 export interface ShellProps {
@@ -160,41 +173,82 @@ export function Shell({
         </Button>
       </header>
       {stages.length > 0 && (
-        <ol
-          className={styles.stages}
-          aria-label={t('app.stages')}
-          data-testid="stage-strip"
-        >
-          {stages.map((stage) => {
-            const key = `stage.${stage.status}`;
-            return (
-              <li key={stage.id} className={styles.stage}>
-                <span
-                  className={styles.stageLabel}
-                  aria-current={stage.current ? 'step' : undefined}
-                  aria-label={t('stage.aria', {
-                    name: stage.name,
-                    status: hasMessage(key) ? t(key) : stage.status,
-                  })}
-                >
-                  {stage.status === 'completed' && <PixelIcon name="check" />}
-                  {stage.name}
-                </span>
-                {stage.gates?.map((gate) => (
-                  <Link
-                    key={gate.id}
-                    href={gate.href}
-                    aria-label={gate.title}
-                    data-testid={`stage-gate-${gate.id}`}
-                  >
-                    <PixelIcon name="flag" />
-                    {gate.title}
-                  </Link>
-                ))}
-              </li>
-            );
-          })}
-        </ol>
+        <nav className={styles.flow} aria-label={t('app.stages')}>
+          <span className={styles.flowLabel} aria-hidden="true">
+            {t('app.flow')}
+          </span>
+          <ol className={styles.stages} data-testid="stage-strip">
+            {stages.map((stage) => {
+              const key = `stage.${stage.status}`;
+              const gate = stage.gate;
+              return (
+                <li key={stage.id} className={styles.stage}>
+                  {!stage.gateOnly && (
+                    <span
+                      className={styles.stageLabel}
+                      data-testid={`stage-${stage.id}`}
+                      data-status={stage.status}
+                      aria-current={stage.current ? 'step' : undefined}
+                      aria-label={t('stage.aria', {
+                        name: stage.name,
+                        status: hasMessage(key) ? t(key) : stage.status,
+                      })}
+                    >
+                      {stage.status === 'done' && <PixelIcon name="check" />}
+                      {stage.name}
+                    </span>
+                  )}
+                  {gate && !stage.gateOnly && (
+                    <span className={styles.dash} aria-hidden="true" />
+                  )}
+                  {gate &&
+                    (gate.state === 'open' && gate.href ? (
+                      <Link
+                        href={gate.href}
+                        aria-label={t('stage.gate.open', { title: gate.title })}
+                        data-testid={`stage-gate-${gate.gateId}`}
+                        data-state="open"
+                        aria-current={
+                          stage.gateOnly && stage.current ? 'step' : undefined
+                        }
+                      >
+                        <PixelIcon name="flag" />
+                        {gate.title}
+                      </Link>
+                    ) : (
+                      <span
+                        className={styles.stageGate}
+                        data-testid={`stage-flag-${gate.id}`}
+                        data-state={gate.state}
+                        aria-current={
+                          stage.gateOnly && stage.current ? 'step' : undefined
+                        }
+                        aria-label={t(`stage.gate.${gate.state}`, {
+                          title: gate.title,
+                        })}
+                      >
+                        <PixelIcon
+                          name={gate.state === 'done' ? 'check' : 'flag'}
+                        />
+                        {gate.title}
+                      </span>
+                    ))}
+                  {stage.gates?.map((other) => (
+                    <Link
+                      key={other.id}
+                      href={other.href}
+                      aria-label={other.title}
+                      data-testid={`stage-gate-${other.id}`}
+                    >
+                      <PixelIcon name="flag" />
+                      {other.title}
+                    </Link>
+                  ))}
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
       )}
       {banners}
       <div className={styles.body}>

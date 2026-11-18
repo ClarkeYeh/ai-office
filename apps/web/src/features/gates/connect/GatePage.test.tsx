@@ -116,6 +116,42 @@ const ready = () =>
     ).toBe(false),
   );
 
+describe('quiet-office thumbnail (V3Gate)', () => {
+  test('the real scene at 1×, still, hushed, hidden from AT with a text alternative', async () => {
+    setup(conclusionGate());
+    await ready();
+    const slot = screen.getByTestId('gate-thumbnail');
+    expect(slot.getAttribute('role')).toBe('img');
+    expect(slot.getAttribute('aria-label')).toBe(t('gates.thumbnail'));
+    const scene = within(slot).getByTestId('office-scene');
+    expect(scene.dataset.scale).toBe('1');
+    expect(scene.dataset.still).toBe('true');
+    expect(scene.getAttribute('aria-hidden')).toBe('true');
+    expect(within(slot).queryAllByRole('button', { hidden: true })).toEqual([]);
+    expect(within(slot).getByTestId('office-hush')).toBeTruthy();
+    expect(within(slot).getByTestId('office-your-desk-bang')).toBeTruthy();
+    expect(within(slot).queryByTestId('office-effects')).toBeNull();
+  });
+  test('another workflow on display draws no scene', async () => {
+    const { realtime } = setup(conclusionGate());
+    await ready();
+    act(() =>
+      realtime.store.setState({
+        active: {
+          workflowId: 'other',
+          live: { ...model, workflowId: 'other' },
+          status: 'ready',
+        },
+      }),
+    );
+    expect(
+      within(screen.getByTestId('gate-thumbnail')).queryByTestId(
+        'office-scene',
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('conclusion gate page', () => {
   test('shell: waiting status, facts, quiet office, needs and actions', async () => {
     setup(conclusionGate());
@@ -179,7 +215,7 @@ describe('conclusion gate page', () => {
       'Apply saved theme before first paint',
     );
     expect(screen.getByTestId('conclusion-diff').textContent).not.toContain(
-      'ai-office:cmd',
+      'ai-office:',
     );
   });
 

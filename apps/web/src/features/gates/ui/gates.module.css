@@ -19,6 +19,17 @@
   padding: 24px;
   overflow: hidden;
 }
+/* The 1× scene fills the slot; an oversized floor is cropped around the centre, never resampled. */
+.thumbnail:has([data-testid='office-scene']) {
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  max-height: 260px;
+}
+.thumbnail [data-testid='office-scene'] {
+  flex: none;
+  image-rendering: pixelated;
+}
 .thumbnailDesk {
   color: var(--amber);
 }

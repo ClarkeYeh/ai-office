@@ -54,33 +54,63 @@
   background: var(--ink);
   border-color: var(--ink);
 }
+.flow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--mist);
+}
+.flowLabel {
+  color: var(--slate);
+  font-weight: 600;
+}
 .stages {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--mist);
   margin: 0;
+  padding: 0;
   list-style: none;
 }
 .stage {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
-.stageLabel {
+/* V3: a short dash joins the steps of the flow. */
+.stage + .stage::before,
+.dash {
+  content: '';
+  width: 10px;
+  border-top: 2px solid var(--mist);
+}
+.stageLabel,
+.stageGate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border: 2px solid var(--mist);
   background: var(--ui-paper);
+  font-weight: 600;
+}
+.stageGate[data-state='pending'] {
+  color: var(--slate);
 }
 .stage [aria-current='step'] {
   color: var(--ui-paper);
   background: var(--ink);
+  border-color: var(--ink);
 }
 .stage a {
-  border-color: var(--amber);
-  background: var(--ui-paper);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--amber);
 }
 .body {
   display: grid;

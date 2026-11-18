@@ -181,6 +181,10 @@ test('conclusion gate: GitHub edit shows in the diff, 409 refetches, approve sen
   await expect(note).toHaveCount(1);
   // GitHub additions use the ink bar, never amber (I-12).
   await expect(note).toHaveCSS('border-left-color', INK);
+  // The reader never sees the engine's section or command markers.
+  await expect(page.getByTestId('conclusion-diff')).not.toContainText(
+    'ai-office:',
+  );
 
   // GitHub moves again after the page loaded: approving the version on screen
   // gets 409 gate_content_changed; the page says so and refetches.

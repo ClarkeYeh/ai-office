@@ -375,3 +375,19 @@
     -2px 2px 0 #262b44,
     -4px 4px 0 #262b44;
 }
+
+/* The still gate thumbnail (1×): DOM text keeps its pixel size and would
+   cover the floor, so only the pixel art is drawn; the slot has the text. */
+.frame[data-still]
+  :is(
+    .plate,
+    .roomPlate,
+    .label,
+    .doorSign,
+    .inboxLink,
+    .whiteboardText,
+    .bubble,
+    .tooltip
+  ) {
+  display: none;
+}
