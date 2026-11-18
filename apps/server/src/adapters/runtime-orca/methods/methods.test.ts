@@ -3,6 +3,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createOrcaRuntime } from './index.js';
+import { workerStartLaunchArgs } from './agents.js';
 import { CwdGuard } from '../cli/cwd.js';
 import { DefaultOrcaCli } from '../cli/index.js';
 import { CliScheduler } from '../cli/scheduler.js';
@@ -434,6 +435,60 @@ it('writes pending ledger before worker-start and accepts exit 1 with ready rece
   expect(
     f.calls.filter((r) => command(r, 'orchestration worker-start')),
   ).toHaveLength(1);
+});
+it.each([
+  [{ agent: 'claude-code' as const }, ['--agent', 'claude'], false],
+  [
+    { agent: 'claude-code' as const, effort: 'high' as const },
+    ['--agent', 'claude'],
+    true,
+  ],
+  [
+    { agent: 'codex' as const, model: 'gpt-x' },
+    ['--agent', 'codex', '--model', 'gpt-x'],
+    false,
+  ],
+  [
+    { agent: 'codex' as const, model: 'gpt-x', effort: 'low' as const },
+    ['--agent', 'codex', '--model', 'gpt-x', '--effort', 'low'],
+    false,
+  ],
+])(
+  'passes --effort only together with --model (Orca rejects it alone): %o',
+  (req, args, droppedEffort) => {
+    expect(workerStartLaunchArgs(req)).toEqual({ args, droppedEffort });
+  },
+);
+it('starts a model-less high-effort role without --effort and logs the drop once', async () => {
+  const f = await fixture();
+  f.setCustom(async (r) =>
+    command(r, 'orchestration worker-start')
+      ? { result: { state: 'ready', dispatchId: `ctx-${f.calls.length}` } }
+      : undefined,
+  );
+  const lead = {
+    ...f.spawn,
+    agent: 'claude-code' as const,
+    effort: 'high' as const,
+  };
+  await f.runtime.spawnAgent(lead);
+  await f.runtime.spawnAgent({
+    ...lead,
+    correlation: { ...lead.correlation, commandId: 'spawn-2' },
+  });
+  const starts = f.calls.filter((r) =>
+    command(r, 'orchestration worker-start'),
+  );
+  expect(starts).toHaveLength(2);
+  for (const start of starts) {
+    expect(start.args).not.toContain('--effort');
+    expect(start.args).not.toContain('--model');
+  }
+  expect(f.options.logger.info).toHaveBeenCalledTimes(1);
+  expect(f.options.logger.info).toHaveBeenCalledWith(
+    { effort: 'high' },
+    expect.stringContaining('effort ignored'),
+  );
 });
 it('reconciles outcome_unknown by the SAME request receipt without another worker-start', async () => {
   const f = await fixture();

@@ -990,10 +990,10 @@ test('submission responses and HTTP exit-code mapping', () => {
       .success,
   ).toBe(false);
   expect(
-    [200, 201, 202, 400, 422, 401, 403, 409, 410, 418, 500, 503].map(
+    [200, 201, 202, 400, 422, 401, 403, 409, 410, 418, 500, 502, 503].map(
       exitCodeForHttpStatus,
     ),
-  ).toEqual([0, 0, 3, 2, 2, 3, 3, 3, 3, 3, 4, 4]);
+  ).toEqual([0, 0, 3, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4]);
 });
 
 test('runtime.json schema', () => {

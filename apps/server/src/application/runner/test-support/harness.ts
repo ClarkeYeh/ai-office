@@ -35,6 +35,7 @@ export const lifecycleReact = createReact({
 export const WORKFLOW_ID = 'wf-1';
 export const START = '2026-11-17T00:00:00.000Z';
 export const CLI_PATH = '/opt/ai-office/apps/cli/dist/main.js';
+export const DATA_DIR = '/var/aio-home';
 
 export const repo = (): RepoSnapshot => ({
   repoId: 'repo-1',
@@ -296,6 +297,7 @@ export const harness = (options: HarnessOptions = {}) => {
     seatTokens,
     specStore,
     cliPath: CLI_PATH,
+    dataDir: DATA_DIR,
     react: options.react ?? lifecycleReact,
   };
   const runners = new WorkflowRunners(deps);

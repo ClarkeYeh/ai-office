@@ -47,7 +47,7 @@ export const submitCommand = (
 ): string[] =>
   fenced(
     [
-      `node ${shellQuote(params.cliPath)} submit ${kind} --seat-token ${shellQuote(params.seatToken)} - <<'${SUBMIT_EOF}'`,
+      `node ${shellQuote(params.cliPath)} submit ${kind} --home ${shellQuote(params.dataDir)} --seat-token ${shellQuote(params.seatToken)} - <<'${SUBMIT_EOF}'`,
       payload,
       SUBMIT_EOF,
     ].join('\n'),
@@ -70,7 +70,7 @@ export const submissionSection = (
       'The seat token identifies this attempt. Use it only in this command; never write it into files, commits, issues, pull requests or messages.',
       'Exit 0: accepted; stdout is `{"status":"accepted","submissionId":…}`.',
       'Exit 2: schema error; stdout is `{"issues":[{"path":…,"code":…,"message":…}]}`. Fix every listed issue and submit again.',
-      'Exit 3: identity or state error (for example the gate is already open or this kind is not allowed now). Unless a note below says otherwise, do not retry the same submission; quote the error in your `worker_done` report.',
+      'Exit 3: identity or state error (for example the gate is already open or this kind is not allowed now), or the backend failed to process the submission (`submission_failed` with a `requestId`). Unless a note below says otherwise, do not retry the same submission; quote the error in your `worker_done` report.',
       'Exit 4: the AI Office backend is unreachable. Wait 30 seconds and run the same command again, at most 5 times.',
       'Submitting the same kind again before the stage gate opens replaces your earlier submission.',
       ...notes,

@@ -44,7 +44,7 @@ function setup(merging = false) {
   domain.state.attempts[attemptId]!.state = 'working';
   const runner = new WorkflowRunner(
     'wf-1',
-    { ...h, cliPath: '/opt/cli.js', react: () => [] },
+    { ...h, cliPath: '/opt/cli.js', dataDir: '/opt/home', react: () => [] },
     domain.state,
   );
   const runtime = {
@@ -71,7 +71,11 @@ function setup(merging = false) {
   };
   const app = Fastify();
   apps.push(app);
-  registerAgentGateway(app, { submissions: useCase, port: 4319 });
+  registerAgentGateway(app, {
+    submissions: useCase,
+    port: 4319,
+    logger: h.logger,
+  });
   const post = (payload: unknown = agenda, overrides = {}) =>
     app.inject({
       method: 'POST',
@@ -184,8 +188,10 @@ describe('agent HTTP boundary', () => {
       },
     });
     apps.push(app);
+    const errors: object[] = [];
     registerAgentGateway(app, {
       port: () => 4319,
+      logger: { error: (obj) => errors.push(obj) },
       submissions: {
         handle: async () => {
           throw new Error(secret);
@@ -198,7 +204,7 @@ describe('agent HTTP boundary', () => {
       'content-type': 'application/json',
     };
     for (const [payload, expectedStatus] of [
-      [JSON.stringify({ secret }), 500],
+      [JSON.stringify({ secret }), 503],
       ['{"secret":"' + secret, 400],
       [JSON.stringify({ secret: secret.repeat(20) }), 413],
     ] as const) {
@@ -212,6 +218,10 @@ describe('agent HTTP boundary', () => {
       expect(response.body).not.toContain(secret);
     }
     expect(logs.join('')).not.toContain(secret);
+    expect(errors).toEqual([
+      { requestId: expect.any(String), statusCode: null },
+    ]);
+    expect(JSON.stringify(errors)).not.toContain(secret);
   });
   test('merge wait returns 202 at 120 s and unchanged retry observes result without accepting twice', async () => {
     const h = setup(true);

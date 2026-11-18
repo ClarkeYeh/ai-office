@@ -13,6 +13,8 @@ export interface SpawnMaterializerDeps {
   specStore: SpecStore;
   /** `<installDir>/apps/cli/dist/main.js` (Q8). */
   cliPath: string;
+  /** Absolute data directory holding `runtime.json`, passed to the CLI as `--home`. */
+  dataDir: string;
 }
 
 const bug = (code: string, message: string, effect: SpawnEffect) =>
@@ -69,6 +71,7 @@ export const materializeSpawn = (
   }
   const spec = buildSpec(state, effect.spec, {
     cliPath: deps.cliPath,
+    dataDir: deps.dataDir,
     seatToken,
   });
   if ('category' in spec) {
