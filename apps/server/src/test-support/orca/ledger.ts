@@ -28,6 +28,11 @@ export const LedgerSchema = z.object({
   shims: z.array(resource),
   /** `aio-shim:<hash>` titles of composed backends started by this ledger. */
   shimMarkers: z.array(z.string()).default([]),
+  /**
+   * T17: shortIds of workflows this harness started on its isolated backend.
+   * Each claims exactly `ai-office/<id>/*`, `ai-office/<id>-*` and `aio-<id>-*`.
+   */
+  namespaces: z.array(resource).default([]),
   remoteBranches: z.array(resource),
   localBranches: z.array(resource),
   tasks: z.array(resource),
@@ -58,6 +63,7 @@ export function emptyLedger(
     worktrees: [],
     shims: [],
     shimMarkers: [],
+    namespaces: [],
     remoteBranches: [],
     localBranches: [],
     tasks: [],
@@ -89,6 +95,9 @@ export interface CleanupDriver {
   deleteLocal(branch: string): Promise<void>;
   failTask(id: string): Promise<void>;
 }
+/** Claimed namespaces, including finished ones: claims never authorize other ids. */
+export const claims = (ledger: ResourceLedger): string[] =>
+  ledger.namespaces.map((n) => n.id);
 export function leftovers(
   ledger: ResourceLedger,
 ): { kind: string; id: string }[] {
@@ -100,6 +109,7 @@ export function leftovers(
           'dispatches',
           'worktrees',
           'shims',
+          'namespaces',
           'remoteBranches',
           'localBranches',
           'tasks',
@@ -126,8 +136,8 @@ export async function cleanup(
     await persist();
   }
   for (const item of ledger.worktrees.filter((r) => !r.done)) {
-    testWorktree(item.name, item.comment);
-    testBranch(item.branch);
+    testWorktree(item.name, item.comment, claims(ledger));
+    testBranch(item.branch, false, claims(ledger));
     await driver.removeWorktree(item.id);
     item.done = true;
     await persist();
@@ -138,14 +148,14 @@ export async function cleanup(
     [
       ledger.remoteBranches,
       async (id: string) => {
-        testBranch(id);
+        testBranch(id, false, claims(ledger));
         await driver.deleteRemote(id);
       },
     ],
     [
       ledger.localBranches,
       async (id: string) => {
-        testBranch(id, true);
+        testBranch(id, true, claims(ledger));
         await driver.deleteLocal(id);
       },
     ],

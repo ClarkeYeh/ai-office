@@ -91,7 +91,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:spawn Contract",
+        "aio:a04afb368a4946b0 Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -458,7 +458,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -467,11 +466,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -545,7 +545,7 @@
         "--to",
         "dispatch:ctx_1",
         "--subject",
-        "aio:restore-send resume",
+        "aio:3418a2d80ac735b9 resume",
         "--body",
         "<redacted:test-input>",
         "--from",

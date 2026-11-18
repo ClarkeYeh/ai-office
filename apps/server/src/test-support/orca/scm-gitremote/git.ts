@@ -4,7 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { PortError } from '../../../ports/errors.js';
-import { assertTestRepo, repoIdentity, testBranch } from '../safety.js';
+import {
+  assertTestRepo,
+  claimedBranch,
+  repoIdentity,
+  testBranch,
+} from '../safety.js';
 import type { ResourceLedger } from '../ledger.js';
 
 const execute = promisify(execFile);
@@ -39,6 +44,11 @@ export type GitRemoteOptions = {
   remote: string;
   defaultBranch?: string;
   harness?: { ledger: ResourceLedger; persist(): Promise<void> };
+  /**
+   * Offline (bare remote) only: claimed workflow namespaces. With a harness the
+   * active claims come from its ledger instead (T17); never a wildcard.
+   */
+  namespaces?: () => readonly string[];
 };
 export class TestGitRemote {
   private queue: Promise<unknown> = Promise.resolve();
@@ -127,9 +137,16 @@ export class TestGitRemote {
       '+refs/heads/*:refs/remotes/origin/*',
     ]);
   }
+  /** Active T17 namespace claims: exact workflow shortIds, never `ai-office/*`. */
+  claims(): readonly string[] {
+    const harness = this.options.harness;
+    return harness
+      ? harness.ledger.namespaces.filter((n) => !n.done).map((n) => n.id)
+      : (this.options.namespaces?.() ?? []);
+  }
   guard(branch: string): void {
     try {
-      testBranch(branch);
+      testBranch(branch, false, this.claims());
     } catch {
       throw new PortError(
         'guard',
@@ -153,6 +170,13 @@ export class TestGitRemote {
       (b) => b.id === branch && !b.done,
     );
     if (entry) return;
+    // T17: an active workflow-namespace claim proves ownership of every branch
+    // in it (workers push their own); ledger it so cleanup deletes it.
+    if (claimedBranch(branch, this.claims())) {
+      harness.ledger.remoteBranches.push({ id: branch, done: false });
+      await harness.persist();
+      return;
+    }
     if (!creating || (await this.heads()).has(branch))
       throw new PortError(
         'guard',

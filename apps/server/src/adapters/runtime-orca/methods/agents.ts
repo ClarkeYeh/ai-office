@@ -20,6 +20,7 @@ import {
   text,
   transient,
 } from './context.js';
+import { markerToken, sameCommand } from '../marker.js';
 import { Workspaces } from './workspaces.js';
 
 const Worker = z.looseObject({
@@ -127,13 +128,17 @@ export class Agents {
   async rebuild(run: string, settleCommand?: string) {
     const workers = await this.workers(run);
     const tasks = await this.c.call(
-      ['orchestration', 'task-list', '--full'],
+      ['orchestration', 'task-list'],
       z.looseObject({ tasks: z.array(Task) }),
       run,
     );
     const visibleTasks = tasks.tasks.filter((task) => {
-      const id = /^aio:([^\s]+)/.exec(task.title)?.[1];
-      return !id || !this.activeSpawns.has(id) || id === settleCommand;
+      const id = markerToken(task.title);
+      return (
+        !id ||
+        ![...this.activeSpawns].some((spawn) => sameCommand(spawn, id)) ||
+        (settleCommand !== undefined && sameCommand(settleCommand, id))
+      );
     });
     this.c.options.ledger.rebuild(run, { workers }, { tasks: visibleTasks });
     return workers;
@@ -573,21 +578,50 @@ export class Agents {
     this.c.options.ledger.stopped(e.dispatch!);
   }
   async releaseDispatch(dispatch: string, run: string, id: string) {
+    // M2-T17 D8: a release that reaches Orca before a concurrent stop has
+    // settled is refused `dispatch_inactive`. A settled dispatch with no live
+    // terminal counts as released; otherwise retry (transient) once the stop
+    // settles, under a fresh request id so the refusal is not replayed.
+    const retries = `orca:release-retry:${dispatch}`;
+    const tries = z
+      .number()
+      .int()
+      .catch(0)
+      .parse(this.c.options.state.read(retries));
     try {
       await this.c.call(
         ['orchestration', 'worker-release', '--dispatch', dispatch],
         object,
         run,
-        id,
+        tries ? `${id}#${tries}` : id,
       );
     } catch (e) {
-      if (!(e instanceof PortError) || e.code !== 'already_released') throw e;
+      if (!(e instanceof PortError)) throw e;
+      if (e.code === 'dispatch_inactive') {
+        if (!(await this.settledWithoutTerminal(run, dispatch))) {
+          this.c.options.state.write(retries, tries + 1);
+          throw transient('release_pending_stop');
+        }
+      } else if (e.code !== 'already_released') throw e;
     }
     const entry = this.c.options.ledger.byDispatch(dispatch);
     const root =
       entry && this.c.options.ledger.byDispatch(entry.agent ?? dispatch);
     if (root)
       this.c.options.state.write(`orca:released:${root.commandId}`, true);
+  }
+  /** Stopped/finished, and its terminal is released or no longer its own. */
+  private async settledWithoutTerminal(run: string, dispatch: string) {
+    const row = (await this.workers(run)).find(
+      (w) => w.dispatchId === dispatch,
+    );
+    return (
+      row !== undefined &&
+      ['stopped', 'succeeded', 'failed', 'cancelled'].includes(
+        row.workerState ?? '',
+      ) &&
+      (row.terminalState == null || row.terminalState === 'released')
+    );
   }
   async release(agent: AgentRef, opts: { removeWorkspace: boolean }) {
     const e = await this.entry(agent);

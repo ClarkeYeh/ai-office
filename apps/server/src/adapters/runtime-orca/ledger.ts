@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AdapterState } from './state.js';
 import { contractMismatch, guard } from './errors.js';
 import { agentRef } from './refs.js';
+import { markerToken, sameCommand } from './marker.js';
 const EntrySchema = z.object({
   commandId: z.string().min(1),
   state: z.enum(['pending', 'started']),
@@ -18,6 +19,8 @@ const WorkerSchema = z.object({
   taskId: z.string(),
   runId: z.string(),
   followUpOf: z.string().nullish(),
+  agentTerminalHandle: z.string().nullish(),
+  terminal: z.string().nullish(),
   resource: z
     .object({
       originDispatchId: z.string().nullish(),
@@ -33,6 +36,29 @@ const TaskSchema = z.object({
 export const LedgerWorkersSchema = z.object({ workers: z.array(WorkerSchema) });
 export const LedgerTasksSchema = z.object({ tasks: z.array(TaskSchema) });
 /** Cache only: lost stoppedByBackend is reconstructed by application command history. */
+/**
+ * A follow-up may only inherit from a dispatch AI Office started itself (not
+ * from another adopted follow-up: no chains of untrusted links), in the run.
+ */
+const trustedOrigin = (
+  parent: LedgerEntry | undefined,
+  run: string,
+): parent is LedgerEntry =>
+  parent !== undefined &&
+  parent.state === 'started' &&
+  parent.run === run &&
+  !parent.commandId.startsWith('orca:');
+/** Ledger entry for an Orca-native follow-up of a managed dispatch (D10). */
+const native = (dispatch: string, parent: LedgerEntry): LedgerEntry => ({
+  commandId: `orca:${dispatch}`,
+  run: parent.run,
+  state: 'started',
+  dispatch,
+  agent: parent.agent ?? parent.dispatch ?? dispatch,
+  keepOpen: parent.keepOpen,
+  stoppedByBackend: false,
+  ...(parent.attemptId ? { attemptId: parent.attemptId } : {}),
+});
 export class DispatchLedger {
   private entries: LedgerEntry[];
   constructor(private readonly store: AdapterState) {
@@ -44,7 +70,8 @@ export class DispatchLedger {
     return structuredClone(this.entries);
   }
   byCommand(commandId: string): LedgerEntry | undefined {
-    return this.all().find((entry) => entry.commandId === commandId);
+    // Full id, its Orca marker digest, or an entry recovered from a digest (D7).
+    return this.all().find((entry) => sameCommand(entry.commandId, commandId));
   }
   byDispatch(dispatch: string): LedgerEntry | undefined {
     return this.all().find((entry) => entry.dispatch === dispatch);
@@ -56,7 +83,7 @@ export class DispatchLedger {
       : undefined;
   }
   isPendingTitle(title: string): boolean {
-    const commandId = /^aio:([^\s]+)(?:\s|$)/.exec(title)?.[1];
+    const commandId = markerToken(title);
     return (
       commandId !== undefined && this.byCommand(commandId)?.state === 'pending'
     );
@@ -106,6 +133,32 @@ export class DispatchLedger {
     );
     return structuredClone(started);
   }
+  /**
+   * M2-T17 D10: when mail reaches a kept-open worker, Orca wakes it with its
+   * own follow-up turn (task "New messages", no aio: title), linked to our
+   * dispatch by followUpOf / resource.originDispatchId. It is the same agent.
+   */
+  adopt(
+    dispatch: string,
+    parentDispatch: string,
+    seen: {
+      run: string;
+      terminal: string | null | undefined;
+      originTerminal: string | null | undefined;
+    },
+  ) {
+    const parent = this.byDispatch(parentDispatch);
+    if (
+      !trustedOrigin(parent, seen.run) ||
+      dispatch === parentDispatch ||
+      !seen.terminal ||
+      seen.terminal !== seen.originTerminal
+    )
+      return undefined;
+    if (!this.byDispatch(dispatch))
+      this.commit([...this.entries, native(dispatch, parent)]);
+    return this.agentFor(dispatch);
+  }
   stopped(dispatch: string): void {
     if (!this.byDispatch(dispatch)) throw guard('ledger_dispatch_unknown');
     this.commit(
@@ -128,17 +181,18 @@ export class DispatchLedger {
         );
         return {
           worker,
-          commandId: task && /^aio:([^\s]+)(?:\s|$)/.exec(task.title)?.[1],
+          commandId: task && markerToken(task.title),
         };
       });
     // First recover every command, then resolve links (worker-list is newest first).
     for (const { worker, commandId } of candidates) {
       if (!commandId) continue;
-      const previous = next.find((e) => e.commandId === commandId);
+      const previous = next.find((e) => sameCommand(e.commandId, commandId));
       if (previous && previous.run !== run)
         throw guard('ledger_command_mismatch');
       const recovered: LedgerEntry = {
-        commandId,
+        // Keep the full id when known; a digest-only entry still matches it.
+        commandId: previous?.commandId ?? commandId,
         run,
         state: 'started',
         dispatch: worker.dispatchId,
@@ -149,7 +203,7 @@ export class DispatchLedger {
         stoppedByBackend: previous?.stoppedByBackend ?? false,
         ...(previous?.attemptId ? { attemptId: previous.attemptId } : {}),
       };
-      const index = next.findIndex((e) => e.commandId === commandId);
+      const index = next.findIndex((e) => sameCommand(e.commandId, commandId));
       if (index < 0) next.push(recovered);
       else next[index] = recovered;
     }
@@ -162,6 +216,19 @@ export class DispatchLedger {
         const parent = next.find(
           (e) => e.dispatch === parentId && e.run === run,
         );
+        // An Orca-native follow-up has no aio: title; inherit its origin
+        // only from our own dispatch, same run and same terminal (D10).
+        const terminal = worker.agentTerminalHandle ?? worker.terminal;
+        const origin = candidates.find(
+          (c) => c.worker.dispatchId === parentId,
+        )?.worker;
+        if (
+          !entry &&
+          trustedOrigin(parent, run) &&
+          terminal &&
+          terminal === (origin?.agentTerminalHandle ?? origin?.terminal)
+        )
+          next.push(native(worker.dispatchId, parent!));
         if (entry && parent && entry !== parent) {
           entry.agent = parent.agent ?? parent.dispatch!;
           if (parent.attemptId) entry.attemptId = parent.attemptId;

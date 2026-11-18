@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ExecResult } from '../../adapters/runtime-orca/cli/types.js';
+import { claimedBranch, claimedWorktree } from './safety.js';
 
 export interface ScanResource {
   kind: 'worktree' | 'shim' | 'localBranch' | 'remoteBranch';
@@ -38,6 +39,8 @@ export async function scanResources(
   ) => Promise<ExecResult>,
   /** Composed-backend shim markers (`aio-shim:<hash>`) owned by this ledger. */
   markers: readonly string[] = [],
+  /** T17 claimed workflow namespaces (exact shortIds, never a wildcard). */
+  namespaces: readonly string[] = [],
 ): Promise<ScanResource[]> {
   const found: ScanResource[] = [];
   const worktrees = rows(
@@ -54,7 +57,11 @@ export async function scanResources(
   );
   for (const row of worktrees) {
     const name = row.displayName ?? row.name;
-    if (typeof name !== 'string' || !name.startsWith('aio-test-')) continue;
+    if (
+      typeof name !== 'string' ||
+      !(name.startsWith('aio-test-') || claimedWorktree(name, namespaces))
+    )
+      continue;
     if (typeof row.id !== 'string')
       throw new Error('Worktree inventory missing ID');
     found.push({ kind: 'worktree', id: row.id, name });
@@ -94,6 +101,10 @@ export async function scanResources(
     '--format=%(refname:short)',
     'refs/heads/ai-office-test/',
     'refs/heads/aio-test-*',
+    ...namespaces.flatMap((ns) => [
+      `refs/heads/ai-office/${ns}/`,
+      `refs/heads/ai-office/${ns}-*`,
+    ]),
   ]);
   const remote = await execute('git', [
     '-C',
@@ -103,18 +114,22 @@ export async function scanResources(
     'origin',
     'refs/heads/ai-office-test/*',
     'refs/heads/aio-test-*',
+    ...namespaces.flatMap((ns) => [
+      `refs/heads/ai-office/${ns}/*`,
+      `refs/heads/ai-office/${ns}-*`,
+    ]),
   ]);
   if (local.exitCode !== 0 || remote.exitCode !== 0)
     throw new Error('Cannot scan test branches');
   for (const branch of local.stdout
     .split('\n')
     .map((v) => v.trim())
-    .filter((v) => testBranch.test(v)))
+    .filter((v) => testBranch.test(v) || claimedBranch(v, namespaces)))
     found.push({ kind: 'localBranch', id: branch, name: branch });
   for (const line of remote.stdout.split('\n').filter(Boolean)) {
     const ref = /^[a-f0-9]+\s+refs\/heads\/(.+)$/.exec(line)?.[1];
     if (!ref) throw new Error('Invalid remote branch inventory');
-    if (testBranch.test(ref))
+    if (testBranch.test(ref) || claimedBranch(ref, namespaces))
       found.push({ kind: 'remoteBranch', id: ref, name: ref });
   }
   return found;

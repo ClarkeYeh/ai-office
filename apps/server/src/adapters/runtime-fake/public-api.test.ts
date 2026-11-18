@@ -17,7 +17,13 @@ type ScenarioContext = {
 type ScenarioAction =
   | { type: 'submit'; submission: AgentSubmission }
   | { type: 'ask'; body: string }
-  | { type: 'done'; outcome?: 'success' | 'failure'; filesModified?: number }
+  | {
+      type: 'done';
+      outcome?: 'success' | 'failure';
+      filesModified?: number;
+      /** M2-T17 (D5): optional, additive; absent keeps the M1 behavior. */
+      idleAfterMs?: number;
+    }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
   | { type: 'lost' }
@@ -47,6 +53,8 @@ type RoleBehavior = {
   ignoreStop?: boolean;
   /** T14 additive spawn-stall scenario option. */
   silent?: boolean;
+  /** M2-T17 (D8): optional, additive. */
+  stopSettleMs?: number;
 };
 type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */

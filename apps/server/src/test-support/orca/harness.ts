@@ -15,11 +15,15 @@ import { assertCommand } from './command-gate.js';
 import {
   assertOutside,
   assertTestRepo,
+  claimedBranch,
+  claimedWorktree,
+  NAMESPACE_ID,
   TEST_REPO_URL,
   testBranch,
   testWorktree,
 } from './safety.js';
 import {
+  claims,
   cleanup,
   leftovers,
   emptyLedger,
@@ -481,6 +485,130 @@ export class OrcaHarness {
       },
     };
   }
+  /**
+   * T17: journals a namespace intent BEFORE a scenario starts a workflow on its
+   * isolated composed backend; the returned `bind` records that workflow's
+   * shortId. Until bound the intent stays pending, which blocks destructive
+   * cleanup (reconcile with the janitor). A claim covers exactly
+   * `ai-office/<id>/*`, `ai-office/<id>-*` and `aio-<id>-*`.
+   */
+  async claimWorkflowNamespace(): Promise<(shortId: string) => Promise<void>> {
+    const intent = await this.beginMutation('workflow-namespace');
+    return async (shortId) => {
+      if (!NAMESPACE_ID.test(shortId))
+        throw new Error('Invalid workflow namespace');
+      if (!this.ledger.namespaces.some((n) => n.id === shortId))
+        this.ledger.namespaces.push({ id: shortId, done: false });
+      await this.persist();
+      await this.endMutation(intent);
+    };
+  }
+  /** Adopts a composed backend's run, only if its coordinator is a ledgered shim. */
+  async adoptBackendRun(run: string): Promise<void> {
+    if (!/^run_[A-Za-z0-9]+$/.test(run)) throw new Error('Invalid run id');
+    if (this.ledger.runs.includes(run)) return;
+    await this.verify();
+    const shown = await this.read(['orchestration', 'run-show', '--id', run]);
+    const handle = (shown.run as { coordinator_handle?: unknown } | undefined)
+      ?.coordinator_handle;
+    if (
+      typeof handle !== 'string' ||
+      !this.ledger.shims.some((s) => s.id === handle)
+    )
+      throw new Error('Run is not coordinated by a ledgered shim');
+    this.ledger.runs.push(run);
+    await this.persist();
+  }
+  /** Read-only (level A) Orca receipt outside the mutation gate. */
+  private async read(args: string[]): Promise<Record<string, unknown>> {
+    const output = await this.execute(this.options.orcaBin, [
+      ...args,
+      '--json',
+      ...(args[0] === 'orchestration' ? ['--full'] : []),
+    ]);
+    const parsed = JSON.parse(output.stdout) as {
+      ok?: boolean;
+      result?: Record<string, unknown>;
+    };
+    if (!parsed.ok || !parsed.result) throw new Error('Orca read rejected');
+    return parsed.result;
+  }
+  /**
+   * Ledgers what the composed backend left in claimed namespaces: live
+   * dispatches of adopted runs, `aio-<id>-*` worktrees and claimed branches.
+   */
+  private async adoptClaimed(): Promise<void> {
+    const namespaces = claims(this.ledger);
+    if (!this.ledger.namespaces.some((n) => !n.done)) return;
+    await this.verify();
+    for (const run of this.ledger.runs) {
+      const { workers } = await this.read([
+        'orchestration',
+        'worker-list',
+        '--run',
+        run,
+      ]);
+      if (!Array.isArray(workers)) throw new Error('Invalid worker inventory');
+      for (const w of workers as Record<string, unknown>[]) {
+        if (
+          typeof w.dispatchId !== 'string' ||
+          // Only rows that still own a terminal: follow-up dispatches whose
+          // terminal moved on (terminalState null) have nothing to stop.
+          w.terminalState == null ||
+          w.terminalState === 'released' ||
+          this.ledger.dispatches.some((d) => d.id === w.dispatchId)
+        )
+          continue;
+        this.ledger.dispatches.push({
+          id: w.dispatchId,
+          stopped: false,
+          done: false,
+        });
+      }
+    }
+    const { worktrees } = await this.read([
+      'worktree',
+      'list',
+      '--repo',
+      `path:${this.ledger.repoPath}`,
+      '--limit',
+      '100000',
+    ]);
+    if (!Array.isArray(worktrees))
+      throw new Error('Invalid worktree inventory');
+    for (const w of worktrees as Record<string, unknown>[]) {
+      const name = w.displayName ?? w.name;
+      if (typeof name !== 'string' || !claimedWorktree(name, namespaces))
+        continue;
+      const branch = String(w.branch ?? '').replace(/^refs\/heads\//, '');
+      const comment = String(w.comment ?? '');
+      if (typeof w.id !== 'string') throw new Error('Worktree missing ID');
+      // Fail closed: a claimed name must also carry a claimed branch and marker.
+      testWorktree(name, comment, namespaces);
+      if (!claimedBranch(branch, namespaces))
+        throw new Error('Claimed worktree on an unclaimed branch');
+      if (!this.ledger.worktrees.some((x) => x.id === w.id))
+        this.ledger.worktrees.push({
+          id: w.id,
+          name,
+          comment,
+          branch,
+          done: false,
+        });
+    }
+    for (const r of await this.scan()) {
+      if (r.kind !== 'localBranch' && r.kind !== 'remoteBranch') continue;
+      if (!claimedBranch(r.id, namespaces)) continue;
+      const list =
+        r.kind === 'localBranch'
+          ? this.ledger.localBranches
+          : this.ledger.remoteBranches;
+      const existing = list.find((b) => b.id === r.id);
+      if (existing) existing.done = false;
+      else list.push({ id: r.id, done: false });
+    }
+    await this.persist();
+  }
   async createRun(shim: string, name: string): Promise<string> {
     const result = await this.command([
       'orchestration',
@@ -520,6 +648,7 @@ export class OrcaHarness {
         );
       },
       this.ledger.shimMarkers,
+      claims(this.ledger),
     );
   }
   async assertClean(): Promise<void> {
@@ -538,6 +667,7 @@ export class OrcaHarness {
       throw new Error(
         'Unresolved mutation receipt: reconcile private ledger before cleanup',
       );
+    await this.adoptClaimed();
     const command = async (args: string[]) => {
       await this.command([
         ...args,
@@ -603,9 +733,12 @@ export class OrcaHarness {
       },
       () => this.persist(),
     );
+    // Every claimed resource was adopted above and is now cleaned.
+    for (const n of this.ledger.namespaces) n.done = true;
+    await this.persist();
   }
   private async deleteBranch(branch: string, remote: boolean): Promise<void> {
-    testBranch(branch, !remote);
+    testBranch(branch, !remote, claims(this.ledger));
     await this.verify();
     const args = remote
       ? ['push', 'origin', '--delete', branch]

@@ -91,7 +91,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:spawn Contract",
+        "aio:a04afb368a4946b0 Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -352,7 +352,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:pending-spawn Contract",
+        "aio:290faed25ede7e9a Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -511,16 +511,17 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
             },
             {
               "id": "task_2",
-              "title": "aio:pending-spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:290faed25ede7e9a Contract"
             }
           ]
         }

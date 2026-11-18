@@ -91,7 +91,7 @@
         "--worktree",
         "path:/synthetic/existing",
         "--task-title",
-        "aio:spawn Contract",
+        "aio:a04afb368a4946b0 Contract",
         "--spec-file",
         "<redacted:test-input>",
         "--keep-open",
@@ -182,7 +182,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -191,11 +190,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -211,10 +211,6 @@
         "worker-stop",
         "--dispatch",
         "ctx_1",
-        "--from",
-        "term_shim",
-        "--run",
-        "run_contract",
         "--json",
         "--full",
         "--retry-request",
@@ -295,7 +291,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -304,11 +299,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -324,10 +320,6 @@
         "worker-stop",
         "--dispatch",
         "ctx_1",
-        "--from",
-        "term_shim",
-        "--run",
-        "run_contract",
         "--json",
         "--full",
         "--retry-request",
@@ -570,7 +562,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -579,11 +570,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -599,10 +591,6 @@
         "worker-release",
         "--dispatch",
         "ctx_1",
-        "--from",
-        "term_shim",
-        "--run",
-        "run_contract",
         "--json",
         "--full",
         "--retry-request",
@@ -683,7 +671,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -692,11 +679,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }
@@ -712,10 +700,6 @@
         "worker-release",
         "--dispatch",
         "ctx_1",
-        "--from",
-        "term_shim",
-        "--run",
-        "run_contract",
         "--json",
         "--full",
         "--retry-request",
@@ -902,7 +886,6 @@
         "orca",
         "orchestration",
         "task-list",
-        "--full",
         "--run",
         "run_contract",
         "--json"
@@ -911,11 +894,12 @@
       "response": {
         "ok": true,
         "result": {
+          "runId": "run_contract",
           "tasks": [
             {
               "id": "task_1",
-              "title": "aio:spawn Contract",
-              "runId": "run_contract"
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
             }
           ]
         }

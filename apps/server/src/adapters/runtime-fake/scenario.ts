@@ -17,7 +17,16 @@ export type ScenarioContext = {
 export type ScenarioAction =
   | { type: 'submit'; submission: AgentSubmission }
   | { type: 'ask'; body: string }
-  | { type: 'done'; outcome?: 'success' | 'failure'; filesModified?: number }
+  | {
+      type: 'done';
+      outcome?: 'success' | 'failure';
+      filesModified?: number;
+      /**
+       * Real Orca (M2-T17 D5): a keep-open worker's next worker-list poll
+       * reports it `idle` this many ms after worker_done. Off when absent.
+       */
+      idleAfterMs?: number;
+    }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
   | { type: 'lost' }
@@ -50,6 +59,12 @@ export type RoleBehavior = {
    * (the §7.1 spawn-stall case). Stop and release still end it.
    */
   silent?: boolean;
+  /**
+   * Real Orca (M2-T17 D8): a stop settles this many ms later; a release
+   * arriving before then fails transiently (the adapter's
+   * `release_pending_stop`) and is retried. Off when absent.
+   */
+  stopSettleMs?: number;
 };
 export type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */

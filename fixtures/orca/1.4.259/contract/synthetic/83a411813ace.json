@@ -159,7 +159,7 @@
         "--setup",
         "skip",
         "--comment",
-        "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "--json"
       ],
       "exitCode": 0,
@@ -173,7 +173,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         },
@@ -197,7 +197,7 @@
             "branch": "refs/heads/ai-office/rework",
             "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "repoId": "repo_contract",
-            "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "displayName": "rework-r1"
           }
         }
@@ -261,7 +261,7 @@
               "branch": "refs/heads/ai-office/rework",
               "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "repoId": "repo_contract",
-              "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "displayName": "rework-r1"
             }
           ]
@@ -350,7 +350,7 @@
               "branch": "refs/heads/ai-office/rework",
               "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "repoId": "repo_contract",
-              "comment": "aio:prepare-rework base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               "displayName": "rework-r1"
             }
           ]

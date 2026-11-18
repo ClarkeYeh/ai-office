@@ -51,6 +51,8 @@ export const WorkerSchema = z.looseObject({
   dispatchStatus: z.string().nullish(),
   terminalState: z.string().nullish(),
   followUpOf: z.string().nullish(),
+  agentTerminalHandle: z.string().nullish(),
+  terminal: z.string().nullish(),
   resource: Resource,
   projection: z.looseObject({
     parent: z.unknown().nullish(),

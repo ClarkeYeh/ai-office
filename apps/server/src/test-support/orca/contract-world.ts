@@ -36,6 +36,9 @@ type Worker = {
   doneAt?: number;
   wait?: unknown;
 };
+/** Orca 1.4.259 stores task titles cut to 80 characters with "..." (M2-T17 D7). */
+const orcaTitle = (title: string) =>
+  title.length > 80 ? `${title.slice(0, 77)}...` : title;
 export class ContractWorld implements Exec {
   readonly clock = new FakeClock('2026-11-18T06:00:00Z');
   get now() {
@@ -340,7 +343,7 @@ export class ContractWorld implements Exec {
           this.workers.push({
             dispatchId: id,
             taskId: `task_${this.seq}`,
-            title: flag(a, '--task-title'),
+            title: orcaTitle(flag(a, '--task-title')),
             keepOpen: a.includes('--keep-open'),
             workerState: 'ready',
             terminalState: 'retained',
@@ -365,14 +368,31 @@ export class ContractWorld implements Exec {
           result = { workers: this.rows() };
           template = 'list';
           break;
-        case 'orchestration task-list':
+        case 'orchestration task-list': {
+          // Real 1.4.259 shapes (fixtures task-list*.json, M2-T17 D3): only the
+          // concise view has `title`; `--full` rows use task_title / run_id.
+          const tasks = this.workers.filter(
+            (w) => !this.hidden || w !== this.workers.at(-1),
+          );
           result = {
-            tasks: this.workers
-              .filter((w) => !this.hidden || w !== this.workers.at(-1))
-              .map((w) => ({ id: w.taskId, title: w.title, runId: RUN })),
+            runId: RUN,
+            tasks: a.includes('--full')
+              ? tasks.map((w) => ({
+                  id: w.taskId,
+                  run_id: RUN,
+                  task_title: w.title,
+                  display_name: w.title,
+                  status: 'dispatched',
+                }))
+              : tasks.map((w) => ({
+                  id: w.taskId,
+                  status: 'dispatched',
+                  title: w.title,
+                })),
           };
           this.hidden = false;
           break;
+        }
         case 'orchestration worker-show': {
           const w = this.workers.find(
             (w) => w.dispatchId === flag(a, '--dispatch'),
@@ -431,7 +451,7 @@ export class ContractWorld implements Exec {
             ...previous,
             dispatchId: id,
             taskId: `task_${this.seq}`,
-            title: flag(a, '--subject'),
+            title: orcaTitle(flag(a, '--subject')),
             activity: 'working',
             workerState: 'ready',
           });
@@ -447,16 +467,24 @@ export class ContractWorld implements Exec {
           result = {};
           break;
         case 'orchestration worker-stop':
+        case 'orchestration worker-release':
+          // Real 1.4.259 usage: --dispatch [--retry-request] [--json] [--full]
+          // only; caller identity or --run is invalid_argument (M2-T17 D6).
+          if (a.some((x) => x === '--from' || x === '--run')) {
+            error = 'invalid_argument';
+            break;
+          }
+          if (key === 'orchestration worker-release') {
+            this.workers.find(
+              (w) => w.dispatchId === flag(a, '--dispatch'),
+            )!.terminalState = 'released';
+            template = 'release';
+            break;
+          }
           this.workers.find(
             (w) => w.dispatchId === flag(a, '--dispatch'),
           )!.workerState = 'stopped';
           template = 'stop';
-          break;
-        case 'orchestration worker-release':
-          this.workers.find(
-            (w) => w.dispatchId === flag(a, '--dispatch'),
-          )!.terminalState = 'released';
-          template = 'release';
           break;
         default:
           throw new Error(`Unexpected synthetic Orca command: ${key}`);

@@ -11,6 +11,7 @@ import type { Logger } from '../../../ports/services.js';
 import type { OrcaCli, RunOptions } from '../cli/types.js';
 import type { CoordinatorIdentity } from '../coordinator-identity/index.js';
 import { guard } from '../errors.js';
+import { markerToken } from '../marker.js';
 import type { DispatchLedger } from '../ledger.js';
 import { decodeCursor, encodeCursor, questionRef } from '../refs.js';
 import {
@@ -117,8 +118,9 @@ interface Batch {
   tasksFetched: boolean;
   rebuilt: boolean;
   mismatched: Set<string>;
+  /** Terminal handle per dispatch from this batch's worker-list (D10). */
+  terminals: Map<string, string | null | undefined>;
 }
-const AIO = /^aio:([^\s]+)(?:\s|$)/;
 const MAX_INBOX = 2000;
 const READ_CONCURRENCY = 4;
 
@@ -163,6 +165,7 @@ export class OrcaObserver {
       rollback: [],
       tasksFetched: false,
       rebuilt: false,
+      terminals: new Map(),
       mismatched: new Set(),
     };
     try {
@@ -581,13 +584,35 @@ export class OrcaObserver {
     if (agent) return { kind: 'agent', agent };
     if (worker && worker.projection.parent != null)
       return { kind: 'unmanaged' };
+    // D10: Orca's own follow-up turn of a managed, kept-open worker, only from
+    // our dispatch in this run on the same terminal.
+    const origin = worker?.resource?.originDispatchId ?? worker?.followUpOf;
+    const inherited =
+      worker && origin
+        ? ledger.adopt(dispatch, origin, {
+            run: worker.runId,
+            terminal: worker.agentTerminalHandle ?? worker.terminal,
+            originTerminal: b.terminals.get(origin),
+          })
+        : undefined;
+    if (inherited) return { kind: 'agent', agent: inherited };
     const title = taskId ? await this.title(b, taskId) : undefined;
-    const commandId = title ? AIO.exec(title)?.[1] : undefined;
-    if (!commandId)
+    const token = title ? markerToken(title) : undefined;
+    if (!token) {
+      // Mail can arrive before the worker row is seen: the rebuilt ledger
+      // links native follow-ups to their managed origin.
+      if (!worker && !b.rebuilt) {
+        b.rebuilt = true;
+        await this.rebuildLedger(b);
+        const rebuilt = ledger.agentFor(dispatch);
+        if (rebuilt) return { kind: 'agent', agent: rebuilt };
+      }
       return title === undefined
         ? { kind: 'unmanaged' }
         : { kind: 'unmanaged', title };
-    const entry = ledger.byCommand(commandId);
+    }
+    const entry = ledger.byCommand(token);
+    const commandId = entry?.commandId ?? token;
     if (entry?.state === 'pending' && entry.run === b.run)
       return { kind: 'held', commandId };
     if (this.options.ownsCommand && !this.options.ownsCommand(commandId))
@@ -776,6 +801,11 @@ export class OrcaObserver {
     );
     if (!listed.ok) return this.recover(b, listed.error);
     const groups = new Map<AgentRef, Worker[]>();
+    for (const worker of listed.data.workers)
+      b.terminals.set(
+        worker.dispatchId,
+        worker.agentTerminalHandle ?? worker.terminal,
+      );
     for (const worker of listed.data.workers) {
       if (worker.runId !== b.run) continue;
       if (p.seen[worker.dispatchId] === 'unmanaged') continue;

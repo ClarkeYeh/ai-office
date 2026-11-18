@@ -63,13 +63,15 @@ type Agent = {
   terminalHandle: string;
   paneKey: string;
   spec?: string;
+  /** Optional D8 model: a release before this time is refused transiently. */
+  stopSettlesAt?: number;
 };
 type Scheduled = {
   at: number;
   order: number;
   agent: Agent;
   generation: number;
-  action: ScenarioStep | { type: 'auto-release' };
+  action: ScenarioStep | { type: 'auto-release' } | { type: 'idle' };
   /** Turn scripts (spawn/send/answer) versus external `enqueue()` stimuli. */
   source: 'script' | 'external';
 };
@@ -884,6 +886,8 @@ export class FakeRuntime implements RuntimePort {
     ) {
       agent.state = 'stopped';
       agent.generation++;
+      if (agent.behavior.stopSettleMs !== undefined)
+        agent.stopSettlesAt = this.now() + agent.behavior.stopSettleMs;
       this.emit(agent.session, { type: 'agent.stopped', agent: ref });
     }
     this.after('stop');
@@ -894,6 +898,13 @@ export class FakeRuntime implements RuntimePort {
   ): Promise<void> {
     this.before('release');
     const agent = this.agent(ref);
+    if (agent.stopSettlesAt !== undefined && this.now() < agent.stopSettlesAt)
+      throw new PortError(
+        'transient',
+        'release_pending_stop',
+        'Fake runtime: stop not settled',
+        true,
+      );
     this.releaseAgent(agent, this.now());
     if (opts.removeWorkspace) this.removeWorkspace(agent.workspace);
     this.after('release');
@@ -1204,6 +1215,15 @@ export class FakeRuntime implements RuntimePort {
             ? {}
             : { filesModified: action.filesModified }),
         });
+        if (action.idleAfterMs !== undefined)
+          this.scheduled.push({
+            at: at + action.idleAfterMs,
+            order: ++this.sequence,
+            agent: a,
+            generation: a.generation,
+            action: { type: 'idle' },
+            source: 'script',
+          });
         if (!a.request.keepOpen)
           this.scheduled.push({
             at: at + 120_000,
@@ -1216,6 +1236,9 @@ export class FakeRuntime implements RuntimePort {
         break;
       case 'auto-release':
         this.releaseAgent(a, at);
+        break;
+      case 'idle':
+        emit({ type: 'agent.status', agent: a.ref, state: 'idle' });
         break;
       case 'rate-limited':
         emit({
