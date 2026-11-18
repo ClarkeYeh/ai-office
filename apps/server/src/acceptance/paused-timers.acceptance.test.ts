@@ -16,10 +16,10 @@ const deadlineNudge = (e: Json) =>
   e.type === 'message.nudge' && e.payload.reason === 'item-timeout';
 
 describe(
-  'FX8 acceptance: timers held through a pause',
+  'FX8 / FX8b acceptance: pause time does not count toward timers',
   { timeout: 60_000 },
   () => {
-    it('fires a worker deadline that elapsed during a hijack pause once the owner reclaims', async () => {
+    it('gives a worker deadline its remaining time back after a hijack pause', async () => {
       let hijack = false;
       let workflowId = '';
       const o: Office = await office({
@@ -77,20 +77,48 @@ describe(
         optionId: 'reclaim',
       });
       expect(decided.status, JSON.stringify(decided.body)).toBe(200);
+      // FX8b: the pause did not count, so the deadline is rescheduled under
+      // its own id with the time it had left, not fired at once.
+      events = await until(
+        () => o.events(workflowId),
+        (all) =>
+          all.filter((e) => e.type === 'timer.scheduled' && itemTimeout(e))
+            .length === 2,
+        'the item deadline rescheduled after the reclaim',
+      );
+      const resumed = events.findLast((e) => e.type === 'workflow.resumed')!;
+      const [armed, shifted] = events.filter(
+        (e) => e.type === 'timer.scheduled' && itemTimeout(e),
+      );
+      expect(shifted!.payload.timerId).toBe(armed!.payload.timerId);
+      expect(shifted!.seq).toBeGreaterThan(resumed.seq);
+      const left =
+        Date.parse(String(shifted!.payload.fireAt)) -
+        Date.parse(String(resumed.occurredAt));
+      expect(left).toBeGreaterThan(40 * MINUTE_MS);
+      expect(left).toBeLessThanOrEqual(45 * MINUTE_MS);
+      expect(
+        events.filter((e) => e.type === 'timer.fired' && itemTimeout(e)),
+      ).toEqual([]);
+      expect(events.some((e) => e.type === 'budget.exceeded')).toBe(false);
+
+      // Once the remaining time has passed, it fires once, counting work only.
+      vi.setSystemTime(Date.now() + 46 * MINUTE_MS);
+      await o.restart();
       events = await until(
         () => o.events(workflowId),
         (all) => all.some(deadlineNudge),
-        'the item-timeout nudge after the reclaim',
+        'the item-timeout nudge after the remaining time',
       );
-      const resumed = events.findLast((e) => e.type === 'workflow.resumed')!;
-      const fired = events.filter(
-        (e) => e.type === 'timer.fired' && itemTimeout(e),
-      );
-      expect(fired).toHaveLength(1);
-      expect(fired[0]!.seq).toBeGreaterThan(resumed.seq);
       expect(
-        events.find((e) => e.type === 'budget.exceeded')?.payload,
-      ).toMatchObject({ scope: 'item', metric: 'wallclock' });
+        events.filter((e) => e.type === 'timer.fired' && itemTimeout(e)),
+      ).toHaveLength(1);
+      const exceeded = events.find((e) => e.type === 'budget.exceeded');
+      expect(exceeded?.payload).toMatchObject({
+        scope: 'item',
+        metric: 'wallclock',
+      });
+      expect(Number(exceeded?.payload.used)).toBeLessThan(50);
       expect(events.filter(deadlineNudge)).toHaveLength(1);
     });
   },
