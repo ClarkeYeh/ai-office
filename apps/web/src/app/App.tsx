@@ -1,3 +1,8 @@
+import {
+  OfficeRightColumn,
+  OfficeLegend,
+  needsOf,
+} from '../features/office/index.js';
 import { useEffect, useState } from 'react';
 import {
   useDisplayedModel,
@@ -70,6 +75,15 @@ function RoutedApp() {
   );
   const questionIds = new Set(questions.map((question) => question.questionId));
   const needs: ShellNeed[] = [
+    ...(model
+      ? needsOf(model, { now, t })
+          .filter((need) => need.kind === 'seat')
+          .map((need) => ({
+            id: need.id,
+            title: need.title,
+            href: `/workflows/${encodeURIComponent(model.workflowId)}?seat=${encodeURIComponent(need.seatId!)}`,
+          }))
+      : []),
     ...openGates
       .filter((gate) => !gate.questionId || !questionIds.has(gate.questionId))
       .map((gate) => ({
@@ -126,6 +140,12 @@ function RoutedApp() {
         : {})}
       {...(workflowId ? { workflowId } : {})}
       view={view}
+      rightColumn={
+        current && (route.name === 'workflow' || route.name === 'board') ? (
+          <OfficeRightColumn />
+        ) : undefined
+      }
+      legend={<OfficeLegend />}
       needs={needs}
       newGateTitle={openGates.at(-1)?.title ?? ''}
       stages={

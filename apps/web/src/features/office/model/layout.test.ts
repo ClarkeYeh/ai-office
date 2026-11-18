@@ -75,7 +75,7 @@ describe('layout helpers', () => {
     expect(b).not.toBe(c);
   });
 
-  test('simultaneous starts order by itemKey; meeting chairs by role', () => {
+  test('simultaneous starts order by itemKey; meeting chairs by template order', () => {
     const log = createLog();
     log.stage('meeting', 'meeting');
     for (const role of ['pm', 'architect'])
@@ -92,8 +92,8 @@ describe('layout helpers', () => {
     const by = (id: string) => vm.seats.find((s) => s.seatId === id)!;
     expect(by('wf1:engineer:a').desk).toBe(0);
     expect(by('wf1:engineer:b').desk).toBe(1);
-    expect(by('wf1:architect').chair).toBe(0);
-    expect(by('wf1:pm').chair).toBe(1);
+    expect(by('wf1:architect').chair).toBe(1);
+    expect(by('wf1:pm').chair).toBe(0);
   });
 
   test('a released attempt without an end frees its merged desk from its start', () => {

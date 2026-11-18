@@ -1,4 +1,5 @@
 import { TimelinePage } from '../features/timeline/index.js';
+import { OfficePage, OfficeBoardPage } from '../features/office/index.js';
 import type { ComponentType } from 'react';
 import type { ApiClient } from '../api/index.js';
 import type { RouteMatch, RouteName } from './router.js';
@@ -68,8 +69,13 @@ function NotFoundPage() {
 export const routes: readonly RouteDefinition[] = [
   { name: 'home', title: 'app.home', Page: HomePage },
   { name: 'newWorkflow', title: 'app.newWorkflow', Page: PendingPage },
-  { name: 'workflow', title: 'app.office', Page: PendingPage, office: true },
-  { name: 'board', title: 'app.board', Page: PendingPage },
+  {
+    name: 'workflow',
+    title: 'app.office',
+    Page: () => <OfficePage />,
+    office: true,
+  },
+  { name: 'board', title: 'app.board', Page: OfficeBoardPage },
   { name: 'timeline', title: 'app.timeline', Page: TimelinePage },
   { name: 'gate', title: 'app.gate', Page: GatePage },
   { name: 'question', title: 'app.question', Page: PendingPage },

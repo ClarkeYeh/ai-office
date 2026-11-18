@@ -326,3 +326,52 @@
   background: #c0cbdc;
   image-rendering: pixelated;
 }
+
+.bubble {
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 6;
+  display: block;
+  padding: 3px 5px;
+  border: solid #262b44;
+  background: white;
+  color: #262b44;
+  text-align: left;
+  line-height: 1.35;
+  pointer-events: auto;
+  box-shadow: 2px 2px 0 #262b44;
+}
+.bubble > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.bubble::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 4px;
+  background: white;
+  bottom: -5px;
+  left: 45%;
+  box-shadow:
+    2px 2px 0 #262b44,
+    4px 4px 0 #262b44;
+}
+.bubble[data-tail='up']::after {
+  top: -5px;
+  bottom: auto;
+  box-shadow:
+    -2px -2px 0 #262b44,
+    -4px -4px 0 #262b44;
+}
+.bubble[data-tail='left']::after {
+  top: 8px;
+  left: -5px;
+  bottom: auto;
+  box-shadow:
+    -2px 2px 0 #262b44,
+    -4px 4px 0 #262b44;
+}

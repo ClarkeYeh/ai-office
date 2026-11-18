@@ -279,6 +279,15 @@ function officeSeats(ctx: Ctx): OfficeSeat[] {
         plate = { x: pos.x + 8, y: pos.y + 34 };
         break;
     }
+    const meeting = currentStage(rm)?.meeting;
+    const statement =
+      place === 'meeting' && state.pose !== 'away' && !meeting?.concluded
+        ? meeting?.statements.findLast(
+            (entry) =>
+              entry.round === meeting.round &&
+              entry.attemptId === seat.currentAttemptId,
+          )
+        : undefined;
     const selected = ctx.selectedSeatId === seat.seatId;
     const status = seatStatus(ctx, seat, state);
     const vendor = state.attempt?.agent ?? seat.agent;
@@ -292,6 +301,21 @@ function officeSeats(ctx: Ctx): OfficeSeat[] {
           ? 'error'
           : 'plain';
     return {
+      ...(statement && meeting
+        ? {
+            bubble: {
+              position: statement.position,
+              round: statement.round,
+              maxRounds: meeting.maxRounds,
+              label: ctx.t('office.meeting.bubble', {
+                role: seat.role,
+                round: statement.round,
+                max: meeting.maxRounds,
+                position: statement.position,
+              }),
+            },
+          }
+        : {}),
       seatId: seat.seatId,
       attemptId: seat.currentAttemptId ?? null,
       role: seat.role,

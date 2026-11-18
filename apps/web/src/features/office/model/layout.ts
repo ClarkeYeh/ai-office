@@ -125,12 +125,15 @@ export const deskParcel = (desk: number): Point => {
 export const MEETING_CHAIRS: readonly Point[] = [
   { x: 25, y: 36 },
   { x: 73, y: 36 },
-  { x: 49, y: 36 },
-  { x: 31, y: 72 },
   { x: 63, y: 72 },
+  { x: 31, y: 72 },
+  { x: 49, y: 36 },
 ];
 export const MEETING_FACILITATOR: Point = { x: 94, y: 40 };
-export const meetingPlate = (p: Point): Point => ({ x: p.x + 8, y: p.y + 25 });
+export const meetingPlate = (p: Point): Point =>
+  p.y >= 70
+    ? { x: p.x - 18, y: 86 }
+    : { x: p.x + 8, y: p.y + (p.x === 94 ? 33 : 25) };
 
 export const LEAD_SEAT: Point = { x: 136, y: 38 };
 export const LEAD_PLATE: Point = { x: 145, y: 74 };
@@ -352,10 +355,15 @@ export function reserveDesks(
 }
 
 /**
- * Meeting chairs: participants in order of their first participant attempt, then
- * role; the facilitator stands at the head of the table.
+ * Meeting chairs follow template participant order so simultaneous spawns keep
+ * the same facing and position; unknown roles fall back to first spawn and role.
  */
 export function assignMeetingChairs(rm: ReadModel): Map<string, number> {
+  const roles = rm.template.stages.flatMap((stage) =>
+    stage.kind === 'meeting' ? stage.participants : [],
+  );
+  const rank = (role: string) =>
+    roles.includes(role) ? roles.indexOf(role) : roles.length;
   const participants = rm.seats
     .flatMap((seat) => {
       const attempts = seat.attempts.filter((a) => a.purpose === 'participant');
@@ -364,7 +372,12 @@ export function assignMeetingChairs(rm: ReadModel): Map<string, number> {
         { seat, start: Math.min(...attempts.map((a) => ms(a.startedAt))) },
       ];
     })
-    .sort((a, b) => a.start - b.start || compare(a.seat.role, b.seat.role));
+    .sort(
+      (a, b) =>
+        rank(a.seat.role) - rank(b.seat.role) ||
+        a.start - b.start ||
+        compare(a.seat.role, b.seat.role),
+    );
   return new Map(
     participants.map((p, i) => [p.seat.seatId, i % MEETING_CHAIRS.length]),
   );
