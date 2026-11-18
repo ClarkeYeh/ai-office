@@ -1,3 +1,4 @@
+import { GateBannerActions } from '../features/gates/index.js';
 import type { HealthView } from '@ai-office/contracts/api';
 import { hasMessage, t } from '../shared/lib/i18n/index.js';
 import { Banner } from '../shared/ui/index.js';
@@ -8,6 +9,7 @@ export interface BannersProps {
   replaying?: boolean;
   syncing?: boolean;
   connection?: string;
+  gateActions?: boolean;
 }
 export function Banners({
   pausedReasons = [],
@@ -16,9 +18,11 @@ export function Banners({
   replaying,
   syncing,
   connection,
+  gateActions,
 }: BannersProps) {
   return (
     <div data-testid="banners">
+      {gateActions && <GateBannerActions />}
       {pausedReasons.map((reason) => {
         const key = `pause.${reason}`;
         return (

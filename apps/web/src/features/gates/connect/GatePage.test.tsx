@@ -543,7 +543,7 @@ describe('gate page shell states', () => {
       ),
     );
   });
-  test('other gate kinds get the pending body until M4-T11b', async () => {
+  test('work-item gates use the T11b body', async () => {
     setup({
       ...base,
       gateId: 'g-plan',
@@ -551,7 +551,7 @@ describe('gate page shell states', () => {
       conclusion: undefined,
     } as GateView);
     await waitFor(() =>
-      expect(screen.getByTestId('gate-body-pending')).toBeTruthy(),
+      expect(screen.getByTestId('tasks-approve')).toBeTruthy(),
     );
   });
   test('a refetch failure keeps the gate on screen with a notice', async () => {
