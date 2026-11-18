@@ -27,7 +27,7 @@ export function useMobileLayout(): boolean {
 export interface GateLayoutProps {
   header: GateHeaderViewModel;
   backHref: string;
-  /** Quiet office thumbnail (`OfficeScene` 1×, non-interactive). */
+  /** Quiet office thumbnail (`OfficeScene` 2×, cropped, non-interactive). */
   thumbnail?: ReactNode;
   /** Outcome or error of the last action; rendered above the content. */
   notice?: ReactNode;

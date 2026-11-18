@@ -117,14 +117,19 @@ const ready = () =>
   );
 
 describe('quiet-office thumbnail (V3Gate)', () => {
-  test('the real scene at 1×, still, hushed, hidden from AT with a text alternative', async () => {
+  test('the real scene at 2×, still, hushed, hidden from AT with a text alternative', async () => {
     setup(conclusionGate());
     await ready();
     const slot = screen.getByTestId('gate-thumbnail');
     expect(slot.getAttribute('role')).toBe('img');
     expect(slot.getAttribute('aria-label')).toBe(t('gates.thumbnail'));
     const scene = within(slot).getByTestId('office-scene');
-    expect(scene.dataset.scale).toBe('1');
+    expect(scene.dataset.scale).toBe('2');
+    // A fixed 256×128 world-pixel crop, offset by whole 2× pixels.
+    const crop = within(slot).getByTestId('gate-thumbnail-crop');
+    expect([crop.style.width, crop.style.height]).toEqual(['512px', '256px']);
+    expect(crop.dataset.crop).toBe('96,0');
+    expect((scene.parentElement as HTMLElement).style.left).toBe('-192px');
     expect(scene.dataset.still).toBe('true');
     expect(scene.getAttribute('aria-hidden')).toBe('true');
     expect(within(slot).queryAllByRole('button', { hidden: true })).toEqual([]);

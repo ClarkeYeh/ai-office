@@ -181,6 +181,10 @@ export function Shell({
             {stages.map((stage) => {
               const key = `stage.${stage.status}`;
               const gate = stage.gate;
+              // V3: while a stage's gate waits, the gate chip is the current step.
+              const gateCurrent =
+                stage.current === true &&
+                (stage.gateOnly === true || gate?.state === 'open');
               return (
                 <li key={stage.id} className={styles.stage}>
                   {!stage.gateOnly && (
@@ -188,7 +192,9 @@ export function Shell({
                       className={styles.stageLabel}
                       data-testid={`stage-${stage.id}`}
                       data-status={stage.status}
-                      aria-current={stage.current ? 'step' : undefined}
+                      aria-current={
+                        stage.current && !gateCurrent ? 'step' : undefined
+                      }
                       aria-label={t('stage.aria', {
                         name: stage.name,
                         status: hasMessage(key) ? t(key) : stage.status,
@@ -208,9 +214,7 @@ export function Shell({
                         aria-label={t('stage.gate.open', { title: gate.title })}
                         data-testid={`stage-gate-${gate.gateId}`}
                         data-state="open"
-                        aria-current={
-                          stage.gateOnly && stage.current ? 'step' : undefined
-                        }
+                        aria-current={gateCurrent ? 'step' : undefined}
                       >
                         <PixelIcon name="flag" />
                         {gate.title}
@@ -220,9 +224,7 @@ export function Shell({
                         className={styles.stageGate}
                         data-testid={`stage-flag-${gate.id}`}
                         data-state={gate.state}
-                        aria-current={
-                          stage.gateOnly && stage.current ? 'step' : undefined
-                        }
+                        aria-current={gateCurrent ? 'step' : undefined}
                         aria-label={t(`stage.gate.${gate.state}`, {
                           title: gate.title,
                         })}

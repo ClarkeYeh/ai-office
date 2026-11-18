@@ -162,7 +162,8 @@
   font-family: 'DotGothic16', ui-monospace, monospace;
   font-size: 10px;
   line-height: 1.2;
-  color: #262b44;
+  /* night: 5.6:1 on sky (CC), 8.4:1 on leaf (CX); ink was 4.35:1 on sky. */
+  color: #181425;
 }
 
 .badge[data-badge='CC'] {
@@ -261,7 +262,7 @@
   position: absolute;
   inset: 0;
   z-index: 7;
-  background: rgb(38 43 68 / 42%);
+  background: rgb(38 43 68 / 68%);
   pointer-events: none;
 }
 
@@ -376,18 +377,8 @@
     -4px 4px 0 #262b44;
 }
 
-/* The still gate thumbnail (1×): DOM text keeps its pixel size and would
-   cover the floor, so only the pixel art is drawn; the slot has the text. */
-.frame[data-still]
-  :is(
-    .plate,
-    .roomPlate,
-    .label,
-    .doorSign,
-    .inboxLink,
-    .whiteboardText,
-    .bubble,
-    .tooltip
-  ) {
+/* The still gate thumbnail (2×) keeps its plates and badges readable; speech
+   and tooltips are live-office detail and stay off the crop. */
+.frame[data-still] :is(.bubble, .tooltip) {
   display: none;
 }

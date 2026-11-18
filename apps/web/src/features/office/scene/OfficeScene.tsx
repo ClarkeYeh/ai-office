@@ -36,7 +36,7 @@ import css from './scene.module.css';
 
 export type OfficeSceneProps = {
   vm: OfficeViewModel;
-  /** Integer scale (`sceneScale`), at least 2; 1 only for the still gate thumbnail. */
+  /** Integer scale (`sceneScale`), at least 2. */
   scale: number;
   /** The catalog translator, for the few strings the view model does not carry. */
   t: SceneTranslate;

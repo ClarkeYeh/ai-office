@@ -135,7 +135,7 @@ test('phone width: no office, but needs and a gate decision work (I-21, D8)', as
   );
 });
 
-test('gate page: quiet-office thumbnail at 1× and the stage strip states (V3Gate)', async ({
+test('gate page: quiet-office thumbnail at 2× cropped, and the stage strip states (V3Gate)', async ({
   page,
 }) => {
   const gate = await openGate('planning');
@@ -143,22 +143,20 @@ test('gate page: quiet-office thumbnail at 1× and the stage strip states (V3Gat
   const slot = page.getByTestId('gate-thumbnail');
   await expect(slot).toHaveAttribute('role', 'img');
   const scene = slot.getByTestId('office-scene');
-  await expect(scene).toHaveAttribute('data-scale', '1');
+  await expect(scene).toHaveAttribute('data-scale', '2');
   await expect(scene).toHaveAttribute('data-still', 'true');
   await expect(scene).toHaveAttribute('aria-hidden', 'true');
-  // Hushed office, your desk lit with "!", no buttons, no text labels at 1×.
+  // Hushed office, your desk lit with "!", no buttons, readable plates at 2×.
   await expect(slot.getByTestId('office-hush')).toBeAttached();
   await expect(slot.getByTestId('office-your-desk-bang')).toBeVisible();
   await expect(slot.locator('button')).toHaveCount(0);
-  await expect(slot.locator('[data-testid^="room-"]').first()).toBeHidden();
-  // The scene fits the slot at 1× (no sideways overflow).
-  const fits = await slot.evaluate((element) => {
-    const sceneBox = element
-      .querySelector('[data-testid="office-scene"]')!
-      .getBoundingClientRect();
-    return sceneBox.width <= element.getBoundingClientRect().width;
-  });
-  expect(fits).toBe(true);
+  await expect(slot.getByTestId('room-yours')).toBeVisible();
+  // A fixed 512×256 crop of the 2× floor, never resampled.
+  const crop = slot.getByTestId('gate-thumbnail-crop');
+  const box = await crop.boundingBox();
+  expect([box?.width, box?.height]).toEqual([512, 256]);
+  const sceneBox = await scene.boundingBox();
+  expect(sceneBox!.width).toBeGreaterThan(box!.width);
 
   // Strip: ✓ meeting and its decided conclusion gate, the open task split,
   // flags on the gates still ahead; the final PR is one chip.
@@ -173,6 +171,15 @@ test('gate page: quiet-office thumbnail at 1× and the stage strip states (V3Gat
   await expect(page.getByTestId(`stage-gate-${gate.gateId}`)).toHaveAttribute(
     'data-state',
     'open',
+  );
+  // The planning stage waits on its gate: ✓ planning, the gate is the step.
+  await expect(page.getByTestId(`stage-${gate.stageId}`)).toHaveAttribute(
+    'data-status',
+    'done',
+  );
+  await expect(page.getByTestId(`stage-gate-${gate.gateId}`)).toHaveAttribute(
+    'aria-current',
+    'step',
   );
   await expect(page.getByTestId('stage-flag-final-pr')).toHaveAttribute(
     'data-state',
