@@ -59,9 +59,22 @@ runtimePortContract(async () => {
       checkoutExisting: true,
       correlation: { workflowId: 'wf', commandId: 'prepare-rework' },
     },
-    advance: (ms) => f.clock.advance(ms),
+    advance: (ms) => {
+      f.clock.advance(ms);
+      f.runtime.finishPendingSpawns();
+    },
     identity: (a) => f.runtime.identity(a),
     stimulus: async (a, action) => {
+      if (action === 'identity-lost') f.runtime.loseIdentity();
+      if (action === 'hijack') f.runtime.hijack(f.session);
+      if (action === 'check-timeout') f.runtime.timeoutCheck();
+      if (action === 'response-lost')
+        f.runtime.injectFault('spawnAgent', 'response-lost');
+      if (action === 'receipt-absent-after-consume')
+        f.runtime.loseConsumedCheckReceipt();
+      if (action === 'spawn-in-flight') f.runtime.holdSpawn();
+      if (action === 'rate-limited')
+        f.runtime.enqueue(a, { type: 'rate-limited', evidence: 'worker-show' });
       if (action === 'done') f.runtime.enqueue(a, { type: 'done' });
       if (action === 'ask-with-false-escalation')
         f.runtime.enqueue(
@@ -80,6 +93,26 @@ runtimePortContract(async () => {
   };
 });
 describe('FakeRuntime scenarios and faults', () => {
+  it('holds concurrent retries until spawn settles and preserves deferred event time', async () => {
+    const f = await fixture();
+    f.runtime.holdSpawn();
+    const startedAt = f.clock.now().toISOString();
+    const first = f.runtime.spawnAgent(f.spawnRequest);
+    const retry = f.runtime.spawnAgent(f.spawnRequest);
+    let settled = false;
+    void retry.then(() => {
+      settled = true;
+    });
+    const during = await f.runtime.observe(f.session, null);
+    expect(settled).toBe(false);
+    expect(during.events).toEqual([]);
+    f.clock.advance(1000);
+    f.runtime.finishPendingSpawns();
+    expect(await retry).toBe(await first);
+    const after = await f.runtime.observe(f.session, during.cursor);
+    expect(after.events).toHaveLength(1);
+    expect(after.events[0]?.occurredAt).toBe(startedAt);
+  });
   it('uses injected submitter, prompt token and caller identity; delays and pushes are deterministic', async () => {
     const submissions: unknown[] = [],
       pushes: unknown[] = [];
