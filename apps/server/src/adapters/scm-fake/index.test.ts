@@ -288,3 +288,32 @@ describe('FakeScm scenarios', () => {
     expect((await scm.poll(repo, null)).events).toHaveLength(1);
   });
 });
+
+it.each(['comment', 'update', 'push'] as const)(
+  'invalidates an owner timer on %s even when the clock does not advance',
+  async (change) => {
+    let release = () => {};
+    const scm = new FakeScm({
+      autoMergeIntoDefaultBranchAfterMs: 10,
+      delay: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    });
+    await setup(scm);
+    const pr = await scm.openPR(
+      repo,
+      { title: 'Final', body: '', base: 'main', head: 'ai-office/integration' },
+      { ...c, commandId: 'final' },
+    );
+    if (change === 'comment')
+      await scm.comment(pr, 'Please revise', { ...c, commandId: 'revise' });
+    if (change === 'update') await scm.updatePR(pr, { body: 'Revised' });
+    if (change === 'push') scm.pushBranch(repo, 'ai-office/integration');
+    release();
+    await Promise.resolve();
+    expect((await scm.getPR(pr)).state).toBe('open');
+    await scm.mergeOwner(pr);
+    expect((await scm.getPR(pr)).state).toBe('merged');
+  },
+);
