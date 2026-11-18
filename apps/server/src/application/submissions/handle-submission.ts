@@ -52,6 +52,7 @@ export const SUBMISSION_WAIT_PREFIX = 'submission-wait/';
 
 /** Gateway use case. Wire scheduler deliveries to onTimer before runners.onTimer. */
 export class HandleSubmission {
+  private closed = false;
   private readonly locks = new Map<string, Promise<unknown>>();
   private readonly waits = new Map<
     string,
@@ -115,6 +116,12 @@ export class HandleSubmission {
         submissionId: result.submissionId,
       });
     return this.waitForMerge(result);
+  }
+
+  /** Release HTTP waits before closing the listener; accepted work stays durable. */
+  close(): void {
+    this.closed = true;
+    for (const wait of this.waits.values()) wait.finish();
   }
 
   /** Returns true for a timer owned here; other timers belong to WorkflowRunners. */
@@ -314,6 +321,13 @@ export class HandleSubmission {
   private waitForMerge(accepted: Accepted): Promise<SubmissionResult> {
     const current = this.mergeResult(accepted);
     if (current) return Promise.resolve(this.response(current));
+    if (this.closed)
+      return Promise.resolve(
+        this.response({
+          status: 'pending',
+          submissionId: accepted.submissionId,
+        }),
+      );
     return new Promise((resolve) => {
       const id = `${SUBMISSION_WAIT_PREFIX}${this.deps.ids.ulid()}`;
       const deadline = this.deps.clock.now().getTime() + 120_000;

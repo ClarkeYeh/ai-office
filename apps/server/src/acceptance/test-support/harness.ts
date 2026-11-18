@@ -55,7 +55,9 @@ export function acceptanceWorld(
   const specStore = new FsSpecStore(`${dataDir}/data`);
   const scm = createFakeScm({
     clock,
-    autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs ?? 50,
+    ...(options.finalMergeMs === undefined
+      ? {}
+      : { autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs }),
     ...(options.mergeDelay === undefined ? {} : { delay: options.mergeDelay }),
   });
   scm.addRepo(FAKE_REPO.github);
@@ -253,6 +255,8 @@ export interface Office {
     done: (workflow: Json) => boolean | Promise<boolean>,
     options?: {
       policy?: GatePolicy;
+      /** Disable the simulated human merge when testing the final gate itself. */
+      mergeFinalPr?: boolean;
       onException?: (gate: Json) => boolean | Promise<boolean>;
       timeoutMs?: number;
     },
@@ -426,7 +430,18 @@ export async function office(
               liveAgents: liveAgents(world),
             });
           }
-          if (gate.stageKind === 'final-pr') continue; // the fake owner merges it
+          if (gate.stageKind === 'final-pr') {
+            if (
+              driveOptions.mergeFinalPr === false ||
+              options.finalMergeMs !== undefined
+            )
+              continue;
+            const number =
+              server.runners.get(workflowId)?.state.workflow?.finalPr;
+            if (number !== undefined)
+              await world.scm.mergeOwner({ repo: FAKE_REPO.github, number });
+            continue;
+          }
           const detail = (
             await ui.call(
               'GET',

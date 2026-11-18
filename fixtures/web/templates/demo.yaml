@@ -1,0 +1,67 @@
+apiVersion: ai-office/v1alpha1
+id: demo
+name: 需求到 PR
+roles: # 角色＝流程中的職責，不是頭銜
+  lead:
+    agent: claude-code
+    effort: high
+    scope: 主持會議並收斂結論；把核准的結論拆成可獨立驗收的工作項目；值班時回答實作者的技術問題
+  pm:
+    agent: claude-code
+    scope: 釐清需求、使用者情境與驗收條件；指出範圍風險
+  architect:
+    agent: claude-code
+    scope: 提出架構與技術選型方案及取捨；檢查分層與相依
+  engineer: # 預設實作者
+    agent: codex
+    scope: 評估實作可行性與工作量；實作指派的工作項目並撰寫測試
+  integrator:
+    agent: claude-code
+    scope: 在合併佇列中逐一審查 worker PR、解衝突或要求修改；收尾時做整體驗證、fix-forward 並撰寫整合報告
+defaults:
+  integrationBranch: 'ai-office/{shortId}-{slug}'
+  maxReruns: 2 # 關卡退回後重跑同一階段的上限
+  budget: { hardLimitMultiplier: 2 } # 硬上限＝階段預算 × 倍數
+  workflowBudget: { tokens: 3000000 } # 選填：整個流程的上限（所有預算預設值待 M2 依 §10.2 公式校準）
+stages:
+  - id: meeting
+    kind: meeting
+    facilitator: lead
+    participants: [pm, architect, engineer]
+    maxRounds: 2
+    timeouts: { roundMin: 15, stageMin: 60 }
+    budget: { tokens: 300000, maxTurns: 60 }
+    conclusion: { requireTechDecisions: true }
+    gate: { id: conclusion, title: 結論定案, optional: true } # optional：啟動時可關閉
+  - id: breakdown
+    kind: planning
+    owner: lead
+    from: meeting
+    timeouts: { stageMin: 30 }
+    budget: { tokens: 200000, maxTurns: 40 }
+    gate:
+      {
+        id: task-split,
+        title: 任務拆分,
+        optional: true,
+        editable: [title, body, acceptance, role, agent, deps],
+      }
+  - id: implement
+    kind: implement
+    role: engineer # 每個工作項目可在關卡 2 改派
+    from: breakdown
+    maxParallel: 3 # 範圍：單一 workflow
+    timeouts: { itemMin: 45 }
+    budget: { tokens: 1800000, perItem: { tokens: 400000, maxTurns: 120 } } # 含合併佇列與值班用量；M2 校準
+    onCall: { role: lead, questionTimeoutMin: 10 } # 值班主 agent（§7.5），預算計入本階段
+    mergeQueue: { role: integrator, reviewTimeoutMin: 20, maxRework: 2 } # 合併佇列整合者（§7.4a、§7.5）
+    escalateOn: [unresolvable-conflict, ci-failed-twice] # 以每個 PR 計；ci 條件只在 repo 有 checks 時生效
+  - id: integrate
+    kind: integrate # 收尾：整體驗證、fix-forward、整合報告（§7.4b）
+    owner: integrator
+    timeouts: { stageMin: 30 }
+    budget: { tokens: 200000, maxTurns: 60 } # 合併已在實作階段完成；M2 校準
+  - id: final-pr
+    kind: final-pr
+    maxRevisions: 2
+    gate: { id: final-pr, title: 最終 PR } # 不可設 optional：最終 PR 一律由人合併

@@ -26,6 +26,7 @@ try {
     'fastify-type-provider-zod',
     'fastify',
     '@fastify/cors',
+    '@fastify/cookie',
     'octokit',
     '@octokit/core',
     'better-sqlite3',
@@ -33,13 +34,25 @@ try {
     'pino',
     'yaml',
     'react',
+    'react-dom',
+    'zustand',
+    '@playwright/test',
+    '@axe-core/playwright',
   ];
   for (const name of packages) {
     const dir = join(temporary, 'node_modules', name);
     await mkdir(dir, { recursive: true });
     await writeFile(
       join(dir, 'package.json'),
-      JSON.stringify({ name, type: 'module', exports: './index.js' }),
+      JSON.stringify({
+        name,
+        type: 'module',
+        exports: {
+          '.': './index.js',
+          './jsx-runtime': './index.js',
+          './vanilla': './index.js',
+        },
+      }),
     );
     await writeFile(join(dir, 'index.js'), 'export const value = 1;\n');
   }

@@ -9,6 +9,7 @@ import {
   apiEndpoints,
   AcceptedSubmissionSchema,
   BudgetBarSchema,
+  ConclusionGateViewSchema,
   ErrorResponseSchema,
   GateDecisionRequestSchema,
   GateStatusSchema,
@@ -456,6 +457,19 @@ describe('endpoint responses', () => {
 });
 
 describe('read model', () => {
+  test('conclusion gates carry optional GitHub and rendered bodies (G3b)', () => {
+    const view = {
+      ...conclusionGate.conclusion,
+      renderedBody: '## Summary\nOriginal',
+    };
+    expect(ConclusionGateViewSchema.parse(view)).toEqual(view);
+    const { githubBody: _github, ...legacy } = conclusionGate.conclusion;
+    void _github;
+    expect(ConclusionGateViewSchema.parse(legacy)).toEqual(legacy);
+    expect(
+      ConclusionGateViewSchema.safeParse({ ...view, renderedBody: 42 }).success,
+    ).toBe(false);
+  });
   test('gate status has only the §4 states', () =>
     expect(GateStatusSchema.options).toEqual([
       'open',
