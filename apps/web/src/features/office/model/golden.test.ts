@@ -2,6 +2,8 @@ import { replay } from '@ai-office/projection';
 import { describe, expect, test } from 'vitest';
 import { keyT } from '../../../test-support/office/log.js';
 import { mainline, SEATS } from '../../../test-support/office/mainline.js';
+import type { Anchor, Effect } from './effect-types.js';
+import { effects } from './effects.js';
 import { boardViewModel } from './boardViewModel.js';
 import { officeViewModel } from './officeViewModel.js';
 
@@ -183,3 +185,44 @@ describe('golden: hand-written mainline', () => {
     }
   });
 });
+
+describe('effects resolve on the floor', () => {
+  // Every anchor M4-T6 emits must be a key of `vm.anchors` in the read model the
+  // effect is played against (`next`), so the scene can place it.
+  test('all mainline effect anchors resolve', () => {
+    const key = (a: Anchor) =>
+      'seatId' in a
+        ? `${a.kind}:${a.seatId}`
+        : 'itemKey' in a
+          ? `${a.kind}:${a.itemKey}`
+          : a.kind;
+    const missing: string[] = [];
+    let checked = 0;
+    log.events.forEach((event, i) => {
+      const next = log.models[i]!;
+      const vm = officeViewModel(next, { now: 0, t: keyT });
+      for (const effect of effects(event, log.models[i - 1] ?? null, next))
+        for (const anchor of anchorsOf(effect)) {
+          checked++;
+          if (!(key(anchor) in vm.anchors))
+            missing.push(`${event.seq} ${event.type} ${key(anchor)}`);
+        }
+    });
+    expect(missing).toEqual([]);
+    expect(checked).toBeGreaterThan(40);
+  });
+});
+
+function anchorsOf(effect: Effect): Anchor[] {
+  switch (effect.kind) {
+    case 'envelope':
+      return [...effect.route, effect.reducedMotion.at];
+    case 'print':
+    case 'paper-grow':
+    case 'door-open':
+    case 'flash-nameplate':
+      return [effect.at];
+    default:
+      return [effect.from, effect.to];
+  }
+}

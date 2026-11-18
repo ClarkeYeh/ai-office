@@ -1,5 +1,6 @@
 import type { AttemptView } from '@ai-office/contracts/api';
 import type { AttemptState, WorkItemStatus } from '@ai-office/contracts/events';
+import type { Anchor } from './effect-types.js';
 import type { Translate } from './messages.js';
 
 // View-model contract between the office model (M4-T5), effects (M4-T6), the scene
@@ -57,20 +58,21 @@ export type RoomId =
   | 'pantry'
   | 'lounge';
 
-/** Symbolic anchors resolved to coordinates by the scene (effects carry only ids). */
+type KeyedAnchor = Extract<Anchor, { kind: 'seat' | 'workitem' | 'meeting' }>;
+
+/**
+ * Keys of `OfficeViewModel.anchors`. Every effect `Anchor` (effect-types.ts) has
+ * one: a fixed kind is its own key; keyed kinds are `seat:<seatId>`,
+ * `workitem:<itemKey>` (the item's desk, seated or reserved) and
+ * `meeting:<seatId>` (that seat's meeting chair). `desk:<n>` and `lead-desk`
+ * are extra points for the scene. A missing key means the target is not on the
+ * floor; the scene then skips the effect.
+ */
 export type AnchorId =
-  | 'entrance'
-  | 'inbox'
-  | 'printer'
-  | 'your-desk'
-  | 'counter'
-  | 'hopper'
-  | 'cart'
-  | 'door'
-  | 'lead-desk'
-  | `seat:${string}`
+  | Exclude<Anchor['kind'], KeyedAnchor['kind']>
+  | `${KeyedAnchor['kind']}:${string}`
   | `desk:${number}`
-  | `meeting:${number}`;
+  | 'lead-desk';
 
 export type OfficeSeat = {
   seatId: string;

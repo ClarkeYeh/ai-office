@@ -155,9 +155,9 @@ export function fixedAnchors(rows: number): Record<string, Point> {
     printer: { x: 180, y: 58 },
     'your-desk': { x: 305, y: 60 },
     counter: COUNTER_PARCEL,
-    hopper: { x: 168, y: 144 },
-    cart: at(310, 196, rows),
-    door: { x: 318, y: 8 },
+    conveyor: { x: 168, y: 144 },
+    'integration-cart': at(310, 196, rows),
+    'main-door': { x: 318, y: 8 },
     'lead-desk': LEAD_SEAT,
   } satisfies Partial<Record<AnchorId, Point>>;
 }

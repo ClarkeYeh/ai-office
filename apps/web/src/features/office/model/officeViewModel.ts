@@ -61,6 +61,7 @@ type Ctx = SelectorArgs & {
   rm: ReadModel;
   rows: number;
   assignment: DeskAssignment;
+  chairs: Map<string, number>;
 };
 
 /**
@@ -80,15 +81,25 @@ export function officeViewModel(
     ...reservations.values(),
   );
   const rows = rowsFor(maxParallelOf(rm), highest);
-  const ctx: Ctx = { ...args, rm, rows, assignment };
+  const chairs = assignMeetingChairs(rm);
+  const ctx: Ctx = { ...args, rm, rows, assignment, chairs };
   const seats = officeSeats(ctx);
   const needs = needsOf(rm, args);
   const anchors: Record<string, Point> = { ...fixedAnchors(rows) };
   for (let desk = 0; desk < rows * DESKS_PER_ROW; desk++)
     anchors[`desk:${desk}`] = deskSeat(desk);
-  MEETING_CHAIRS.forEach((p, i) => (anchors[`meeting:${i}`] = p));
-  for (const seat of seats)
+  for (const [seatId, chair] of chairs)
+    anchors[`meeting:${seatId}`] = MEETING_CHAIRS[chair]!;
+  for (const seat of rm.seats)
+    if (seat.attempts.some((a) => a.purpose === 'facilitator'))
+      anchors[`meeting:${seat.seatId}`] = MEETING_FACILITATOR;
+  for (const seat of seats) {
     anchors[`seat:${seat.seatId}`] = { x: seat.x, y: seat.y };
+    if (seat.itemKey !== undefined && seat.desk !== undefined)
+      anchors[`workitem:${seat.itemKey}`] = deskSeat(seat.desk);
+  }
+  for (const [itemKey, desk] of reservations)
+    anchors[`workitem:${itemKey}`] = deskSeat(desk);
 
   return {
     workflowId: rm.workflowId,
@@ -225,8 +236,7 @@ export function needsOf(rm: ReadModel, { now, t }: SelectorArgs): Need[] {
 // -- seats -------------------------------------------------------------------
 
 function officeSeats(ctx: Ctx): OfficeSeat[] {
-  const { rm, rows, assignment } = ctx;
-  const chairs = assignMeetingChairs(rm);
+  const { rm, rows, assignment, chairs } = ctx;
   let lounge = 0;
   return rm.seats.map((seat) => {
     const state = seatState(rm, seat);

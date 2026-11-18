@@ -407,13 +407,17 @@ describe('floor', () => {
   test('anchors cover seats, desks, chairs and fixed props', () => {
     const vm = vmOf(implementLog());
     expect(vm.anchors[`seat:${W}`]).toEqual({ x: 20, y: 124 });
-    expect(vm.anchors['meeting:4']).toEqual({ x: 63, y: 72 });
+    expect(vm.anchors['workitem:w1']).toEqual({ x: 20, y: 124 });
+    expect(vm.anchors['workitem:w2']).toEqual({ x: 76, y: 124 });
     for (const id of [
       'inbox',
       'your-desk',
       'counter',
       'entrance',
-      'door',
+      'main-door',
+      'integration-cart',
+      'conveyor',
+      'printer',
     ] as const)
       expect(vm.anchors[id]).toBeDefined();
   });

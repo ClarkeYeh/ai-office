@@ -1,5 +1,7 @@
 export { officeViewModel } from './officeViewModel.js';
 export { boardViewModel, columnOf } from './boardViewModel.js';
+export { effects } from './effects.js';
+export type { Anchor, Effect } from './effect-types.js';
 export {
   assignDesks,
   hashKey,
