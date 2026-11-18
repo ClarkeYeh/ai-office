@@ -9,7 +9,7 @@ import type {
   ExecResult,
 } from '../../adapters/runtime-orca/cli/types.js';
 import { subprocessEnv } from '../../adapters/runtime-orca/env-allowlist.js';
-import { scanResources, type ScanResource } from './scan.js';
+import { scanResources, assertScanClean, type ScanResource } from './scan.js';
 import { assertCommand } from './command-gate.js';
 import {
   assertOutside,
@@ -414,8 +414,7 @@ export class OrcaHarness {
   async assertClean(): Promise<void> {
     if (leftovers(this.ledger).length)
       throw new Error('Ledger resources remain after cleanup');
-    if ((await this.scan()).length)
-      throw new Error('Scanned resources remain after cleanup');
+    await assertScanClean(() => this.scan());
   }
   async clean(): Promise<void> {
     this.cleaning ??= this.cleanupResources().finally(() => {

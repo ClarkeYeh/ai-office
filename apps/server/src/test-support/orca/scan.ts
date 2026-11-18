@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import type { ExecResult } from '../../adapters/runtime-orca/cli/types.js';
 
 export interface ScanResource {
@@ -69,6 +70,8 @@ export async function scanResources(
     'terminals',
   );
   for (const row of terminals) {
+    // Closed panes can remain in the inventory until persistence catches up.
+    if (row.exitCause != null || row.connected === false) continue;
     const title = row.title ?? row.paneTitle;
     if (typeof title !== 'string' || !/^aio-test-shim(?:$|[- :])/.test(title))
       continue;
@@ -107,4 +110,24 @@ export async function scanResources(
       found.push({ kind: 'remoteBranch', id: ref, name: ref });
   }
   return found;
+}
+
+/** Briefly tolerate close/list propagation, but never hide persistent live shims. */
+export async function assertScanClean(
+  scan: () => Promise<ScanResource[]>,
+  wait: (ms: number) => Promise<unknown> = delay,
+): Promise<void> {
+  const deadline = Date.now() + 3000;
+  for (let attempt = 0; ; attempt++) {
+    const resources = await scan();
+    if (!resources.length) return;
+    const remaining = deadline - Date.now();
+    if (
+      resources.some((r) => r.kind !== 'shim') ||
+      attempt >= 12 ||
+      remaining <= 0
+    )
+      throw new Error('Scanned resources remain after cleanup');
+    await wait(Math.min(250, remaining));
+  }
 }
