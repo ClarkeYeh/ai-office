@@ -570,7 +570,10 @@ async function compose(
   registerAgentGateway(app, { submissions, port: () => port });
   const apiDeps = {
     commands,
-    queries: new QueryService(stores.events, projections, runtimeMode),
+    queries: new QueryService(stores.events, projections, runtimeMode, {
+      scm: observedScm,
+      logger,
+    }),
     templates: new TemplateQueries(templates),
     sessions: new SessionService(stores.sessions),
     stream: new StreamService(stores.events),
