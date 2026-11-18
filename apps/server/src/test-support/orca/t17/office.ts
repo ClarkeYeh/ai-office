@@ -261,6 +261,7 @@ export async function drive(
   let lastSeq = -1;
   let lastHealth = 0;
   const seen = new Set<string>();
+  const conflicts = new Map<string, number>();
   for (;;) {
     // Adopt the backend run as soon as it exists, so cleanup can always stop
     // its workers, even if the drive later fails before any stage gate.
@@ -317,7 +318,16 @@ export async function drive(
       }
       if (await options.onStageGate?.(gate)) continue;
       const decided = await decide(api, gate);
-      if (decided.status >= 300 && decided.status !== 409)
+      // A concurrent content update bumps the version (retry next pass), but
+      // a persistent conflict is a finding, never a silent loop.
+      conflicts.set(
+        key,
+        decided.status === 409 ? (conflicts.get(key) ?? 0) + 1 : 0,
+      );
+      if (
+        (decided.status >= 300 && decided.status !== 409) ||
+        (conflicts.get(key) ?? 0) > 20
+      )
         throw new Error(
           `decision ${decided.status} ${JSON.stringify(decided.body)}`,
         );

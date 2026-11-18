@@ -209,6 +209,10 @@ export class GitRemoteScm implements ScmPort {
       author: 'scm-test',
       hasMarker: true,
     });
+    // A GitHub poll reports a new issue with its body hash; the conclusion
+    // gate takes its GitHub version from that (M2-T17: without it every
+    // approval was a 409 against the marker-bearing body).
+    if (kind === 'issue') this.changed(obj);
     return obj;
   }
   async createIssue(repo: RepoScmRef, draft: IssueDraft, c: Correlation) {
