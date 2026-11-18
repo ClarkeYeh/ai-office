@@ -231,7 +231,7 @@ export class WorkflowRunner {
     );
   }
 
-  /** Scheduler delivery: writes `timer.fired` if the timer is still pending. */
+  /** Scheduler delivery: writes `timer.fired` if still pending; held while paused. */
   fireTimer(timerId: string): void {
     this.enqueue({ kind: 'timer', timerId });
   }
@@ -332,7 +332,11 @@ export class WorkflowRunner {
           this.record(input.issued, input.outcome);
           return;
         case 'timer':
-          if (Object.hasOwn(this.current.timers, input.timerId))
+          // FX8: a workflow pause holds the timer pending; the resume re-delivers it.
+          if (
+            Object.hasOwn(this.current.timers, input.timerId) &&
+            !this.current.workflow?.pausedReasons.length
+          )
             this.commit([
               this.draft(
                 'timer.fired',
@@ -397,7 +401,31 @@ export class WorkflowRunner {
     }
     for (const [effect, cause, cursor] of effects)
       this.handle(effect, cause, cursor);
+    if (stored.some((event) => event.type === 'workflow.resumed'))
+      this.redeliverHeldTimers();
     return stored;
+  }
+
+  /**
+   * FX8: on the resume that leaves the workflow unpaused, queue every pending
+   * timer already due — those held while paused — behind the resume's own
+   * effects, so stages re-evaluate state first and a timer they cancel stays
+   * cancelled. Delivery re-checks that the timer is pending, so a second
+   * delivery (Scheduler, restart re-arm) cannot fire it twice.
+   */
+  private redeliverHeldTimers(): void {
+    const workflow = this.current.workflow;
+    if (workflow?.status !== 'running' || workflow.pausedReasons.length) return;
+    const now = this.deps.clock.now().getTime();
+    Object.values(this.current.timers)
+      .filter((timer) => Date.parse(timer.fireAt) <= now)
+      .sort(
+        (a, b) =>
+          Date.parse(a.fireAt) - Date.parse(b.fireAt) || (a.id < b.id ? -1 : 1),
+      )
+      .forEach((timer) =>
+        this.queue.push({ kind: 'timer', timerId: timer.id }),
+      );
   }
 
   private effectCursor(event: DomainEvent, index: number): CursorWrite {

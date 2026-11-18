@@ -33,7 +33,9 @@ import type { React } from '../react.js';
  * WorkflowRunner (§11.4) against a scripted outside world, on a virtual clock.
  * Inputs are processed FIFO; internal effects go to the back of the queue;
  * timer / cancelTimer / external effects are written immediately, in order,
- * as the runner does. Every event is checked against `DomainEventSchema`.
+ * as the runner does. Like the runner, a paused workflow holds due timers
+ * until the resume that unpauses it. Every event is checked against
+ * `DomainEventSchema`.
  */
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
@@ -82,7 +84,8 @@ export const pausingWorld = (
 type Input =
   | { kind: 'spawn'; effect: SpawnEffect }
   | { kind: 'command'; command: DomainCommand }
-  | { kind: 'reply'; issued: IssuedCommand; reply: WorldReply };
+  | { kind: 'reply'; issued: IssuedCommand; reply: WorldReply }
+  | { kind: 'timer'; timerId: string };
 
 export interface SimulatorOptions {
   world?: World;
@@ -207,10 +210,10 @@ export class Simulator {
     return this.drain();
   }
 
-  /** Moves the clock forward, firing due timers in `fireAt` order. */
+  /** Moves the clock forward, firing due timers in `fireAt` order (held while paused). */
   advance(ms: number): this {
     const target = this.now + ms;
-    for (;;) {
+    while (!this.paused) {
       const due = Object.values(this.state.timers)
         .filter((timer) => Date.parse(timer.fireAt) <= target)
         .sort(
@@ -220,7 +223,7 @@ export class Simulator {
         )[0];
       if (due === undefined) break;
       this.now = Math.max(this.now, Date.parse(due.fireAt));
-      this.append(this.draft('timer.fired', { timerId: due.id }));
+      this.queue.push({ kind: 'timer', timerId: due.id });
       this.drain();
     }
     this.now = target;
@@ -250,9 +253,20 @@ export class Simulator {
         throw new Error(`Simulator exceeded ${this.maxSteps} steps`);
       if (input.kind === 'spawn') this.spawn(input.effect);
       else if (input.kind === 'command') this.run(input.command);
+      else if (input.kind === 'timer') this.fire(input.timerId);
       else this.receive(input.issued, input.reply);
     }
     return this;
+  }
+
+  private get paused(): boolean {
+    return (this.state.workflow?.pausedReasons.length ?? 0) > 0;
+  }
+
+  /** The runner's timer delivery: fires only a pending timer, never while paused. */
+  private fire(timerId: string): void {
+    if (Object.hasOwn(this.state.timers, timerId) && !this.paused)
+      this.append(this.draft('timer.fired', { timerId }));
   }
 
   private run(command: DomainCommand): void {
@@ -368,6 +382,22 @@ export class Simulator {
           break;
       }
     }
+    // The runner re-delivers timers held while paused, behind the resume's effects.
+    if (
+      event.type === 'workflow.resumed' &&
+      this.state.workflow?.status === 'running' &&
+      !this.paused
+    )
+      Object.values(this.state.timers)
+        .filter((timer) => Date.parse(timer.fireAt) <= this.now)
+        .sort(
+          (a, b) =>
+            Date.parse(a.fireAt) - Date.parse(b.fireAt) ||
+            (a.id < b.id ? -1 : 1),
+        )
+        .forEach((timer) =>
+          this.queue.push({ kind: 'timer', timerId: timer.id }),
+        );
   }
 
   private spawn(effect: SpawnEffect): void {
