@@ -1,3 +1,9 @@
+import { EventEmitter } from 'node:events';
+import * as sleepWake from './adapters/runtime-orca/sleep-wake.js';
+import * as runtimeConfig from './config/runtime-config.js';
+import { HealthMonitor } from './application/health/health-monitor.js';
+import { TimerScheduler } from './adapters/system/index.js';
+import { sessionRef, questionRef } from './adapters/runtime-orca/refs.js';
 import {
   existsSync,
   mkdtempSync,
@@ -336,7 +342,11 @@ function hybridConfig(directory: string, extra = '') {
 }
 
 /** Replay the process boundary: no Orca, git, ps or caffeinate process is spawned. */
-function replayHybrid(directory: string, worktrees: string[] = []) {
+function replayHybrid(
+  directory: string,
+  worktrees: string[] = [],
+  orcaHome = join(directory, 'orca-home'),
+) {
   const calls: string[] = [];
   const exec = vi
     .spyOn(SpawnExec.prototype, 'run')
@@ -361,7 +371,7 @@ function replayHybrid(directory: string, worktrees: string[] = []) {
       else if (command === 'repo list')
         result = {
           repos: [
-            { id: 'folder', path: join(directory, 'orca-home') },
+            { id: 'folder', path: orcaHome },
             { id: 'repo', path: '/replay/repo' },
           ],
         };
@@ -613,4 +623,199 @@ it('passes attempt start to usage lookup and stops locating once a session is fo
     }),
   );
   expect(read).toHaveBeenCalledTimes(2);
+});
+
+describe('explicit dev startup and approved shim location', () => {
+  it.each([
+    [{}, /Production.*M3/],
+    [{ runtime: 'orca' }, /Production.*M3/],
+    [{ dev: true }, /requires --fake.*--runtime orca/],
+  ] as const)(
+    'refuses %j before config, directories or runtime side effects',
+    async (options, message) => {
+      const directory = join(home(), 'must-not-be-created');
+      const resolveConfig = vi.spyOn(runtimeConfig, 'resolveRuntimeConfig');
+      const exec = vi
+        .spyOn(SpawnExec.prototype, 'run')
+        .mockRejectedValue(new Error('No process allowed'));
+      await expect(
+        startServer({ ...options, env: { AI_OFFICE_HOME: directory } }),
+      ).rejects.toThrow(message);
+      expect(resolveConfig).not.toHaveBeenCalled();
+      expect(exec).not.toHaveBeenCalled();
+      expect(existsSync(directory)).toBe(false);
+    },
+  );
+
+  it('uses a pre-registered folder outside the isolated data dir and reports new handles', async () => {
+    const directory = home(),
+      approved = home();
+    hybridConfig(directory);
+    const replay = replayHybrid(directory, [], approved);
+    const created = vi.fn();
+    const server = await hybrid(directory, {
+      orcaHome: approved,
+      testOnly: { onShimCreated: created },
+    });
+    expect(
+      parseArgs(['--dev', '--runtime', 'orca', '--orca-home', approved]),
+    ).toMatchObject({ orcaHome: approved });
+    expect(created).toHaveBeenCalledExactlyOnceWith('term_replay');
+    const create = replay.exec.mock.calls.find(
+      ([request]) => request.args.slice(0, 2).join(' ') === 'terminal create',
+    )![0];
+    expect(create.args).toContain('path:' + approved);
+    expect(realpathSync(create.cwd)).toBe(
+      realpathSync(join(directory, 'cli-cwd')),
+    );
+    expect(server.dataDir).toBe(directory);
+    expect(replay.calls).not.toContain('repo add');
+    const ui = await browser(server);
+    expect(
+      (await ui.call('GET', '/api/v1/health')).body.runtime.shim.location,
+    ).toBe(approved);
+  });
+
+  it('rejects relative/fake-mode folders and never registers an unknown folder', async () => {
+    expect(() =>
+      checkStartOptions({ dev: true, runtime: 'orca', orcaHome: 'relative' }),
+    ).toThrow(/absolute path/);
+    expect(() =>
+      checkStartOptions({ dev: true, fake: 'mainline', orcaHome: '/approved' }),
+    ).toThrow(/--runtime orca/);
+    const directory = home();
+    hybridConfig(directory);
+    const replay = replayHybrid(directory);
+    await expect(
+      hybrid(directory, { orcaHome: '/not-registered' }),
+    ).rejects.toMatchObject({ code: 'shim_folder_workspace_unregistered' });
+    expect(replay.calls).not.toContain('repo add');
+    expect(replay.calls).not.toContain('terminal create');
+  });
+});
+
+it('shares one long-poll per run, one caffeinate and the current observer across wake, reply and shutdown', async () => {
+  const directory = home();
+  hybridConfig(directory);
+  writeFileSync(
+    join(directory, 'config.toml'),
+    readFileSync(join(directory, 'config.toml'), 'utf8').replace(
+      'preventSleep = false',
+      'preventSleep = true',
+    ),
+  );
+  const replay = replayHybrid(directory);
+  const replayRun = replay.exec.getMockImplementation()!;
+  let activePolls = 0,
+    maxPolls = 0,
+    pollsStarted = 0;
+  const envelope = (result: unknown) => ({
+    exitCode: 0,
+    stdout: JSON.stringify({ ok: true, result }),
+  });
+  replay.exec.mockImplementation(async (request) => {
+    if (request.args[0] !== 'orchestration') return replayRun(request);
+    switch (request.args[1]) {
+      case 'run-show':
+        return envelope({
+          run: {
+            id: 'run-replay',
+            coordinator_handle: 'term_replay',
+            consumer_generation: 1,
+          },
+        });
+      case 'request-show':
+        return envelope({ state: 'absent' });
+      case 'inbox':
+        return envelope({ messages: [] });
+      case 'worker-list':
+        return envelope({ workers: [] });
+      case 'task-list':
+        return envelope({ tasks: [] });
+      case 'check': {
+        activePolls++;
+        pollsStarted++;
+        maxPolls = Math.max(maxPolls, activePolls);
+        return new Promise((resolve) =>
+          request.signal!.addEventListener(
+            'abort',
+            () => {
+              setTimeout(() => {
+                activePolls--;
+                resolve(envelope({ messages: [] }));
+              }, 20);
+            },
+            { once: true },
+          ),
+        );
+      }
+      default:
+        throw new Error('Unexpected replay operation');
+    }
+  });
+  const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+  const spawn = vi.fn(() => child);
+  const originalWrap = sleepWake.withSleepWake;
+  const decorated: ReturnType<typeof originalWrap>[] = [];
+  vi.spyOn(sleepWake, 'withSleepWake').mockImplementation(
+    (runtime, options) => {
+      const result = originalWrap(
+        { ...runtime, answer: vi.fn(async () => {}) },
+        { ...options, platform: 'darwin', spawn },
+      );
+      decorated.push(result);
+      return result;
+    },
+  );
+  const observe = vi.spyOn(OrcaObserver.prototype, 'observe');
+  const answered = vi.spyOn(OrcaObserver.prototype, 'markAnswered');
+  const healthRestore = vi.spyOn(HealthMonitor.prototype, 'restore');
+  const healthClose = vi.spyOn(HealthMonitor.prototype, 'close');
+  const scheduled = vi.spyOn(TimerScheduler.prototype, 'schedule');
+  const server = await hybrid(directory);
+  expect(decorated).toHaveLength(1);
+  const runtime = decorated[0]!;
+  const run = sessionRef('run-replay');
+  let batch = await runtime.observe(run, null);
+  batch = await runtime.observe(run, batch.cursor);
+  expect(pollsStarted).toBe(1);
+  expect(activePolls).toBe(1);
+  expect(spawn).toHaveBeenCalledTimes(1);
+  expect(spawn.mock.calls[0]).toEqual([
+    '/usr/bin/caffeinate',
+    ['-i', '-w', String(process.pid)],
+  ]);
+  const before = observe.mock.instances.at(-1);
+  const health = healthRestore.mock.instances[0] as HealthMonitor;
+  const tick = scheduled.mock.calls.find(
+    ([timer]) => timer.id === 'aio-health:clock',
+  )![0];
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(Date.parse(tick.fireAt) + 60_000);
+    await health.onTimer(tick);
+  } finally {
+    vi.useRealTimers();
+  }
+  await runtime.observe(run, batch.cursor);
+  expect(observe.mock.instances.at(-1)).not.toBe(before);
+  expect(maxPolls).toBe(1);
+  expect(activePolls).toBe(1);
+  expect(spawn).toHaveBeenCalledTimes(1);
+  await runtime.answer(questionRef('question'), 'answer', {
+    workflowId: 'workflow',
+    commandId: 'answer',
+  });
+  expect(answered.mock.instances.at(-1)).toBe(observe.mock.instances.at(-1));
+  const ui = await browser(server);
+  expect(
+    (await ui.call('GET', '/api/v1/health')).body.runtime.warnings,
+  ).toContain('host_slept');
+  await server.close();
+  expect(activePolls).toBe(0);
+  expect(child.kill).toHaveBeenCalledTimes(1);
+  expect(healthClose).toHaveBeenCalled();
+  expect(
+    replay.exec.mock.calls.some(([r]) => r.bin === '/usr/bin/caffeinate'),
+  ).toBe(false);
 });

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { PortError } from '../../ports/errors.js';
 import type { RuntimePort } from '../../ports/runtime.js';
 import type { SessionRef } from '../../ports/refs.js';
 import type { Logger } from '../../ports/services.js';
@@ -69,8 +70,20 @@ export function withSleepWake(runtime: RuntimePort, options: SleepWakeOptions) {
       options.logger.warn({ code: 'sleep_prevention_unavailable' });
     }
   };
+  let draining: Promise<void> = Promise.resolve();
+  const stopObservation = () => {
+    stopped = true;
+    draining = observer.closeAndDrain();
+    sessions.clear();
+    release();
+  };
   return {
     ...runtime,
+    async answer(...args: Parameters<RuntimePort['answer']>) {
+      await runtime.answer(...args);
+      observer.markAnswered(args[0]);
+    },
+    stopObservation,
     async openSession(req: Parameters<RuntimePort['openSession']>[0]) {
       const session = await runtime.openSession(req);
       sessions.add(session);
@@ -84,16 +97,24 @@ export function withSleepWake(runtime: RuntimePort, options: SleepWakeOptions) {
     },
     observe: (...args: Parameters<RuntimePort['observe']>) =>
       serial(async () => {
+        if (stopped)
+          throw new PortError(
+            'guard',
+            'runtime_closed',
+            'Runtime observation stopped',
+          );
         sessions.add(args[0]); // recovered workflows also hold the assertion
         hold();
         return observer.observe(...args);
       }),
     forceRecheck: () =>
       serial(async () => {
+        if (stopped) return;
         // Drop volatile poll/throttle state, not the caller's committed cursor.
         // The next observe performs full worker-list and inbox backfill even if
         // the previous batch was not committed. No spawn/send operation occurs.
-        observer.close();
+        await observer.closeAndDrain();
+        if (stopped) return;
         observer = new OrcaObserver(options.observer);
         await options.observer.identity.ensure({ force: true });
         for (const session of sessions)
@@ -103,12 +124,12 @@ export function withSleepWake(runtime: RuntimePort, options: SleepWakeOptions) {
         await options.version.check(true);
       }),
     /** T10 calls after observation stops and before backend shutdown. */
-    close: () =>
-      serial(async () => {
-        stopped = true;
-        observer.close();
-        sessions.clear();
-        release();
-      }),
+    close: () => {
+      // Abort polls immediately, even when an observe/recheck is waiting on CLI IO.
+      stopObservation();
+      return serial(async () => {
+        await draining;
+      });
+    },
   };
 }
