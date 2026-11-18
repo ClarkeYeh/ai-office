@@ -223,11 +223,15 @@ export async function run(h: OrcaHarness): Promise<void> {
         onStageGate: async (gate) => {
           orcaRun ??= await adoptRun(h, live, id);
           if (gate.stageKind === 'planning') {
+            // Edits require `revise`, which approves the edited items.
             const decided = await decide(live, gate, {
+              decision: 'revise',
               edits: { type: 'work-items', items: ITEMS },
             });
             if (decided.status >= 300 && decided.status !== 409)
-              throw new Error(`task-split edit ${decided.status}`);
+              throw new Error(
+                `task-split edit ${decided.status} ${JSON.stringify(decided.body)}`,
+              );
             return true;
           }
           if (gate.stageKind === 'final-pr') {
