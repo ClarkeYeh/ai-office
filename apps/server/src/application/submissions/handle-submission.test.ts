@@ -297,6 +297,51 @@ describe('progressive merge and rework', () => {
         ),
     ).toHaveLength(1);
   });
+  test('close releases all waits and racing acceptance, then a restarted query returns the result', async () => {
+    const h = setup(reviewing(), mergeReact, new StubWorld().hang('mergePR'));
+    const cancel = vi.spyOn(h.scheduler, 'cancel');
+    const first = h.useCase.handle(h.headers, merge);
+    const second = h.useCase.handle(h.headers, merge);
+    await flush();
+    h.useCase.close();
+    h.useCase.close();
+    const pending = await first;
+    expect(pending).toMatchObject({ status: 202, body: { status: 'pending' } });
+    expect(await second).toEqual(pending);
+    expect(cancel).toHaveBeenCalledTimes(2);
+    expect(await h.useCase.handle(h.headers, merge)).toEqual(pending);
+    const issued = h
+      .events()
+      .find(
+        (e) => e.type === 'command.issued' && e.payload.kind === 'scm.mergePR',
+      );
+    if (issued?.type !== 'command.issued') throw new Error('missing merge');
+    await h.runner.append([
+      eventDraft('command.succeeded', {
+        commandId: issued.payload.commandId,
+        kind: 'scm.mergePR',
+        result: { mergeCommitSha: 'abcdef3' },
+      }),
+    ]);
+    expect(
+      await new HandleSubmission(h.deps).handle(h.headers, merge),
+    ).toMatchObject({
+      status: 200,
+      body: { status: 'merged', mergeCommitSha: 'abcdef3' },
+    });
+    expect(h.accepted()).toHaveLength(1);
+    const racing = setup(
+      reviewing(),
+      mergeReact,
+      new StubWorld().hang('mergePR'),
+    );
+    const response = racing.useCase.handle(racing.headers, merge);
+    racing.useCase.close();
+    expect(await response).toMatchObject({
+      status: 202,
+      body: { status: 'pending' },
+    });
+  });
   test('matching failure returns 409, unrelated results do not finish the wait', async () => {
     const h = setup(reviewing(), mergeReact, new StubWorld().hang('mergePR'));
     const result = h.useCase.handle(h.headers, merge);

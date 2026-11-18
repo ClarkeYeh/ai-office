@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { registerDevFakeRoutes } from './api/dev-fake/index.js';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
@@ -171,7 +172,9 @@ export function createFakeWorld(
   const clock = new SystemClock();
   const scm = createFakeScm({
     clock,
-    autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs ?? 5000,
+    ...(options.finalMergeMs === undefined
+      ? {}
+      : { autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs }),
   });
   scm.addRepo(FAKE_REPO.github);
   const backendDown = (): never => {
@@ -551,8 +554,9 @@ async function compose(
   // run past 100 chars); Fastify's default maxParamLength (100) would 404 them.
   const app = Fastify({ logger: false, maxParamLength: 1024 });
   cleanup.push(() => app.close());
+  cleanup.push(() => submissions.close());
   registerAgentGateway(app, { submissions, port: () => port });
-  await registerApi(app, {
+  const apiDeps = {
     commands,
     queries: new QueryService(stores.events, projections, runtimeMode),
     templates: new TemplateQueries(templates),
@@ -567,7 +571,13 @@ async function compose(
         ? { devOrigin: 'http://localhost:5173' }
         : {}
       : { devOrigin: options.devOrigin }),
-  });
+  };
+  await registerApi(app, apiDeps);
+  if (options.dev === true && fake)
+    await registerDevFakeRoutes(app, apiDeps, {
+      mergeOwner: (number) =>
+        world.scm.mergeOwner({ repo: FAKE_REPO.github, number }),
+    });
   const webDist =
     options.webDist ?? resolve(import.meta.dirname, '../../web/dist');
   if (existsSync(`${webDist}/index.html`)) {
@@ -603,8 +613,9 @@ async function compose(
     world.backend = undefined;
   });
 
-  // Let in-flight commands settle so their results are recorded before close.
-  cleanup.push(() => Promise.race([runners.idle(), delay(5000)]));
+  // Briefly drain command results while keeping shutdown below five seconds.
+  // Still-pending commands remain in the durable outbox for reconciliation.
+  cleanup.push(() => Promise.race([runners.idle(), delay(1000)]));
   lock.writeRuntime(port);
   const bootstrapUrl = `${url}/auth/bootstrap?code=${stores.sessions.issueBootstrapCode()}`;
   print(
@@ -626,7 +637,10 @@ async function compose(
     runtimeMode,
     runners,
     fakeWorld: world,
-    close: () => (closing ??= unwind()),
+    close: () => {
+      submissions.close();
+      return (closing ??= unwind());
+    },
   };
 }
 
