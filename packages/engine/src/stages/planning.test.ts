@@ -160,7 +160,7 @@ it('proposes work items submitted while paused once the workflow resumes', () =>
   expect(sim.rejections).toEqual([]);
 });
 
-it('holds a stage timeout that elapses during a hijack pause until resume (FX8)', () => {
+it('holds a stage timeout through a hijack pause and resumes its remaining time (FX8b)', () => {
   const sim = runMeeting({}, true);
   const stageTimer = Object.values(sim.state.timers).find(
     (t) =>
@@ -176,11 +176,28 @@ it('holds a stage timeout that elapses during a hijack pause until resume (FX8)'
     sim
       .eventsOf('message.nudge')
       .filter((e) => e.payload.reason === 'missing-submission');
+  // The lead shows activity, so only the stage timeout watches it (not spawn stall).
+  sim.inject('seat.activity', {
+    attemptId: 'wf-1/breakdown/1/attempt/lead',
+    activity: [
+      {
+        messageId: 'm',
+        category: 'other',
+        inputLen: 0,
+        outputLen: 0,
+        inputHash: 'a'.repeat(64),
+      },
+    ],
+  });
+  const remaining = Date.parse(stageTimer.fireAt) - Date.parse(sim.clock);
   sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
   sim.advance(40 * 60_000);
   expect(fired()).toHaveLength(0);
   expect(reminders()).toHaveLength(0);
   sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+  sim.advance(remaining - 1);
+  expect(fired()).toHaveLength(0);
+  sim.advance(1);
   expect(fired()).toHaveLength(1);
   expect(reminders().map((e) => e.payload.attemptId)).toEqual([
     expect.stringContaining('/breakdown/'),

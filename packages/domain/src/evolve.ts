@@ -10,6 +10,7 @@ import {
   canTransitionAttempt,
   GATED_STAGE_KINDS,
   initialState,
+  isTimerHeld,
   stageKey,
   TIMER_PAUSE_REASON,
 } from './state/index.js';
@@ -265,7 +266,8 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       stageOrder: p.templateSnapshot.stages.map((stage) => stage.id),
     };
   },
-  'workflow.paused': (state, { payload }) => {
+  'workflow.paused': (state, event) => {
+    const { payload } = event;
     const workflow = state.workflow;
     if (workflow === null || workflow.status !== 'running')
       return skip('workflow_ended', 'Workflow is not running');
@@ -276,20 +278,41 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       workflow: {
         ...workflow,
         pausedReasons: [...workflow.pausedReasons, payload.reason],
+        // FX8b: overlapping reasons share one window, opened by the first.
+        ...(workflow.pausedReasons.length
+          ? {}
+          : {
+              pauseWindows: [
+                ...(workflow.pauseWindows ?? []),
+                { from: event.occurredAt },
+              ],
+            }),
       },
     };
   },
-  'workflow.resumed': (state, { payload }) => {
+  'workflow.resumed': (state, event) => {
+    const { payload } = event;
     const workflow = state.workflow;
     if (workflow === null || !workflow.pausedReasons.includes(payload.reason))
       return skip('not_paused', `Not paused for ${payload.reason}`);
+    const pausedReasons = workflow.pausedReasons.filter(
+      (reason) => reason !== payload.reason,
+    );
     return {
       ...state,
       workflow: {
         ...workflow,
-        pausedReasons: workflow.pausedReasons.filter(
-          (reason) => reason !== payload.reason,
-        ),
+        pausedReasons,
+        // FX8b: the window closes on full unpause.
+        ...(pausedReasons.length || !workflow.pauseWindows?.length
+          ? {}
+          : {
+              pauseWindows: workflow.pauseWindows.map((window, index, all) =>
+                index === all.length - 1
+                  ? { ...window, to: event.occurredAt }
+                  : window,
+              ),
+            }),
       },
     };
   },
@@ -1138,9 +1161,17 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
   },
 
   // timers ------------------------------------------------------------------
-  'timer.scheduled': (state, { payload: p }) => {
-    // Rescheduling a paused timer resumes it (S26); otherwise ids are unique.
-    if (has(state.timers, p.timerId) && !state.timers[p.timerId]!.pausedAt)
+  'timer.scheduled': (state, event) => {
+    const p = event.payload;
+    const timer = state.timers[p.timerId];
+    // Rescheduling resumes a rate-limit-paused timer (S26) or shifts one a past
+    // workflow pause held (FX8b); otherwise ids are unique.
+    if (
+      has(state.timers, p.timerId) &&
+      timer !== undefined &&
+      !timer.pausedAt &&
+      (state.workflow?.pausedReasons.length || !isTimerHeld(state, timer))
+    )
       return skip('duplicate_timer', `Timer ${p.timerId} is already scheduled`);
     return {
       ...state,
@@ -1148,6 +1179,7 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
         id: p.timerId,
         fireAt: p.fireAt,
         payload: p.payload,
+        scheduledAt: event.occurredAt,
       }),
     };
   },

@@ -12,9 +12,12 @@ import type {
 import {
   decide,
   evolveWithWarning,
+  heldTimerShifts,
   initialState,
   isAttemptPossiblyAlive,
+  isTimerHeld,
   replay,
+  TIMER_PAUSE_REASON,
 } from '@ai-office/domain';
 import type {
   CommandMeta,
@@ -96,7 +99,8 @@ type Input =
       cursor: CursorWrite;
     }
   | { kind: 'result'; issued: IssuedCommand; outcome: CommandOutcome }
-  | { kind: 'timer'; timerId: string };
+  | { kind: 'timer'; timerId: string }
+  | { kind: 'shift' };
 
 type Scope = { stageId?: string; attemptId?: string };
 
@@ -199,6 +203,8 @@ export class WorkflowRunner {
     runner.drain();
     runner.recovering = false;
     runner.rearmTimers();
+    // FX8b: a crash between an unpausing resume and its shift redoes the shift.
+    runner.enqueue({ kind: 'shift' });
     for (const attemptId of Object.keys(state.attempts))
       runner.cleanupAttempt(attemptId);
     return runner;
@@ -233,7 +239,7 @@ export class WorkflowRunner {
     );
   }
 
-  /** Scheduler delivery: writes `timer.fired` if still pending; held while paused. */
+  /** Scheduler delivery: writes `timer.fired` if still pending and not held by a pause. */
   fireTimer(timerId: string): void {
     this.enqueue({ kind: 'timer', timerId });
   }
@@ -336,11 +342,11 @@ export class WorkflowRunner {
           return;
         case 'timer':
           // A rate-limit pause (S26) keeps the timer pending but unfired; so
-          // does a workflow pause (FX8), until the resume re-delivers it.
+          // does a workflow pause (FX8) until FX8b's shift re-arms it.
           if (
             Object.hasOwn(this.current.timers, input.timerId) &&
             this.current.timers[input.timerId]!.pausedAt === undefined &&
-            !this.current.workflow?.pausedReasons.length
+            !isTimerHeld(this.current, this.current.timers[input.timerId]!)
           )
             this.commit([
               this.draft(
@@ -350,6 +356,9 @@ export class WorkflowRunner {
                 { source: 'system', provenance: 'observed' },
               ),
             ]);
+          return;
+        case 'shift':
+          this.shiftHeldTimers();
           return;
       }
     } catch (error) {
@@ -407,33 +416,47 @@ export class WorkflowRunner {
     for (const [effect, cause, cursor] of effects)
       this.handle(effect, cause, cursor);
     if (stored.some((event) => event.type === 'workflow.resumed'))
-      this.redeliverHeldTimers();
+      this.queue.push({ kind: 'shift' });
     return stored;
   }
 
   /**
-   * FX8: on the resume that leaves the workflow unpaused, queue every pending
-   * timer already due — those held while paused — behind the resume's own
-   * effects, so stages re-evaluate state first and a timer they cancel stays
-   * cancelled. Delivery re-checks that the timer is pending, so a second
-   * delivery (Scheduler, restart re-arm) cannot fire it twice.
+   * FX8b: pause time does not count toward timers. Once a resume leaves the
+   * workflow unpaused — queued behind the resume's own effects, so stages
+   * re-evaluate state first and a timer they cancel stays cancelled — every
+   * timer the pause held is rescheduled under its own id with its remaining
+   * time. Until then it is held, so a stale Scheduler delivery or restart
+   * re-arm cannot fire it, and it fires once, at its shifted `fireAt`.
    */
-  private redeliverHeldTimers(): void {
-    const workflow = this.current.workflow;
-    if (workflow?.status !== 'running' || workflow.pausedReasons.length) return;
-    const now = this.deps.clock.now().getTime();
-    Object.values(this.current.timers)
-      .filter(
-        (timer) =>
-          timer.pausedAt === undefined && Date.parse(timer.fireAt) <= now,
-      )
-      .sort(
-        (a, b) =>
-          Date.parse(a.fireAt) - Date.parse(b.fireAt) || (a.id < b.id ? -1 : 1),
-      )
-      .forEach((timer) =>
-        this.queue.push({ kind: 'timer', timerId: timer.id }),
-      );
+  private shiftHeldTimers(): void {
+    const shifts = heldTimerShifts(this.current, this.now());
+    if (shifts.length === 0) return;
+    this.commit(
+      shifts.flatMap(({ timer, fireAt, repause }) => [
+        this.draft(
+          'timer.scheduled',
+          { timerId: timer.id, fireAt, payload: timer.payload },
+          {},
+        ),
+        // Still rate-limited: S26 resumes it with the remaining time.
+        ...(repause
+          ? [
+              this.draft(
+                'timer.cancelled',
+                { timerId: timer.id, reason: TIMER_PAUSE_REASON },
+                {},
+              ),
+            ]
+          : []),
+      ]),
+    );
+    for (const { timer, fireAt, repause } of shifts)
+      if (!repause)
+        this.deps.scheduler.schedule({
+          id: timer.id,
+          workflowId: this.workflowId,
+          fireAt,
+        });
   }
 
   private effectCursor(event: DomainEvent, index: number): CursorWrite {

@@ -13,8 +13,11 @@ import type {
 import {
   decide,
   evolveWithWarning,
+  heldTimerShifts,
   initialState,
+  isTimerHeld,
   possiblyLiveAttempts,
+  TIMER_PAUSE_REASON,
 } from '@ai-office/domain';
 import type {
   CommandMeta,
@@ -33,9 +36,9 @@ import type { React } from '../react.js';
  * WorkflowRunner (§11.4) against a scripted outside world, on a virtual clock.
  * Inputs are processed FIFO; internal effects go to the back of the queue;
  * timer / cancelTimer / external effects are written immediately, in order,
- * as the runner does. Like the runner, a paused workflow holds due timers
- * until the resume that unpauses it. Every event is checked against
- * `DomainEventSchema`.
+ * as the runner does. Like the runner, a paused workflow holds its timers and
+ * the resume that unpauses it reschedules them with their remaining time
+ * (FX8b). Every event is checked against `DomainEventSchema`.
  */
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
@@ -85,7 +88,8 @@ type Input =
   | { kind: 'spawn'; effect: SpawnEffect }
   | { kind: 'command'; command: DomainCommand }
   | { kind: 'reply'; issued: IssuedCommand; reply: WorldReply }
-  | { kind: 'timer'; timerId: string };
+  | { kind: 'timer'; timerId: string }
+  | { kind: 'shift' };
 
 export interface SimulatorOptions {
   world?: World;
@@ -213,11 +217,13 @@ export class Simulator {
   /** Moves the clock forward, firing due timers in `fireAt` order (held while paused). */
   advance(ms: number): this {
     const target = this.now + ms;
-    while (!this.paused) {
+    for (;;) {
       const due = Object.values(this.state.timers)
         .filter(
           (timer) =>
-            timer.pausedAt === undefined && Date.parse(timer.fireAt) <= target,
+            timer.pausedAt === undefined &&
+            Date.parse(timer.fireAt) <= target &&
+            !isTimerHeld(this.state, timer),
         )
         .sort(
           (a, b) =>
@@ -257,23 +263,43 @@ export class Simulator {
       if (input.kind === 'spawn') this.spawn(input.effect);
       else if (input.kind === 'command') this.run(input.command);
       else if (input.kind === 'timer') this.fire(input.timerId);
+      else if (input.kind === 'shift') this.shift();
       else this.receive(input.issued, input.reply);
     }
     return this;
   }
 
-  private get paused(): boolean {
-    return (this.state.workflow?.pausedReasons.length ?? 0) > 0;
-  }
-
-  /** The runner's timer delivery: fires only a pending timer, never while paused. */
+  /** The runner's timer delivery: fires only a pending timer a pause does not hold. */
   private fire(timerId: string): void {
     if (
       Object.hasOwn(this.state.timers, timerId) &&
       this.state.timers[timerId]!.pausedAt === undefined &&
-      !this.paused
+      !isTimerHeld(this.state, this.state.timers[timerId]!)
     )
       this.append(this.draft('timer.fired', { timerId }));
+  }
+
+  /** The runner's FX8b shift: held timers get their remaining time back. */
+  private shift(): void {
+    for (const { timer, fireAt, repause } of heldTimerShifts(
+      this.state,
+      this.clock,
+    )) {
+      this.append(
+        this.draft('timer.scheduled', {
+          timerId: timer.id,
+          fireAt,
+          payload: timer.payload,
+        }),
+      );
+      if (repause)
+        this.append(
+          this.draft('timer.cancelled', {
+            timerId: timer.id,
+            reason: TIMER_PAUSE_REASON,
+          }),
+        );
+    }
   }
 
   private run(command: DomainCommand): void {
@@ -389,26 +415,8 @@ export class Simulator {
           break;
       }
     }
-    // The runner re-delivers timers held while paused, behind the resume's effects.
-    if (
-      event.type === 'workflow.resumed' &&
-      this.state.workflow?.status === 'running' &&
-      !this.paused
-    )
-      Object.values(this.state.timers)
-        .filter(
-          (timer) =>
-            timer.pausedAt === undefined &&
-            Date.parse(timer.fireAt) <= this.now,
-        )
-        .sort(
-          (a, b) =>
-            Date.parse(a.fireAt) - Date.parse(b.fireAt) ||
-            (a.id < b.id ? -1 : 1),
-        )
-        .forEach((timer) =>
-          this.queue.push({ kind: 'timer', timerId: timer.id }),
-        );
+    // The runner shifts timers held while paused, behind the resume's effects.
+    if (event.type === 'workflow.resumed') this.queue.push({ kind: 'shift' });
   }
 
   private spawn(effect: SpawnEffect): void {

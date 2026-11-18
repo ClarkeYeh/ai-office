@@ -335,6 +335,93 @@ describe('S26 provider rate limit (§7.1, provisional)', () => {
   });
 });
 
+describe('S26 composed with a workflow pause (FX8b)', () => {
+  const itemTimer = (sim: Simulator) => timerOf(sim, 'item-timeout')!;
+  const exceeded = (sim: Simulator) => sim.eventsOf('budget.exceeded');
+
+  it('a limit that starts during a workflow pause is not counted twice', () => {
+    const sim = setup();
+    work(sim);
+    sim.advance(10 * MIN);
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'budget' });
+    sim.advance(10 * MIN);
+    limit(sim, {
+      since: sim.clock,
+      evidence: 'worker-show',
+      resetsAt: new Date(sim.now + 60 * MIN).toISOString(),
+    });
+    sim.advance(10 * MIN);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
+    // Clock stopped at the pause (35 minutes left), not at the limit: still
+    // limited, so paused again now with those 35 minutes for S26 to resume.
+    expect(itemTimer(sim).pausedAt).toBe(sim.clock);
+    expect(
+      Date.parse(itemTimer(sim).fireAt) - Date.parse(itemTimer(sim).pausedAt!),
+    ).toBe(35 * MIN);
+    sim.advance(50 * MIN);
+    expect(lifts(sim)).toHaveLength(1);
+    expect(itemTimer(sim).fireAt).toBe(
+      new Date(sim.now + 35 * MIN).toISOString(),
+    );
+    sim.advance(35 * MIN - 1);
+    expect(exceeded(sim)).toEqual([]);
+    sim.advance(1);
+    expect(exceeded(sim)).toMatchObject([
+      { payload: { scope: 'item', metric: 'wallclock', used: 45 } },
+    ]);
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('a lift during a workflow pause resumes the timer, then the pause shift credits the rest', () => {
+    const sim = setup();
+    work(sim);
+    sim.advance(10 * MIN);
+    limit(sim, {
+      since: sim.clock,
+      evidence: 'worker-show',
+      resetsAt: new Date(sim.now + 30 * MIN).toISOString(),
+    });
+    sim.advance(10 * MIN);
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    // The lift tracks the provider's real reset, so the pause does not hold it.
+    sim.advance(20 * MIN);
+    expect(lifts(sim)).toHaveLength(1);
+    expect(itemTimer(sim).pausedAt).toBeUndefined();
+    sim.advance(20 * MIN);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    // 35 minutes were left at the limit; neither pause counted.
+    expect(itemTimer(sim).fireAt).toBe(
+      new Date(sim.now + 35 * MIN).toISOString(),
+    );
+    sim.advance(35 * MIN - 1);
+    expect(exceeded(sim)).toEqual([]);
+    sim.advance(1);
+    expect(exceeded(sim)).toMatchObject([
+      { payload: { scope: 'item', metric: 'wallclock', used: 45 } },
+    ]);
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('a limit that ended before the workflow pause leaves only the pause to shift', () => {
+    const sim = setup();
+    work(sim);
+    limit(sim, {
+      since: sim.clock,
+      evidence: 'worker-show',
+      resetsAt: new Date(sim.now + 10 * MIN).toISOString(),
+    });
+    sim.advance(20 * MIN);
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(30 * MIN);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    // 10 working minutes used of 45.
+    expect(itemTimer(sim).fireAt).toBe(
+      new Date(sim.now + 35 * MIN).toISOString(),
+    );
+    expect(sim.rejections).toEqual([]);
+  });
+});
+
 describe('S25 budget enforcement off (§10.1)', () => {
   it('records usage without budget events or gates', () => {
     const sim = new Simulator();

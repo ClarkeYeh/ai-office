@@ -719,13 +719,16 @@ it.each([
   expect(sim.rejections).toEqual([]);
 });
 
-it('rearms an item deadline that fired while paused', () => {
+it('rearms an item deadline that would have fired while paused', () => {
   const { sim } = setup({ items: [item('A')] });
   sim.dispatch({ type: 'PauseWorkflow', reason: 'anomaly' });
   sim.advance(45 * 60_000);
   expect(sim.eventsOf('message.nudge')).toHaveLength(0);
   sim.dispatch({ type: 'ResumeWorkflow', reason: 'anomaly' });
   sim.advance(0);
+  // FX8b: the pause did not count, so the full 45 minutes remain.
+  expect(sim.eventsOf('message.nudge')).toHaveLength(0);
+  sim.advance(45 * 60_000);
   expect(sim.eventsOf('message.nudge')).toHaveLength(1);
   expect(sim.rejections).toEqual([]);
 });
@@ -796,7 +799,8 @@ it('reserves global capacity for a live on-call instance before worker dispatch'
   expect(sim.rejections).toEqual([]);
 });
 
-describe('deadlines that elapse during a hijack pause (FX8)', () => {
+describe('pause time does not count toward deadlines (FX8, FX8b)', () => {
+  const MIN = 60_000;
   const itemTimers = (
     sim: Simulator,
     type: 'timer.fired' | 'timer.scheduled',
@@ -805,59 +809,96 @@ describe('deadlines that elapse during a hijack pause (FX8)', () => {
       .eventsOf(type)
       .filter((e) => e.payload.timerId.includes('/item-timeout/'));
 
-  it('holds the item deadline and fires it exactly once on resume', () => {
+  it('fires an item deadline with 10 minutes left about 10 minutes after a 60-minute pause', () => {
     const { sim } = setup({ items: [item('A')] });
+    sim.advance(35 * MIN);
     sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
-    sim.advance(50 * 60_000);
+    sim.advance(60 * MIN);
     expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
-    expect(sim.eventsOf('budget.exceeded')).toHaveLength(0);
     sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    // Rescheduled under its own id with its remaining 10 minutes.
+    const shifted = sim
+      .eventsOf('timer.scheduled')
+      .filter((e) => e.payload.timerId.includes('/item-timeout/'));
+    expect(shifted).toHaveLength(2);
+    expect(shifted[1]!.payload.timerId).toBe(shifted[0]!.payload.timerId);
+    expect(
+      Date.parse(shifted[1]!.payload.fireAt) -
+        Date.parse(shifted[1]!.occurredAt),
+    ).toBe(10 * MIN);
+    sim.advance(10 * MIN - 1);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    expect(sim.eventsOf('message.nudge')).toHaveLength(0);
+    sim.advance(1);
     expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    // The wallclock limit counts working time only: 45, not 105, minutes.
     expect(sim.eventsOf('budget.exceeded').at(-1)?.payload).toMatchObject({
       scope: 'item',
       metric: 'wallclock',
-      used: 50,
+      used: 45,
     });
     expect(sim.eventsOf('message.nudge')).toHaveLength(1);
-    // The held timer was delivered, not re-armed beside it.
-    expect(itemTimers(sim, 'timer.scheduled')).toHaveLength(1);
-    sim.advance(60 * 60_000);
+    sim.advance(60 * MIN);
     expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
     expect(sim.state.workItems.A?.status).toBe('needs_attention');
     expect(sim.rejections).toEqual([]);
   });
 
-  it('records the wallclock hard limit when the pause outlasts it', () => {
+  it('does not reach the wallclock hard limit through pause time', () => {
     const { sim } = setup({ items: [item('A')] });
     sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
-    sim.advance(100 * 60_000);
-    expect(sim.eventsOf('budget.hard_limit')).toHaveLength(0);
+    sim.advance(100 * MIN);
     sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
-    expect(sim.eventsOf('budget.hard_limit').at(-1)?.payload).toMatchObject({
+    sim.advance(45 * MIN);
+    expect(sim.eventsOf('budget.exceeded').at(-1)?.payload).toMatchObject({
       scope: 'item',
       metric: 'wallclock',
-      used: 100,
-      threshold: 90,
+      used: 45,
     });
+    expect(sim.eventsOf('budget.hard_limit')).toHaveLength(0);
     expect(sim.rejections).toEqual([]);
   });
 
-  it('keeps holding while another pause reason remains', () => {
+  it('counts nested pause reasons as one pause, from the first to full unpause', () => {
     const { sim } = setup({ items: [item('A')] });
+    sim.advance(35 * MIN);
     sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(15 * MIN);
     sim.dispatch({ type: 'PauseWorkflow', reason: 'budget' });
-    sim.advance(50 * 60_000);
+    sim.advance(20 * MIN);
     sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
-    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    sim.advance(25 * MIN);
+    expect(itemTimers(sim, 'timer.scheduled')).toHaveLength(1);
     sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
+    expect(sim.state.workflow?.pauseWindows).toHaveLength(1);
+    sim.advance(10 * MIN - 1);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    sim.advance(1);
     expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    expect(sim.eventsOf('budget.exceeded').at(-1)?.payload.used).toBe(45);
     expect(sim.rejections).toEqual([]);
+  });
+
+  it('gives a deadline armed during a pause its full delay after resume', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'budget' });
+    sim.advance(10 * MIN);
+    sim.inject('timer.scheduled', {
+      timerId: 'during-pause',
+      fireAt: new Date(Date.parse(sim.clock) + 20 * MIN).toISOString(),
+      payload: { purpose: 'question-timeout', questionId: 'q' },
+    });
+    sim.advance(30 * MIN);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
+    expect(sim.state.timers['during-pause']?.fireAt).toBe(
+      new Date(Date.parse(sim.clock) + 20 * MIN).toISOString(),
+    );
   });
 
   it('lets the resume re-evaluation cancel a held deadline before it fires', () => {
     const { sim } = setup({ items: [item('A')] });
     sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
-    sim.advance(50 * 60_000);
+    sim.advance(50 * MIN);
     done(sim, 'A');
     sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
     expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
@@ -866,9 +907,11 @@ describe('deadlines that elapse during a hijack pause (FX8)', () => {
         .eventsOf('timer.cancelled')
         .filter((e) => e.payload.timerId.includes('/item-timeout/')),
     ).toHaveLength(1);
+    // Cancelled, so not rescheduled.
+    expect(itemTimers(sim, 'timer.scheduled')).toHaveLength(1);
     expect(sim.state.workItems.A?.status).toBe('merge_queued');
     expect(sim.eventsOf('message.nudge')).toHaveLength(0);
-    sim.advance(60 * 60_000);
+    sim.advance(60 * MIN);
     expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
     expect(sim.rejections).toEqual([]);
   });

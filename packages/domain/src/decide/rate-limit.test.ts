@@ -256,6 +256,7 @@ describe('S26 timer pause (evolve)', () => {
       id: 't',
       fireAt: at(9000),
       payload: { purpose: 'item-timeout', itemKey: 'T1', attemptId: 'w' },
+      scheduledAt: at(0),
     });
     h.append(
       eventDraft('timer.scheduled', {
