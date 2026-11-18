@@ -39,6 +39,11 @@ export type GitRemoteOptions = {
   remote: string;
   defaultBranch?: string;
   harness?: { ledger: ResourceLedger; persist(): Promise<void> };
+  /**
+   * Offline (bare remote) only: claimed workflow namespaces. With a harness the
+   * active claims come from its ledger instead (T17); never a wildcard.
+   */
+  namespaces?: () => readonly string[];
 };
 export class TestGitRemote {
   private queue: Promise<unknown> = Promise.resolve();
@@ -127,9 +132,16 @@ export class TestGitRemote {
       '+refs/heads/*:refs/remotes/origin/*',
     ]);
   }
+  /** Active T17 namespace claims: exact workflow shortIds, never `ai-office/*`. */
+  claims(): readonly string[] {
+    const harness = this.options.harness;
+    return harness
+      ? harness.ledger.namespaces.filter((n) => !n.done).map((n) => n.id)
+      : (this.options.namespaces?.() ?? []);
+  }
   guard(branch: string): void {
     try {
-      testBranch(branch);
+      testBranch(branch, false, this.claims());
     } catch {
       throw new PortError(
         'guard',

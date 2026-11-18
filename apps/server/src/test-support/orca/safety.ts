@@ -46,7 +46,46 @@ export async function assertTestRepo(
   if (repoIdentity(await git.originUrl(path)) !== repoIdentity(expected))
     throw new Error('Test repository origin mismatch');
 }
-export function testBranch(branch: string, local = false): void {
+/**
+ * T17: a workflow namespace is the 12-hex `shortId` of a workflow the harness
+ * itself started on an isolated backend; its claim is journaled before use.
+ */
+export const NAMESPACE_ID = /^[a-f0-9]{12}$/;
+/** `ai-office/<ns>/*` or `ai-office/<ns>-*` for an exactly claimed namespace; never a wildcard. */
+export function claimedBranch(
+  branch: string,
+  namespaces: readonly string[],
+): boolean {
+  return namespaces.some(
+    (ns) =>
+      NAMESPACE_ID.test(ns) &&
+      branch.length > `ai-office/${ns}/`.length &&
+      (branch.startsWith(`ai-office/${ns}/`) ||
+        branch.startsWith(`ai-office/${ns}-`)) &&
+      /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/.test(branch) &&
+      !branch.includes('//') &&
+      !branch.includes('..') &&
+      !branch.endsWith('/') &&
+      !branch.endsWith('.lock'),
+  );
+}
+/** `aio-<ns>-*` worktrees the composed backend creates for a claimed workflow. */
+export function claimedWorktree(
+  name: string,
+  namespaces: readonly string[],
+): boolean {
+  return namespaces.some(
+    (ns) =>
+      NAMESPACE_ID.test(ns) &&
+      new RegExp(`^aio-${ns}-[a-zA-Z0-9_-]+$`).test(name),
+  );
+}
+export function testBranch(
+  branch: string,
+  local = false,
+  namespaces: readonly string[] = [],
+): void {
+  if (claimedBranch(branch, namespaces)) return;
   if (
     !(
       local
@@ -57,8 +96,18 @@ export function testBranch(branch: string, local = false): void {
   )
     throw new Error('Non-test branch refused');
 }
-export function testWorktree(name: string, comment: string): void {
-  if (!/^aio-test-[a-zA-Z0-9_-]+$/.test(name) || !comment.startsWith('aio:'))
+export function testWorktree(
+  name: string,
+  comment: string,
+  namespaces: readonly string[] = [],
+): void {
+  if (
+    !(
+      /^aio-test-[a-zA-Z0-9_-]+$/.test(name) ||
+      claimedWorktree(name, namespaces)
+    ) ||
+    !comment.startsWith('aio:')
+  )
     throw new Error('Non-test worktree refused');
 }
 export function requireOwned(

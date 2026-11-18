@@ -1,4 +1,4 @@
-import type { ResourceLedger } from './ledger.js';
+import { claims, type ResourceLedger } from './ledger.js';
 import { requireOwned, testBranch, testWorktree } from './safety.js';
 
 /** Fail closed: callers cannot smuggle additional flags or alternate selectors. */
@@ -165,8 +165,8 @@ export function assertCommand(
     const item = ledger.worktrees.find(
       (w) => `id:${w.id}` === flags.get('--worktree'),
     )!;
-    testWorktree(item.name, item.comment);
-    testBranch(item.branch);
+    testWorktree(item.name, item.comment, claims(ledger));
+    testBranch(item.branch, false, claims(ledger));
     allowed = ['--worktree', '--delete-branch'];
   } else if (group === 'terminal' && action === 'close') {
     own(

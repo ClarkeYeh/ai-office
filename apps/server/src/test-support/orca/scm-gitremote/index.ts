@@ -342,6 +342,20 @@ export class GitRemoteScm implements ScmPort {
       return { mergeCommitSha: sha };
     });
   }
+  /**
+   * T17's explicit fake final-PR merge (the owner's click): flips only this
+   * in-memory PR to merged at its current head. Nothing is pushed, so the
+   * protected default branch is never written.
+   */
+  simulateOwnerMerge(ref: PrRef): void {
+    const obj = this.object(ref, 'pr');
+    if (obj.state !== 'open') fail('conflict', 'pr_not_open');
+    if (obj.base !== (this.remote.options.defaultBranch ?? 'main'))
+      fail('guard', 'not_final_pr');
+    obj.mergeCommitSha = obj.headSha;
+    obj.state = 'merged';
+    this.changed(obj);
+  }
   async findByMarker(repo: RepoScmRef, commandId: string) {
     this.check(repo);
     const obj = [...this.objects.values()].find((o) =>

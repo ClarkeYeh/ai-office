@@ -75,6 +75,28 @@ mutation under a new request ID. Malformed/suffixed worktree receipts fail close
 The normal self-test must leave zero residual resources; pending intents count as
 residuals. Raw terminal output, credentials and transcripts are never journaled.
 
+## Workflow namespace claims (T17, coordinator-approved)
+
+The engine names its branches `ai-office/<shortId>/…` and `ai-office/<shortId>-<slug>`
+(contracts require the `ai-office/` prefix) and its worktrees `aio-<shortId>-*`.
+For T17 live runs only, a scenario may let an isolated composed backend create
+these on the spike repo after claiming the workflow's namespace:
+
+- `claimWorkflowNamespace()` journals a pending `workflow-namespace` intent
+  before `POST /workflows`; the returned `bind(shortId)` records the 12-hex
+  shortId of that workflow. Until bound, destructive cleanup is refused.
+- A claim covers exactly `ai-office/<id>/*`, `ai-office/<id>-*` (local in the
+  spike clone and remote on the spike only) and Orca worktrees `aio-<id>-*`.
+  There is no wildcard: an unclaimed `ai-office/<otherId>/*` is refused by the
+  gate and cleanup and is never deleted. `main` stays protected.
+- `adoptBackendRun(run)` ledgers the backend's run only if its coordinator is a
+  ledgered shim. Cleanup first adopts leftovers in claimed namespaces (unreleased
+  workers of adopted runs, `aio-<id>-*` worktrees, claimed branches), cleans them,
+  then marks the claim done. The scan includes claimed namespaces, so
+  `assertClean` proves claimed resources = 0 as well as the test prefixes.
+- `scm-gitremote` accepts writes only to `ai-office-test/*` and to active
+  (not done) ledger claims; offline tests pass `namespaces` explicitly.
+
 ## Restart verification (T16 scenario extension)
 
 `pnpm orca:p2 prepare --scenario /absolute/p2-scenario.js` requires a live input and
