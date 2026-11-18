@@ -22,7 +22,9 @@ defaults:
   integrationBranch: 'ai-office/{shortId}-{slug}'
   maxReruns: 2 # 關卡退回後重跑同一階段的上限
   budget: { hardLimitMultiplier: 2 } # 硬上限＝階段預算 × 倍數
-  workflowBudget: { tokens: 3000000 } # 選填：整個流程的上限（所有預算預設值待 M2 依 §10.2 公式校準）
+  # 預算依 M2 實測（§10.2 公式）校準：各階段 p90 × 1.5、進位到 5 萬（回合數進位到 10）。
+  # 樣本是小型驗收情境（2 個工作項目），各值都需 M3／M5 以真實功能再校準。
+  workflowBudget: { tokens: 1050000 } # 選填：整個流程的上限＝各階段預算加總
 stages:
   - id: meeting
     kind: meeting
@@ -30,7 +32,7 @@ stages:
     participants: [pm, architect, engineer]
     maxRounds: 2
     timeouts: { roundMin: 15, stageMin: 60 }
-    budget: { tokens: 300000, maxTurns: 60 }
+    budget: { tokens: 250000, maxTurns: 80 } # 實測 n=6：p90 152,728 tokens／51 回合
     conclusion: { requireTechDecisions: true }
     gate: { id: conclusion, title: 結論定案, optional: true } # optional：啟動時可關閉
   - id: breakdown
@@ -38,7 +40,7 @@ stages:
     owner: lead
     from: meeting
     timeouts: { stageMin: 30 }
-    budget: { tokens: 200000, maxTurns: 40 }
+    budget: { tokens: 50000, maxTurns: 10 } # 實測 n=6：p90 24,643／4；樣本少，M3／M5 再校準
     gate:
       {
         id: task-split,
@@ -52,7 +54,9 @@ stages:
     from: breakdown
     maxParallel: 3 # 範圍：單一 workflow
     timeouts: { itemMin: 45 }
-    budget: { tokens: 1800000, perItem: { tokens: 400000, maxTurns: 120 } } # 含合併佇列與值班用量；M2 校準
+    # 含合併佇列與值班用量。實測 n=3（每次 2 項）：每項 p90 72,952 × 1.5，以 6 項（maxParallel × 2）估算；
+    # perItem 以 attempt 計，實測 n=9：p90 29,983／16.5。樣本少，M3／M5 再校準
+    budget: { tokens: 700000, perItem: { tokens: 50000, maxTurns: 30 } }
     onCall: { role: lead, questionTimeoutMin: 10 } # 值班主 agent（§7.5），預算計入本階段
     mergeQueue: { role: integrator, reviewTimeoutMin: 20, maxRework: 2 } # 合併佇列整合者（§7.4a、§7.5）
     escalateOn: [unresolvable-conflict, ci-failed-twice] # 以每個 PR 計；ci 條件只在 repo 有 checks 時生效
@@ -60,7 +64,7 @@ stages:
     kind: integrate # 收尾：整體驗證、fix-forward、整合報告（§7.4b）
     owner: integrator
     timeouts: { stageMin: 30 }
-    budget: { tokens: 200000, maxTurns: 60 } # 合併已在實作階段完成；M2 校準
+    budget: { tokens: 50000, maxTurns: 20 } # 合併已在實作階段完成；實測 n=3：p90 27,801／7；M3／M5 再校準
   - id: final-pr
     kind: final-pr
     maxRevisions: 2
