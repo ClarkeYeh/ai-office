@@ -1,4 +1,6 @@
 name: Update visual baselines
+# Manual only. workflow_dispatch works once this file is on the default
+# branch; until then (and for any PR) add the `update-visual-baselines` label.
 on:
   workflow_dispatch:
     inputs:
@@ -6,17 +8,20 @@ on:
         description: Branch to render the baselines from
         required: true
         default: integration/m4
+  pull_request:
+    types: [labeled]
 permissions:
   contents: read
 jobs:
   update:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'update-visual-baselines'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.pull_request.head.sha }}
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
       - name: Set up Node 24

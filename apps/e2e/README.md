@@ -53,13 +53,15 @@ test('…', async ({ page }) => {
 `tests/visual.spec.ts` renders the six scene-harness states at 2× and compares
 them with zero pixel difference. DOM text is hidden and animations are
 disabled. The harness is built and served with `vite preview --config
-vite.harness.config.ts` (M4-T8). Baselines live in `tests/__screenshots__/` and
+vite.harness.config.ts` (M4-T8, states mirrored from `HARNESS_STATES`). Baselines live in `tests/__screenshots__/` and
 are valid for Linux CI only. On macOS the suite is skipped.
 
 To update them:
 
-1. In GitHub Actions, run **Update visual baselines** (`workflow_dispatch`),
-   choosing the branch.
+1. Run **Update visual baselines**. Add the `update-visual-baselines` label to
+   the PR. Once the workflow is on `main`, you can also start it from the
+   Actions tab (`workflow_dispatch`) and choose the branch. Re-apply the label
+   to render again.
 2. Download the `visual-baselines` artifact, review every image, and copy it
    over `apps/e2e/tests/__screenshots__/`.
 3. Commit the images in the PR that changed the scene and say why they changed.
