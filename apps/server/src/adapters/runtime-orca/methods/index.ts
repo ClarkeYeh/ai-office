@@ -8,7 +8,7 @@ import { Agents } from './agents.js';
 export type { MethodOptions } from './context.js';
 export interface OrcaRuntimeOptions extends MethodOptions {
   /** T6/T10 supplies observe; methods share the same ledger and identity. */
-  observer: OrcaObserver;
+  observer: Pick<OrcaObserver, 'observe'>;
   version: {
     check(force?: boolean): Promise<{
       version: string;
