@@ -22,6 +22,9 @@ const TerminalSchema = z.looseObject({
   handle: z.string().regex(HANDLE),
   title: z.string().nullish(),
   incarnationId: z.string().nullish(),
+  connected: z.boolean().nullish(),
+  writable: z.boolean().nullish(),
+  exitCause: z.unknown().optional(),
   createdAt: z.union([z.string(), z.number()]).nullish(),
 });
 const TerminalListSchema = z.looseObject({
@@ -283,7 +286,12 @@ export class ShimCoordinatorIdentity implements CoordinatorIdentity {
       TerminalListSchema,
     );
     const state = this.load();
-    const stored = result.terminals.find(
+    // The catalog can retain operator-closed panes after the PTY is killed.
+    // A matching handle/incarnation/title is insufficient evidence of liveness.
+    const terminals = result.terminals.filter(
+      (terminal) => terminal.exitCause == null && terminal.connected !== false,
+    );
+    const stored = terminals.find(
       (terminal) =>
         terminal.handle === state.handle &&
         state.location === location &&
@@ -291,7 +299,7 @@ export class ShimCoordinatorIdentity implements CoordinatorIdentity {
           !terminal.incarnationId ||
           terminal.incarnationId === state.incarnationId),
     );
-    const titled = result.terminals.filter(
+    const titled = terminals.filter(
       (terminal) =>
         terminal !== stored && terminal.title?.includes(this.marker) === true,
     );

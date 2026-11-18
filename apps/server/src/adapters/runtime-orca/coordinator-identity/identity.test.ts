@@ -22,6 +22,9 @@ type Terminal = {
   handle: string;
   title?: string | null;
   incarnationId?: string;
+  connected?: boolean;
+  writable?: boolean;
+  exitCause?: { kind: string } | null;
 };
 interface World {
   repos: string[];
@@ -523,5 +526,87 @@ describe('CoordinatorIdentity ownership and reclaim', () => {
     expect(error).toBeInstanceOf(PortError);
     expect(error).toMatchObject({ category: 'identity' });
     expect(calls('orchestration send')).toHaveLength(2);
+  });
+});
+
+// Replay the terminal-list fields observed after close returned ptyKilled:true.
+const deadTerminalRows = [
+  { connected: false, writable: false, exitCause: { kind: 'operator_close' } },
+  { connected: true, writable: true, exitCause: { kind: 'operator_close' } },
+  { connected: false, writable: false, exitCause: null },
+];
+describe('terminal-list liveness replay', () => {
+  it.each(deadTerminalRows)(
+    'recreates a stored dead shim despite unchanged handle/incarnation: %j',
+    async (row) => {
+      const { identity, world, calls, restart } = await setup();
+      const old = await identity.ensure({ force: true });
+      world.runs[RUN] = {
+        coordinator_handle: old.handle,
+        consumer_generation: 1,
+      };
+      await identity.track(RUN);
+      Object.assign(world.terminals[0]!, row);
+      const after = restart();
+      const restored = await after.ensure({ force: true });
+      expect(restored.handle).not.toBe(old.handle);
+      expect(restored).toMatchObject({ restored: true, runs: [RUN] });
+      expect(calls('terminal create')).toHaveLength(2);
+      expect(calls('terminal close')).toHaveLength(0);
+      expect(
+        calls('orchestration run-use').map((c) => flag(c.args, '--from')),
+      ).toEqual([restored.handle]);
+      expect(await after.argsFor('mutate', RUN)).toEqual([
+        '--from',
+        restored.handle,
+      ]);
+      expect(await after.ensure({ force: true })).toEqual({
+        handle: restored.handle,
+        restored: false,
+      });
+      expect(calls('orchestration run-use')).toHaveLength(1);
+      expect(after.drainEvents()).toEqual([
+        expect.objectContaining({
+          type: 'runtime.identity_restored',
+          newShim: restored.handle,
+        }),
+      ]);
+    },
+  );
+  it.each(deadTerminalRows)(
+    'never adopts a titled dead terminal: %j',
+    async (row) => {
+      const { identity, calls } = await setup({
+        terminals: [
+          {
+            handle: 'term_dead',
+            title: marker,
+            incarnationId: 'inc-dead',
+            ...row,
+          },
+        ],
+      });
+      const current = await identity.ensure({ force: true });
+      expect(current.handle).not.toBe('term_dead');
+      expect(calls('terminal create')).toHaveLength(1);
+      expect(calls('terminal close')).toHaveLength(0);
+    },
+  );
+  it('adopts the live candidate even when a newer titled entry is dead', async () => {
+    const { identity, calls } = await setup({
+      terminals: [
+        {
+          handle: 'term_live',
+          title: marker,
+          connected: true,
+          writable: false,
+          exitCause: null,
+        },
+        { handle: 'term_dead', title: marker, ...deadTerminalRows[0]! },
+      ],
+    });
+    expect((await identity.ensure({ force: true })).handle).toBe('term_live');
+    expect(calls('terminal create')).toHaveLength(0);
+    expect(calls('terminal close')).toHaveLength(0);
   });
 });
