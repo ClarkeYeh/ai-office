@@ -430,6 +430,15 @@ export class FakeRuntime implements RuntimePort {
       }),
       workspaces: [...this.workspaces],
       workspaceBranches: [...this.workspaceBranches],
+      localBranches: [...this.localBranches].map(
+        ([repo, branches]) =>
+          [
+            repo,
+            [...branches].map(
+              ([branch, tip]) => [branch, tip ?? null] as const,
+            ),
+          ] as const,
+      ),
       commands: [...this.commands],
       questions: [...this.questions].map(
         ([ref, agent]) => [ref, agent.ref] as const,
@@ -488,6 +497,12 @@ export class FakeRuntime implements RuntimePort {
       this.session(this.agent(ref).session).push(...events);
     this.workspaces = new Map(data.workspaces);
     this.workspaceBranches = new Map(data.workspaceBranches);
+    this.localBranches = new Map(
+      data.localBranches.map(([repo, branches]) => [
+        repo,
+        new Map(branches.map(([branch, tip]) => [branch, tip ?? undefined])),
+      ]),
+    );
     this.commands = new Map(data.commands);
     this.questions = new Map(
       data.questions.map(([ref, agent]) => [ref, this.agent(agent)]),

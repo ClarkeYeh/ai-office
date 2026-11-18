@@ -105,3 +105,75 @@ it('restores the side effect of a held spawn without serializing its promise', a
   original.finishPendingSpawns();
   await pending;
 });
+
+it.each([false, true])(
+  'preserves W1 rework and suffix guards across JSON restore (pinned=%s)',
+  async (pinned) => {
+    const clock = new FakeClock();
+    const original = createFakeRuntime({ clock });
+    const repo = { orcaRepoId: 'repo', localPath: '/repo' };
+    const base = 'a'.repeat(40);
+    const branch = 'ai-office/worker';
+    const session = await original.openSession({
+      workflowId: 'wf',
+      repo,
+      objective: 'rework',
+      correlation: { workflowId: 'wf', commandId: 'open' },
+    });
+    original.setRemoteBranch(repo, 'main', base);
+    const request = {
+      session,
+      repo,
+      name: 'worker',
+      branch,
+      baseBranch: pinned ? base : 'main',
+      ...(pinned ? { baseSha: base, fetchBranch: 'main' } : {}),
+      correlation: { workflowId: 'wf', commandId: 'prepare' },
+    };
+    const prepared = await original.prepareWorkspace(request);
+    original.setRemoteBranch(repo, branch, base);
+    const saved = JSON.parse(JSON.stringify(original.snapshot()));
+    // Assert actual serialized tips too: occupancy alone can mask a missing map.
+    expect(saved).toMatchObject({
+      localBranches: [
+        [
+          JSON.stringify([repo.orcaRepoId, repo.localPath]),
+          [[branch, pinned ? base : null]],
+        ],
+      ],
+    });
+    const restored = createFakeRuntime({ clock });
+    restored.restore(saved);
+    expect(restored.snapshot()).toEqual(original.snapshot());
+
+    for (const runtime of [original, restored]) {
+      const rework = {
+        ...request,
+        name: 'worker-r1',
+        baseBranch: base,
+        baseSha: base,
+        fetchBranch: branch,
+        checkoutExisting: true as const,
+        correlation: { workflowId: 'wf', commandId: 'rework' },
+      };
+      // Rework must reuse the retained worktree; checkoutExisting cannot steal it.
+      expect(runtime.workspaceBranch(prepared.workspace)).toBe(branch);
+      await expect(runtime.prepareWorkspace(rework)).rejects.toMatchObject({
+        code: 'branch_in_use',
+      });
+      await runtime.disposeWorkspace(prepared.workspace);
+      // A remote-only taken name would get an Orca suffix without checkoutExisting.
+      await expect(
+        runtime.prepareWorkspace({
+          ...rework,
+          checkoutExisting: undefined,
+          correlation: { workflowId: 'wf', commandId: 'suffix' },
+        }),
+      ).rejects.toMatchObject({ code: 'branch_suffixed' });
+      const next = await runtime.prepareWorkspace(rework);
+      expect(runtime.workspaceBranch(next.workspace)).toBe(branch);
+      expect(next.baseSha).toBe(base);
+    }
+    expect(restored.snapshot()).toEqual(original.snapshot());
+  },
+);

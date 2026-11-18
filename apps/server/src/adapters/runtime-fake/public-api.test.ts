@@ -45,6 +45,8 @@ type RoleBehavior = {
   send?: ScenarioScript;
   answer?: ScenarioScript;
   ignoreStop?: boolean;
+  /** T14 additive spawn-stall scenario option. */
+  silent?: boolean;
 };
 type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */
