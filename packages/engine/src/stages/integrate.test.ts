@@ -373,19 +373,36 @@ describe('re-evaluation on resume', () => {
     sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
     expect(sim.state.workflow?.status).toBe('completed');
   });
-  it('records and gates a final PR opened while paused', () => {
+  it('records a final PR opened while paused and gates it on resume', () => {
     const sim = report(setup(withhold('scm.openPR')));
     pause(sim);
     answer(sim, 'scm.openPR', {
       pr: 2,
       url: 'https://github.com/octo/demo/pull/2',
     });
-    expect(sim.state.workflow?.finalPr).toBeUndefined();
-    resume(sim);
+    // Recorded at once, so its merge is attributed to the workflow.
     expect(sim.state.workflow?.finalPr).toBe(2);
+    expect(sim.state.stages['final-pr']?.status).toBe('running');
+    resume(sim);
     expect(sim.state.stages['final-pr']?.status).toBe('awaiting_gate');
     expect(finalGate(sim).status).toBe('open');
     merge(sim);
+    expect(sim.state.workflow?.status).toBe('completed');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('completes a final PR opened and merged while paused', () => {
+    const sim = report(setup(withhold('scm.openPR')));
+    pause(sim);
+    answer(sim, 'scm.openPR', {
+      pr: 2,
+      url: 'https://github.com/octo/demo/pull/2',
+    });
+    merge(sim);
+    resume(sim);
+    expect(finalGate(sim)).toMatchObject({
+      status: 'closed',
+      closedReason: 'merged',
+    });
     expect(sim.state.workflow?.status).toBe('completed');
     expect(sim.rejections).toEqual([]);
   });
