@@ -108,7 +108,7 @@ export async function startBackendProcess(options: {
 
 /** PIDs of `orca orchestration check` long polls issued for `shim`. */
 export async function checkProcesses(shim: string): Promise<number[]> {
-  const { stdout } = await run('/bin/ps', ['-ax', '-o', 'pid=,command='], {
+  const { stdout } = await run('/bin/ps', ['-axww', '-o', 'pid=,command='], {
     maxBuffer: 16 * 1024 * 1024,
   });
   return stdout
