@@ -90,7 +90,6 @@ export interface ComposedEffects {
   /** `aio-shim:<hash>` in the backend's shim title; scanned after cleanup. */
   readonly marker: string;
   shim(handle: string): Promise<void>;
-  run(id: string): Promise<void>;
   /** Clears the startup intent once the backend has reported its shim. */
   settle(): Promise<void>;
 }
@@ -447,8 +446,8 @@ export class OrcaHarness {
   }
   /**
    * Journals a composed backend before it starts: its shim marker joins the scan
-   * and an intent stays pending until `settle`. Reported shims and runs are
-   * ledgered (and persisted) before the backend uses them. A backend that never
+   * and an intent stays pending until `settle`. Reported shims are ledgered
+   * (and persisted) before the backend uses them. A backend that never
    * reports a shim leaves the intent pending for reconciliation.
    */
   async composedBackend(backendDataDir: string): Promise<ComposedEffects> {
@@ -471,11 +470,6 @@ export class OrcaHarness {
         if (!this.ledger.shims.some((s) => s.id === handle))
           this.ledger.shims.push({ id: handle, done: false });
         shims++;
-        await this.persist();
-      },
-      run: async (id) => {
-        if (!id) throw new Error('Unexpected composed run id');
-        if (!this.ledger.runs.includes(id)) this.ledger.runs.push(id);
         await this.persist();
       },
       settle: async () => {

@@ -52,11 +52,11 @@ intent and the backend's `aio-shim:<hash>` marker before startup; the backend's
 reported shim handles and runs are persisted before use. The scoped scan matches
 only markers in this ledger, never the owner's own AI Office shim.
 
-The scenario depends on M2-T10's follow-up dev-only shim-folder option only through
-`composed-shim-seam.ts` (`testOnly.orcaShim = { folder, onShimCreated,
-onRunCreated }`, hooks awaited after each receipt). Align that file when T10
-lands. Until then the backend ignores the key, reports no shim, and the scenario
-fails closed with the intent pending; reconcile with the janitor scan.
+The scenario uses T10's dev-only shim-folder seam only through
+`composed-shim-seam.ts`: `orcaHome` (CLI `--orca-home`) selects the registered
+folder and the awaited `testOnly.onShimCreated(handle)` ledgers each new shim. A
+backend that reports no shim fails closed with the intent pending; reconcile with
+the janitor scan. Startup in a fresh isolated home creates no run.
 
 ## Cleanup and recovery
 

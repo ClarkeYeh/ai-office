@@ -3,10 +3,6 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { StartOptions } from '../../main.js';
-import {
-  COMPOSED_SHIM_OPTION,
-  type ComposedShimSeam,
-} from './composed-shim-seam.js';
 import { OrcaHarness } from './harness.js';
 import { TEST_REPO_URL } from './safety.js';
 import { scanResources } from './scan.js';
@@ -75,11 +71,6 @@ async function harness() {
   dirs.push(h.ledger.dataDir);
   return h;
 }
-const seamOf = (options: StartOptions) =>
-  (options.testOnly as unknown as Record<string, ComposedShimSeam>)[
-    COMPOSED_SHIM_OPTION
-  ]!;
-
 it('ledgers the composed shim, shuts down, and cleans to ledger 0 and scan 0', async () => {
   const h = await harness();
   const close = vi.fn(async () => undefined);
@@ -87,8 +78,7 @@ it('ledgers the composed shim, shuts down, and cleans to ledger 0 and scan 0', a
     expect(h.ledger.pending).toEqual([
       expect.objectContaining({ kind: 'composed-backend' }),
     ]);
-    const seam = seamOf(options);
-    await seam.onShimCreated('term_composed');
+    await options.testOnly!.onShimCreated!('term_composed');
     // The handle is persisted before the backend may use it.
     const saved = JSON.parse(await readFile(h.ledgerPath, 'utf8')) as {
       shims: { id: string }[];
@@ -107,7 +97,7 @@ it('ledgers the composed shim, shuts down, and cleans to ledger 0 and scan 0', a
   const backendHome = join(h.ledger.dataDir, 'backend');
   expect(options).toMatchObject({ dev: true, runtime: 'orca', port: 0 });
   expect(options.env?.AI_OFFICE_HOME).toBe(backendHome);
-  expect(seamOf(options).folder).toBe(join(home, '.ai-office', 'orca-home'));
+  expect(options.orcaHome).toBe(join(home, '.ai-office', 'orca-home'));
   expect(await readFile(join(backendHome, 'config.toml'), 'utf8')).toContain(
     'bin = "/synthetic/orca"',
   );
@@ -126,7 +116,7 @@ it('ledgers the composed shim, shuts down, and cleans to ledger 0 and scan 0', a
   expect(terminals.has('term_user')).toBe(true);
 });
 
-it('fails closed while the backend ignores the shim-folder seam', async () => {
+it('fails closed when the backend reports no shim', async () => {
   const h = await harness();
   const close = vi.fn(async () => undefined);
   startServer.mockResolvedValue({ close });

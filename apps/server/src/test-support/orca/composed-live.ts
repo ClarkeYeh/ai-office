@@ -31,9 +31,8 @@ export async function run(h: OrcaHarness): Promise<void> {
     webDist: join(backendHome, 'no-web'),
     print: () => undefined,
     ...composedShimOptions({
-      folder: join(home, '.ai-office', 'orca-home'),
+      orcaHome: join(home, '.ai-office', 'orca-home'),
       onShimCreated: effects.shim,
-      onRunCreated: effects.run,
     }),
   });
   try {
