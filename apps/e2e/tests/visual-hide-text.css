@@ -1,0 +1,5 @@
+/* Hides DOM text so font rasterization never changes the pixels. */
+* {
+  color: transparent !important;
+  caret-color: transparent !important;
+}
