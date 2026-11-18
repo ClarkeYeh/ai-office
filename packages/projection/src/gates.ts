@@ -32,10 +32,12 @@ export function applyGates(m: ReadModel, e: DomainEvent): void {
     case 'submission.accepted': {
       const p = e.payload;
       const found = findAttempt(m, p.attemptId);
-      if (p.artifactId === undefined || !found) return;
+      if (!found) return;
+      // The engine keys stage artifacts by submissionId when none is given.
+      const artifactId = p.artifactId ?? p.submissionId;
       m.acceptedSubmissions = {
         ...m.acceptedSubmissions,
-        [p.artifactId]: {
+        [artifactId]: {
           ...p.submission,
           submissionId: p.submissionId,
           seatId: found.seat.seatId,
