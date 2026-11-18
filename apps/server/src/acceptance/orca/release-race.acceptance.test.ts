@@ -61,7 +61,8 @@ describe(
           ),
         ].filter((a) => !released.has(a));
       };
-      expect(unreleased(events).length).toBeGreaterThan(0);
+      // M2-FX12: stage gates now wait for every close release, so most
+      // retries have landed by completion; any left must still land.
       await until(
         () => o.events(workflowId),
         (log) => unreleased(log).length === 0,

@@ -65,6 +65,12 @@ export type RoleBehavior = {
    * `release_pending_stop`) and is retried. Off when absent.
    */
   stopSettleMs?: number;
+  /**
+   * Real Orca (M2-FX12): `release` completes this many ms after it is called,
+   * while the stopped agent's exit has already been observed (`seat.exited`
+   * lands about 2 s before `seat.released`). Off when absent.
+   */
+  releaseLagMs?: number;
 };
 export type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */

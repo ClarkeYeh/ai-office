@@ -31,6 +31,9 @@ from that trigger; equal timestamps retain array order. Context includes the
 spawn request, the spec text (when read), workspace, agent, turn (starting at
 1), and the incoming message. Use distinct command IDs for distinct turns.
 `ignoreStop` models a live worker that refuses to end at a gate.
+`releaseLagMs` (off by default) models real Orca's release that completes about
+2 s after the stopped agent is observed `exited`: `release` resolves once the
+injected clock passes the lag and `runDue` runs (M2-FX12).
 
 ## Injected agent and Git behavior
 

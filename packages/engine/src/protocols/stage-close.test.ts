@@ -157,11 +157,19 @@ describe('pre-gate clearing (§8.1)', () => {
     ]);
   });
 
-  test('agents that end after the second stop: the stage gate still opens', () => {
+  test('agents that end after the second stop: the stage gate opens once the releases succeed', () => {
     const sim = run(worldIgnoring((id) => isClose(id, 'wait')));
     expect(sim.liveAgents()).toBe(2);
     expect(openGates(sim)).toEqual([]);
     sim.advance(PRECHECK_WAIT_MS);
+    // Exited after the re-stop, but the first releases are still in flight.
+    expect(sim.liveAgents()).toBe(0);
+    expect(openGates(sim)).toEqual([]);
+    for (const c of sim.issued.filter(
+      (c) =>
+        isClose(c.commandId, 'wait') && c.command.kind === 'runtime.release',
+    ))
+      sim.respond(c.commandId);
     expect(
       sim.issued
         .filter((c) => isClose(c.commandId, 'restop'))
@@ -187,6 +195,87 @@ describe('pre-gate clearing (§8.1)', () => {
     );
     expect(sim.state.gates[CONCLUSION]?.status).toBe('open');
     expect(sim.rejections).toEqual([]);
+  });
+
+  describe('the release lags the exit (M2-FX12, real Orca)', () => {
+    const lagging = worldIgnoring(
+      (id) => isClose(id, 'wait') && id.includes('/release/'),
+    );
+    const releases = (sim: Simulator) =>
+      sim.issued.filter(
+        (c) =>
+          isClose(c.commandId, 'wait') && c.command.kind === 'runtime.release',
+      );
+
+    test('seat.exited alone never opens the stage gate; the last release does', () => {
+      const sim = run(lagging);
+      expect(sim.liveAgents()).toBe(0);
+      expect(sim.eventsOf('seat.exited')).toHaveLength(2);
+      expect(openGates(sim)).toEqual([]);
+      const [first, second] = releases(sim);
+      sim.respond(first!.commandId);
+      expect(openGates(sim)).toEqual([]);
+      sim.respond(second!.commandId);
+      expect(openGates(sim)).toEqual([
+        expect.objectContaining({ noLiveAttempts: true }),
+      ]);
+      expect(
+        sim.trace().filter((l) => /seat\.released|gate\.opened/.test(l)),
+      ).toEqual([
+        expect.stringContaining('seat.released'),
+        expect.stringContaining('seat.released'),
+        expect.stringContaining(`gate.opened ${CONCLUSION}`),
+      ]);
+      sim.advance(PRECHECK_WAIT_MS + PRECHECK_RESTOP_MS);
+      expect(sim.eventsOf('timer.fired')).toEqual([]);
+      expect(sim.rejections).toEqual([]);
+    });
+
+    test('a release that fails for good ends in the anomaly gate, never the stage gate', () => {
+      const sim = run(lagging);
+      const [first, second] = releases(sim);
+      sim.respond(first!.commandId);
+      sim.respond(second!.commandId, {
+        ok: false,
+        error: {
+          category: 'permanent',
+          code: 'release_failed',
+          message: 'Release failed',
+          retryable: false,
+        },
+      });
+      expect(openGates(sim)).toEqual([]);
+      sim.advance(PRECHECK_WAIT_MS);
+      expect(openGates(sim)).toEqual([]);
+      sim.advance(PRECHECK_RESTOP_MS);
+      const [gate] = openGates(sim);
+      expect(gate).toMatchObject({
+        gate: {
+          exceptionKind: 'anomaly',
+          content: { summary: expect.stringContaining('pm-1') },
+        },
+      });
+      expect(sim.state.workflow?.pausedReasons).toEqual(['anomaly']);
+      expect(sim.state.gates[CONCLUSION]).toBeUndefined();
+      // "Stop again" retries the failed release; its success opens the gate.
+      if (gate?.type !== 'OpenGate') throw new Error('no anomaly gate');
+      sim.dispatch({
+        type: 'DecideGate',
+        gateId: gate.gate.gateId,
+        decision: 'option',
+        optionId: CLOSE_ANOMALY_OPTIONS.restop,
+        by: 'user',
+        expectedVersion: 1,
+      });
+      expect(sim.state.gates[CONCLUSION]).toBeUndefined();
+      const retry = releases(sim).at(-1)!;
+      expect(retry).toMatchObject({ attemptId: 'pm-1' });
+      expect(retry.commandId).not.toBe(second!.commandId);
+      sim.respond(retry.commandId);
+      expect(sim.state.attempts['pm-1']?.released).toBe(true);
+      expect(sim.state.gates[CONCLUSION]?.status).toBe('open');
+      expect(sim.rejections).toEqual([]);
+    });
   });
 
   test('agents still alive after the second stop: anomaly gate and paused, no stage gate', () => {

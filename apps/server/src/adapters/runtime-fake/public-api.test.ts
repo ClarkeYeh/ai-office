@@ -55,6 +55,8 @@ type RoleBehavior = {
   silent?: boolean;
   /** M2-T17 (D8): optional, additive. */
   stopSettleMs?: number;
+  /** M2-FX12: optional, additive. */
+  releaseLagMs?: number;
 };
 type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */
