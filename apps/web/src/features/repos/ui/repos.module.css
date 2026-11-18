@@ -1,0 +1,42 @@
+.page {
+  display: grid;
+  gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.form {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.form > div {
+  flex: 1;
+  min-width: 240px;
+}
+.list {
+  display: grid;
+  gap: 20px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.facts {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 10px 20px;
+}
+.facts dt,
+.intro {
+  color: var(--slate);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .facts {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}

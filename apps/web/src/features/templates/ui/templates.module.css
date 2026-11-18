@@ -1,0 +1,62 @@
+.page,
+.stack {
+  display: grid;
+  gap: 20px;
+}
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.intro {
+  color: var(--slate);
+  line-height: 1.7;
+}
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.stages {
+  padding-left: 24px;
+  margin: 0;
+}
+.stage {
+  padding: 12px 0 16px 12px;
+  border-left: 3px solid var(--mist);
+}
+.stage h3 {
+  margin: 0 0 8px;
+}
+.gate {
+  border: 2px solid var(--ink);
+  padding: 8px 12px;
+  margin-top: 12px;
+}
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 20px;
+  margin: 10px 0;
+}
+.facts dt {
+  color: var(--slate);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.role {
+  border-bottom: 1px solid var(--mist);
+  padding: 8px 0;
+}
+.errors {
+  border-left: 3px solid var(--red);
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
