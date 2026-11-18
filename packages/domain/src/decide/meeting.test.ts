@@ -348,3 +348,108 @@ it('records only the final PR proven by its successful openPR command', () => {
   expect(h.state.workflow?.finalPr).toBe(42);
   expect(h.run(pr)).toEqual({ ok: true, events: [] });
 });
+
+it('records a worker PR only from its work item openPR and links the item', () => {
+  const h = new Harness().given(startCommand());
+  const workflow = h.state.workflow!;
+  h.state = {
+    ...h.state,
+    workItems: {
+      A: {
+        key: 'A',
+        title: 'A',
+        body: 'Implement A',
+        acceptance: ['Works'],
+        deps: [],
+        role: 'engineer',
+        agent: 'codex',
+        status: 'pushed',
+        approvedGateId: 'approved',
+        attemptIds: ['att-A'],
+        attempt: 1,
+        branch: 'ai-office/ab12/A-a1',
+      },
+    },
+    workItemOrder: ['A'],
+  };
+  const pr = {
+    type: 'RecordStageArtifact',
+    meta: meta(),
+    stageId: 'implement',
+    commandId: 'worker-open',
+    artifact: {
+      kind: 'pr',
+      artifactId: 'worker-open',
+      purpose: 'worker',
+      number: 21,
+      url: 'https://github.com/o/r/pull/21',
+      head: 'ai-office/ab12/A-a1',
+      base: workflow.integrationBranch,
+      itemKey: 'A',
+    },
+  } satisfies DomainCommand;
+  expect(h.run(pr)).toMatchObject({ ok: false });
+  h.given(
+    eventDraft(
+      'command.issued',
+      {
+        commandId: 'worker-open',
+        kind: 'scm.openPR',
+        args: {
+          repo: workflow.repo.github,
+          title: 'A',
+          body: 'Implement A',
+          head: 'ai-office/ab12/A-a1',
+          base: workflow.integrationBranch,
+        },
+      },
+      { attemptId: 'att-A' },
+    ),
+    eventDraft('command.succeeded', {
+      commandId: 'worker-open',
+      kind: 'scm.openPR',
+      result: { pr: 21, url: 'https://github.com/o/r/pull/21' },
+    }),
+  );
+  for (const patch of [
+    { number: 22 },
+    { url: 'https://github.com/o/r/pull/22' },
+    { head: 'wrong' },
+    { base: 'wrong' },
+    { itemKey: 'missing' },
+    { itemKey: undefined },
+  ])
+    expect(
+      h.run({ ...pr, artifact: { ...pr.artifact, ...patch } }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid_artifact' } });
+  expect(h.run({ ...pr, stageId: 'meeting' })).toMatchObject({ ok: false });
+  // The openPR must come from one of the item's own attempts.
+  for (const [commandId, attemptId] of [
+    ['stray-open', 'att-B'],
+    ['bare-open', undefined],
+  ] as const) {
+    h.given(
+      eventDraft(
+        'command.issued',
+        { ...h.state.commands['worker-open']!.issued, commandId },
+        attemptId === undefined ? {} : { attemptId },
+      ),
+      eventDraft('command.succeeded', {
+        commandId,
+        kind: 'scm.openPR',
+        result: { pr: 21, url: 'https://github.com/o/r/pull/21' },
+      }),
+    );
+    expect(
+      h.run({
+        ...pr,
+        commandId,
+        artifact: { ...pr.artifact, artifactId: commandId },
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid_artifact' } });
+  }
+  h.given(pr);
+  expect(h.state.workItems.A?.pr).toBe(21);
+  expect(h.state.workflow?.finalPr).toBeUndefined();
+  expect(h.run(pr)).toEqual({ ok: true, events: [] });
+});

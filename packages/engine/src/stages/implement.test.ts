@@ -80,6 +80,12 @@ function setup(
     },
   };
 }
+const workerPrs = (sim: Simulator) =>
+  sim
+    .eventsOf('artifact.created')
+    .flatMap(({ payload: p }) =>
+      p.kind === 'pr' && p.purpose === 'worker' ? [p] : [],
+    );
 const done = (sim: Simulator, key: string) =>
   sim.dispatch({
     type: 'ObserveAttemptStatus',
@@ -126,6 +132,29 @@ it('golden: parallel workers queue PRs and only merged dependencies unlock a fre
   done(sim, 'C');
   merge(sim, 'C');
   expect(sim.state.stages.implement?.status).toBe('done');
+  // Each worker PR is recorded once, before its item is queued for merge.
+  const integration = sim.state.workflow!.integrationBranch;
+  expect(workerPrs(sim)).toEqual(
+    ['A', 'B', 'C'].map((key) => ({
+      kind: 'pr',
+      artifactId: expect.any(String),
+      number: sim.state.workItems[key]!.pr,
+      url: `https://github.com/octo/demo/pull/${sim.state.workItems[key]!.pr}`,
+      purpose: 'worker',
+      head: sim.state.workItems[key]!.branch,
+      base: integration,
+      itemKey: key,
+    })),
+  );
+  for (const key of ['A', 'B', 'C']) {
+    const seqOf = (type: 'artifact.created' | 'workitem.merge_queued') =>
+      sim
+        .eventsOf(type)
+        .find((e) => 'itemKey' in e.payload && e.payload.itemKey === key)!.seq;
+    expect(seqOf('artifact.created')).toBeLessThan(
+      seqOf('workitem.merge_queued'),
+    );
+  }
   expect(sim.liveAgents()).toBe(0);
   expect(sim.rejections).toEqual([]);
   expect(sim.warnings).toEqual([]);
@@ -133,7 +162,9 @@ it('golden: parallel workers queue PRs and only merged dependencies unlock a fre
     sim
       .trace()
       .filter((l) =>
-        /workitem\.|stage.completed|scm.compareBranch|scm.openPR/.test(l),
+        /workitem\.|stage.completed|scm.compareBranch|scm.openPR|artifact.created/.test(
+          l,
+        ),
       ),
   ).toMatchSnapshot();
 });
@@ -205,6 +236,8 @@ it('reworks in the kept worktree of the previous attempt on the same branch and 
   expect(
     sim.issued.filter((c) => c.command.kind === 'scm.openPR'),
   ).toHaveLength(1);
+  // Same branch, same PR: rework does not record the PR again.
+  expect(workerPrs(sim).map((p) => p.number)).toEqual([first.pr]);
   merge(sim, 'A');
   expect(
     sim.issued
@@ -408,6 +441,12 @@ it('a failed-attempt retry uses -a2, changes agent, and closes and links the old
   expect(
     sim.issued.filter((c) => c.command.kind === 'scm.comment').at(-1)?.command,
   ).toMatchObject({ args: { body: expect.stringContaining('/pull/21') } });
+  // The retry opened a new PR on a new branch, so it gets its own artifact.
+  expect(workerPrs(sim).map((p) => [p.number, p.head])).toEqual([
+    [first.pr, first.branch],
+    [21, 'ai-office/ab12/A-a2'],
+  ]);
+  expect(sim.state.workItems.A?.pr).toBe(21);
   expect(sim.rejections).toEqual([]);
 });
 
