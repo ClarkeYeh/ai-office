@@ -14,19 +14,20 @@ Prerequisites: Node.js 24 (see `.nvmrc` / `.node-version`) and pnpm 10.34.9
 pnpm install
 pnpm build             # Build all workspaces, including the Vite frontend
 pnpm -r build          # Equivalent recursive build
-pnpm test              # Run all eight Vitest workspace projects
+pnpm test              # Run workspace and fixture tests
 pnpm lint              # ESLint flat config and Prettier check
 pnpm typecheck         # tsc -b: build the TypeScript project-reference graph
-pnpm contracts:gen     # TODO: generate OpenAPI / JSON Schema
-pnpm contracts:check   # TODO: check committed contract artifacts
-pnpm depcruise         # TODO: enforce architectural dependency rules
-pnpm depcruise:selftest # TODO: verify intentional violations are rejected
-pnpm check:bundle      # TODO: inspect the frontend bundle
-pnpm fixtures:scan     # TODO: scan sanitized fixtures
+pnpm contracts:gen     # generate OpenAPI / JSON Schema
+pnpm contracts:check   # check committed contract artifacts
+pnpm depcruise         # enforce architectural dependency rules
+pnpm depcruise:selftest # verify intentional violations are rejected
+pnpm check:bundle      # inspect the frontend bundle
+pnpm fixtures:scan     # scan sanitized fixtures
 ```
 
-The six commands marked TODO are successful placeholders for the remaining M0
-work. Their success does not yet verify contracts, architecture, bundles, or fixtures.
+These commands validate generated contracts, dependency boundaries, bundle contents,
+and sanitized fixtures. Run `pnpm test:scripts` for validation-script regressions and
+`pnpm test:coverage` for the pure-package coverage gate.
 Run `pnpm format` to apply Prettier formatting.
 
 Run `pnpm --filter @ai-office/web dev` for the placeholder web page. After a build,
@@ -42,8 +43,8 @@ engine depends on domain and contracts, not projection. Each package declares on
 its permitted workspace dependencies and TypeScript references. There are no global
 source aliases or root workspace dependencies, and pnpm hoisting is disabled, so
 undeclared workspace imports cannot resolve through a shared root dependency.
-Server layer rules and contracts subpath restrictions will additionally be enforced
-by the dependency-cruiser task.
+Server layer rules and contracts subpath restrictions are additionally enforced
+by dependency-cruiser.
 
 Vitest workspace configuration uses `test.projects` in `vitest.config.ts` (the
 current name for workspaces). Production TypeScript projects exclude test files;
@@ -68,7 +69,9 @@ production cannot import tests. UI components cannot reach API/realtime clients;
 the office scene imports only its own view-model types, and cross-feature imports
 use feature `index.ts` entry points. Cycles, unresolved imports and orphan modules
 fail the check (config and test files are exempt from orphan checking). Skeleton
-entry points have smoke tests until their feature tests replace them.
+entry points are discovered by smoke tests only while they contain an empty export.
+The depcruise runner temporarily materializes those dynamic import edges so real
+unreferenced implementations still fail the orphan rule.
 
 `pnpm depcruise:selftest` runs isolated violating and allowed samples through the
 same config and resolver, asserting every rule fires and the CLI fails. Samples

@@ -8,7 +8,8 @@
       "@ai-office/domain": ["packages/domain/src/index.ts"],
       "@ai-office/engine": ["packages/engine/src/index.ts"],
       "@ai-office/projection": ["packages/projection/src/index.ts"],
-      "@ai-office/templates": ["packages/templates/src/index.ts"]
+      "@ai-office/templates": ["packages/templates/src/index.ts"],
+      "@ai-office/redaction": ["packages/redaction/src/index.ts"]
     }
   },
   "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts"]

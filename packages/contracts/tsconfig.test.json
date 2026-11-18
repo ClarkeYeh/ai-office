@@ -4,8 +4,11 @@
     "composite": false,
     "noEmit": true,
     "emitDeclarationOnly": false,
-    "types": ["node"]
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    "rootDir": "."
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.mjs"],
   "exclude": []
 }

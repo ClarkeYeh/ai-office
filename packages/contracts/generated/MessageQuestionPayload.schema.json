@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "questionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "itemKey": {
+      "$ref": "./WorkItemKey.schema.json"
+    },
+    "body": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "questionId",
+    "attemptId",
+    "body"
+  ]
+}

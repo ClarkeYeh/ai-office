@@ -15,13 +15,57 @@ import {
 import { apiEndpoints, StartWorkflowRequestSchema } from './api/index.js';
 import { StreamMessageSchema } from './stream/index.js';
 
+// A local fixture keeps contract validation independent of packaged templates.
 const template = () =>
-  parse(
-    readFileSync(
-      new URL('../../templates/feature-to-pr.yaml', import.meta.url),
-      'utf8',
-    ),
-  );
+  parse(`
+apiVersion: ai-office/v1alpha1
+id: test-flow
+name: Test flow
+roles:
+  lead: { agent: claude-code, scope: Lead }
+  pm: { agent: claude-code, scope: Plan }
+  engineer: { agent: codex, scope: Build }
+defaults:
+  integrationBranch: 'test/{shortId}-{slug}'
+  maxReruns: 2
+  budget: { hardLimitMultiplier: 2 }
+stages:
+  - id: meeting
+    kind: meeting
+    facilitator: lead
+    participants: [pm, engineer]
+    maxRounds: 2
+    timeouts: { roundMin: 15, stageMin: 60 }
+    budget: { tokens: 1000 }
+    conclusion: { requireTechDecisions: true }
+    gate: { id: conclusion, title: Conclusion, optional: true }
+  - id: planning
+    kind: planning
+    owner: lead
+    from: meeting
+    timeouts: { stageMin: 30 }
+    budget: { tokens: 1000 }
+    gate: { id: plan, title: Plan, optional: true }
+  - id: implement
+    kind: implement
+    role: engineer
+    from: planning
+    maxParallel: 3
+    timeouts: { itemMin: 45 }
+    budget: { tokens: 1000 }
+    onCall: { role: lead, questionTimeoutMin: 10 }
+    mergeQueue: { role: lead, reviewTimeoutMin: 20, maxRework: 2 }
+    escalateOn: [unresolvable-conflict, ci-failed-twice]
+  - id: integrate
+    kind: integrate
+    owner: lead
+    timeouts: { stageMin: 60 }
+    budget: { tokens: 1000 }
+  - id: final-pr
+    kind: final-pr
+    maxRevisions: 2
+    gate: { id: final-pr, title: Final PR }
+`);
 const roundTrip = (schema: z.ZodType, value: unknown) => {
   const parsed = schema.parse(value);
   expect(schema.parse(JSON.parse(JSON.stringify(parsed)))).toEqual(value);
@@ -36,14 +80,9 @@ const envelope = {
   provenance: 'observed',
   schemaVersion: 1,
 };
-test('all 63 domain event variants round-trip and reject runtime-only events', () => {
-  expect(DomainEventSchema.options).toHaveLength(63);
-  for (const option of DomainEventSchema.options)
-    roundTrip(DomainEventSchema, {
-      ...envelope,
-      type: option.shape.type.value,
-      payload: { futureField: true },
-    });
+// Per-type payload examples live in events/events.test.ts.
+test('domain events reject runtime-only types and invalid envelopes', () => {
+  expect(DomainEventSchema.options).toHaveLength(66);
   expect(
     DomainEventSchema.safeParse({
       ...envelope,
@@ -60,7 +99,7 @@ test('all 63 domain event variants round-trip and reject runtime-only events', (
     }).success,
   ).toBe(false);
 });
-test('built-in feature-to-pr template round-trips', () =>
+test('template contract round-trips', () =>
   roundTrip(WorkflowTemplateSchema, template()));
 const invalidTemplates: [
   string,
@@ -94,6 +133,36 @@ const invalidTemplates: [
     'on-call role reference',
     (t) => {
       t.stages[2].onCall.role = 'missing';
+    },
+  ],
+  [
+    'merge-queue role reference',
+    (t) => {
+      t.stages[2].mergeQueue.role = 'missing';
+    },
+  ],
+  [
+    'merge queue required on implement',
+    (t) => {
+      delete t.stages[2].mergeQueue;
+    },
+  ],
+  [
+    'escalateOn on integrate (rev2.10 moved it to implement)',
+    (t) => {
+      t.stages[3].escalateOn = ['unresolvable-conflict'];
+    },
+  ],
+  [
+    'escalateOn on meeting',
+    (t) => {
+      t.stages[0].escalateOn = [];
+    },
+  ],
+  [
+    'unknown escalateOn condition',
+    (t) => {
+      t.stages[2].escalateOn = ['tests-flaky'];
     },
   ],
   [
@@ -204,7 +273,8 @@ const submissions = [
     },
   },
   { kind: 'answer-question', payload: { questionId: 'q1', body: 'Yes' } },
-  { kind: 'merge-request', payload: { pr: 1, expectedHeadSha: 'abc' } },
+  { kind: 'merge-request', payload: { pr: 1, expectedHeadSha: 'abc1234' } },
+  { kind: 'rework-request', payload: { pr: 1, reasons: ['Add tests'] } },
   {
     kind: 'decision-request',
     payload: { reason: 'other', question: 'Which?', options: ['A'] },
@@ -222,6 +292,31 @@ const submissions = [
 test.each(submissions)('submission $kind round-trips', (value) =>
   roundTrip(AgentSubmissionSchema, value),
 );
+test('agenda requires at least one topic', () => {
+  const result = AgentSubmissionSchema.safeParse({
+    kind: 'agenda',
+    payload: { topics: [] },
+  });
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        path: ['payload', 'topics'],
+        code: 'too_small',
+      }),
+    ]);
+  }
+});
+test.each([
+  ['no reasons', { pr: 1, reasons: [] }],
+  ['empty reason', { pr: 1, reasons: [''] }],
+  ['missing pr', { reasons: ['Add tests'] }],
+])('rework-request rejects %s', (_, payload) => {
+  expect(
+    AgentSubmissionSchema.safeParse({ kind: 'rework-request', payload })
+      .success,
+  ).toBe(false);
+});
 test('submission discriminant and CLI codes are fixed', () => {
   expect(
     AgentSubmissionSchema.safeParse({ kind: 'agenda', payload: { pr: 1 } })
@@ -249,7 +344,11 @@ test('SSE data, resync, and comment frames round-trip', () => {
     {
       event: 'domain',
       id: '1',
-      data: { ...envelope, type: 'health.changed', payload: {} },
+      data: {
+        ...envelope,
+        type: 'health.changed',
+        payload: { component: 'runtime', status: 'healthy' },
+      },
     },
     { event: 'resync_required' },
     { event: 'keepalive', comment: 'keepalive' },

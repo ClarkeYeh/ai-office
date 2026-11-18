@@ -33,7 +33,10 @@
   },
   {
     "file": "apps/server/src/adapters/runtime-orca/bad.ts",
-    "rules": ["no-adapter-to-adapter", "adapters-allowed-dependencies"]
+    "rules": [
+      "no-adapter-to-adapter",
+      "adapter-runtime-orca-allowed-dependencies"
+    ]
   },
   {
     "file": "apps/server/src/api/bad.ts",
@@ -206,5 +209,100 @@
   {
     "file": "packages/domain/src/stream.ts",
     "rules": ["domain-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-fake/disallowed.ts",
+    "rules": ["adapter-runtime-fake-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/scm-fake/disallowed.ts",
+    "rules": ["adapter-scm-fake-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/usage-fake/disallowed.ts",
+    "rules": ["adapter-usage-fake-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/template-fs/disallowed.ts",
+    "rules": ["adapter-template-fs-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/store-sqlite/disallowed.ts",
+    "rules": ["adapter-store-sqlite-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/redactor/disallowed.ts",
+    "rules": ["adapter-redactor-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/logger-pino/disallowed.ts",
+    "rules": ["adapter-logger-pino-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/system/disallowed.ts",
+    "rules": ["adapter-system-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-orca/disallowed.ts",
+    "rules": ["adapter-runtime-orca-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/scm-github/disallowed.ts",
+    "rules": ["adapter-scm-github-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/usage-sessionlog/disallowed.ts",
+    "rules": ["adapter-usage-sessionlog-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/scm-fake/filesystem.ts",
+    "rules": ["adapter-scm-fake-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/unknown/disallowed.ts",
+    "rules": ["adapters-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/config/parsers.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/config/pino.ts",
+    "rules": ["config-allowed-dependencies", "pino-only-in-logger-or-main"]
+  },
+  {
+    "file": "apps/server/src/adapters/system/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/system/pino.ts",
+    "rules": [
+      "adapter-system-allowed-dependencies",
+      "pino-only-in-logger-or-main"
+    ]
+  },
+  {
+    "file": "apps/server/src/api/provider.ts",
+    "rules": []
+  },
+  {
+    "file": "packages/redaction/src/index.ts",
+    "rules": []
+  },
+  {
+    "file": "packages/redaction/src/node.ts",
+    "rules": ["redaction-allowed-dependencies", "no-node-in-packages-or-web"]
+  },
+  {
+    "file": "packages/redaction/src/foreign.ts",
+    "rules": ["redaction-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/adapters/redactor/redaction.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/adapters/runtime-fake/redaction.ts",
+    "rules": ["adapter-runtime-fake-allowed-dependencies"]
   }
 ]

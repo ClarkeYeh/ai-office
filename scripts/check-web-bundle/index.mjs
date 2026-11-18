@@ -3,7 +3,9 @@ import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 
+/** @param {string} directory */
 export async function checkWebBundle(directory) {
+  /** @param {string} file */
   const readJSON = async (file) =>
     JSON.parse(await readFile(join(directory, file), 'utf8'));
   const manifest = await readJSON('.vite/manifest.json');
@@ -37,6 +39,7 @@ export async function checkWebBundle(directory) {
       `Forbidden web module: ${id}`,
     );
   }
+  /** @param {string} dir @returns {Promise<void>} */
   async function scan(dir) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const file = join(dir, entry.name);
@@ -62,7 +65,9 @@ if (
   try {
     console.log(`Web bundle OK (${await checkWebBundle(directory)} modules).`);
   } catch (error) {
-    console.error(`Web bundle check failed: ${error.message}`);
+    console.error(
+      `Web bundle check failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exitCode = 1;
   }
 }

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "missing-submission",
+        "round-timeout",
+        "stage-timeout",
+        "item-timeout",
+        "question-timeout",
+        "review-timeout",
+        "budget-wrap-up"
+      ]
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1
+    },
+    "body": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "attemptId",
+    "reason",
+    "subject",
+    "body"
+  ]
+}

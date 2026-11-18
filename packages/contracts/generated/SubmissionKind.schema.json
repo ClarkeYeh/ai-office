@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "string",
+  "enum": [
+    "agenda",
+    "statement",
+    "conclusion",
+    "work-items",
+    "answer-question",
+    "merge-request",
+    "rework-request",
+    "decision-request",
+    "integration-report"
+  ]
+}

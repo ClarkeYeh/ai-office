@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "by": {
+      "type": "string",
+      "enum": [
+        "user",
+        "gate"
+      ]
+    },
+    "gateId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "by"
+  ]
+}

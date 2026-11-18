@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "workflowId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "shortId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template": {
+      "$ref": "./WorkflowTemplate.schema.json"
+    },
+    "repo": {
+      "$ref": "./RepoSnapshot.schema.json"
+    },
+    "requirement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "integrationBranch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "roleOverrides": {
+      "$ref": "./RoleOverrides.schema.json"
+    },
+    "gateToggles": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "budgets": {
+      "$ref": "./AppliedBudgets.schema.json"
+    },
+    "limits": {
+      "$ref": "./WorkflowLimits.schema.json"
+    },
+    "status": {
+      "$ref": "./WorkflowStatus.schema.json"
+    },
+    "pausedReasons": {
+      "type": "array",
+      "items": {
+        "$ref": "./PauseReason.schema.json"
+      }
+    },
+    "cancelRequested": {
+      "type": "boolean"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "endedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "finalPr": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "mergeCommitSha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,64}$"
+        },
+        "failReason": {
+          "type": "string",
+          "enum": [
+            "max_reruns_exceeded",
+            "stage_failed",
+            "other"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        }
+      }
+    },
+    "currentStageId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "$ref": "./StageView.schema.json"
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "$ref": "./GateView.schema.json"
+      }
+    },
+    "seats": {
+      "type": "array",
+      "items": {
+        "$ref": "./SeatView.schema.json"
+      }
+    },
+    "workItems": {
+      "type": "array",
+      "items": {
+        "$ref": "./WorkItemView.schema.json"
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "$ref": "./QuestionView.schema.json"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "./ArtifactRef.schema.json"
+      }
+    },
+    "acceptedSubmissions": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "./ArtifactId.schema.json"
+      },
+      "additionalProperties": {
+        "$ref": "./AcceptedSubmission.schema.json"
+      }
+    },
+    "prs": {
+      "type": "array",
+      "items": {
+        "$ref": "./PrSummary.schema.json"
+      }
+    },
+    "usage": {
+      "$ref": "./UsageView.schema.json"
+    },
+    "budgetBars": {
+      "type": "array",
+      "items": {
+        "$ref": "./BudgetBar.schema.json"
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "./ErrorView.schema.json"
+      }
+    },
+    "anomalies": {
+      "type": "array",
+      "items": {
+        "$ref": "./AnomalyView.schema.json"
+      }
+    },
+    "lastSeq": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "workflowId",
+    "shortId",
+    "template",
+    "repo",
+    "requirement",
+    "integrationBranch",
+    "roleOverrides",
+    "gateToggles",
+    "budgets",
+    "limits",
+    "status",
+    "pausedReasons",
+    "cancelRequested",
+    "startedAt",
+    "currentStageId",
+    "stages",
+    "gates",
+    "seats",
+    "workItems",
+    "questions",
+    "artifacts",
+    "acceptedSubmissions",
+    "prs",
+    "usage",
+    "budgetBars",
+    "errors",
+    "anomalies",
+    "lastSeq"
+  ]
+}

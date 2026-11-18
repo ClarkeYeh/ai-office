@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "$ref": "./AgentSubmission.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "submissionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seatId": {
+          "$ref": "./SeatId.schema.json"
+        },
+        "acceptedAtSeq": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "submissionId",
+        "seatId",
+        "acceptedAtSeq"
+      ]
+    }
+  ]
+}

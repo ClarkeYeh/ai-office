@@ -3,11 +3,7 @@
   "type": "object",
   "properties": {
     "agent": {
-      "type": "string",
-      "enum": [
-        "claude-code",
-        "codex"
-      ]
+      "$ref": "./AgentKind.schema.json"
     },
     "scope": {
       "type": "string",

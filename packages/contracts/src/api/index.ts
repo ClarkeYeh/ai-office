@@ -2,39 +2,151 @@ import { z } from 'zod';
 import {
   AgentSubmissionSchema,
   SubmissionResponseSchema,
+  SubmissionHeadersSchema,
 } from '../agent-submission/index.js';
-import { DomainEventSchema } from '../events/index.js';
+import {
+  DomainEventSchema,
+  ErrorCategorySchema,
+  GateDecisionSchema,
+  GateEditsSchema,
+  type ErrorCategory,
+} from '../events/index.js';
+import { Sha256Schema } from '../events/common.js';
 import {
   StreamQuerySchema,
   StreamMessageSchema,
   StreamHeadersSchema,
 } from '../stream/index.js';
 import {
+  AgentKindSchema,
   WorkflowTemplateSchema,
   RoleOverridesSchema,
   BudgetSchema,
 } from '../template/index.js';
+import {
+  GateViewSchema,
+  HealthViewSchema,
+  QuestionViewSchema,
+  RepoViewSchema,
+  SeatViewSchema,
+  WorkflowReadModelSchema,
+  WorkflowSummarySchema,
+} from './read-model.js';
+
+export * from './read-model.js';
 
 const id = z.string().min(1);
 const seq = z.number().int().nonnegative();
-// Read models are extensible skeletons until their projections are implemented in M1.
-export const ReadModelSchema = z.record(z.string(), z.unknown());
+
+/** Known `ErrorResponse.code` values with their HTTP status and §15 category. */
+export const API_ERRORS = {
+  validation_failed: { status: 400, category: 'validation' },
+  unauthorized: { status: 401, category: 'auth' },
+  bootstrap_code_invalid: { status: 401, category: 'auth' },
+  forbidden_origin: { status: 403, category: 'auth' },
+  forbidden_host: { status: 403, category: 'auth' },
+  not_found: { status: 404, category: 'permanent' },
+  version_conflict: { status: 409, category: 'conflict' },
+  gate_content_changed: { status: 409, category: 'conflict' },
+  gate_not_open: { status: 409, category: 'conflict' },
+  workflow_slot_busy: { status: 409, category: 'conflict' },
+  workflow_not_terminal: { status: 409, category: 'conflict' },
+  seat_not_alive: { status: 409, category: 'conflict' },
+  idempotency_key_reused: { status: 422, category: 'validation' },
+  template_invalid: { status: 422, category: 'validation' },
+  runtime_unverified_ack_required: { status: 428, category: 'guard' },
+  agent_required: { status: 422, category: 'validation' },
+  answer_question_required: { status: 422, category: 'validation' },
+  approval_mismatch: { status: 422, category: 'validation' },
+  auto_not_allowed: { status: 422, category: 'validation' },
+  cancel_not_requested: { status: 409, category: 'conflict' },
+  cancel_requested: { status: 409, category: 'conflict' },
+  conclusion_issue_missing: { status: 409, category: 'conflict' },
+  current_unresolved: { status: 409, category: 'conflict' },
+  dependency_cycle: { status: 422, category: 'validation' },
+  duplicate_gate: { status: 409, category: 'conflict' },
+  duplicate_key: { status: 422, category: 'validation' },
+  duplicate_question: { status: 409, category: 'conflict' },
+  edits_required: { status: 422, category: 'validation' },
+  empty_answer: { status: 422, category: 'validation' },
+  empty_message: { status: 422, category: 'validation' },
+  empty_requirement: { status: 422, category: 'validation' },
+  field_not_editable: { status: 422, category: 'validation' },
+  final_pr_not_started: { status: 409, category: 'conflict' },
+  gate_not_approved: { status: 409, category: 'conflict' },
+  gate_not_optional: { status: 422, category: 'validation' },
+  gate_open: { status: 409, category: 'conflict' },
+  idempotency_key_required: { status: 422, category: 'validation' },
+  invalid_answerer: { status: 409, category: 'conflict' },
+  invalid_exception_gate: { status: 422, category: 'validation' },
+  invalid_gate_decision: { status: 422, category: 'validation' },
+  invalid_github_origin: { status: 422, category: 'validation' },
+  invalid_integration_branch: { status: 422, category: 'validation' },
+  invalid_options: { status: 422, category: 'validation' },
+  invalid_proposal: { status: 422, category: 'validation' },
+  invalid_responder: { status: 422, category: 'validation' },
+  invalid_short_id: { status: 422, category: 'validation' },
+  invalid_stage_gate: { status: 422, category: 'validation' },
+  item_key_mismatch: { status: 422, category: 'validation' },
+  live_attempts: { status: 409, category: 'conflict' },
+  max_revisions_exceeded: { status: 409, category: 'conflict' },
+  not_conclusion: { status: 422, category: 'validation' },
+  pr_not_merged: { status: 409, category: 'conflict' },
+  question_answered: { status: 409, category: 'conflict' },
+  question_escalated: { status: 409, category: 'conflict' },
+  question_not_escalated: { status: 409, category: 'conflict' },
+  question_retry_available: { status: 409, category: 'conflict' },
+  question_retry_limit: { status: 409, category: 'conflict' },
+  repo_not_in_orca: { status: 422, category: 'validation' },
+  repo_not_main_worktree: { status: 422, category: 'validation' },
+  responder_not_failed: { status: 409, category: 'conflict' },
+  runtime_unavailable: { status: 503, category: 'transient' },
+  scm_unavailable: { status: 503, category: 'transient' },
+  snapshot_required: { status: 422, category: 'validation' },
+  stage_not_complete: { status: 409, category: 'conflict' },
+  stage_not_planning: { status: 409, category: 'conflict' },
+  store_unavailable: { status: 503, category: 'transient' },
+  tokens_required: { status: 422, category: 'validation' },
+  unexpected_edits: { status: 422, category: 'validation' },
+  unknown_budget_stage: { status: 422, category: 'validation' },
+  unknown_dependency: { status: 422, category: 'validation' },
+  unknown_live_attempt: { status: 422, category: 'validation' },
+  unknown_role: { status: 422, category: 'validation' },
+  unknown_stage: { status: 422, category: 'validation' },
+  workflow_ended: { status: 409, category: 'conflict' },
+  workflow_exists: { status: 409, category: 'conflict' },
+  workflow_not_started: { status: 409, category: 'conflict' },
+  workflow_paused: { status: 409, category: 'conflict' },
+  wrong_question_gate: { status: 409, category: 'conflict' },
+  dependency_unavailable: { status: 503, category: 'transient' },
+  dependency_rate_limited: { status: 429, category: 'rate_limited' },
+  dependency_unauthorized: { status: 401, category: 'auth' },
+  dependency_suspect_escalation: {
+    status: 503,
+    category: 'suspect_escalation',
+  },
+  dependency_identity_invalid: { status: 503, category: 'identity' },
+  dependency_hijacked: { status: 409, category: 'hijacked' },
+  dependency_contract_mismatch: { status: 502, category: 'contract_mismatch' },
+  dependency_rejected: { status: 422, category: 'permanent' },
+  dependency_conflict: { status: 409, category: 'conflict' },
+  dependency_validation_failed: { status: 422, category: 'validation' },
+  dependency_guard_rejected: { status: 403, category: 'guard' },
+  internal_error: { status: 500, category: 'bug' },
+} as const satisfies Record<
+  string,
+  { status: number; category: ErrorCategory }
+>;
+export type ApiErrorCode = keyof typeof API_ERRORS;
+export const API_ERROR_CODES = Object.keys(API_ERRORS) as ApiErrorCode[];
+export const ApiErrorCodeSchema = z.enum(
+  API_ERROR_CODES as [ApiErrorCode, ...ApiErrorCode[]],
+);
+// `code` stays an open string so /v1 can add codes compatibly (§13.2); see API_ERRORS.
 export const ErrorResponseSchema = z.object({
   error: z.object({
     code: id,
-    category: z.enum([
-      'transient',
-      'rate_limited',
-      'auth',
-      'identity',
-      'hijacked',
-      'contract_mismatch',
-      'permanent',
-      'bug',
-      'conflict',
-      'validation',
-      'guard',
-    ]),
+    category: ErrorCategorySchema,
     message: z.string(),
     retryable: z.boolean(),
     details: z.unknown().optional(),
@@ -62,10 +174,21 @@ export const StartWorkflowRequestSchema = z.object({
   gateToggles: z.record(id, z.boolean()).optional(),
   acknowledgeUnverifiedRuntime: z.boolean().optional(),
 });
+export const StartWorkflowResponseSchema = z.object({ workflowId: id });
 export const WorkflowSnapshotResponseSchema = z.object({
-  readModel: ReadModelSchema,
+  readModel: WorkflowReadModelSchema,
   asOfSeq: seq,
 });
+export const WorkflowsResponseSchema = z.object({
+  workflows: z.array(WorkflowSummarySchema),
+});
+export const ReposResponseSchema = z.object({ repos: z.array(RepoViewSchema) });
+export const RegisterRepoRequestSchema = z.object({ localPath: id });
+export const GatesResponseSchema = z.object({ gates: z.array(GateViewSchema) });
+export const QuestionsResponseSchema = z.object({
+  questions: z.array(QuestionViewSchema),
+});
+export const AcceptedResponseSchema = z.object({ accepted: z.boolean() });
 export const EventsQuerySchema = z.object({
   afterSeq: seq.optional(),
   limit: z.number().int().positive().optional(),
@@ -74,12 +197,22 @@ export const EventsResponseSchema = z.object({
   events: z.array(DomainEventSchema),
   nextAfterSeq: seq.optional(),
 });
+/**
+ * Q1: `githubBodyHash` is required for conclusion-gate approve/revise (checked by domain,
+ * which knows the gate kind); 409 `gate_content_changed` compares only that hash.
+ * `edits` kinds and editable fields are also checked by domain against the gate.
+ */
 export const GateDecisionRequestSchema = z.object({
-  decision: z.enum(['approve', 'revise', 'reject', 'option']),
+  decision: GateDecisionSchema.exclude(['answer']),
   optionId: id.optional(),
   comment: z.string().optional(),
-  edits: ReadModelSchema.optional(),
-  expectedVersion: z.number().int().nonnegative(),
+  edits: GateEditsSchema.optional(),
+  /** For options with `input: 'tokens'` / `'agent'` (§8.3). */
+  additionalTokens: z.number().int().positive().optional(),
+  agent: AgentKindSchema.optional(),
+  expectedVersion: z.number().int().positive(),
+  githubBodyHash: Sha256Schema.optional(),
+  /** Display-only (Q1); never used for conflict detection. */
   githubUpdatedAt: z.iso.datetime({ offset: true }).optional(),
 });
 export const AnswerQuestionRequestSchema = z.object({
@@ -88,13 +221,7 @@ export const AnswerQuestionRequestSchema = z.object({
 });
 export const SeatMessageRequestSchema = z.object({ subject: id, body: id });
 export const IdempotencyHeadersSchema = z.object({ 'idempotency-key': id });
-export const SubmissionHeadersSchema = z.object({
-  authorization: z.string().startsWith('Bearer aio_seat_'),
-  'x-aio-terminal-handle': id.optional(),
-  'x-aio-pane-key': id.optional(),
-  'x-aio-agent-session': id.optional(),
-});
-const ack = z.object({ accepted: z.boolean() });
+const ack = AcceptedResponseSchema;
 const params = z.object({ id });
 const seatParams = z.object({ seatId: id });
 export interface EndpointContract {
@@ -122,20 +249,20 @@ export const apiEndpoints = [
     method: 'get',
     path: '/api/v1/health',
     operationId: 'getHealth',
-    response: ReadModelSchema,
+    response: HealthViewSchema,
   },
   {
     method: 'get',
     path: '/api/v1/repos',
     operationId: 'listRepos',
-    response: z.object({ repos: z.array(ReadModelSchema) }),
+    response: ReposResponseSchema,
   },
   {
     method: 'post',
     path: '/api/v1/repos',
     operationId: 'registerRepo',
-    body: z.object({ localPath: id }),
-    response: ReadModelSchema,
+    body: RegisterRepoRequestSchema,
+    response: RepoViewSchema,
     status: 201,
   },
   {
@@ -143,7 +270,7 @@ export const apiEndpoints = [
     path: '/api/v1/repos/{id}',
     operationId: 'getRepo',
     params,
-    response: ReadModelSchema,
+    response: RepoViewSchema,
   },
   {
     method: 'get',
@@ -162,14 +289,14 @@ export const apiEndpoints = [
     method: 'get',
     path: '/api/v1/workflows',
     operationId: 'listWorkflows',
-    response: z.object({ workflows: z.array(ReadModelSchema) }),
+    response: WorkflowsResponseSchema,
   },
   {
     method: 'post',
     path: '/api/v1/workflows',
     operationId: 'startWorkflow',
     body: StartWorkflowRequestSchema,
-    response: z.object({ workflowId: id }),
+    response: StartWorkflowResponseSchema,
     status: 201,
   },
   {
@@ -206,14 +333,14 @@ export const apiEndpoints = [
     path: '/api/v1/gates',
     operationId: 'listGates',
     query: z.object({ status: z.literal('open').optional() }),
-    response: z.object({ gates: z.array(ReadModelSchema) }),
+    response: GatesResponseSchema,
   },
   {
     method: 'get',
     path: '/api/v1/gates/{id}',
     operationId: 'getGate',
     params,
-    response: ReadModelSchema,
+    response: GateViewSchema,
   },
   {
     method: 'post',
@@ -229,7 +356,7 @@ export const apiEndpoints = [
     path: '/api/v1/questions',
     operationId: 'listQuestions',
     query: z.object({ status: z.literal('escalated').optional() }),
-    response: z.object({ questions: z.array(ReadModelSchema) }),
+    response: QuestionsResponseSchema,
   },
   {
     method: 'post',
@@ -245,7 +372,7 @@ export const apiEndpoints = [
     path: '/api/v1/seats/{seatId}',
     operationId: 'getSeat',
     params: seatParams,
-    response: ReadModelSchema,
+    response: SeatViewSchema,
   },
   {
     method: 'post',
@@ -276,3 +403,6 @@ export const apiEndpoints = [
 export type StartWorkflowRequest = z.infer<typeof StartWorkflowRequestSchema>;
 export type GateDecisionRequest = z.infer<typeof GateDecisionRequestSchema>;
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+export type WorkflowSnapshotResponse = z.infer<
+  typeof WorkflowSnapshotResponseSchema
+>;

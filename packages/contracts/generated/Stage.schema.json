@@ -12,6 +12,9 @@
           "type": "string",
           "const": "meeting"
         },
+        "escalateOn": {
+          "not": {}
+        },
         "facilitator": {
           "type": "string",
           "minLength": 1
@@ -49,40 +52,7 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         },
         "conclusion": {
           "type": "object",
@@ -96,38 +66,7 @@
           ]
         },
         "gate": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "title": {
-              "type": "string",
-              "minLength": 1
-            },
-            "optional": {
-              "type": "boolean"
-            },
-            "editable": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "body",
-                  "acceptance",
-                  "role",
-                  "agent",
-                  "deps"
-                ]
-              }
-            }
-          },
-          "required": [
-            "id",
-            "title"
-          ]
+          "$ref": "./Gate.schema.json"
         }
       },
       "required": [
@@ -153,6 +92,9 @@
           "type": "string",
           "const": "planning"
         },
+        "escalateOn": {
+          "not": {}
+        },
         "owner": {
           "type": "string",
           "minLength": 1
@@ -175,74 +117,10 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         },
         "gate": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "title": {
-              "type": "string",
-              "minLength": 1
-            },
-            "optional": {
-              "type": "boolean"
-            },
-            "editable": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "body",
-                  "acceptance",
-                  "role",
-                  "agent",
-                  "deps"
-                ]
-              }
-            }
-          },
-          "required": [
-            "id",
-            "title"
-          ]
+          "$ref": "./Gate.schema.json"
         }
       },
       "required": [
@@ -293,40 +171,7 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         },
         "onCall": {
           "type": "object",
@@ -345,6 +190,32 @@
             "role",
             "questionTimeoutMin"
           ]
+        },
+        "mergeQueue": {
+          "type": "object",
+          "properties": {
+            "role": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reviewTimeoutMin": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "maxRework": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "role",
+            "reviewTimeoutMin"
+          ]
+        },
+        "escalateOn": {
+          "$ref": "./EscalateOn.schema.json"
         }
       },
       "required": [
@@ -355,7 +226,9 @@
         "maxParallel",
         "timeouts",
         "budget",
-        "onCall"
+        "onCall",
+        "mergeQueue",
+        "escalateOn"
       ]
     },
     {
@@ -369,19 +242,12 @@
           "type": "string",
           "const": "integrate"
         },
+        "escalateOn": {
+          "not": {}
+        },
         "owner": {
           "type": "string",
           "minLength": 1
-        },
-        "escalateOn": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "unresolvable-conflict",
-              "ci-failed-twice"
-            ]
-          }
         },
         "timeouts": {
           "type": "object",
@@ -397,47 +263,13 @@
           ]
         },
         "budget": {
-          "type": "object",
-          "properties": {
-            "tokens": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "maxTurns": {
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 9007199254740991
-            },
-            "perItem": {
-              "type": "object",
-              "properties": {
-                "tokens": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                },
-                "maxTurns": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0,
-                  "maximum": 9007199254740991
-                }
-              },
-              "required": [
-                "tokens"
-              ]
-            }
-          },
-          "required": [
-            "tokens"
-          ]
+          "$ref": "./Budget.schema.json"
         }
       },
       "required": [
         "id",
         "kind",
         "owner",
-        "escalateOn",
         "timeouts",
         "budget"
       ]
@@ -453,44 +285,16 @@
           "type": "string",
           "const": "final-pr"
         },
+        "escalateOn": {
+          "not": {}
+        },
         "maxRevisions": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
         },
         "gate": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "minLength": 1
-            },
-            "title": {
-              "type": "string",
-              "minLength": 1
-            },
-            "optional": {
-              "type": "boolean"
-            },
-            "editable": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "title",
-                  "body",
-                  "acceptance",
-                  "role",
-                  "agent",
-                  "deps"
-                ]
-              }
-            }
-          },
-          "required": [
-            "id",
-            "title"
-          ]
+          "$ref": "./Gate.schema.json"
         }
       },
       "required": [

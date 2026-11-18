@@ -1,15 +1,17 @@
 import { expect, test } from 'vitest';
 import { runCli } from './index.js';
 
-test.each(['submit', 'start'])('%s reports that it is a stub', (command) => {
-  expect(runCli([command])).toEqual({
+test('start refuses fake mode without --dev', async () => {
+  expect(await runCli(['start', '--fake', 'mainline'])).toMatchObject({
     exitCode: 1,
-    message: command + ' is not implemented yet.',
+    message: expect.stringContaining('requires --dev'),
   });
 });
-test('shows usage', () => {
-  expect(runCli(['--help'])).toEqual({
-    exitCode: 0,
-    message: 'Usage: ai-office <submit|start>',
-  });
-});
+test.each([undefined, '--help', '-h', 'unknown'])(
+  'shows usage for %s',
+  async (arg) => {
+    const result = await runCli(arg ? [arg] : []);
+    expect(result.message).toBe('Usage: ai-office <submit|start>');
+    expect(result.exitCode).toBe(arg === 'unknown' ? 1 : 0);
+  },
+);

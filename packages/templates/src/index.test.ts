@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
-import * as publicApi from './index.js';
-
-test('templates exposes a module', () => {
-  expect(publicApi).toBeDefined();
+import { builtinTemplateUrls } from './index.js';
+test('exports built-in template locations', () => {
+  expect(
+    builtinTemplateUrls.map((url) => url.pathname.split('/').pop()),
+  ).toEqual(['feature-to-pr.yaml']);
 });

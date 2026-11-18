@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "type": "string",
+      "enum": [
+        "workflow",
+        "stage",
+        "item"
+      ]
+    },
+    "gateId": {
+      "$ref": "./GateId.schema.json"
+    },
+    "stageId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "itemKey": {
+      "$ref": "./WorkItemKey.schema.json"
+    },
+    "metric": {
+      "type": "string",
+      "enum": [
+        "tokens",
+        "turns",
+        "wallclock"
+      ]
+    },
+    "used": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "budget": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "hardLimit": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "exceeded",
+        "hard_limit"
+      ]
+    }
+  },
+  "required": [
+    "scope",
+    "metric",
+    "used",
+    "budget",
+    "hardLimit",
+    "level"
+  ]
+}

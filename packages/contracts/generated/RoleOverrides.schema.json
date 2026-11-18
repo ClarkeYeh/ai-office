@@ -9,11 +9,7 @@
     "type": "object",
     "properties": {
       "agent": {
-        "type": "string",
-        "enum": [
-          "claude-code",
-          "codex"
-        ]
+        "$ref": "./AgentKind.schema.json"
       },
       "effort": {
         "type": "string",

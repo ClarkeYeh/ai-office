@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "$ref": "./AnomalyKind.schema.json"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "warning"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "number": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,64}$"
+    },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dispatch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "commandId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "kind",
+    "severity",
+    "summary"
+  ]
+}

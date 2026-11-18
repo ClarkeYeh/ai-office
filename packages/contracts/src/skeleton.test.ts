@@ -1,13 +1,24 @@
+import { readdir, readFile } from 'node:fs/promises';
 import { expect, test } from 'vitest';
 
-// Retire each placeholder from this smoke test as its feature gets dedicated tests.
-test('skeleton module entry points can be loaded', async () => {
-  const modules = await Promise.all([
-    import('./agent-submission/index.js'),
-    import('./api/index.js'),
-    import('./events/index.js'),
-    import('./stream/index.js'),
-    import('./template/index.js'),
-  ]);
-  expect(modules).toHaveLength(5);
+// Implemented modules leave this smoke test automatically; their own tests take over.
+test('remaining placeholder modules can be loaded', async () => {
+  async function visit(directory: URL): Promise<void> {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const url = new URL(
+        entry.name + (entry.isDirectory() ? '/' : ''),
+        directory,
+      );
+      if (entry.isDirectory()) await visit(url);
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+        const source = (await readFile(url, 'utf8'))
+          .replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
+          .trim();
+        if (/^export\s*\{\s*\}\s*;?$/.test(source)) {
+          expect(await import(url.href)).toBeDefined();
+        }
+      }
+    }
+  }
+  await visit(new URL('./', import.meta.url));
 });
