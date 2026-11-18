@@ -212,7 +212,7 @@ export async function run(h: OrcaHarness): Promise<void> {
       id,
       (w) => ['completed', 'failed', 'cancelled'].includes(w.status),
       {
-        run: () => orcaRun,
+        run: async () => (orcaRun ??= await adoptRun(h, api, id)),
         record,
         onStageGate: async (gate) => {
           orcaRun ??= await adoptRun(h, api, id);

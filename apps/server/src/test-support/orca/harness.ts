@@ -552,6 +552,9 @@ export class OrcaHarness {
       for (const w of workers as Record<string, unknown>[]) {
         if (
           typeof w.dispatchId !== 'string' ||
+          // Only rows that still own a terminal: follow-up dispatches whose
+          // terminal moved on (terminalState null) have nothing to stop.
+          w.terminalState == null ||
           w.terminalState === 'released' ||
           this.ledger.dispatches.some((d) => d.id === w.dispatchId)
         )

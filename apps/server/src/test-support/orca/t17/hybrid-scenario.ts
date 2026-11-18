@@ -162,7 +162,7 @@ export async function run(h: OrcaHarness): Promise<void> {
       id,
       (w) => w.status !== 'running' || taskSplitOpen,
       {
-        run: () => orcaRun,
+        run: runOf,
         record,
         onStageGate: async (gate) => {
           await runOf();

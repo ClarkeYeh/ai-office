@@ -213,13 +213,16 @@ export async function liveWorkers(h: OrcaHarness, run: string) {
     '--json',
     '--full',
   ]);
-  return (workers as Json[])
-    .filter((w) => w.terminalState !== 'released')
-    .map((w) => ({
-      dispatchId: String(w.dispatchId),
-      workerState: String(w.workerState),
-      terminalState: String(w.terminalState),
-    }));
+  return (
+    (workers as Json[])
+      // A follow-up dispatch whose terminal moved on has terminalState null.
+      .filter((w) => w.terminalState != null && w.terminalState !== 'released')
+      .map((w) => ({
+        dispatchId: String(w.dispatchId),
+        workerState: String(w.workerState),
+        terminalState: String(w.terminalState),
+      }))
+  );
 }
 
 export interface DriveRecord {
@@ -245,7 +248,8 @@ export async function drive(
   workflowId: string,
   done: (workflow: Json) => boolean,
   options: {
-    run: () => string | undefined;
+    /** Adopts the backend run once known (call every iteration: cleanup needs it). */
+    run: () => string | undefined | Promise<string | undefined>;
     onStageGate?: (gate: Json) => Promise<boolean>;
     onException?: (gate: Json) => Promise<boolean>;
     stallMs?: number;
@@ -258,6 +262,9 @@ export async function drive(
   let lastHealth = 0;
   const seen = new Set<string>();
   for (;;) {
+    // Adopt the backend run as soon as it exists, so cleanup can always stop
+    // its workers, even if the drive later fails before any stage gate.
+    const run = await options.run();
     const workflow = await readModel(api, workflowId);
     if (done(workflow)) return workflow;
     if (workflow.lastSeq !== lastSeq) {
@@ -302,7 +309,6 @@ export async function drive(
       }
       if (!seen.has(key)) {
         seen.add(key);
-        const run = options.run();
         options.record.stageGates.push({
           gateId: gate.gateId,
           stageKind: gate.stageKind,
