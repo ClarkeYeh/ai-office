@@ -47,8 +47,9 @@ spawn request, the spec text (when read), workspace, agent, turn (starting at
   prepare.
 - `submitRetryMs`: a submitter failure with a transient `PortError` (backend
   down or restarting) reschedules the same submission after this delay, like
-  `ai-office submit` exiting 2 and the agent retrying. Without it, failures are
-  consumed (see below).
+  `ai-office submit` exiting 2 and the agent retrying. The agent's later steps
+  in that turn (such as `done`) wait until the retry, as they would behind a
+  blocking CLI call. Without it, failures are consumed (see below).
 
 Advance the injected `Clock` and await `runtime.runDue()`; `observe()` also pumps
 before creating a new delivery, and `send()` pumps before starting a follow-up

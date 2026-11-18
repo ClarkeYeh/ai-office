@@ -9,6 +9,6 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["fixtures/**/*.ts", "**/*.mjs"],
+  "include": ["fixtures/**/*.ts", "**/*.mjs", "export-sprites/**/*.ts"],
   "exclude": ["depcruise-selftest/samples"]
 }

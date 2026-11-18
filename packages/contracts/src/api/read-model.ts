@@ -184,6 +184,11 @@ export const ConclusionGateViewSchema = z.object({
   changedOnGithub: z.boolean(),
   /** Not in events: filled by `GET /gates/{id}` from the live issue for the diff view. */
   githubBody: z.string().optional(),
+  /**
+   * Not in events: filled by `GET /gates/{id}` from the body of the last issued command that
+   * created or updated the conclusion issue, without the `ai-office:cmd` marker (G3b).
+   */
+  renderedBody: z.string().optional(),
 });
 export const GateViewSchema = z.object({
   gateId: id,
