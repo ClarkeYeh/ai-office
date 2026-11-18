@@ -7,7 +7,7 @@ function scan(
   directory: string,
   redactor: ReturnType<typeof fixtureRedactor>,
 ): number {
-  const { maskText, hasLeaks } = redactor;
+  const { maskText } = redactor;
   let failures = 0;
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -22,13 +22,23 @@ function scan(
     else {
       const data = readFileSync(path);
       const text = data.toString('utf8');
+      if (/\/(?:Users|home)\/[^/\s"]+/.test(text)) failures++;
+      if (
+        /term_(?!00000000-0000-4000-8000-)[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}/i.test(
+          text,
+        )
+      )
+        failures++;
       if (!Buffer.from(text).equals(data) || text.includes('\0')) {
         failures++;
         continue;
       }
       if (entry.name.endsWith('.json')) {
         try {
-          if (hasLeaks(JSON.parse(text))) failures++;
+          const parsed: unknown = JSON.parse(text);
+          if (/\/(?:Users|home)\/[^/\s"]+/.test(JSON.stringify(parsed)))
+            failures++;
+          if (fixtureRedactor(path).hasLeaks(parsed)) failures++;
         } catch {
           failures++;
         }

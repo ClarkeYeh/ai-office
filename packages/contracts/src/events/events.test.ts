@@ -1285,3 +1285,64 @@ test('submission.accepted optionally preserves the provider session for usage lo
     ).toBe(false);
   }
 });
+
+describe('M2-CP1 contract additions', () => {
+  const started = payloadExamples['workflow.started'].valid as {
+    limits: object;
+  };
+  const withLimits = (limits: object) => ({
+    ...started,
+    limits: { ...started.limits, ...limits },
+  });
+
+  test('spawn-stall is an exception kind', () => {
+    expect(ExceptionKindSchema.parse('spawn-stall')).toBe('spawn-stall');
+    expect(ExceptionKindSchema.safeParse('spawn_stall').success).toBe(false);
+  });
+
+  test('workflow.started snapshots spawnStallMs and budgetEnforcement, and older events still parse', () => {
+    const schema = EVENT_PAYLOAD_SCHEMAS['workflow.started'];
+    const full = withLimits({ spawnStallMs: 600000, budgetEnforcement: 'off' });
+    expect(schema.parse(full)).toEqual(full);
+    expect(schema.parse(withLimits({ budgetEnforcement: 'on' }))).toEqual(
+      withLimits({ budgetEnforcement: 'on' }),
+    );
+    // Events written before CP1 carry only globalAgents.
+    expect(schema.parse(started)).toEqual(started);
+    expect(
+      DomainEventSchema.safeParse(event('workflow.started', started)).success,
+    ).toBe(true);
+    for (const limits of [
+      { spawnStallMs: 0 },
+      { spawnStallMs: -1 },
+      { spawnStallMs: 1.5 },
+      { spawnStallMs: '600000' },
+      { budgetEnforcement: 'disabled' },
+      { budgetEnforcement: false },
+    ])
+      expect(schema.safeParse(withLimits(limits)).success).toBe(false);
+  });
+
+  test('seat.status carries an optional rateLimited: entered, lifted or unchanged', () => {
+    const schema = EVENT_PAYLOAD_SCHEMAS['seat.status'];
+    const base = { attemptId: 'a1', state: 'working' };
+    for (const rateLimited of [
+      { since: at, evidence: 'worker-show' },
+      { since: at, evidence: 'transcript', resetsAt: '2026-11-17T05:00:00Z' },
+      null,
+    ])
+      expect(schema.parse({ ...base, rateLimited })).toEqual({
+        ...base,
+        rateLimited,
+      });
+    expect(schema.parse(base)).toEqual(base);
+    for (const rateLimited of [
+      { since: at },
+      { since: at, evidence: 'guess' },
+      { since: 'now', evidence: 'transcript' },
+      { since: at, evidence: 'transcript', resetsAt: 'later' },
+      true,
+    ])
+      expect(schema.safeParse({ ...base, rateLimited }).success).toBe(false);
+  });
+});

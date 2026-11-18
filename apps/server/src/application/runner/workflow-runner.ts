@@ -264,11 +264,12 @@ export class WorkflowRunner {
   /** Hands every pending timer to the Scheduler (after a restart). */
   rearmTimers(): void {
     for (const timer of Object.values(this.current.timers))
-      this.deps.scheduler.schedule({
-        id: timer.id,
-        workflowId: this.workflowId,
-        fireAt: timer.fireAt,
-      });
+      if (timer.pausedAt === undefined)
+        this.deps.scheduler.schedule({
+          id: timer.id,
+          workflowId: this.workflowId,
+          fireAt: timer.fireAt,
+        });
   }
 
   /** Resolves once the queue is empty and no command is executing. */
@@ -332,7 +333,11 @@ export class WorkflowRunner {
           this.record(input.issued, input.outcome);
           return;
         case 'timer':
-          if (Object.hasOwn(this.current.timers, input.timerId))
+          // A rate-limit pause (S26) keeps the timer pending but unfired.
+          if (
+            Object.hasOwn(this.current.timers, input.timerId) &&
+            this.current.timers[input.timerId]!.pausedAt === undefined
+          )
             this.commit([
               this.draft(
                 'timer.fired',

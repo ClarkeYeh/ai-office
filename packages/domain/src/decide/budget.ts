@@ -7,7 +7,7 @@ import { accept, reject } from '../errors.js';
 import type { DecideResult } from '../errors.js';
 import { budgetAlertKey, stageKey } from '../state/index.js';
 import type { WorkflowState } from '../state/index.js';
-import { questionWaitMilliseconds } from './question.js';
+import { suspendedMilliseconds } from './question.js';
 import { draft } from './support.js';
 
 type Alert = EventPayload<'budget.exceeded'>;
@@ -121,7 +121,7 @@ export const decideBudget = (
           0,
           Math.floor(
             command.usedMinutes -
-              questionWaitMilliseconds(
+              suspendedMilliseconds(
                 state,
                 attempt.attemptId,
                 command.meta.occurredAt,
@@ -195,6 +195,10 @@ export const decideBudget = (
           command.usage,
         ),
   ];
+  // S25 (§10.1): with enforcement off, usage is still recorded but no budget
+  // rule (stage, workflow or perItem) is evaluated. Wallclock timeouts above
+  // are stage-contract limits (§7.1), not budgets, and stay in force.
+  if (workflow.limits.budgetEnforcement === 'off') return accept(...events);
   const configured = workflow.budgets.stages[attempt.stageId];
   const stageBudget =
     metric === 'tokens' ? configured?.tokens : configured?.maxTurns;

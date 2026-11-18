@@ -171,10 +171,26 @@ export const decideSeat = (
     attemptId: attempt.attemptId,
   };
   switch (command.type) {
-    case 'ObserveAttemptStatus':
+    case 'ObserveAttemptStatus': {
+      // S26: only live attempts wait for quota; lifting needs a limit in force.
+      const limit =
+        command.rateLimited === null
+          ? attempt.rateLimited === undefined
+            ? undefined
+            : null
+          : isAttemptAlive(attempt)
+            ? command.rateLimited
+            : undefined;
       // Repeated observations are no-ops; released attempts are no longer tracked.
-      if (attempt.released || command.state === attempt.state) return accept();
-      if (!canTransitionAttempt(attempt.state, command.state))
+      if (
+        attempt.released ||
+        (command.state === attempt.state && limit === undefined)
+      )
+        return accept();
+      if (
+        command.state !== attempt.state &&
+        !canTransitionAttempt(attempt.state, command.state)
+      )
         return reject(
           'conflict',
           'invalid_attempt_transition',
@@ -186,8 +202,10 @@ export const decideSeat = (
           attemptId: attempt.attemptId,
           state: command.state,
           ...defined({ waitingSince: command.waitingSince }),
+          ...(limit === undefined ? {} : { rateLimited: limit }),
         }),
       );
+    }
     case 'RecordAttemptActivity':
       if (command.activity.length === 0) return accept();
       return accept(

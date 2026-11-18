@@ -2,6 +2,14 @@ import type {
   DomainEvent,
   DomainEventDraft,
 } from '@ai-office/contracts/events';
+/** Adapter-local JSON state, namespaced at construction as adapter.<name>.
+ * Independent writes emit no events. Ingest positions derived from events must
+ * still use EventStore.append(..., { cursors }) for atomicity.
+ */
+export interface AdapterStateStore {
+  read(scope: string): unknown | null;
+  write(scope: string, value: unknown): void;
+}
 export type Unsubscribe = () => void;
 export type CursorWrite = { source: string; scope: string; value: unknown };
 export type EventQuery = {

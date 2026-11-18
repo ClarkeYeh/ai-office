@@ -20,6 +20,12 @@ export default defineConfig({
       'packages/*',
       'apps/*',
       {
+        test: {
+          name: '@ai-office/server-orca',
+          include: ['apps/server/src/**/*.orca.test.ts'],
+        },
+      },
+      {
         test: { name: 'fixtures', include: ['scripts/fixtures/**/*.test.ts'] },
       },
     ],

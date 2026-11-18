@@ -26,6 +26,20 @@ export class FakeUsage implements UsagePort {
   ) {
     this.source = options.source ?? 'session-log';
   }
+  snapshot() {
+    return structuredClone({
+      version: 1 as const,
+      source: this.source,
+      sessions: [...this.sessions],
+    });
+  }
+  restore(state: ReturnType<FakeUsage['snapshot']>): void {
+    if (state.version !== 1)
+      throw new Error('Unsupported fake usage snapshot version');
+    const data = structuredClone(state);
+    this.source = data.source;
+    this.sessions = new Map(data.sessions);
+  }
   setSource(source: 'session-log' | 'none') {
     this.source = source;
   }

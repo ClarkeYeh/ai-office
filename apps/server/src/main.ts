@@ -1,6 +1,41 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve, sep } from 'node:path';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
+import { createHash } from 'node:crypto';
+import { isAbsolute, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+import {
+  LedgerWorkersSchema,
+  LedgerTasksSchema,
+} from './adapters/runtime-orca/ledger.js';
+import {
+  DefaultOrcaCli,
+  DefaultGitCli,
+  CwdGuard,
+  CliScheduler,
+  CliMetrics,
+  SpawnExec,
+  ProcessGroups,
+  cleanupOrphanProcesses,
+  VersionMonitor,
+  DispatchLedger,
+  ShimCoordinatorIdentity,
+  createOrcaRuntime,
+} from './adapters/runtime-orca/index.js';
+import type { Exec, OrcaCli } from './adapters/runtime-orca/index.js';
+import { OrcaObserver } from './adapters/runtime-orca/observe/index.js';
+import {
+  parseResult,
+  WorktreeListSchema,
+} from './adapters/runtime-orca/schemas/index.js';
+import { createSessionLogUsage } from './adapters/usage-sessionlog/index.js';
+import { resolveRuntimeConfig } from './config/runtime-config.js';
+import { registerDevFakeRoutes } from './api/dev-fake/index.js';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
@@ -99,6 +134,9 @@ export const FAKE_REPO = {
 
 export interface StartOptions {
   dev?: boolean;
+  runtime?: 'orca';
+  /** Programmatic integration-test seam; never accepted from CLI or config. */
+  testOnly?: { scm: ScmPort };
   /** Fake scenario name; refused unless `dev` (Q7). */
   fake?: string;
   /** Overrides `server.port`; 0 picks an ephemeral port. */
@@ -134,6 +172,19 @@ export class StartupError extends Error {}
 
 /** Validates flag combinations before any side effect (Q7). */
 export function checkStartOptions(options: StartOptions): void {
+  if (options.runtime !== undefined && options.runtime !== 'orca')
+    throw new StartupError('Unknown runtime');
+  if (options.runtime !== undefined && options.fake !== undefined)
+    throw new StartupError('--runtime and --fake are mutually exclusive');
+  if (
+    options.testOnly !== undefined &&
+    !(
+      options.dev === true &&
+      options.runtime === 'orca' &&
+      options.fake === undefined
+    )
+  )
+    throw new StartupError('testOnly.scm requires --dev --runtime orca');
   if (options.fake !== undefined && options.dev !== true)
     throw new StartupError(
       `--fake ${options.fake} requires --dev: fake runtime, SCM and usage must never serve production`,
@@ -148,9 +199,8 @@ export function checkStartOptions(options: StartOptions): void {
 type FakeBackend = { submit(request: FakeSubmission): Promise<void> };
 
 /**
- * The simulated external world (Orca + GitHub + session logs). It is in
- * memory, so it survives an in-process restart (tests pass it back through
- * `fakeWorld`) but not a process restart.
+ * The simulated external world (Orca + GitHub + session logs). Fake mode
+ * checkpoints its data to disk; tests may also retain it across in-process restarts.
  */
 export interface FakeWorld {
   readonly scenario: string;
@@ -171,7 +221,9 @@ export function createFakeWorld(
   const clock = new SystemClock();
   const scm = createFakeScm({
     clock,
-    autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs ?? 5000,
+    ...(options.finalMergeMs === undefined
+      ? {}
+      : { autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs }),
   });
   scm.addRepo(FAKE_REPO.github);
   const backendDown = (): never => {
@@ -203,6 +255,69 @@ export function createFakeWorld(
     }),
   };
   return world;
+}
+
+type FakeWorldSnapshot = {
+  version: 1;
+  scenario: string;
+  runtime: ReturnType<FakeRuntime['snapshot']>;
+  scm: ReturnType<FakeScm['snapshot']>;
+  usage: ReturnType<FakeUsage['snapshot']>;
+};
+const worldDigest = (payload: string) =>
+  createHash('sha256').update(payload).digest('hex');
+
+/** An atomic private checkpoint, independent of the backend's event store. */
+function persistFakeWorld(world: FakeWorld, dataDir: string, restore: boolean) {
+  const path = `${dataDir}/data/fake-world.json`;
+  if (existsSync(path)) {
+    try {
+      const envelope = JSON.parse(readFileSync(path, 'utf8')) as {
+        payload: string;
+        sha256: string;
+      };
+      if (
+        typeof envelope.payload !== 'string' ||
+        worldDigest(envelope.payload) !== envelope.sha256
+      )
+        throw new Error('Snapshot checksum mismatch');
+      const state = JSON.parse(envelope.payload) as FakeWorldSnapshot;
+      if (state.version !== 1 || state.scenario !== world.scenario)
+        throw new Error('Snapshot scenario or version mismatch');
+      if (restore) {
+        world.runtime.restore(state.runtime);
+        world.scm.restore(state.scm);
+        world.usage.restore(state.usage);
+      }
+    } catch {
+      throw new StartupError(
+        `Cannot restore fake world: corrupt snapshot, incompatible version, or different scenario; delete ${path} to reset the fake world`,
+      );
+    }
+  }
+  let saved: string | undefined;
+  const save = () => {
+    const state: FakeWorldSnapshot = {
+      version: 1,
+      scenario: world.scenario,
+      runtime: world.runtime.snapshot(),
+      scm: world.scm.snapshot(),
+      usage: world.usage.snapshot(),
+    };
+    const payload = JSON.stringify(state);
+    if (payload === saved) return;
+    const temporary = `${path}.tmp`;
+    // Remove any interrupted write before creating a new mode-0600 inode.
+    rmSync(temporary, { force: true });
+    writeFileSync(
+      temporary,
+      JSON.stringify({ payload, sha256: worldDigest(payload) }) + '\n',
+      { mode: 0o600, flag: 'wx', flush: true },
+    );
+    renameSync(temporary, path);
+    saved = payload;
+  };
+  return save;
 }
 
 /** A fake agent's `ai-office submit`: the real gateway over HTTP. */
@@ -331,6 +446,264 @@ export async function startServer(
   }
 }
 
+function absoluteUsagePaths(paths: string[]): string[] {
+  if (paths.some((path) => !isAbsolute(path) || path.includes('\0')))
+    throw new StartupError(
+      'usage.claudeConfigDirs and usage.codexHomes must be absolute paths',
+    );
+  return paths.map((path) => resolve(path));
+}
+
+/** All process-bound resources share the same budget, identity and durable ledger. */
+async function composeOrca(
+  settings: Settings,
+  config: ReturnType<typeof resolveRuntimeConfig>,
+  dataDir: string,
+  env: NodeJS.ProcessEnv,
+  stores: ReturnType<typeof openSqliteStores<ReadModel>>,
+  ids: SystemIdGen,
+  logger: Logger,
+  cleanup: (() => void | Promise<void>)[],
+  dev: boolean,
+) {
+  absoluteUsagePaths(settings.usage.claudeConfigDirs);
+  absoluteUsagePaths(settings.usage.codexHomes);
+  if (settings.orca.cliConcurrency < 2)
+    throw new StartupError(
+      'orca.cliConcurrency must be at least 2 (one slot is reserved for commands)',
+    );
+  const range = /^>=(\d+\.\d+\.\d+) <(\d+)\.(\d+)(?:\.(\d+))?$/.exec(
+    settings.orca.supportedRange,
+  );
+  if (!range)
+    throw new StartupError('orca.supportedRange must use >=x.y.z <x.y[.z]');
+  const upper = [Number(range[2]), Number(range[3]), Number(range[4] ?? 0)];
+  for (let i = 2; i >= 0; i--) {
+    if (upper[i]! > 0) {
+      upper[i]!--;
+      break;
+    }
+    upper[i] = Number.MAX_SAFE_INTEGER;
+  }
+  const policy = orcaSubprocessPolicy(dataDir, env);
+  const state = stores.adapterState('runtime-orca');
+  const groups = new ProcessGroups(state);
+  const processExec = new SpawnExec(groups);
+  const abort = new AbortController();
+  const active = new Set<Promise<unknown>>();
+  const exec: Exec = {
+    run(request) {
+      const pending = processExec.run({
+        ...request,
+        signal: request.signal
+          ? AbortSignal.any([abort.signal, request.signal])
+          : abort.signal,
+      });
+      active.add(pending);
+      void pending.finally(() => active.delete(pending)).catch(() => undefined);
+      return pending;
+    },
+  };
+  let pressured = false;
+  const scheduler = new CliScheduler(
+    settings.orca.maxCallsPerMinute,
+    settings.orca.cliConcurrency,
+    Date.now,
+    (value) => {
+      pressured = value;
+    },
+  );
+  // A consuming check holds a slot for its entire long poll. Bound these separately
+  // so any number of restored runs still leaves capacity for commands/discovery.
+  const polls = new CliScheduler(
+    settings.orca.maxCallsPerMinute,
+    settings.orca.cliConcurrency - 1,
+  );
+  const metrics = new CliMetrics();
+  const cwdGuard = new CwdGuard(dataDir, () =>
+    scheduler.schedule('identity', async () => {
+      const started = Date.now();
+      let failed = true;
+      try {
+        // Bootstrap discovery cannot recurse through DefaultOrcaCli's cwd guard.
+        const output = await exec.run({
+          bin: config.orcaBinPath,
+          args: ['worktree', 'list', '--json'],
+          cwd: policy.cwd,
+          env: config.orcaEnv,
+          timeoutMs: 60_000,
+        });
+        const paths = WorktreeListSchema.parse(
+          parseResult(output.stdout),
+        ).worktrees.map((w) => w.path);
+        failed = false;
+        return paths;
+      } finally {
+        metrics.record('worktree list', Date.now() - started, failed);
+      }
+    }),
+  );
+  const cli: DefaultOrcaCli = new DefaultOrcaCli({
+    bin: config.orcaBinPath,
+    env: config.orcaEnv,
+    cwdGuard,
+    exec,
+    scheduler,
+    metrics,
+    identity: { argsFor: (...args) => identity.argsFor(...args) },
+  });
+  const identity: ShimCoordinatorIdentity = new ShimCoordinatorIdentity({
+    cli,
+    state,
+    dataDir,
+    shimLocation: settings.orca.shimLocation,
+    closeOnExit: settings.orca.shim.closeOnExit,
+  });
+  const observerCli: OrcaCli = {
+    run: (args, options, schema) =>
+      options.kind === 'consume'
+        ? polls.schedule('consume', () => cli.run(args, options, schema))
+        : cli.run(args, options, schema),
+  };
+  const ledger = new DispatchLedger(state);
+  const observer = new OrcaObserver({
+    cli: observerCli,
+    identity,
+    ledger,
+    logger,
+    pressured: () => pressured,
+  });
+  const version = new VersionMonitor(cli, {
+    min: range[1]!,
+    max: upper.join('.'),
+  });
+  const git = new DefaultGitCli({
+    exec,
+    cwdGuard,
+    env: config.gitFetchEnv,
+    passthrough: settings.env.passthrough,
+  });
+  const base = createOrcaRuntime({
+    cli,
+    git,
+    identity,
+    ledger,
+    state,
+    ids,
+    logger,
+    dataDir,
+    observer,
+    version,
+    metrics,
+    binPath: config.orcaBinPath,
+    supportedRange: settings.orca.supportedRange,
+  });
+  const runtime: RuntimePort = {
+    ...base,
+    async answer(question, body, correlation) {
+      await base.answer(question, body, correlation);
+      observer.markAnswered(question);
+    },
+    async health() {
+      const info = await base.health();
+      return {
+        ...info,
+        warnings: [...new Set([...(info.warnings ?? []), ...config.warnings])],
+      };
+    },
+  };
+  let sleep: AbortController | undefined;
+  let closed = false;
+  let identityStarted = false;
+  const setActive = (running: boolean) => {
+    if (closed || !settings.orca.preventSleep || process.platform !== 'darwin')
+      return;
+    if (!running) {
+      sleep?.abort();
+      sleep = undefined;
+      return;
+    }
+    if (sleep) return;
+    const controller = (sleep = new AbortController());
+    void exec
+      .run({
+        bin: '/usr/bin/caffeinate',
+        args: ['-i', '-w', String(process.pid)],
+        cwd: policy.cwd,
+        env: config.orcaEnv,
+        timeoutMs: 2_147_483_647,
+        signal: controller.signal,
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          logger.warn({}, 'Sleep prevention unavailable');
+      })
+      .finally(() => {
+        if (sleep === controller) sleep = undefined;
+      });
+  };
+  const close = async () => {
+    if (closed) return;
+    closed = true;
+    observer.close();
+    polls.close();
+    sleep?.abort();
+    try {
+      if (identityStarted) await Promise.race([identity.close(), delay(1000)]);
+    } finally {
+      scheduler.close();
+      abort.abort();
+      await Promise.allSettled([...active]);
+    }
+  };
+  cleanup.push(close);
+  if (!dev) return { runtime, observer, close, setActive };
+  await cwdGuard.check();
+  await cleanupOrphanProcesses(groups, { exec, cwdGuard, env: config.orcaEnv });
+  await version.check();
+  identityStarted = true;
+  await identity.ensure();
+  const sessions = z
+    .record(z.string(), z.unknown())
+    .parse(state.read('orca:sessions') ?? {});
+  for (const run of new Set([
+    ...Object.keys(sessions),
+    ...ledger.all().map((entry) => entry.run),
+  ])) {
+    const workers: z.infer<typeof LedgerWorkersSchema>['workers'] = [];
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const { result } = await cli.run(
+        [
+          'orchestration',
+          'worker-list',
+          '--full',
+          '--limit',
+          '100',
+          ...(cursor ? ['--cursor', cursor] : []),
+        ],
+        { kind: 'read', priority: 'worker-list', run },
+        LedgerWorkersSchema.extend({ nextCursor: z.string().nullish() }),
+      );
+      workers.push(...result.workers);
+      cursor = result.nextCursor ?? undefined;
+      if (cursor && seen.has(cursor))
+        throw new StartupError(
+          'Repeated worker-list cursor during ledger restoration',
+        );
+      if (cursor) seen.add(cursor);
+    } while (cursor);
+    const { result: tasks } = await cli.run(
+      ['orchestration', 'task-list', '--full'],
+      { kind: 'read', priority: 'worker-list', run },
+      LedgerTasksSchema,
+    );
+    ledger.rebuild(run, { workers }, tasks);
+  }
+  return { runtime, observer, close, setActive };
+}
+
 async function compose(
   options: StartOptions,
   env: NodeJS.ProcessEnv,
@@ -343,15 +716,8 @@ async function compose(
   const settings: Settings = readSettings(dataDir);
   createDataDirectories(dataDir);
   const fake = options.fake !== undefined;
-  if (!fake) {
-    // Real adapters (runtime-orca M2, scm-github M3) do not exist yet. The
-    // subprocess policy is computed here so their wiring has one entry point.
-    orcaSubprocessPolicy(dataDir, env);
-    throw new StartupError(
-      'The Orca runtime adapter is not available until M2; start with --dev --fake <scenario>',
-    );
-  }
-  const runtimeMode = 'fake' as const;
+  const runtimeMode = fake ? ('fake' as const) : ('orca' as const);
+  const runtimeConfig = fake ? undefined : resolveRuntimeConfig(settings, env);
 
   const clock = new SystemClock();
   const ids = new SystemIdGen(clock);
@@ -375,19 +741,106 @@ async function compose(
   const cliPath =
     options.cliPath ?? resolve(import.meta.dirname, '../../cli/dist/main.js');
 
-  const world =
-    options.fakeWorld ??
-    createFakeWorld(options.fake!, {
-      readSpec: (path, sha256) => specStore.read(path, sha256),
-      ...(options.fakeFinalMergeMs === undefined
-        ? {}
-        : { finalMergeMs: options.fakeFinalMergeMs }),
+  let world: FakeWorld | undefined;
+  let finalCheckpointError: unknown;
+  let runtime: RuntimePort;
+  let scm: ScmPort;
+  let usage: UsagePort;
+  let orca: Awaited<ReturnType<typeof composeOrca>> | undefined;
+  if (fake) {
+    world =
+      options.fakeWorld ??
+      createFakeWorld(options.fake!, {
+        readSpec: (path, sha256) => specStore.read(path, sha256),
+        ...(options.fakeFinalMergeMs === undefined
+          ? {}
+          : { finalMergeMs: options.fakeFinalMergeMs }),
+      });
+    if (world.scenario !== options.fake)
+      throw new StartupError('The surviving fake world runs another scenario');
+    const saveFakeWorld = persistFakeWorld(
+      world,
+      dataDir,
+      options.fakeWorld === undefined,
+    );
+    saveFakeWorld();
+    // Sampling all three adapters also covers scenario/test mutations outside ports.
+    // Compare before writing: changes are coalesced to at most one checkpoint/second.
+    const checkpoint = setInterval(() => {
+      try {
+        saveFakeWorld();
+      } catch {
+        logger.error({}, 'fake world checkpoint failed');
+      }
+    }, 1000).unref();
+
+    cleanup.push(() => {
+      clearInterval(checkpoint);
+      // Flush after observation drains, while the data-directory lock is held.
+      try {
+        saveFakeWorld();
+      } catch (error) {
+        finalCheckpointError = error;
+      }
     });
-  if (world.scenario !== options.fake)
-    throw new StartupError('The surviving fake world runs another scenario');
-  const runtime: RuntimePort = world.runtime;
-  const scm: ScmPort = world.scm;
-  const usage: UsagePort = world.usage;
+    runtime = world.runtime;
+    scm = world.scm;
+    usage = world.usage;
+  } else {
+    orca = await composeOrca(
+      settings,
+      runtimeConfig!,
+      dataDir,
+      env,
+      stores,
+      ids,
+      logger,
+      cleanup,
+      options.dev === true,
+    );
+    runtime = orca.runtime;
+    if (!options.dev)
+      throw new StartupError(
+        'Production SCM (scm-github) is available in M3; use --dev --runtime orca',
+      );
+    scm = options.testOnly?.scm ?? createFakeScm({ clock });
+    if (!options.testOnly) {
+      const fakeScm = scm as FakeScm;
+      const inspect = runtime.inspectLocalRepo.bind(runtime);
+      runtime.inspectLocalRepo = async (path) => {
+        const local = await inspect(path);
+        const match =
+          /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
+            local.originUrl ?? '',
+          );
+        if (local.isGitMainWorktree && local.runtimeRepoId && match)
+          fakeScm.addRepo({ owner: match[1]!, name: match[2]! });
+        return local;
+      };
+      // The simulated remote must also know repos restored from the event store.
+      for (const event of stores.events.read({ workflowId: null }))
+        if (event.type === 'repo.registered')
+          fakeScm.addRepo(event.payload.github);
+    }
+    const logs = createSessionLogUsage({
+      clock,
+      ...(env.HOME ? { homeDir: env.HOME } : {}),
+      claudeConfigDirs: absoluteUsagePaths(settings.usage.claudeConfigDirs),
+      codexHomes: absoluteUsagePaths(settings.usage.codexHomes),
+    });
+    const sessions = new Map<string, import('./ports/usage.js').UsageRef>();
+    usage = {
+      capabilities: () => logs.capabilities(),
+      read: (ref, cursor) => logs.read(ref, cursor),
+      locate: async (ref) => {
+        const cached = sessions.get(ref.attemptId);
+        if (cached) return cached;
+        const found = await logs.locate(ref);
+        if (found) sessions.set(ref.attemptId, found);
+        return found;
+      },
+    };
+  }
 
   // One scheduler for domain, retry, health, observation and submission timers.
   let route: (timer: ScheduledTimer) => void = () => undefined;
@@ -399,21 +852,24 @@ async function compose(
   );
   cleanup.push(() => projectionScheduler.close());
 
+  const runtimeMetadata = { mode: runtimeMode, ...(await runtime.health()) };
+  const refreshRuntimeHealth = async () => {
+    Object.assign(runtimeMetadata, await runtime.health());
+    if (!runtimeMetadata.available)
+      throw new PortError(
+        'transient',
+        'runtime_unavailable',
+        'Runtime unavailable',
+      );
+  };
   const health: HealthMonitor = new HealthMonitor({
     clock,
     scheduler,
     store: stores.events,
     workflows: (): readonly WorkflowRunner[] => runners.all(),
-    runtime: { mode: runtimeMode, verified: true, version: 'fake' },
+    runtime: runtimeMetadata,
     probes: {
-      runtime: async () => {
-        if (!(await runtime.health()).available)
-          throw new PortError(
-            'transient',
-            'runtime_unavailable',
-            'Runtime unavailable',
-          );
-      },
+      runtime: refreshRuntimeHealth,
       scm: async () => {
         if (!(await scm.health()).available)
           throw new PortError(
@@ -478,9 +934,13 @@ async function compose(
     workflows: () => runners.all(),
     budgetFormula: settings.usage.budgetFormula,
     // The fake answers instantly; poll fast so a scenario runs in seconds.
-    runtimeIntervalMs: 100,
-    usageIntervalMs: 250,
-    scmIntervalMs: 250,
+    runtimeIntervalMs: fake ? 100 : 2000,
+    usageIntervalMs: fake ? 250 : 15_000,
+    ...(fake ? { scmIntervalMs: 250 } : {}),
+    usageIdentity: (attempt) => ({
+      dispatchId: attempt.agentRef!,
+      startedAt: attempt.spawnedAt,
+    }),
   });
   const warnRejected = (status: number) => {
     if (status >= 300) logger.warn({ status }, 'fake submission not accepted');
@@ -539,10 +999,27 @@ async function compose(
     ids,
     idempotency: stores.idempotency,
     redactor: masking,
-    limits: { globalAgents: settings.limits.globalAgents },
+    limits: {
+      globalAgents: settings.limits.globalAgents,
+      spawnStallMs: settings.engine.spawnStallMs,
+      budgetEnforcement: settings.budget.enforcement,
+    },
   });
-  await commands.registerRepo({ localPath: FAKE_REPO.localPath });
+  if (fake) await commands.registerRepo({ localPath: FAKE_REPO.localPath });
 
+  const refreshSleep = () =>
+    orca?.setActive(
+      runners.all().some((r) => r.state.workflow?.status === 'running'),
+    );
+  const unsubscribeSleep = stores.events.subscribe(() =>
+    queueMicrotask(refreshSleep),
+  );
+  cleanup.push(unsubscribeSleep);
+  refreshSleep();
+  const healthPoll = setInterval(() => {
+    void refreshRuntimeHealth().catch(failed('runtime health'));
+  }, 60_000).unref();
+  cleanup.push(() => clearInterval(healthPoll));
   observation.start();
   cleanup.push(async () => {
     observation.stop();
@@ -555,10 +1032,66 @@ async function compose(
   // run past 100 chars); Fastify's default maxParamLength (100) would 404 them.
   const app = Fastify({ logger: false, maxParamLength: 1024 });
   cleanup.push(() => app.close());
+  cleanup.push(() => submissions.close());
   registerAgentGateway(app, { submissions, port: () => port });
-  await registerApi(app, {
+  const apiDeps = {
     commands,
-    queries: new QueryService(stores.events, projections, runtimeMode),
+    queries: new (class extends QueryService {
+      override getHealth() {
+        const view = super.getHealth();
+        const snapshot = health.snapshot();
+        const capabilities = usage.capabilities();
+        return {
+          ...view,
+          ...snapshot,
+          runtime: {
+            ...view.runtime,
+            ...snapshot.runtime,
+            version: runtimeMetadata.version,
+            verified: runtimeMetadata.verified,
+            shim: {
+              status:
+                runtimeMetadata.shim === 'ready'
+                  ? ('ok' as const)
+                  : ('missing' as const),
+              ...(runtimeMetadata.shimLocation
+                ? { location: runtimeMetadata.shimLocation }
+                : {}),
+            },
+            runOwned: runtimeMetadata.ownership === 'owned',
+            ...(runtimeMetadata.binPath
+              ? { binPath: runtimeMetadata.binPath }
+              : {}),
+            ...(runtimeMetadata.supportedRange
+              ? { supportedRange: runtimeMetadata.supportedRange }
+              : {}),
+            ...(runtimeMetadata.warnings
+              ? { warnings: runtimeMetadata.warnings }
+              : {}),
+            ...(runtimeMetadata.cliCallsPerMinute !== undefined
+              ? { cliCallsPerMinute: runtimeMetadata.cliCallsPerMinute }
+              : {}),
+            ...(runtimeMetadata.cpuSecondsPerMinute !== undefined
+              ? { cpuSecondsPerMinute: runtimeMetadata.cpuSecondsPerMinute }
+              : {}),
+          },
+          scm: {
+            ...view.scm,
+            ...snapshot.scm,
+            ...(runtimeConfig ? { ghBinPath: runtimeConfig.ghBinPath } : {}),
+          },
+          usage: {
+            ...snapshot.usage,
+            sources: capabilities.agents.map((agent) => ({
+              agent,
+              source: capabilities.source,
+              available: capabilities.source !== 'none',
+              formatVerified: capabilities.formatVerified,
+            })),
+          },
+        };
+      }
+    })(stores.events, projections, runtimeMode),
     templates: new TemplateQueries(templates),
     sessions: new SessionService(stores.sessions),
     stream: new StreamService(stores.events),
@@ -571,7 +1104,13 @@ async function compose(
         ? { devOrigin: 'http://localhost:5173' }
         : {}
       : { devOrigin: options.devOrigin }),
-  });
+  };
+  await registerApi(app, apiDeps);
+  if (options.dev === true && world)
+    await registerDevFakeRoutes(app, apiDeps, {
+      mergeOwner: (number) =>
+        world!.scm.mergeOwner({ repo: FAKE_REPO.github, number }),
+    });
   const webDist =
     options.webDist ?? resolve(import.meta.dirname, '../../web/dist');
   if (existsSync(`${webDist}/index.html`)) {
@@ -595,24 +1134,35 @@ async function compose(
   const url = `http://127.0.0.1:${port}`;
 
   // Fake agents reach this backend through the gateway once it listens.
-  world.backend = {
-    submit: (request) => postSubmission(url, request).then(warnRejected),
-  };
-  const pump = setInterval(
-    () => void world.runtime.runDue().catch(failed('fake runtime step')),
-    25,
-  );
-  cleanup.push(() => {
-    clearInterval(pump);
-    world.backend = undefined;
-  });
+  if (world) {
+    const fakeWorld = world;
+    fakeWorld.backend = {
+      submit: (request) => postSubmission(url, request).then(warnRejected),
+    };
+    const pump = setInterval(
+      () => void fakeWorld.runtime.runDue().catch(failed('fake runtime step')),
+      25,
+    );
+    cleanup.push(() => {
+      clearInterval(pump);
+      fakeWorld.backend = undefined;
+    });
+  }
 
-  // Let in-flight commands settle so their results are recorded before close.
-  cleanup.push(() => Promise.race([runners.idle(), delay(5000)]));
+  // Briefly drain command results while keeping shutdown below five seconds.
+  // Still-pending commands remain in the durable outbox for reconciliation.
+  cleanup.push(async () => {
+    observation.stop();
+    submissions.close();
+    orca?.observer.close();
+    await Promise.race([runners.idle(), delay(1000)]);
+    await orca?.close();
+    await observation.idle();
+  });
   lock.writeRuntime(port);
   const bootstrapUrl = `${url}/auth/bootstrap?code=${stores.sessions.issueBootstrapCode()}`;
   print(
-    `AI Office listening on ${url} (runtime: ${runtimeMode}, scenario: ${world.scenario})`,
+    `AI Office listening on ${url} (runtime: ${runtimeMode}, ${world ? `scenario: ${world.scenario}` : 'scm: fake (M2)'})`,
   );
   print(`Open ${bootstrapUrl}`);
   logger.info(
@@ -629,8 +1179,16 @@ async function compose(
     dataDir,
     runtimeMode,
     runners,
-    fakeWorld: world,
-    close: () => (closing ??= unwind()),
+    ...(world ? { fakeWorld: world } : {}),
+    close: () => {
+      observation.stop();
+      submissions.close();
+      orca?.observer.close();
+      return (closing ??= (async () => {
+        await unwind();
+        if (finalCheckpointError) throw finalCheckpointError;
+      })());
+    },
   };
 }
 
@@ -649,6 +1207,12 @@ export function parseArgs(argv: readonly string[]): StartOptions {
       case '--dev':
         options.dev = true;
         break;
+      case '--runtime': {
+        const mode = value();
+        if (mode !== 'orca') throw new StartupError('--runtime must be orca');
+        options.runtime = mode;
+        break;
+      }
       case '--fake':
         options.fake = value();
         break;
@@ -676,22 +1240,30 @@ export function parseArgs(argv: readonly string[]): StartOptions {
 }
 
 async function main(argv: readonly string[]): Promise<void> {
-  let server: RunningServer;
-  try {
-    server = await startServer(parseArgs(argv));
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : 'Startup failed');
-    process.exitCode = 1;
-    return;
-  }
+  // Listen before starting: the bootstrap URL is printed (and runtime.json
+  // written) before startServer resolves, so a stop can arrive mid-startup.
+  // It then closes the server once it is up instead of killing it outright.
+  const starting = (async () => startServer(parseArgs(argv)))().catch(
+    (error: unknown) => {
+      console.error(error instanceof Error ? error.message : 'Startup failed');
+      process.exitCode = 1;
+      return undefined;
+    },
+  );
   let stopping = false;
   const stop = () => {
     if (stopping) return;
     stopping = true;
-    void server.close().finally(() => process.exit(process.exitCode ?? 0));
+    void starting
+      .then((server) => server?.close())
+      .finally(() => process.exit(process.exitCode ?? 0));
   };
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
+  if ((await starting) === undefined) {
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+  }
 }
 
 if (

@@ -1,0 +1,109 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:54:13Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "worker-start",
+    "--run",
+    "run_3d70ed17e5de",
+    "--from",
+    "term_00000000-0000-4000-8000-000000000001",
+    "--agent",
+    "codex",
+    "--worktree",
+    "path:<home>/<redacted>",
+    "--task-title",
+    "aio:unobs2",
+    "--spec-file",
+    "<redacted:test-input>",
+    "--timeout-ms",
+    "1",
+    "--retry-request",
+    "00000000-0000-4000-8000-000000000048",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 1,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000049",
+    "ok": true,
+    "result": {
+      "runId": "run_3d70ed17e5de",
+      "taskId": "task_28764fc1b2fd",
+      "dispatchId": "ctx_95a2dd7598c2",
+      "state": "failed",
+      "stage": "agent_readiness",
+      "failedStage": "agent_readiness",
+      "lastError": "timeout",
+      "setup": {
+        "requested": "not_applicable",
+        "effective": "not_applicable",
+        "source": "existing_worktree",
+        "hookFound": false,
+        "startupPolicy": "start-immediately",
+        "state": "not_applicable"
+      },
+      "launch": {
+        "requested": {
+          "agent": "codex",
+          "model": null,
+          "effort": null
+        },
+        "effective": {
+          "agent": "codex",
+          "model": null,
+          "effort": null
+        }
+      },
+      "mode": {
+        "mode": "terminal",
+        "preferred": "terminal",
+        "reason": "user_default",
+        "detail": "Started a terminal agent worker, the default for new agent tabs in your settings."
+      },
+      "effects": [
+        {
+          "kind": "worktree",
+          "action": "reused",
+          "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>"
+        },
+        {
+          "kind": "setup",
+          "action": "not_applicable",
+          "state": "not_applicable"
+        },
+        {
+          "kind": "terminal",
+          "role": "agent",
+          "action": "created",
+          "id": "term_00000000-0000-4000-8000-00000000001d",
+          "surface": "visible"
+        }
+      ],
+      "residualResources": [
+        {
+          "kind": "terminal",
+          "role": "agent",
+          "action": "created",
+          "id": "term_00000000-0000-4000-8000-00000000001d",
+          "surface": "visible"
+        }
+      ],
+      "recovery": "This start left a worker session open. Close it with: orca orchestration worker-release --dispatch ctx_95a2dd7598c2",
+      "run": {
+        "id": "run_3d70ed17e5de",
+        "objective": "aio-test p1 aio:p1",
+        "created": false
+      },
+      "mutation": {
+        "requestId": "00000000-0000-4000-8000-000000000048",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

@@ -39,6 +39,10 @@ export interface HealthMonitorDeps {
   store: EventStore;
   /** Evaluated lazily to support composition with WorkflowRunners. */
   workflows: () => readonly HealthWorkflow[];
+  /** T10 supplies the Orca adapter callback; absent in fake mode. */
+  forceRecheck?: () => Promise<void>;
+  /** Monotonic milliseconds, injectable for clock-jump tests. */
+  monotonicNow?: () => number;
   runtime: { mode: 'fake' | 'orca'; verified: boolean; version?: string };
 }
 
@@ -62,7 +66,70 @@ export class HealthMonitor {
   /** Set by publishInitial; afterwards a successful call republishes `healthy`. */
   private announced = false;
 
-  constructor(private readonly deps: HealthMonitorDeps) {}
+  private tickAt: number | undefined;
+  private lastWall = 0;
+  private lastMono = 0;
+  private slept = false;
+  private stopped = false;
+
+  constructor(private readonly deps: HealthMonitorDeps) {
+    if (deps.forceRecheck) this.scheduleTick();
+  }
+
+  private scheduleTick(): void {
+    this.lastWall = this.deps.clock.now().getTime();
+    this.lastMono = (this.deps.monotonicNow ?? (() => performance.now()))();
+    this.tickAt = this.lastWall + 10_000;
+    this.deps.scheduler.schedule({
+      id: HEALTH_TIMER_PREFIX + 'clock',
+      workflowId: '__health__',
+      fireAt: new Date(this.tickAt).toISOString(),
+    });
+  }
+
+  /** Cancel the periodic wake detector during backend shutdown. */
+  close(): void {
+    this.stopped = true;
+    this.tickAt = undefined;
+    this.deps.scheduler.cancel(HEALTH_TIMER_PREFIX + 'clock');
+  }
+
+  private async clockTick(timer: ScheduledTimer): Promise<void> {
+    if (
+      this.stopped ||
+      this.tickAt === undefined ||
+      Date.parse(timer.fireAt) !== this.tickAt
+    )
+      return;
+    const now = this.deps.clock.now().getTime();
+    const mono = (this.deps.monotonicNow ?? (() => performance.now()))();
+    const jump = Math.abs(now - this.lastWall - (mono - this.lastMono));
+    const late = now - this.tickAt;
+    // Rebase before awaiting IO so duplicate deliveries cannot recheck twice.
+    this.scheduleTick();
+    if (jump <= 30_000 && late <= 30_000) return;
+    this.slept = true;
+    this.pending.push({
+      type: 'health.changed',
+      payload: {
+        component: 'runtime',
+        breaker: this.states.runtime.breaker,
+        status: this.status('runtime'),
+        detail: 'host_slept',
+      },
+      workflowId: null,
+      occurredAt: new Date(now).toISOString(),
+      source: 'system',
+      provenance: 'observed',
+      schemaVersion: CURRENT_SCHEMA_VERSION['health.changed'],
+    });
+    await this.sync();
+    try {
+      await this.call('runtime', () => this.deps.forceRecheck!());
+    } catch {
+      /* Normal health accounting; never respawn workers. */
+    }
+  }
 
   /** After runner recovery, retain persisted unhealthy pauses until a fresh probe. */
   async restore(): Promise<void> {
@@ -191,6 +258,8 @@ export class HealthMonitor {
 
   /** Route HEALTH_TIMER_PREFIX deliveries here from the composition root. */
   async onTimer(timer: ScheduledTimer): Promise<void> {
+    if (timer.id === HEALTH_TIMER_PREFIX + 'clock')
+      return this.clockTick(timer);
     const component = HEALTH_COMPONENTS.find(
       (c) => timer.id === `${HEALTH_TIMER_PREFIX}${c}`,
     );
@@ -255,7 +324,11 @@ export class HealthMonitor {
       status: this.dispatchBlocked
         ? ('unhealthy' as const)
         : components.usage.status,
-      runtime: { ...components.runtime, ...this.deps.runtime },
+      runtime: {
+        ...components.runtime,
+        ...this.deps.runtime,
+        ...(this.slept ? { warnings: ['host_slept'] } : {}),
+      },
       scm: components.scm,
       store: components.store,
       usage: { ...components.usage, sources: [] },
