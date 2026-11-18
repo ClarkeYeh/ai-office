@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { expect, it } from 'vitest';
 import { checkReceipt, parseResult } from './schemas/index.js';
-import { DispatchLedger, LedgerTasksSchema } from './ledger.js';
+import {
+  DispatchLedger,
+  LedgerTasksSchema,
+  pageWorkerList,
+  workerListCursor,
+} from './ledger.js';
 import { TaskListSchema } from './observe/schemas.js';
 import { DefaultOrcaCli } from './cli/index.js';
 import { CwdGuard } from './cli/cwd.js';
@@ -200,4 +205,56 @@ it('refuses a capped task-list instead of rebuilding a partial ledger (M2-FX13)'
   expect(
     LedgerTasksSchema.safeParse({ tasks: page, count: page.length }).success,
   ).toBe(true);
+});
+it('pages worker-list by the recorded page.nextCursor shape (M2-FX13)', async () => {
+  // Recorded single pages: page.{limit,total,hasMore:false,nextCursor:null}.
+  for (const name of [
+    'worker-list.reclaimable.ok',
+    'worker-list.follow-up-retained.ok',
+  ]) {
+    const result = parseResult(JSON.stringify(recording(name).response));
+    expect(result.page).toMatchObject({ hasMore: false, nextCursor: null });
+    expect(workerListCursor(result, new Set())).toBeUndefined();
+  }
+  // A fake three-page run of 250 rows in the recorded shape.
+  const rows = Array.from({ length: 250 }, (_, i) => `ctx_${i}`);
+  const pages: string[][] = [];
+  const all = await pageWorkerList(async (pageArgs) => {
+    pages.push(pageArgs);
+    const at = pageArgs.includes('--cursor')
+      ? Number(pageArgs[pageArgs.indexOf('--cursor') + 1])
+      : 0;
+    const more = at + 100 < rows.length;
+    return {
+      workers: rows.slice(at, at + 100),
+      page: {
+        limit: 100,
+        total: rows.length,
+        hasMore: more,
+        nextCursor: more ? String(at + 100) : null,
+      },
+    };
+  });
+  expect(all).toEqual(rows);
+  expect(pages).toEqual([
+    ['--limit', '100'],
+    ['--limit', '100', '--cursor', '100'],
+    ['--limit', '100', '--cursor', '200'],
+  ]);
+  // More rows but no cursor, or a repeated cursor, never ends silently.
+  expect(() =>
+    workerListCursor(
+      { workers: [], page: { hasMore: true, nextCursor: null } },
+      new Set(),
+    ),
+  ).toThrow(expect.objectContaining({ code: 'runtime_contract_mismatch' }));
+  expect(() =>
+    workerListCursor({ workers: [], hasMore: true }, new Set()),
+  ).toThrow(expect.objectContaining({ code: 'runtime_contract_mismatch' }));
+  expect(() =>
+    workerListCursor(
+      { workers: [], page: { hasMore: true, nextCursor: 'c1' } },
+      new Set(['c1']),
+    ),
+  ).toThrow(expect.objectContaining({ code: 'worker_cursor_repeated' }));
 });

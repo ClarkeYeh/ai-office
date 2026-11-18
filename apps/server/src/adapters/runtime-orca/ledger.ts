@@ -34,6 +34,55 @@ const TaskSchema = z.object({
   runId: z.string().optional(),
 });
 export const LedgerWorkersSchema = z.object({ workers: z.array(WorkerSchema) });
+const WorkerPageSchema = z.looseObject({
+  nextCursor: z.string().nullish(),
+  hasMore: z.boolean().nullish(),
+  page: z
+    .looseObject({
+      nextCursor: z.string().nullish(),
+      hasMore: z.boolean().nullish(),
+    })
+    .nullish(),
+});
+/** `worker-list` returns at most 100 rows per call (Orca 1.4.259 help). */
+export const workerPageArgs = (cursor: string | undefined): string[] => [
+  '--limit',
+  '100',
+  ...(cursor ? ['--cursor', cursor] : []),
+];
+/**
+ * The next worker-list cursor, or undefined after the last page (M2-FX13).
+ * Orca 1.4.259 reports it as `page.nextCursor`. A page that says more rows
+ * follow without a cursor cannot be continued and is a contract mismatch.
+ */
+export function workerListCursor(
+  result: unknown,
+  seen: Set<string>,
+): string | undefined {
+  const parsed = WorkerPageSchema.safeParse(result);
+  if (!parsed.success) throw contractMismatch();
+  const { page, nextCursor, hasMore } = parsed.data;
+  const cursor = page?.nextCursor || nextCursor || undefined;
+  if (!cursor && (page?.hasMore === true || hasMore === true))
+    throw contractMismatch();
+  if (cursor && seen.has(cursor)) throw guard('worker_cursor_repeated');
+  if (cursor) seen.add(cursor);
+  return cursor;
+}
+/** Every worker-list row; `fetchPage` receives the page arguments. */
+export async function pageWorkerList<W>(
+  fetchPage: (pageArgs: string[]) => Promise<{ workers: W[] }>,
+): Promise<W[]> {
+  const workers: W[] = [],
+    seen = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = await fetchPage(workerPageArgs(cursor));
+    workers.push(...page.workers);
+    cursor = workerListCursor(page, seen);
+  } while (cursor);
+  return workers;
+}
 /**
  * Orca 1.4.259 `task-list` documents no row cap or cursor (M2-FX13), unlike
  * worker-list. A result that signals more rows than it carries would rebuild a

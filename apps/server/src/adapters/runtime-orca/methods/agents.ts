@@ -20,7 +20,7 @@ import {
   text,
   transient,
 } from './context.js';
-import { completeTaskList } from '../ledger.js';
+import { completeTaskList, pageWorkerList } from '../ledger.js';
 import { markerToken, sameCommand } from '../marker.js';
 import { Workspaces } from './workspaces.js';
 
@@ -100,31 +100,13 @@ export class Agents {
     ).runs;
   }
   async workers(run: string) {
-    const result: z.infer<typeof Worker>[] = [],
-      seen = new Set<string>();
-    let cursor: string | undefined;
-    do {
-      const page = await this.c.call(
-        [
-          'orchestration',
-          'worker-list',
-          '--full',
-          '--limit',
-          '100',
-          ...(cursor ? ['--cursor', cursor] : []),
-        ],
-        z.looseObject({
-          workers: z.array(Worker),
-          nextCursor: z.string().nullish(),
-        }),
+    return pageWorkerList((pageArgs) =>
+      this.c.call(
+        ['orchestration', 'worker-list', '--full', ...pageArgs],
+        z.looseObject({ workers: z.array(Worker) }),
         run,
-      );
-      result.push(...page.workers);
-      cursor = page.nextCursor ?? undefined;
-      if (cursor && seen.has(cursor)) throw guard('worker_cursor_repeated');
-      if (cursor) seen.add(cursor);
-    } while (cursor);
-    return result;
+      ),
+    );
   }
   async rebuild(run: string, settleCommand?: string) {
     const workers = await this.workers(run);

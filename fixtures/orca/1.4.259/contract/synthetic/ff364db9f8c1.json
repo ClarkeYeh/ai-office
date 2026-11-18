@@ -424,6 +424,8 @@
         "orchestration",
         "worker-list",
         "--full",
+        "--limit",
+        "100",
         "--run",
         "run_contract",
         "--json"
@@ -757,6 +759,8 @@
         "orchestration",
         "worker-list",
         "--full",
+        "--limit",
+        "100",
         "--run",
         "run_contract",
         "--json"
