@@ -1,0 +1,41 @@
+name: Update visual baselines
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to render the baselines from
+        required: true
+        default: integration/m4
+permissions:
+  contents: read
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium with system dependencies
+        run: pnpm --dir apps/e2e exec playwright install --with-deps chromium
+      - name: Build packages
+        run: pnpm -r build
+      - name: Render baselines (2x, 6 states)
+        run: pnpm test:visual --update-snapshots
+      - name: Upload baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines
+          path: apps/e2e/tests/__screenshots__/
+          if-no-files-found: error
+          retention-days: 30
