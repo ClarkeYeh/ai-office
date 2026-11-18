@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc -b && node -e \"require('node:fs').cpSync('src/adapters/store-sqlite/migrations','dist/adapters/store-sqlite/migrations',{recursive:true,filter:(f)=>!/\\\\.ts$/.test(f)})\"",
     "start": "node dist/main.js",
-    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/server"
+    "test": "pnpm --workspace-root exec vitest run --config vitest.config.ts --project @ai-office/server"
   },
   "dependencies": {
     "@ai-office/contracts": "workspace:*",
