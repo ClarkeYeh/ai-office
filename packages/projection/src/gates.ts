@@ -124,6 +124,15 @@ export function applyGates(m: ReadModel, e: DomainEvent): void {
         ...(p.optionId === undefined ? {} : { optionId: p.optionId }),
         ...(p.comment === undefined ? {} : { comment: p.comment }),
       };
+      // Mirrors domain evolve: approve/revise settles the gated stage; reject
+      // leaves it awaiting_gate until the rerun's stage.started.
+      const stage = m.stages.find((s) => s.stageId === gate.stageId);
+      if (
+        gate.kind === 'stage' &&
+        stage?.status === 'awaiting_gate' &&
+        (p.decision === 'approve' || p.decision === 'revise')
+      )
+        stage.status = 'done';
       if (p.edits?.type === 'work-items') gate.workItems = p.edits.items;
       if (p.edits?.type === 'conclusion' && gate.conclusion)
         gate.conclusion.original = p.edits.conclusion;
@@ -163,6 +172,10 @@ export function applyGates(m: ReadModel, e: DomainEvent): void {
         gate.status = 'closed';
         gate.closedAt = e.occurredAt;
         gate.closeReason = e.payload.reason;
+        // Mirrors domain evolve: a merged close (final-pr) settles the stage.
+        const stage = m.stages.find((s) => s.stageId === gate.stageId);
+        if (e.payload.reason === 'merged' && stage?.status === 'awaiting_gate')
+          stage.status = 'done';
       }
       return;
     }
