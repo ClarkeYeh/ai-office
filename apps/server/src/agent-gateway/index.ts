@@ -6,6 +6,8 @@ export interface AgentGatewayDependencies {
   submissions: Pick<HandleSubmission, 'handle'>;
   /** Actual listening port, including when composition selects an ephemeral port. */
   port: number | (() => number);
+  /** Structured server log; receives ids and codes only, never bodies or headers. */
+  logger: { error(obj: object, msg?: string): void };
 }
 
 /**
@@ -37,13 +39,21 @@ export function registerAgentGateway(
         return reply.code(404).send({ error: 'not_found' });
       });
       // Fastify parser errors can include submitted text. Never echo or log them.
-      gateway.setErrorHandler((error, _request, reply) => {
+      gateway.setErrorHandler((error, request, reply) => {
         const status = (error as { statusCode?: number }).statusCode;
         if (status === 413)
           return reply.code(413).send({ error: 'payload_too_large' });
         if (status === 400 || status === 415)
           return reply.code(400).send({ error: 'invalid_body' });
-        return reply.code(500).send({ error: 'submission_unavailable' });
+        // HandleSubmission answers its own failures; this is Fastify itself.
+        deps.logger.error(
+          { requestId: request.id, statusCode: status ?? null },
+          'agent gateway request failed',
+        );
+        // 503 keeps the CLI's exit 4 (retry), unlike a typed 500 (exit 3).
+        return reply
+          .code(503)
+          .send({ error: 'submission_unavailable', requestId: request.id });
       });
       gateway.post('/submissions', async (request, reply) => {
         const headers = SubmissionHeadersSchema.safeParse(request.headers);

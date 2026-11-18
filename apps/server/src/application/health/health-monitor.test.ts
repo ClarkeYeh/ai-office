@@ -68,6 +68,7 @@ function setup(
     seatTokens: new InMemorySeatTokenStore(),
     specStore: new MemorySpecStore(),
     cliPath: '/app/cli.js',
+    dataDir: '/app/home',
     react,
   });
   return {

@@ -10,6 +10,7 @@ import type { SpawnEffect } from '@ai-office/engine';
 import {
   lifecycleReact,
   CLI_PATH,
+  DATA_DIR,
   flush,
   harness,
   START,
@@ -381,6 +382,8 @@ describe('spawn materialization (N3)', () => {
     expect(token).toBeDefined();
     expect(h.seatTokens.verify(token ?? '')).toBe('att-1');
     expect(spec).toContain(CLI_PATH);
+    // Agents inherit Orca's environment, so the backend's data dir is explicit.
+    expect(spec).toContain(`submit <kind> --home '${DATA_DIR}' `);
     // The token lives only in the spec file, never in events.
     expect(JSON.stringify(events)).not.toContain(token);
     const [req] = h.world.callsOf('spawnAgent')[0] as [Record<string, unknown>];

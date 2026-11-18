@@ -115,6 +115,7 @@ async function fixture() {
       seatTokens: stores.seatTokens,
       specStore,
       cliPath: '/opt/ai-office/apps/cli/dist/main.js',
+      dataDir: '/opt/ai-office-home',
       react,
     });
     return { runners, scheduler, executor };

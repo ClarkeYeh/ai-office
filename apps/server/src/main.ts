@@ -925,6 +925,7 @@ async function compose(
     seatTokens: stores.seatTokens,
     specStore,
     cliPath,
+    dataDir,
   });
   const observedRuntime = instrument(runtime, 'runtime', health, clock);
   const observedScm = instrument(scm, 'scm', health, clock);
@@ -938,6 +939,7 @@ async function compose(
     clock,
     scheduler,
     ids,
+    logger: logger.child({ component: 'agent-gateway' }),
   });
   const observation = new ObservationLoop({
     runtime: observedRuntime,
@@ -1041,7 +1043,11 @@ async function compose(
   const app = Fastify({ logger: false, maxParamLength: 1024 });
   cleanup.push(() => app.close());
   cleanup.push(() => submissions.close());
-  registerAgentGateway(app, { submissions, port: () => port });
+  registerAgentGateway(app, {
+    submissions,
+    port: () => port,
+    logger: logger.child({ component: 'agent-gateway' }),
+  });
   const apiDeps = {
     commands,
     queries: new (class extends QueryService {

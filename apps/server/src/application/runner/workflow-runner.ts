@@ -62,6 +62,8 @@ export interface WorkflowRunnerDeps {
   specStore: SpecStore;
   /** `<installDir>/apps/cli/dist/main.js` (Q8), passed to SpecBuilder. */
   cliPath: string;
+  /** Absolute data directory; agents' submit commands name it with `--home` (§9.2). */
+  dataDir: string;
   /** Defaults to `@ai-office/engine`'s `react`. */
   react?: RunnerReact;
 }

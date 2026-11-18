@@ -13870,6 +13870,57 @@
           "submission"
         ]
       },
+      "SubmissionFailureCode": {
+        "type": "string",
+        "enum": [
+          "submission_unavailable",
+          "submission_failed"
+        ]
+      },
+      "SubmissionFailureResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/SubmissionFailureCode"
+              },
+              "category": {
+                "$ref": "#/components/schemas/ErrorCategory"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "requestId"
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "category",
+              "message",
+              "retryable",
+              "details"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
       "SubmissionHeaders": {
         "type": "object",
         "properties": {

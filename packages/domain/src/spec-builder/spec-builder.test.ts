@@ -22,6 +22,7 @@ import { fenced, shellQuote } from './markdown.js';
 const SEAT_TOKEN = 'aio_seat_' + 'Zx9'.repeat(14);
 const PARAMS: SpecParams = {
   cliPath: '/opt/ai-office/apps/cli/dist/main.js',
+  dataDir: '/Users/dev/aio home',
   seatToken: SEAT_TOKEN,
 };
 
@@ -310,7 +311,8 @@ describe('every spec', () => {
 
   test('submitting roles get the exact CLI command; workers get none', () => {
     for (const [name, spec] of specs) {
-      const command = `node '${PARAMS.cliPath}' submit <kind> --seat-token '${SEAT_TOKEN}' - <<'AIO_JSON'`;
+      // --home: agents inherit Orca's environment, not AI_OFFICE_HOME (§9.2).
+      const command = `node '${PARAMS.cliPath}' submit <kind> --home '${PARAMS.dataDir}' --seat-token '${SEAT_TOKEN}' - <<'AIO_JSON'`;
       if (name.startsWith('worker'))
         expect(spec.text).not.toContain(SEAT_TOKEN);
       else expect(spec.text).toContain(command);
@@ -640,6 +642,20 @@ describe('errors', () => {
       state,
       REQUESTS['planner']!,
       { ...PARAMS, cliPath: '/a\n/b' },
+      'invalid_spec_params',
+    ],
+    [
+      'relative data dir',
+      state,
+      REQUESTS['planner']!,
+      { ...PARAMS, dataDir: 'aio-home' },
+      'invalid_spec_params',
+    ],
+    [
+      'multi-line data dir',
+      state,
+      REQUESTS['planner']!,
+      { ...PARAMS, dataDir: '/a\n/b' },
       'invalid_spec_params',
     ],
     [

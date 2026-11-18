@@ -2,19 +2,23 @@ import {
   AgentSubmissionSchema,
   MergeFailureReasonSchema,
   SubmissionHeadersSchema,
+  SUBMISSION_FAILURE_HTTP_STATUS,
   SUBMISSION_RESPONSE_HTTP_STATUS,
 } from '@ai-office/contracts/agent-submission';
 import type {
   AgentSubmission,
+  SubmissionFailureResponse,
   SubmissionResponse,
 } from '@ai-office/contracts/agent-submission';
 import { CURRENT_SCHEMA_VERSION } from '@ai-office/contracts/events';
 import type { DomainEvent, EventPayload } from '@ai-office/contracts/events';
 import type { Attempt } from '@ai-office/domain';
 import type { RuntimePort } from '../../ports/runtime.js';
+import { PortError } from '../../ports/errors.js';
 import type {
   Clock,
   IdGen,
+  Logger,
   Redactor,
   ScheduledTimer,
   Scheduler,
@@ -22,11 +26,13 @@ import type {
 import type { EventStore, SeatTokenStore } from '../../ports/stores.js';
 import type { WorkflowRunners } from '../runner/runners.js';
 import type { WorkflowRunner } from '../runner/workflow-runner.js';
+import { toErrorInfo } from '../commands/errors.js';
 
 export type SubmissionResult = {
   status: number;
   body:
     | SubmissionResponse
+    | SubmissionFailureResponse
     | { error: string }
     | {
         issues: { path: (string | number)[]; code: string; message: string }[];
@@ -41,6 +47,7 @@ export interface HandleSubmissionDeps {
   clock: Clock;
   scheduler: Scheduler;
   ids: IdGen;
+  logger: Pick<Logger, 'error'>;
 }
 type Located = { runner: WorkflowRunner; attempt: Attempt };
 type Accepted = {
@@ -49,18 +56,46 @@ type Accepted = {
   submission: AgentSubmission;
 };
 export const SUBMISSION_WAIT_PREFIX = 'submission-wait/';
+/** Consecutive failed submissions of one attempt before `error.recorded` surfaces them. */
+export const SUBMISSION_FAILURE_STREAK = 3;
+const RETRYABLE: ReadonlySet<string> = new Set([
+  'transient',
+  'rate_limited',
+  'identity',
+]);
 
 /** Gateway use case. Wire scheduler deliveries to onTimer before runners.onTimer. */
 export class HandleSubmission {
   private closed = false;
   private readonly locks = new Map<string, Promise<unknown>>();
+  /** Per attempt; reset by any answered submission (accepted or rejected). */
+  private readonly failures = new Map<string, number>();
   private readonly waits = new Map<
     string,
     { workflowId: string; deadline: number; finish: () => void }
   >();
   constructor(private readonly deps: HandleSubmissionDeps) {}
 
+  /**
+   * Never throws: a failure is logged with a request id, answered with a typed
+   * §13 error, and a streak of them is recorded against the attempt (§15).
+   */
   async handle(headers: unknown, body: unknown): Promise<SubmissionResult> {
+    const seen: { located?: Located } = {};
+    try {
+      const result = await this.process(headers, body, seen);
+      if (seen.located) this.failures.delete(seen.located.attempt.attemptId);
+      return result;
+    } catch (error) {
+      return this.fail(error, seen.located);
+    }
+  }
+
+  private async process(
+    headers: unknown,
+    body: unknown,
+    seen: { located?: Located },
+  ): Promise<SubmissionResult> {
     const parsed = SubmissionHeadersSchema.safeParse(headers);
     if (!parsed.success)
       return this.reject(undefined, 'identity_mismatch', 401);
@@ -69,6 +104,7 @@ export class HandleSubmission {
     const attemptId = this.deps.seatTokens.verify(token);
     const located = attemptId === null ? undefined : this.locate(attemptId);
     if (!located) return this.reject(undefined, 'identity_mismatch', 401);
+    seen.located = located;
     const terminal = h['x-aio-terminal-handle'];
     const paneKey = h['x-aio-pane-key'];
     if (terminal !== undefined || paneKey !== undefined) {
@@ -261,6 +297,88 @@ export class HandleSubmission {
     if (located) await located.runner.append([draft]);
     else this.deps.store.append([draft]);
     return { status, body: { error: reason } };
+  }
+  private async fail(
+    error: unknown,
+    located: Located | undefined,
+  ): Promise<SubmissionResult> {
+    const requestId = this.deps.ids.ulid();
+    const info = toErrorInfo(error);
+    const retryable = RETRYABLE.has(info.category);
+    const scope = located
+      ? {
+          workflowId: located.runner.workflowId,
+          attemptId: located.attempt.attemptId,
+        }
+      : {};
+    // Never log the request body, headers or a non-port error's message.
+    this.deps.logger.error(
+      {
+        requestId,
+        ...scope,
+        category: info.category,
+        code: info.code,
+        ...(error instanceof PortError
+          ? { message: this.deps.redactor.maskSecrets(info.message) }
+          : {}),
+      },
+      'agent submission failed',
+    );
+    if (located) {
+      const id = located.attempt.attemptId;
+      const streak = (this.failures.get(id) ?? 0) + 1;
+      this.failures.set(id, streak);
+      if (streak === SUBMISSION_FAILURE_STREAK)
+        await this.recordStreak(located, info.category, info.code, requestId);
+    }
+    const code = retryable ? 'submission_unavailable' : 'submission_failed';
+    return {
+      status: SUBMISSION_FAILURE_HTTP_STATUS[code],
+      body: {
+        error: {
+          code,
+          category: info.category,
+          message: retryable
+            ? 'The backend cannot process submissions right now.'
+            : 'The backend failed to process this submission.',
+          retryable,
+          details: { requestId },
+        },
+      },
+    };
+  }
+  /** Surfaces on the seat and workflow error lists instead of waiting for a stall. */
+  private async recordStreak(
+    located: Located,
+    category: EventPayload<'error.recorded'>['category'],
+    code: string,
+    requestId: string,
+  ): Promise<void> {
+    try {
+      await located.runner.append([
+        {
+          type: 'error.recorded',
+          schemaVersion: CURRENT_SCHEMA_VERSION['error.recorded'],
+          occurredAt: this.deps.clock.now().toISOString(),
+          source: 'agent',
+          provenance: 'decided',
+          workflowId: located.runner.workflowId,
+          attemptId: located.attempt.attemptId,
+          payload: {
+            category,
+            code: 'submission_failed',
+            message: `${SUBMISSION_FAILURE_STREAK} consecutive submissions from this attempt failed (${code})`,
+            detail: `last requestId ${requestId}`,
+          },
+        },
+      ]);
+    } catch (error) {
+      // The store may be what failed; the log line above still carries the request id.
+      this.deps.logger.error(
+        { requestId, code: toErrorInfo(error).code },
+        'submission failure not recorded',
+      );
+    }
   }
   private response(body: SubmissionResponse): SubmissionResult {
     return { status: SUBMISSION_RESPONSE_HTTP_STATUS[body.status], body };
