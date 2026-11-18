@@ -656,6 +656,28 @@ describe('injected agent and Git behavior', () => {
     await f.runtime.runDue();
     expect(accepted).toEqual(['agenda']);
 
+    // The rest of the turn waits behind the retried submit: no done before it.
+    backendUp = false;
+    const h = await fixture({
+      submitRetryMs: 1000,
+      submitter: (r) => {
+        if (!backendUp)
+          throw new PortError('transient', 'backend_down', 'restarting');
+        accepted.push(r.submission.kind);
+      },
+      scenario: {
+        roles: { worker: { spawn: [submitStep, { type: 'done' }] } },
+      },
+    });
+    await h.runtime.spawnAgent(h.spawnRequest);
+    const first = await h.runtime.observe(h.session, null);
+    expect(first.events.map((e) => e.type)).not.toContain('agent.done');
+    backendUp = true;
+    h.clock.advance(1000);
+    const next = await h.runtime.observe(h.session, first.cursor);
+    expect(accepted).toEqual(['agenda', 'agenda']);
+    expect(next.events.map((e) => e.type)).toContain('agent.done');
+
     const g = await fixture({
       submitRetryMs: 1000,
       submitter: () => {
