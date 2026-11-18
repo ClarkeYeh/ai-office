@@ -40,7 +40,10 @@ export class Workspaces {
     } catch (e) {
       if (
         e instanceof PortError &&
-        ['worktree_not_found', 'not_found'].includes(e.code)
+        // Orca 1.4.259 reports a removed worktree as selector_not_found (D9).
+        ['worktree_not_found', 'not_found', 'selector_not_found'].includes(
+          e.code,
+        )
       )
         return null;
       throw e;

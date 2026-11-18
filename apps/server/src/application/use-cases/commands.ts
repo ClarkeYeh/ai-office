@@ -389,6 +389,30 @@ export class CommandUseCases {
           branches.add(record.issued.args.branch);
         }
       }
+      // M2-T17 D9: agents spawned into a `new-worktree` (e.g. the planning
+      // lead) create their worktree inside runtime.spawnAgent, with no
+      // prepareWorkspace command; resolve it by its deterministic name/marker.
+      for (const [commandId, record] of Object.entries(runner.state.commands)) {
+        if (
+          record.issued.kind !== 'runtime.spawnAgent' ||
+          record.issued.args.workspace.kind !== 'new-worktree' ||
+          record.result?.kind !== 'runtime.spawnAgent'
+        )
+          continue;
+        const { name, branch } = record.issued.args.workspace;
+        branches.add(branch);
+        const created = await this.deps.runtime
+          .findWorkspace({
+            repo: {
+              orcaRepoId: workflow.repo.orcaRepoId,
+              localPath: workflow.repo.localPath,
+            },
+            name,
+            commandId: `${commandId}/workspace`,
+          })
+          .catch(() => null);
+        if (created) workspaces.add(created.workspace);
+      }
       for (const item of Object.values(runner.state.workItems))
         if (item.branch) branches.add(item.branch);
       for (const workspace of workspaces)

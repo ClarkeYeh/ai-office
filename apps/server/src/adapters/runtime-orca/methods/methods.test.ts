@@ -1076,3 +1076,13 @@ it('retries a release that raced a stop under a fresh request id, and accepts a 
     g.runtime.release(agentRef('ctx'), { removeWorkspace: false }),
   ).resolves.toBeUndefined();
 });
+it('treats a worktree Orca reports as selector_not_found as already disposed (M2-T17 D9)', async () => {
+  const f = await fixture();
+  f.setCustom(async (r) =>
+    command(r, 'worktree show') ? { error: 'selector_not_found' } : undefined,
+  );
+  await expect(
+    f.runtime.disposeWorkspace(workspaceRef('wt-gone')),
+  ).resolves.toBeUndefined();
+  expect(f.calls.some((r) => command(r, 'worktree rm'))).toBe(false);
+});
