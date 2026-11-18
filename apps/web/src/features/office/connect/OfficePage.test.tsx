@@ -254,6 +254,23 @@ test('effects reject background and stale replay events, clear on seek, accept s
   );
   expect(result.current.queue).toHaveLength(0);
 });
+test('live events of one batch all animate, not only the last (final merge + completion)', () => {
+  const log = createLog();
+  log.stage('implement', 'implement');
+  log.items('workitem.approved', [{ key: 'task' }]);
+  const prev = log.model;
+  log.dispatch('task', 'a');
+  const middle = log.model;
+  const event = log.events.at(-1)!;
+  log.dispatch('task', 'b');
+  // The store already holds the batch's final model when the bus emits.
+  const { realtime, wrapper } = setup(log.model);
+  const { result } = renderHook(() => useOfficeEffects('wf1'), { wrapper });
+  act(() =>
+    realtime.bus.emit({ event, prev, next: middle, background: false }),
+  );
+  expect(result.current.queue.length).toBeGreaterThan(0);
+});
 test('one activity event commits only the affected seat (React Profiler)', () => {
   const log = createLog();
   log.stage('implement', 'implement');

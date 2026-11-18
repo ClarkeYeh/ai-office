@@ -164,14 +164,19 @@ export function boardViewModel(
       };
     });
     const badge = badgeOf(seat.agent);
+    const title = seat.itemKey ?? seat.role;
     return {
       seatId: seat.seatId,
-      title: seat.itemKey ?? seat.role,
+      title,
       ...(badge ? { badge } : {}),
       pose: seatState(rm, seat).pose,
       selected: args.selectedSeatId === seat.seatId,
       segments,
-      ariaLabel: t('board.lane.aria', { who }),
+      // Starts with the visible button text (WCAG 2.5.3).
+      ariaLabel: t('board.lane.aria', {
+        label: badge ? `${badge} ${title}` : title,
+        who,
+      }),
       testId: `board-lane-${seat.seatId}`,
     };
   });
