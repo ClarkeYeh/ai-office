@@ -36,6 +36,8 @@ export async function scanResources(
     kind: 'orca' | 'git',
     args: readonly string[],
   ) => Promise<ExecResult>,
+  /** Composed-backend shim markers (`aio-shim:<hash>`) owned by this ledger. */
+  markers: readonly string[] = [],
 ): Promise<ScanResource[]> {
   const found: ScanResource[] = [];
   const worktrees = rows(
@@ -73,7 +75,13 @@ export async function scanResources(
     // Closed panes can remain in the inventory until persistence catches up.
     if (row.exitCause != null || row.connected === false) continue;
     const title = row.title ?? row.paneTitle;
-    if (typeof title !== 'string' || !/^aio-test-shim(?:$|[- :])/.test(title))
+    if (
+      typeof title !== 'string' ||
+      !(
+        /^aio-test-shim(?:$|[- :])/.test(title) ||
+        markers.some((marker) => title.endsWith(` ${marker}`))
+      )
+    )
       continue;
     if (typeof row.handle !== 'string')
       throw new Error('Terminal inventory missing handle');

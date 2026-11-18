@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, expect, it } from 'vitest';
@@ -48,6 +48,55 @@ it('clears only an explicit request_mismatch intent and captures its code', asyn
   });
   expect(h.ledger.pending).toEqual([]);
 });
+/** The day-1 live recording of Orca 1.4.259's request_mismatch receipt. */
+async function recordedMismatch() {
+  const path = new URL(
+    '../../../../../fixtures/orca/1.4.259/run-create.request-mismatch.err.json',
+    import.meta.url,
+  );
+  const recorded = JSON.parse(await readFile(path, 'utf8')) as {
+    response: { error: { data: { orchestrationRequestId: string } } };
+  };
+  // Bind the recorded receipt to this test's reused request id.
+  recorded.response.error.data.orchestrationRequestId = args[7]!;
+  return recorded.response;
+}
+it('clears the recorded live rejection carrying exactly the request id and argv', async () => {
+  const response = await recordedMismatch();
+  expect(Object.keys(response.error.data).sort()).toEqual([
+    'orchestrationRequestId',
+    'originalCommand',
+  ]);
+  const h = await fixture(response);
+  expect(await h.command(args, 'request_mismatch')).toEqual({
+    rejected: 'request_mismatch',
+  });
+  expect(h.ledger.pending).toEqual([]);
+});
+it.each([
+  ['an extra data key', { residualResources: { dispatchId: 'ctx_unknown' } }],
+  ['a missing data key', { orchestrationRequestId: undefined }],
+  ['a foreign request id', { orchestrationRequestId: 'other-request' }],
+  ['a non-argv original command', { originalCommand: 'orca run-create' }],
+])(
+  'retains a recorded-shape rejection with %s for the janitor',
+  async (_label, change) => {
+    const response = await recordedMismatch();
+    const data: Record<string, unknown> = {
+      ...response.error.data,
+      ...change,
+    };
+    for (const key of Object.keys(data))
+      if (data[key] === undefined) delete data[key];
+    const h = await fixture({
+      ...response,
+      error: { ...response.error, data },
+    });
+    await expect(h.command(args, 'request_mismatch')).rejects.toThrow();
+    expect(h.ledger.pending).toHaveLength(1);
+    await expect(h.clean()).rejects.toThrow('Unresolved mutation receipt');
+  },
+);
 it.each([
   { ok: false, error: { code: 'outcome_unknown' } },
   {
