@@ -63,6 +63,10 @@ export interface ShimIdentityOptions {
   cli: OrcaCli;
   state: AdapterState;
   dataDir: string;
+  /** Explicit pre-registered folder; does not change backend state/marker ownership. */
+  orcaHome?: string;
+  /** Harness resource ledger notification, only for newly created handles. */
+  onCreated?: (handle: string) => void | Promise<void>;
   shimLocation: 'folder-workspace' | 'repo-main-worktree';
   /** The workflow repository's main worktree: the explicit fallback location. */
   repoMainWorktree?: string;
@@ -352,7 +356,9 @@ export class ShimCoordinatorIdentity implements CoordinatorIdentity {
       if (!main) throw guard('shim_location_unavailable');
       return (this.location = resolve(main));
     }
-    const home = resolve(join(this.options.dataDir, 'orca-home'));
+    const home = resolve(
+      this.options.orcaHome ?? join(this.options.dataDir, 'orca-home'),
+    );
     const { result } = await this.options.cli.run(
       ['repo', 'list'],
       { kind: 'read', priority: 'identity' },
@@ -380,6 +386,7 @@ export class ShimCoordinatorIdentity implements CoordinatorIdentity {
       { kind: 'mutate', priority: 'identity' },
       TerminalCreateSchema,
     );
+    await this.options.onCreated?.(result.terminal.handle);
     return result.terminal;
   }
 
