@@ -245,6 +245,8 @@ export interface Office {
   /**
    * Plays the human: approves stage gates (or applies `policy`) until `done`
    * holds. Exception gates are left to `onException`, or fail the drive.
+   * `timeoutMs` bounds a stall (no new event), not the whole drive, so a slow
+   * but progressing run under load does not time out.
    */
   drive(
     workflowId: string,
@@ -389,11 +391,17 @@ export async function office(
       );
     },
     async drive(workflowId, done, driveOptions = {}) {
-      const deadline = Date.now() + (driveOptions.timeoutMs ?? 30_000);
+      const stallMs = driveOptions.timeoutMs ?? 30_000;
+      let deadline = Date.now() + stallMs;
+      let lastSeq = -1;
       const checked = new Set<string>();
       for (;;) {
         const workflow = await self.readModel(workflowId);
         if (await done(workflow)) return workflow;
+        if (workflow.lastSeq !== lastSeq) {
+          lastSeq = workflow.lastSeq as number;
+          deadline = Date.now() + stallMs;
+        }
         if (Date.now() > deadline)
           throw new Error(
             `Timed out at ${JSON.stringify(workflow.status)}\n${trace(await self.events(workflowId))}`,
