@@ -1,3 +1,15 @@
-import type { RuntimePort } from '../../../ports/runtime.js';
-/** T6 supplies observe and its cursor payload; T3 supplies the versioned codec. */
-export type OrcaObserver = Pick<RuntimePort, 'observe'>;
+/** M2-T6 observation. T5 composes `OrcaObserver.observe` into the RuntimePort. */
+export { OrcaObserver, type OrcaObserverOptions } from './observer.js';
+export {
+  CursorPayloadSchema,
+  type CursorPayload,
+  firstCheckId,
+  nextCheckId,
+  uuidV5,
+} from './cursor.js';
+export {
+  detectRateLimit,
+  RATE_LIMIT_PATTERNS,
+  type RateLimitEvidence,
+  type RateLimitPattern,
+} from './rate-limit.js';
