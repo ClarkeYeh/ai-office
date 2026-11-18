@@ -4,17 +4,16 @@ type ErrorInfo = ErrorResponse['error'];
 
 /** Diagnostic messages are not UI copy: render localized text using code/category. */
 export class ApiError extends Error {
+  readonly status: number;
   readonly code: string;
   readonly category: ErrorInfo['category'];
   readonly retryable: boolean;
   readonly details: unknown;
 
-  constructor(
-    readonly status: number,
-    error: ErrorInfo,
-  ) {
+  constructor(status: number, error: ErrorInfo) {
     super(error.message);
     this.name = 'ApiError';
+    this.status = status;
     this.code = error.code;
     this.category = error.category;
     this.retryable = error.retryable;
