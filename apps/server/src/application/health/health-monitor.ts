@@ -130,7 +130,9 @@ export class HealthMonitor {
     });
     await this.sync();
     try {
-      await this.call('runtime', () => this.deps.forceRecheck!());
+      await this.call('runtime', () =>
+        this.bounded('runtime', this.deps.forceRecheck!),
+      );
     } catch {
       /* Normal health accounting; never respawn workers. */
     }
@@ -367,9 +369,17 @@ export class HealthMonitor {
   /**
    * Runs a component's probe, bounded so that a hung adapter (an `orca` or
    * `gh` that never answers) fails it as `transient` instead of blocking
-   * startup or the half-open probe; the late result is ignored.
+   * startup, the half-open probe or the post-sleep recheck; the late result
+   * is ignored.
    */
   private probe(component: HealthComponent): Promise<void> {
+    return this.bounded(component, this.deps.probes[component]);
+  }
+
+  private bounded(
+    component: HealthComponent,
+    run: () => Promise<void>,
+  ): Promise<void> {
     const ms = this.deps.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
@@ -385,9 +395,7 @@ export class HealthMonitor {
         ms,
       );
     });
-    return Promise.race([this.deps.probes[component](), timeout]).finally(() =>
-      clearTimeout(timer),
-    );
+    return Promise.race([run(), timeout]).finally(() => clearTimeout(timer));
   }
 
   private prune(state: ComponentState, now: number): void {

@@ -6,7 +6,7 @@ import {
 } from '../../test-support/index.js';
 import { HealthMonitor, HEALTH_TIMER_PREFIX } from './health-monitor.js';
 
-function setup() {
+function setup(probeTimeoutMs?: number) {
   const clock = new FakeClock();
   let mono = 0;
   const scheduler = new ManualScheduler(clock, () => {});
@@ -26,6 +26,7 @@ function setup() {
       usage: async () => {},
     },
     runtime: { mode: 'orca', verified: true },
+    ...(probeTimeoutMs === undefined ? {} : { probeTimeoutMs }),
   });
   const tick = (ms: number, elapsed = ms) => {
     const timer = {
@@ -79,5 +80,14 @@ describe('sleep/wake health', () => {
     await h.tick(600_000).run();
     expect(h.health.snapshot().adapters[0]?.failures).toBe(1);
     expect(JSON.stringify(h.store.read({}))).not.toContain('private message');
+  });
+  it('records a hung recheck as a transient failure after the probe timeout', async () => {
+    const h = setup(20);
+    h.forceRecheck.mockImplementationOnce(() => new Promise<void>(() => {}));
+    await h.tick(600_000).run();
+    expect(h.health.snapshot().adapters[0]).toMatchObject({
+      failures: 1,
+      lastErrorCategory: 'transient',
+    });
   });
 });
