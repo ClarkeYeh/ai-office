@@ -47,12 +47,12 @@ transcript tails are passed only in memory.
 `pnpm orca:janitor --ledger /private/dataDir/resources.json` prints a residual count.
 Add `--apply` to clean. The configured clone must match the ledger and its origin is
 rechecked before every operation. Cleanup stops/releases only recorded dispatches,
-removes marked test worktrees, marks tasks failed while the shim is still available,
+removes marked test worktrees without implicit branch deletion, marks tasks failed while the shim is still available,
 closes the shim, then deletes recorded remote and local test branches. Local
 `aio-test-*` branches are also accepted for legacy cleanup. It never sweeps all
 prefix-matching resources belonging to another concurrent harness.
 
-Successful steps are persisted atomically, so cleanup is resumable. An unresolved
+Creation IDs are journaled before validating receipt metadata or success status. A known creation clears its pending intent, so a bad receipt still permits cleanup. Qualified `refs/heads/` branches are normalized before comparison. Successful steps are persisted atomically, so cleanup is resumable. An unresolved
 create receipt remains a pending intent and blocks destructive cleanup: inspect the
 private ledger, reconcile the receipt/resource, then resume. Never retry a timed-out
 mutation under a new request ID. Malformed/suffixed worktree receipts fail closed.
@@ -118,3 +118,32 @@ contracts schema or §8.4 registry name. T0 does not implement the injection.
 T10 tests must reject fake/non-dev injection, prove the supplied instance is used
 in dev/Orca mode, and verify unchanged composition when the option is absent.
 T17a implements the git-only substitute here; T17 uses it for engine-driven E2E.
+
+## Independent scan and CLI compatibility
+
+`pnpm orca:janitor --scan` (or `janitor scan`) checks the configured spike origin
+and cwd safety gate, then inventories test worktrees, `aio-test-shim` terminals
+in the approved orca-home folder, and local/remote branches with either test prefix.
+It works without a resource ledger and reports resources missing from a ledger.
+Scan is read-only; `--scan --apply` is refused because a naming prefix does not
+prove ownership. Use `--ledger ... --apply` for owned-resource cleanup.
+The smoke now asserts both ledger leftovers and scan leftovers are zero after cleanup;
+other concurrent test resources therefore also make that acceptance check fail.
+
+Flags were checked against read-only Orca CLI help: run-use/run-show use `--id`,
+consuming check uses `--terminal <shim> --run` (`--wait` is a switch), and
+request-show uses `--request`. Worker stop/release take no `--from`; task-update
+uses `--id --status` with the owned `--run --from`. Native terminal/worktree
+commands never receive `--full`.
+
+Repo-list recordings keep only rows whose exact path matches AIO_TEST_REPO_PATH
+or HOME/.ai-office/orca-home; unrelated rows and inventory metadata are discarded
+before normalization or persistence. `gitUsername` is redacted. Fixture scanning
+rejects absolute home paths, including already-redacted and JSON-escaped paths.
+
+Closed terminal rows (`exitCause` non-null or `connected: false`) are not live
+leftovers, even while Orca still lists them. After cleanup, live shim-only
+leftovers are rescanned for up to three seconds (at most 12 retries); persistent
+shims still fail. Other resource leaks fail immediately. We retain pane-only
+close: although `--tab` waits for durable persistence, it can also close other
+panes in that tab, beyond the ledger-owned shim.

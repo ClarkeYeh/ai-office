@@ -22,6 +22,7 @@ function scan(
     else {
       const data = readFileSync(path);
       const text = data.toString('utf8');
+      if (/\/(?:Users|home)\/[^/\s"]+/.test(text)) failures++;
       if (
         /term_(?!00000000-0000-4000-8000-)[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}/i.test(
           text,
@@ -34,7 +35,10 @@ function scan(
       }
       if (entry.name.endsWith('.json')) {
         try {
-          if (fixtureRedactor(path).hasLeaks(JSON.parse(text))) failures++;
+          const parsed: unknown = JSON.parse(text);
+          if (/\/(?:Users|home)\/[^/\s"]+/.test(JSON.stringify(parsed)))
+            failures++;
+          if (fixtureRedactor(path).hasLeaks(parsed)) failures++;
         } catch {
           failures++;
         }

@@ -92,6 +92,19 @@ export async function runHarnessCli(
       });
     },
   };
+  if (
+    action === 'janitor' &&
+    (argv.includes('--scan') || scenarioName === 'scan')
+  ) {
+    if (argv.includes('--apply'))
+      throw new Error('Scan is read-only; use an owned ledger for --apply');
+    const harness = await OrcaHarness.create(options);
+    const found = await harness.scan();
+    // Only selected test resources are shown; unrelated inventory never leaves memory.
+    for (const item of found) console.info(JSON.stringify(item));
+    console.info(`Remaining resources (scan): ${found.length}`);
+    return;
+  }
   if (action === 'janitor') {
     const file = option('--ledger');
     if (!file) throw new Error('Janitor requires --ledger <resources.json>');
@@ -241,6 +254,7 @@ export async function runHarnessCli(
   } finally {
     try {
       await finish?.();
+      if (scenarioName === 'smoke') await harness.assertClean();
     } finally {
       await recording.save(
         join(harness.ledger.dataDir, `recording-${Date.now()}.json`),

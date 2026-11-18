@@ -1,4 +1,4 @@
-import { basename, dirname } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { FixtureNormalizer as Normalizer } from '@ai-office/redaction';
 export { FixtureNormalizer as Normalizer } from '@ai-office/redaction';
@@ -17,6 +17,36 @@ export interface Recording {
   response: unknown;
   responseEncoding?: 'text';
   stderrLines: unknown;
+}
+/** Drop unrelated repository rows before normalization or persistence. */
+export function filterRepoList(
+  response: unknown,
+  env: NodeJS.ProcessEnv,
+): unknown {
+  const allowed = [
+    env.AIO_TEST_REPO_PATH,
+    env.HOME ? join(env.HOME, '.ai-office', 'orca-home') : undefined,
+  ]
+    .filter((p): p is string => typeof p === 'string' && isAbsolute(p))
+    .map((p) => resolve(p));
+  const envelope = response as {
+    id?: unknown;
+    ok?: unknown;
+    result?: { repos?: unknown };
+  } | null;
+  if (!envelope || !Array.isArray(envelope.result?.repos))
+    throw new Error('Unrecognized repo inventory; recording refused');
+  const repos = envelope.result.repos.filter((row: unknown) => {
+    if (!row || typeof row !== 'object') return false;
+    const r = row as Record<string, unknown>;
+    const path = r.path ?? r.localPath;
+    return (
+      typeof path === 'string' &&
+      isAbsolute(path) &&
+      allowed.includes(resolve(path))
+    );
+  });
+  return { id: envelope.id, ok: envelope.ok, result: { repos } };
 }
 /** Records sanitized data only; raw command output never touches disk. */
 export class RecordingExec implements Exec {
@@ -40,6 +70,8 @@ export class RecordingExec implements Exec {
       response = this.normalizer.text(result.stdout);
       responseEncoding = 'text';
     }
+    if (request.args[0] === 'repo' && request.args[1] === 'list')
+      response = filterRepoList(response, request.env);
     this.recordings.push({
       orcaVersion: this.version,
       recordedAt: new Date().toISOString(),
