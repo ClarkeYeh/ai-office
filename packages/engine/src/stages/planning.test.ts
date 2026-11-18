@@ -1,5 +1,8 @@
 import { expect, it } from 'vitest';
-import { runMeeting } from '../test-support/meeting.js';
+import { createReact, DEFAULT_MODULES } from '../react.js';
+import { startWorkflow } from '../test-support/fixtures.js';
+import { runMeeting, scenario } from '../test-support/meeting.js';
+import { pausingWorld, Simulator } from '../test-support/simulator.js';
 
 it('keeps proposed work items private until approval and applies revisions', () => {
   const sim = runMeeting({ planning: true });
@@ -127,4 +130,32 @@ it('times out a silent planner before its one grace period', () => {
   );
   sim.advance(5 * 60_000);
   expect(sim.eventsOf('gate.opened').at(-1)?.payload.kind).toBe('exception');
+});
+
+it('proposes work items submitted while paused once the workflow resumes', () => {
+  const sim = new Simulator({
+    world: pausingWorld(
+      scenario({ planning: true }),
+      (issued, current) =>
+        issued.command.kind === 'runtime.spawnAgent' &&
+        current.state.attempts[issued.attemptId!]?.purpose === 'planner',
+    ),
+    react: createReact({
+      ...DEFAULT_MODULES,
+      stages: { ...DEFAULT_MODULES.stages, implement: { react: () => [] } },
+    }),
+  });
+  const start = startWorkflow();
+  start.gateToggles = { conclusion: false };
+  sim.dispatch(start);
+  expect(sim.state.workflow?.pausedReasons).toEqual(['hijacked']);
+  expect(sim.state.proposals.breakdown).toBeUndefined();
+  sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+  expect(sim.state.proposals.breakdown?.items).toHaveLength(2);
+  expect(sim.state.stages.breakdown?.status).toBe('awaiting_gate');
+  expect(sim.eventsOf('gate.opened').at(-1)?.payload).toMatchObject({
+    stageId: 'breakdown',
+    kind: 'stage',
+  });
+  expect(sim.rejections).toEqual([]);
 });

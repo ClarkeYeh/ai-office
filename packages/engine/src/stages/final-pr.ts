@@ -1,8 +1,11 @@
 import type { WorkflowState } from '@ai-office/domain';
 import { metaFor } from '../context.js';
 import { external, internal } from '../effects.js';
+import type { ReactContext } from '../context.js';
+import { missed, missedResult } from '../protocols/resume.js';
 import { beginStageClose } from '../protocols/stage-close.js';
 import type { StageGateBuilder } from '../protocols/stage-close.js';
+import { pendingTimers } from '../timers.js';
 import { stageAttempts, stageCommandId, submitted } from './meeting.js';
 import type { StageModule } from './types.js';
 
@@ -98,8 +101,99 @@ const bodyFor = (state: WorkflowState, marker: string): string => {
   ].join('\n\n');
 };
 
+/**
+ * Publication steps reached while paused (§16): the final PR opened, updated
+ * or recorded, the stage completed, or the PR observed merged.
+ */
+const resume = (ctx: ReactContext) => {
+  const workflow = ctx.state.workflow!;
+  const config = workflow.template.stages.find((s) => s.kind === 'final-pr');
+  const integrate = Object.values(ctx.state.stages).find(
+    (s) => s.kind === 'integrate',
+  );
+  if (config?.kind !== 'final-pr' || integrate?.status !== 'done') return [];
+  const stageId = config.id;
+  const stage = ctx.state.stages[stageId]!;
+  const gates = Object.values(ctx.state.gates).filter(
+    (g) => g.stageId === stageId && g.kind === 'stage',
+  );
+  const merged = gates.find(
+    (g) => g.status === 'closed' && g.closedReason === 'merged',
+  );
+  if (merged)
+    return [
+      missed(
+        ctx,
+        'gate.closed',
+        { gateId: merged.gateId, reason: 'merged' },
+        { stageId },
+      ),
+    ];
+  const id = stageCommandId(ctx, stageId, 'publish', integrate.attempt);
+  const record = ctx.state.commands[id];
+  const closing =
+    gates.some((g) => g.gateId === gate(ctx.state, stageId)?.gateId) ||
+    pendingTimers(ctx.state, 'gate-precheck').some(
+      (t) => t.payload.stageId === stageId,
+    );
+  const pr = workflow.finalPr && ctx.state.prs[String(workflow.finalPr)];
+  const artifact = ctx.state.artifacts[id];
+  const events = [];
+  if (!record && stage.status === 'running')
+    events.push(
+      missed(
+        ctx,
+        'stage.started',
+        {
+          stageId,
+          kind: 'final-pr',
+          attempt: stage.attempt,
+          mode: stage.mode ?? 'initial',
+        },
+        { stageId },
+      ),
+    );
+  if (!record && stage.status === 'awaiting_gate')
+    events.push(
+      missed(
+        ctx,
+        'stage.completed',
+        { stageId: integrate.id, attempt: integrate.attempt },
+        { stageId: integrate.id },
+      ),
+    );
+  if (
+    record?.result &&
+    (record.issued.kind === 'scm.openPR' ? !artifact : !closing)
+  )
+    events.push(missedResult(ctx, id, stageId)!);
+  if (artifact && stage.status === 'running') {
+    const payload: Partial<typeof artifact> = { ...artifact };
+    delete payload.createdAt;
+    events.push(
+      missed(ctx, 'artifact.created', payload as typeof artifact, { stageId }),
+    );
+  }
+  if (
+    record?.issued.kind === 'scm.openPR' &&
+    stage.status === 'awaiting_gate' &&
+    !closing
+  )
+    events.push(
+      missed(
+        ctx,
+        'stage.completed',
+        { stageId, attempt: stage.attempt },
+        { stageId },
+      ),
+    );
+  if (pr) events.push(missed(ctx, 'pr.status', pr, { stageId }));
+  return events;
+};
+
 export const finalPrStage: StageModule = {
   stageGate: gate,
+  resume,
   react: (ctx) => {
     const workflow = ctx.state.workflow;
     const config = workflow?.template.stages.find((s) => s.kind === 'final-pr');

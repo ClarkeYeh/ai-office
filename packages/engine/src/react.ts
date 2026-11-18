@@ -7,6 +7,7 @@ import { reactLifecycle } from './lifecycle.js';
 import { budgetPolicy, filterPolicyEffects } from './policies/budget.js';
 import { cancelPolicy } from './policies/cancel.js';
 import { exceptionsPolicy } from './policies/exceptions.js';
+import { reactStage } from './protocols/resume.js';
 import { reactStageClose } from './protocols/stage-close.js';
 import type { StageGateBuilder } from './protocols/stage-close.js';
 import { finalPrStage } from './stages/final-pr.js';
@@ -51,6 +52,7 @@ export type React = (state: WorkflowState, event: DomainEvent) => Effect[];
  * (duplicate, stale, foreign) yields no effects, so redelivery is harmless.
  * Effects come out in a fixed order: lifecycle, pre-gate clearing, stages in
  * pipeline order, then policies; the runner handles them in that order.
+ * On resume each stage also replays what it missed while paused.
  */
 export const createReact =
   (modules: EngineModules): React =>
@@ -78,7 +80,9 @@ export const createReact =
     return filterPolicyEffects(ctx, [
       ...reactLifecycle(ctx),
       ...reactStageClose(ctx, stageGate),
-      ...Object.values(modules.stages).flatMap((stage) => stage.react(ctx)),
+      ...Object.values(modules.stages).flatMap((stage) =>
+        reactStage(stage, ctx),
+      ),
       ...modules.policies.flatMap((policy) => policy(ctx)),
     ]);
   };

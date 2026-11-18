@@ -1,6 +1,8 @@
 import { metaFor, sessionRef } from '../context.js';
+import type { ReactContext } from '../context.js';
 import { external, internal } from '../effects.js';
 import type { Effect } from '../effects.js';
+import { missed } from '../protocols/resume.js';
 import { beginStageClose } from '../protocols/stage-close.js';
 import type { StageGateBuilder } from '../protocols/stage-close.js';
 import { MINUTE_MS, schedule } from '../timers.js';
@@ -214,8 +216,43 @@ const reactPlanning: StageModule['react'] = (ctx) => {
     );
   return effects;
 };
+/** A work-items submission or proposal reached while paused (§16). */
+const resume = (ctx: ReactContext) => {
+  const config = ctx.state.workflow!.template.stages.find(
+    (s) => s.kind === 'planning',
+  );
+  if (config?.kind !== 'planning') return [];
+  const stageId = config.id;
+  if (ctx.state.stages[stageId]?.status !== 'running') return [];
+  const lead = stageAttempts(ctx.state, stageId).find(
+    (a) => a.purpose === 'planner',
+  );
+  const submission = submitted(ctx.state, lead, 'work-items');
+  if (!submission) return [];
+  const proposal = ctx.state.proposals[stageId];
+  if (proposal?.submissionId === submission.id)
+    return [missed(ctx, 'workitem.proposed', proposal, { stageId })];
+  return [
+    missed(
+      ctx,
+      'submission.accepted',
+      {
+        submissionId: submission.id,
+        attemptId: submission.attemptId,
+        kind: submission.kind,
+        submission: submission.submission,
+        ...(submission.artifactId === undefined
+          ? {}
+          : { artifactId: submission.artifactId }),
+      },
+      { stageId, attemptId: submission.attemptId },
+    ),
+  ];
+};
+
 export const planningStage: StageModule = {
   stageGate: gate,
+  resume,
   react: (ctx) => {
     const stage = ctx.state.workflow?.template.stages.find(
       (s) => s.kind === 'planning',
