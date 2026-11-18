@@ -99,9 +99,9 @@ const rerun = (ctx: ReactContext, gate: Gate): Effect[] => {
         stageId: stage.id,
         attempt: stage.attempt,
         reason:
-          gate.exceptionKind === 'stage-violation'
-            ? 'violation'
-            : 'budget_hard_limit',
+          gate.exceptionKind === 'budget-hard-limit'
+            ? 'budget_hard_limit'
+            : 'violation',
         detail: gate.gateId,
       }),
     ];
@@ -466,6 +466,12 @@ export const exceptionsPolicy: Policy = (ctx) => {
         !gate.content.itemKey &&
         ((gate.exceptionKind === 'stage-violation' &&
           ['rerun', 'reassign'].includes(gate.decision?.optionId ?? '')) ||
+          // A stalled stage agent retries as a stage rerun; on-demand
+          // instances are replaced by their own queue handling (§7.5).
+          (gate.exceptionKind === 'spawn-stall' &&
+            ['retry', 'reassign'].includes(gate.decision?.optionId ?? '') &&
+            ctx.state.attempts[gate.content.attemptId ?? '']?.ondemand ===
+              undefined) ||
           (gate.exceptionKind === 'budget-hard-limit' &&
             gate.decision?.optionId === 'top-up-rerun'))
       )

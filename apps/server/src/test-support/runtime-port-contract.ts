@@ -10,7 +10,10 @@ export type RuntimeContractFixture = {
   prepareRequest: Parameters<RuntimePort['prepareWorkspace']>[0] & {
     baseSha: string;
   };
-  /** Existing remote worker branch, pinned to its comparison head, with a -r1 name. */
+  /**
+   * Existing remote-only worker branch (no local branch, no worktree), pinned
+   * to its comparison head, with a -r1 name; distinct from `prepareRequest`'s.
+   */
   reworkRequest: Parameters<RuntimePort['prepareWorkspace']>[0] & {
     checkoutExisting: true;
   };
@@ -238,6 +241,60 @@ export function runtimePortContract(
           checkoutExisting: undefined,
         }),
       ).rejects.toMatchObject({ category: 'bug', code: 'request_mismatch' });
+    });
+    it('never checks out a branch another worktree holds, nor accepts a suffixed name (W1)', async () => {
+      await f.runtime.prepareWorkspace(f.reworkRequest);
+      await expect(
+        f.runtime.prepareWorkspace({
+          ...f.reworkRequest,
+          name: `${f.reworkRequest.name}-again`,
+          correlation: { ...f.reworkRequest.correlation, commandId: 'again' },
+        }),
+      ).rejects.toMatchObject({ category: 'guard', code: 'branch_in_use' });
+      // A new worktree on a taken name would be silently suffixed by Orca (§6.5).
+      await expect(
+        f.runtime.prepareWorkspace({
+          ...f.prepareRequest,
+          branch: f.reworkRequest.branch,
+          name: `${f.prepareRequest.name}-taken`,
+          correlation: { ...f.prepareRequest.correlation, commandId: 'taken' },
+        }),
+      ).rejects.toMatchObject({ category: 'guard' });
+    });
+    it('rework reuses the kept worktree; checkoutExisting works once it is removed', async () => {
+      const kept = await f.runtime.prepareWorkspace(f.reworkRequest);
+      const spawn = (commandId: string, workspace = kept.workspace) =>
+        f.runtime.spawnAgent({
+          ...f.spawnRequest,
+          workspace: { kind: 'existing-worktree', workspace, readOnly: false },
+          correlation: { ...f.spawnRequest.correlation, commandId },
+        });
+      const first = await spawn('first');
+      await f.runtime.stop(first);
+      await f.runtime.release(first, { removeWorkspace: false });
+      expect(await f.runtime.inspectWorkspace(kept.workspace)).toEqual({
+        clean: true,
+        changedFiles: [],
+      });
+      const second = await spawn('second');
+      const fallback = {
+        ...f.reworkRequest,
+        name: f.reworkRequest.name.replace(/-r1$/, '-r2'),
+        correlation: { ...f.reworkRequest.correlation, commandId: 'r2' },
+      };
+      await expect(f.runtime.prepareWorkspace(fallback)).rejects.toMatchObject({
+        category: 'guard',
+        code: 'branch_in_use',
+      });
+      await f.runtime.stop(second);
+      await f.runtime.release(second, { removeWorkspace: true });
+      await expect(
+        f.runtime.inspectWorkspace(kept.workspace),
+      ).rejects.toMatchObject({ category: 'guard' });
+      const fresh = await f.runtime.prepareWorkspace(fallback);
+      expect(fresh.workspace).not.toBe(kept.workspace);
+      expect(fresh.baseSha).toBe(f.reworkRequest.baseBranch);
+      expect(await spawn('third', fresh.workspace)).toBeTruthy();
     });
     it('replays spawn and finds its correlation without creating another agent', async () => {
       const a = await f.runtime.spawnAgent(f.spawnRequest);

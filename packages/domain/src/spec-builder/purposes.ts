@@ -139,6 +139,9 @@ const completion = (steps: readonly string[], notes: readonly string[]) => ({
 
 const STAY_OPEN =
   'Do not exit after `worker_done`: AI Office keeps this agent open between turns and stops it itself.';
+/** W1 (§7.3): the worker's kept worktree still holds its branch, so git refuses to check it out here. */
+const DETACHED_ONLY =
+  "Never `git checkout -B`, `git switch -C` or otherwise check out a worker branch by name: the worker's worktree still holds it. Work detached and push with `HEAD:refs/heads/<worker branch>`.";
 
 const itemLine = (item: WorkItem): string =>
   `\`${item.key}\` ${JSON.stringify(item.title)} — role \`${item.role}\`, agent \`${item.agent}\`${item.deps.length > 0 ? `, deps ${item.deps.map((dep) => `\`${dep}\``).join(', ')}` : ''}${item.issue === undefined ? '' : `, issue #${item.issue}`}`;
@@ -831,8 +834,9 @@ const mergeQueue: Builder<'merge-queue', 'implement'> = (
         '',
         ...bullets([
           `Read a pull request with git: \`git fetch origin\`, then \`git log\` and \`git diff origin/${ib}...origin/<worker branch>\`.`,
-          "To build and test it, check out the worker branch: `git checkout -B <worker branch> origin/<worker branch>`, then run the project's build and test commands.",
-          `On a conflict: in the worker branch, \`git merge origin/${ib}\`, resolve, verify and \`git push origin <worker branch>\` (never force-push); then request the merge with the new head sha. Fix only what integration needs; send everything else back with \`rework-request\`, because the worker owns the item.`,
+          "To build and test it, check out the worker branch detached: `git checkout --detach origin/<worker branch>`, then run the project's build and test commands.",
+          `On a conflict: from that detached checkout, \`git merge origin/${ib}\`, resolve, verify and \`git push origin HEAD:refs/heads/<worker branch>\` (never force-push); then request the merge with the new head sha. Fix only what integration needs; send everything else back with \`rework-request\`, because the worker owns the item.`,
+          DETACHED_ONLY,
           `Never push \`${ib}\` or any branch other than the worker branch under review. During implementation \`${ib}\` moves only through merges AI Office performs.`,
           'Do not open, merge, close, edit or comment on pull requests or issues, and do not run `gh` in any form.',
           'Leave no uncommitted changes behind when you finish a review.',
@@ -999,7 +1003,8 @@ const integrator: Builder<'integrator', 'integrate'> = (
           ...(unmerged.length === 0
             ? ['Do not push any other branch.']
             : [
-                `Do not push any other branch, except a listed unmerged worker branch: on a conflict, merge \`origin/${ib}\` into that worker branch, resolve, verify and push it; then request the merge with the new head sha.`,
+                `Do not push any other branch, except a listed unmerged worker branch: on a conflict, \`git checkout --detach origin/<worker branch>\`, merge \`origin/${ib}\`, resolve, verify and \`git push origin HEAD:refs/heads/<worker branch>\` (never force-push); then request the merge with the new head sha.`,
+                DETACHED_ONLY,
               ]),
           'Keep fixes to integration problems. Anything that needs new scope or a new work item goes to a human through `decision-request`.',
           'Do not open, close, merge, edit or comment on pull requests or issues.',

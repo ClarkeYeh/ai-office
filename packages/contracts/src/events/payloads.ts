@@ -449,6 +449,8 @@ export const MessageNudgePayloadSchema = z.object({
     'question-timeout',
     'review-timeout',
     'budget-wrap-up',
+    // M2-T14 (§7.1): the one nudge after a spawn-stall period without activity.
+    'spawn-stall',
   ]),
   subject: id,
   body: z.string(),
@@ -718,6 +720,12 @@ export const TimerPayloadSchema = z.discriminatedUnion('purpose', [
     purpose: z.literal('gate-precheck'),
     stageId: id,
     phase: z.enum(['wait', 'restop']),
+  }),
+  // M2-T14 (§7.1): `nudge` fires one spawnStallMs after spawn, `gate` one more later.
+  z.object({
+    purpose: z.literal('spawn-stall'),
+    attemptId: id,
+    phase: z.enum(['nudge', 'gate']),
   }),
   z.object({
     purpose: z.literal('wallclock-hard-limit'),

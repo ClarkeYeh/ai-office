@@ -36,7 +36,7 @@ runtimePortContract(async () => {
   const f = await fixture();
   const baseSha = 'a'.repeat(40);
   f.runtime.setRemoteBranch(f.repo, 'ai-office/integration', baseSha);
-  f.runtime.setRemoteBranch(f.repo, 'ai-office/worker', 'b'.repeat(40));
+  f.runtime.setRemoteBranch(f.repo, 'ai-office/rework', 'b'.repeat(40));
   return {
     ...f,
     prepareRequest: {
@@ -53,9 +53,9 @@ runtimePortContract(async () => {
       session: f.session,
       repo: f.repo,
       baseBranch: 'b'.repeat(40),
-      fetchBranch: 'ai-office/worker',
-      branch: 'ai-office/worker',
-      name: 'worker-r1',
+      fetchBranch: 'ai-office/rework',
+      branch: 'ai-office/rework',
+      name: 'rework-r1',
       checkoutExisting: true,
       correlation: { workflowId: 'wf', commandId: 'prepare-rework' },
     },
@@ -724,5 +724,67 @@ describe('injected agent and Git behavior', () => {
     });
     g.clock.advance(5000);
     await expect(g.runtime.runDue()).resolves.toBeUndefined();
+  });
+
+  it('a silent role never acts after spawn or send, yet stops normally', async () => {
+    const { withSilentRoles, mainlineScenario } = await import('./mainline.js');
+    const scenario = withSilentRoles(['worker']);
+    expect(scenario.roles.planner).toBe(mainlineScenario.roles.planner);
+    const f = await fixture({ scenario });
+    const a = await f.runtime.spawnAgent(f.spawnRequest);
+    f.clock.advance(60 * 60_000);
+    await f.runtime.send(a, {
+      subject: 'Start working',
+      body: 'nudge',
+      correlation: { workflowId: 'wf', commandId: 'nudge' },
+    });
+    f.clock.advance(60 * 60_000);
+    const first = await f.runtime.observe(f.session, null);
+    expect(first.events.map((e) => e.type)).toEqual([
+      'agent.status',
+      'agent.status',
+    ]);
+    await f.runtime.stop(a);
+    const next = await f.runtime.observe(f.session, first.cursor);
+    expect(next.events.map((e) => e.type)).toEqual(['agent.stopped']);
+  });
+
+  it('holds only the turn script behind a retried submit, not external stimuli', async () => {
+    const { PortError } = await import('../../ports/errors.js');
+    const f = await fixture({
+      submitRetryMs: 1000,
+      submitter: () => {
+        throw new PortError('transient', 'backend_down', 'restarting');
+      },
+      scenario: {
+        roles: {
+          worker: {
+            spawn: [submitStep, { type: 'output', afterMs: 10, blocks: [] }],
+          },
+        },
+      },
+    });
+    const a = await f.runtime.spawnAgent(f.spawnRequest);
+    // Queued before the submit fails, so a turn-wide hold would catch them.
+    f.runtime.enqueue(
+      a,
+      { type: 'degraded', reason: 'transcript_clipped', afterMs: 10 },
+      { type: 'unmanaged', dispatch: 'child', afterMs: 20 },
+      { type: 'lost', afterMs: 30 },
+    );
+    await f.runtime.runDue();
+    f.clock.advance(30);
+    const batch = await f.runtime.observe(f.session, null);
+    const types = batch.events.map((e) => e.type);
+    expect(types).toEqual(
+      expect.arrayContaining([
+        'agent.degraded',
+        'agent.unmanaged',
+        'agent.status',
+      ]),
+    );
+    expect(batch.events.at(-1)).toMatchObject({ state: 'lost' });
+    // The script's own later step is still held behind the retry.
+    expect(types).not.toContain('agent.output');
   });
 });

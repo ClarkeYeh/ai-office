@@ -70,6 +70,8 @@ type Scheduled = {
   agent: Agent;
   generation: number;
   action: ScenarioStep | { type: 'auto-release' };
+  /** Turn scripts (spawn/send/answer) versus external `enqueue()` stimuli. */
+  source: 'script' | 'external';
 };
 type EventBody = RuntimeEvent extends infer E
   ? E extends RuntimeEvent
@@ -286,8 +288,95 @@ export class FakeRuntime implements RuntimePort {
   /** Branch and base commit each workspace was created with (pushes target it). */
   private workspaceBranches = new Map<
     WorkspaceRef,
-    { branch: string; base?: string }
+    { branch: string; base?: string; repo?: RepoRuntimeRef }
   >();
+  /** Simulated local git branches per repo (branch → tip); W1 occupancy derives from workspaces. */
+  private localBranches = new Map<string, Map<string, string | undefined>>();
+  private local(repo: RepoRuntimeRef): Map<string, string | undefined> {
+    const key = JSON.stringify([repo.orcaRepoId, repo.localPath]);
+    let branches = this.localBranches.get(key);
+    if (!branches) this.localBranches.set(key, (branches = new Map()));
+    return branches;
+  }
+  private holder(repo: RepoRuntimeRef, branch: string): WorkspaceRef | null {
+    for (const [ws, entry] of this.workspaceBranches)
+      if (
+        this.workspaces.has(ws) &&
+        entry.branch === branch &&
+        entry.repo !== undefined &&
+        canonical(entry.repo) === canonical(repo)
+      )
+        return ws;
+    return null;
+  }
+  private remote(repo: RepoRuntimeRef, branch: string) {
+    return this.remoteBranches.get(
+      JSON.stringify([repo.orcaRepoId, repo.localPath, branch]),
+    );
+  }
+  /**
+   * Orca 1.4.259 `worktree create --branch` (P8): an unheld local branch whose
+   * tip is the base is reused; any other taken name, including one that only
+   * exists on the remote, silently gets a `-<n>` suffix.
+   */
+  private orcaCreateBranch(
+    repo: RepoRuntimeRef,
+    branch: string,
+    base: string | undefined,
+  ): string {
+    const local = this.local(repo);
+    const taken = (name: string) =>
+      local.has(name) || this.remote(repo, name) !== undefined;
+    if (
+      local.has(branch) &&
+      local.get(branch) === base &&
+      !this.holder(repo, branch)
+    )
+      return branch;
+    let name = branch;
+    for (let n = 2; taken(name); n++) name = `${branch}-${n}`;
+    local.set(name, base);
+    return name;
+  }
+  /**
+   * The adapter's W1 checks (§6.5): never ask git for a branch another worktree
+   * holds; checkoutExisting points an unheld, fully pushed local branch at the
+   * fetched sha first; a suffixed result is removed and refused.
+   */
+  private createWorktreeBranch(
+    req: Parameters<RuntimePort['prepareWorkspace']>[0],
+    base: string | undefined,
+  ): void {
+    if (this.holder(req.repo, req.branch)) throw fail('branch_in_use');
+    const local = this.local(req.repo);
+    if (req.checkoutExisting) {
+      const tip = local.get(req.branch);
+      if (
+        tip !== undefined &&
+        !this.remote(req.repo, req.branch)?.commits.has(tip)
+      )
+        throw fail('unpushed_commits');
+      local.set(req.branch, base);
+    }
+    const actual = this.orcaCreateBranch(req.repo, req.branch, base);
+    if (actual !== req.branch) {
+      local.delete(actual);
+      throw fail('branch_suffixed');
+    }
+  }
+  /** `worktree rm`; the adapter also deletes the branch it created (§6.5). */
+  private removeWorkspace(ws: WorkspaceRef): void {
+    if (!this.workspaces.delete(ws)) return;
+    const entry = this.workspaceBranches.get(ws);
+    if (entry?.repo && !this.holder(entry.repo, entry.branch))
+      this.local(entry.repo).delete(entry.branch);
+  }
+  /** The branch a workspace actually checked out, for W1 assertions. */
+  workspaceBranch(ws: WorkspaceRef): string | null {
+    return this.workspaces.has(ws)
+      ? (this.workspaceBranches.get(ws)?.branch ?? null)
+      : null;
+  }
   private commands = new Map<
     string,
     { signature: string; result: unknown; session: SessionRef }
@@ -523,6 +612,7 @@ export class FakeRuntime implements RuntimePort {
     trigger: 'spawn' | 'send' | 'answer',
     message?: ScenarioContext['message'],
   ): void {
+    if (agent.behavior.silent) return;
     const script = agent.behavior[trigger];
     const context: ScenarioContext = {
       agent: agent.ref,
@@ -549,6 +639,7 @@ export class FakeRuntime implements RuntimePort {
         agent,
         generation: agent.generation,
         action: structuredClone(action),
+        source: 'script',
       });
     }
   }
@@ -614,10 +705,12 @@ export class FakeRuntime implements RuntimePort {
           return structuredClone(existing.prepared);
         }
         const baseSha = this.workspaceBase(req);
+        this.createWorktreeBranch(req, baseSha);
         const ref = WorkspaceRefSchema.parse(this.id('workspace'));
         this.workspaces.set(ref, { clean: true, changedFiles: [] });
         this.workspaceBranches.set(ref, {
           branch: req.branch,
+          repo: structuredClone(req.repo),
           ...(baseSha === undefined ? {} : { base: baseSha }),
         });
         const prepared = {
@@ -654,7 +747,7 @@ export class FakeRuntime implements RuntimePort {
   }
   async disposeWorkspace(ws: WorkspaceRef): Promise<void> {
     this.before('disposeWorkspace');
-    this.workspaces.delete(ws);
+    this.removeWorkspace(ws);
     this.after('disposeWorkspace');
   }
   async spawnAgent(req: SpawnRequest): Promise<AgentRef> {
@@ -787,7 +880,7 @@ export class FakeRuntime implements RuntimePort {
     this.before('release');
     const agent = this.agent(ref);
     this.releaseAgent(agent, this.now());
-    if (opts.removeWorkspace) this.workspaces.delete(agent.workspace);
+    if (opts.removeWorkspace) this.removeWorkspace(agent.workspace);
     this.after('release');
   }
   private releaseAgent(agent: Agent, at: number): void {
@@ -822,6 +915,7 @@ export class FakeRuntime implements RuntimePort {
         agent,
         generation: agent.generation,
         action: structuredClone(action),
+        source: 'external',
       });
     }
   }
@@ -994,6 +1088,7 @@ export class FakeRuntime implements RuntimePort {
     action,
     at,
     order,
+    source,
   }: Scheduled): Promise<void> {
     const emit = (body: EventBody) => this.emit(a.session, body, at);
     switch (action.type) {
@@ -1028,10 +1123,12 @@ export class FakeRuntime implements RuntimePort {
             throw error;
           // The agent retries its `ai-office submit` once the backend is back.
           // The command blocks its turn: later steps (e.g. done) wait for it.
+          // External stimuli (lost, degraded, unmanaged) are not part of the turn.
           const retryAt = this.now() + retryMs;
           for (const job of this.scheduled)
             if (
               job.agent === a &&
+              job.source === 'script' &&
               job.generation === a.generation &&
               job.at < retryAt
             )
@@ -1042,6 +1139,7 @@ export class FakeRuntime implements RuntimePort {
             agent: a,
             generation: a.generation,
             action,
+            source,
           });
         }
         break;
@@ -1050,6 +1148,10 @@ export class FakeRuntime implements RuntimePort {
         if (!this.options.onPush) throw fail('missing_push_handler');
         // A scenario's branch name is illustrative; agents push their own worktree.
         const own = this.workspaceBranches.get(a.workspace);
+        if (own?.repo) {
+          this.local(own.repo).set(own.branch, action.headSha);
+          this.setRemoteBranch(own.repo, own.branch, action.headSha);
+        }
         await this.options.onPush({
           agent: a.ref,
           workspace: a.workspace,
@@ -1094,6 +1196,7 @@ export class FakeRuntime implements RuntimePort {
             agent: a,
             generation: a.generation,
             action: { type: 'auto-release' },
+            source: 'script',
           });
         break;
       case 'auto-release':

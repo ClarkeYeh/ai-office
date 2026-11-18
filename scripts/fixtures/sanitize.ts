@@ -6,8 +6,11 @@ try {
   if (process.argv.length > 3) throw new Error('Invalid arguments');
   const input = readFileSync(process.argv[2] ?? 0, 'utf8');
   process.stdout.write(
-    JSON.stringify(fixtureRedactor().sanitize(JSON.parse(input)), null, 2) +
-      '\n',
+    JSON.stringify(
+      fixtureRedactor(process.argv[2]).sanitize(JSON.parse(input)),
+      null,
+      2,
+    ) + '\n',
   );
 } catch {
   process.stderr.write(
