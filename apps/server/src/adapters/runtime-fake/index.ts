@@ -647,6 +647,14 @@ export class FakeRuntime implements RuntimePort {
       .filter((a) => ['working', 'waiting_input', 'done'].includes(a.state))
       .map((a) => a.ref);
   }
+  /** Scheduled steps that will still run (due or not); test hook for draining. */
+  pendingSteps(): number {
+    return this.scheduled.filter(
+      (job) =>
+        job.generation === job.agent.generation &&
+        !['released', 'lost', 'stopped'].includes(job.agent.state),
+    ).length;
+  }
   async findByCorrelation(
     session: SessionRef,
     commandId: string,
