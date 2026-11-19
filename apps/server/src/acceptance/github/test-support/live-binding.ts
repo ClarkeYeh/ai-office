@@ -67,7 +67,6 @@ export async function withLiveRun<T>(
         pusher,
         owner: githubOwnerActions(harness.api, runId),
         stepTimeoutMs: 600_000,
-        scmPollIntervalMs: 15_000,
         faults: {
           loseNextCreateIssue(listLagMs) {
             faults.loseNextResponse('createIssue');
@@ -76,7 +75,6 @@ export async function withLiveRun<T>(
           setScmDown(value) {
             down = value;
           },
-          isScmDown: () => down,
         },
       });
       report.steps = outcome.steps;

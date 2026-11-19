@@ -2,6 +2,7 @@ import { FakeScm } from '../../../adapters/scm-fake/index.js';
 import { PortError } from '../../../ports/errors.js';
 import type { ScmPort } from '../../../ports/scm.js';
 import type { OwnerActions } from '../../../test-support/github/owner-actions.js';
+import { ownerMarker } from '../../../test-support/github/safety.js';
 import { SPIKE, type MixedBinding } from './mixed-office.js';
 
 /** The canonical run ID that live tapes normalize to (T7). */
@@ -53,13 +54,16 @@ export function fakeBinding(): MixedBinding & { fake: FakeScm } {
       return (
         await fake.createExternalIssue(SPIKE, {
           title: `[aio-test ${CANONICAL_RUN}] owner-created ${purpose}`,
-          body: 'Created by hand on GitHub (synthetic T15 check).',
+          body: `Created by hand on GitHub (synthetic T15 check).\n\n${ownerMarker(`t${CANONICAL_RUN}:owner-${purpose}`)}`,
           labels: [],
         })
       ).number;
     },
-    ownerComment: (number, _purpose, text) =>
-      fake.addExternalComment(ref(number), text),
+    ownerComment: (number, purpose, text) =>
+      fake.addExternalComment(
+        ref(number),
+        `${text}\n\n${ownerMarker(`t${CANONICAL_RUN}:owner-${purpose}`)}`,
+      ),
     setPrState: (number, state) => fake.updatePR(ref(number), { state }),
   };
   let down = false;
@@ -88,13 +92,12 @@ export function fakeBinding(): MixedBinding & { fake: FakeScm } {
       setScmDown(value) {
         down = value;
       },
-      isScmDown: () => down,
     },
     runId: CANONICAL_RUN,
     pusher: {
       push: async ({ branch, base }) => fake.pushBranch(SPIKE, branch, base),
     },
     owner,
-    stepTimeoutMs: 30_000,
+    stepTimeoutMs: 120_000,
   };
 }

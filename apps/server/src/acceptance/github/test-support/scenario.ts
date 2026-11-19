@@ -32,6 +32,7 @@ const of = (events: Json[], type: string, key?: string) =>
     (e) => e.type === type && (key === undefined || e.payload.itemKey === key),
   );
 const MARKER = /<!-- ai-office:cmd=t[a-f0-9]{12}:[^ ]+ -->/;
+const OWNER_MARKER = /<!-- aio-test:owner=t[a-f0-9]{12}:owner-[a-z-]+ -->/;
 
 /**
  * Steps 1–11 of M3_PLAN §6 "M3-T15", in order, against one workflow. The same
@@ -41,7 +42,8 @@ const MARKER = /<!-- ai-office:cmd=t[a-f0-9]{12}:[^ ]+ -->/;
 export async function runMixedMainline(o: MixedOffice): Promise<MixedRun> {
   const owner = o.binding.owner;
   const live = o.binding.mode === 'live';
-  const pollMs = live ? 35_000 : 1_500; // > two SCM polls
+  // > two SCM polls (SPEC §12.2: 15 s, also for an injected scm-fake).
+  const pollMs = 35_000;
   const steps: StepResult[] = [];
   const objects: MixedRun['objects'] = { workItems: [], workerPrs: [] };
   const step = async (
@@ -402,6 +404,10 @@ export async function runMixedMainline(o: MixedOffice): Promise<MixedRun> {
     async () => {
       const number = await owner.createUnmarkedIssue('unknown-object');
       objects.unknownIssue = number;
+      // The harness owner marker is present, yet AI Office must see no marker.
+      const created = await owner.issue(number);
+      expect(created.body).toMatch(OWNER_MARKER);
+      expect(created.body).not.toContain('ai-office:cmd');
       await until(
         events,
         (es) =>
@@ -444,6 +450,11 @@ export async function runMixedMainline(o: MixedOffice): Promise<MixedRun> {
       const gates = await o.gates(workflowId);
       const seq = (await events()).at(-1)!.seq as number;
       await owner.ownerComment(conclusion, 'approve-comment', '/approve');
+      const approveComment = (await owner.comments(conclusion)).find((c) =>
+        c.body.startsWith('/approve'),
+      )!;
+      expect(approveComment.body).toMatch(OWNER_MARKER);
+      expect(approveComment.body).not.toContain('ai-office:cmd');
       await sleep(pollMs);
       const after = (await events()).filter((e) => e.seq > seq);
       expect(

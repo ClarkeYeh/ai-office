@@ -35,19 +35,12 @@ export interface MixedBinding {
   owner: OwnerActions;
   /** Upper bound for one waiting step (live GitHub polls every 15 s). */
   stepTimeoutMs: number;
-  /**
-   * Live only: the SPEC §12.2 poll cadence. `--fake` assembly polls the SCM
-   * every 250 ms even with an injected scm-github (reported product defect),
-   * so the harness answers "no change" with the same cursor in between.
-   */
-  scmPollIntervalMs?: number;
   /** Step 12 fault injection, below the adapter boundary where possible. */
   faults?: {
     /** The next createIssue succeeds but its response is lost; new rows list late. */
     loseNextCreateIssue(listLagMs: number): void;
     /** Every SCM call fails transiently until restored (opens the breaker). */
     setScmDown(down: boolean): void;
-    isScmDown(): boolean;
   };
 }
 
@@ -74,15 +67,7 @@ export interface MixedOffice {
  */
 export async function mixedOffice(binding: MixedBinding): Promise<MixedOffice> {
   const shortId = binding.runId;
-  const scm = scopeGithubScm(
-    throttlePoll(
-      binding.scm,
-      binding.scmPollIntervalMs,
-      () => binding.faults?.isScmDown() ?? false,
-    ),
-    binding.runId,
-    shortId,
-  );
+  const scm = scopeGithubScm(binding.scm, binding.runId, shortId);
   const bridge = createGithubWorldBridge({
     scm,
     repo: SPIKE,
@@ -202,29 +187,4 @@ export async function waitFor<T>(
       );
     await sleep(o.binding.mode === 'live' ? 1000 : 25);
   }
-}
-
-/** Real polls at most once per interval; in between, the unchanged cursor. */
-// During an injected outage every poll reaches the adapter and fails: a
-// throttled "no change" would count as a success and reset the breaker streak.
-export function throttlePoll(
-  scm: ScmPort,
-  intervalMs?: number,
-  bypass: () => boolean = () => false,
-): ScmPort {
-  if (intervalMs === undefined) return scm;
-  let last = 0;
-  const poll: ScmPort['poll'] = async (repo, cursor) => {
-    if (cursor !== null && !bypass() && Date.now() - last < intervalMs)
-      return { events: [], cursor };
-    last = Date.now();
-    return scm.poll(repo, cursor);
-  };
-  return new Proxy(scm, {
-    get(target, key) {
-      if (key === 'poll') return poll;
-      const value = Reflect.get(target, key) as unknown;
-      return typeof value === 'function' ? value.bind(target) : value;
-    },
-  });
 }

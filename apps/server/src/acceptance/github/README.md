@@ -33,17 +33,21 @@ semantics the CI replay asserts, plus the sanitized HTTP recordings
 workflow cannot be replayed call by call: the observation loop's timing decides
 the HTTP order, and strict `ReplayFetch` matches order. So the CI replay checks
 event-sequence semantics (`semantics()`): the stage and gate flow and each work
-item's history in order, all golden lines as a multiset.
+item's history in order, all golden lines as a multiset. The HTTP tapes are
+evidence only (coordinator ruling). Step 12's CI version runs composed on
+scm-fake; the adapter-level `ReplayFetch` lost-response case stays the T8 shared
+contract case. Since `[M3-FX]` (#157) an injected `testOnly.scm` is polled at
+the SPEC §12.2 cadence (15 s, 30 s at the final gate) in CI and live alike, so
+the CI twins take about two minutes.
 
 Test-only adaptations, all on the harness side:
 
-- `--fake` assembly polls the SCM every 250 ms even with an injected
-  scm-github; the live binding throttles `poll` to the SPEC §12.2 15 s cadence
-  (`throttlePoll`), answering "no change" with the same cursor in between.
 - The T7 namespace rewrites markers, so an unedited conclusion's
   `renderedHash` never equals GitHub's body hash; approvals then send the hash
   of the `githubBody` the screen shows.
 - The owner's own objects (step 9's unmarked Issue, step 10's `/approve`
   comment) carry `<!-- aio-test:owner=t<runId>:… -->` instead of an AI Office
   marker, so they stay ledgered and cleanable while AI Office sees them as
-  unmarked.
+  unmarked. The scenario asserts both halves: the owner marker is on the
+  object and no `ai-office:cmd` marker is, and the product still raises
+  `unknown-object` (step 9) and changes no state (step 10).

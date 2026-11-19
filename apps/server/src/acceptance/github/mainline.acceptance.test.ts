@@ -19,7 +19,7 @@ afterEach(async () => {
  * (the observation loop's timing decides the HTTP order), so the live run's
  * recording is checked here by event-sequence semantics.
  */
-describe('M3-T15 mixed acceptance (CI replay)', { timeout: 120_000 }, () => {
+describe('M3-T15 mixed acceptance (CI replay)', { timeout: 300_000 }, () => {
   it('runs steps 1–11 and matches the recorded live event semantics', async () => {
     office = await mixedOffice(fakeBinding());
     const run = await runMixedMainline(office);

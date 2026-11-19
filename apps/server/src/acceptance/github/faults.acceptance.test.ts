@@ -15,10 +15,9 @@ afterEach(async () => {
  * on the spike, once; the adapter-level lost-response replay is the shared
  * T8 contract case.
  */
-describe('M3-T15 step 12 fault injection (CI)', { timeout: 120_000 }, () => {
+describe('M3-T15 step 12 fault injection (CI)', { timeout: 300_000 }, () => {
   it('keeps one Issue after a lost create; cancel reaches the runtime while the SCM breaker is open', async () => {
-    // The live cadence: throttled polls must not mask the outage.
-    office = await mixedOffice({ ...fakeBinding(), scmPollIntervalMs: 15_000 });
+    office = await mixedOffice(fakeBinding());
     const run = await runFaults(office);
     expect(run.steps.map((s) => [s.title, s.ok])).toEqual([
       ['lost createIssue response + list lag → one conclusion Issue', true],
