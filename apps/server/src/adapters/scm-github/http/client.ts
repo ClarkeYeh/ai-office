@@ -10,7 +10,8 @@ import { EtagCache } from '../etag.js';
 import { GithubGovernor } from '../governor.js';
 import { GithubMetrics } from '../metrics.js';
 import { prepareRequest, guard, type EndpointId } from '../policy/endpoints.js';
-import { nextPage } from './pagination.js';
+import { nextPage, nextQuery } from './pagination.js';
+import { z } from 'zod';
 import type {
   GithubHttp,
   GithubHttpOptions,
@@ -19,10 +20,16 @@ import type {
   RequestParams,
 } from './types.js';
 
+/** Bounds every paginated read (100 pages of at most 100 rows). */
+export const MAX_PAGES = 100;
+const repositoryIdSchema = z.looseObject({ id: z.number().int().positive() });
+
 export class GithubHttpClient implements GithubHttp {
   readonly governor: GithubGovernor;
   readonly metrics: GithubMetrics;
   private cache = new EtagCache();
+  /** owner/repo (lower case) → GitHub numeric repository ID, from `repos.get`. */
+  private repositoryIds = new Map<string, number>();
   private clock;
   private fetch;
   private token: Promise<string> | undefined;
@@ -71,8 +78,9 @@ export class GithubHttpClient implements GithubHttp {
     };
     prepareRequest(id, params, options, this.options.repoAllowlist);
     const token = await this.getToken(false);
+    let response: GithubResponse<T>;
     try {
-      return await this.attempt(id, params, options, token);
+      response = await this.attempt(id, params, options, token);
     } catch (error) {
       if (
         !(error instanceof PortError) ||
@@ -84,8 +92,36 @@ export class GithubHttpClient implements GithubHttp {
       this.cache.clear();
       const refreshed = await this.getToken(true);
       // Only an explicit 401 is retried; ambiguous writes are never replayed here.
-      return this.attempt(id, params, options, refreshed);
+      response = await this.attempt(id, params, options, refreshed);
     }
+    if (response.next?.repositoryId !== undefined) {
+      await this.assertRepositoryId(params, response.next.repositoryId);
+      const { repositoryId: _checked, ...next } = response.next;
+      void _checked;
+      response = { ...response, next };
+    }
+    return response;
+  }
+  private repositoryKey(params: RequestParams): string {
+    if (!params.owner || !params.repo) return guard('invalid_pagination');
+    return JSON.stringify([
+      params.owner.toLowerCase(),
+      params.repo.toLowerCase(),
+    ]);
+  }
+  /** A `/repositories/{id}/…` next link must name this request's repository. */
+  private async assertRepositoryId(
+    params: RequestParams,
+    id: number,
+  ): Promise<void> {
+    const key = this.repositoryKey(params);
+    if (!this.repositoryIds.has(key))
+      await this.request(
+        'repos.get',
+        { owner: params.owner!, repo: params.repo! },
+        { schema: z.looseObject({}), conditional: false },
+      );
+    if (this.repositoryIds.get(key) !== id) guard('invalid_pagination');
   }
   private async attempt<T>(
     id: EndpointId,
@@ -176,7 +212,7 @@ export class GithubHttpClient implements GithubHttp {
               status,
               etag: cached.etag,
               notModified: true,
-              ...(cached.nextPage ? { nextPage: cached.nextPage } : {}),
+              ...(cached.next ? { next: cached.next } : {}),
             };
           }
           let value: unknown;
@@ -206,13 +242,21 @@ export class GithubHttpClient implements GithubHttp {
           }
           const parsed = options.schema.safeParse(value);
           if (!parsed.success) throw contractMismatch();
+          if (id === 'repos.get') {
+            const repository = repositoryIdSchema.safeParse(value);
+            if (repository.success)
+              this.repositoryIds.set(
+                this.repositoryKey(params),
+                repository.data.id,
+              );
+          }
           const next = nextPage(response.headers.get('link'), url);
           const responseEtag = response.headers.get('etag');
           if (!write && responseEtag)
             this.cache.set(url.href, {
               etag: responseEtag,
               data: parsed.data,
-              ...(next ? { nextPage: next } : {}),
+              ...(next ? { next } : {}),
             });
           // Invalidate all representations after writes, including ambiguous outcomes below.
           if (write) this.cache.clear();
@@ -222,7 +266,7 @@ export class GithubHttpClient implements GithubHttp {
             status,
             notModified: false,
             ...(responseEtag ? { etag: responseEtag } : {}),
-            ...(next ? { nextPage: next } : {}),
+            ...(next ? { next } : {}),
           };
         } finally {
           if (!failed) this.governor.success();
@@ -278,24 +322,20 @@ export class GithubHttpClient implements GithubHttp {
     if (prepareRequest(id, params, options, this.options.repoAllowlist).write)
       guard('pagination_requires_read');
     const data: T[] = [];
-    let page = Number(params.query?.page ?? 1);
-    for (let count = 0; count < 1000; count++) {
-      const response = await this.request(
-        id,
-        {
-          ...params,
-          query: {
-            ...params.query,
-            per_page: params.query?.per_page ?? 100,
-            page,
-          },
-        },
-        options,
-      );
+    let query = {
+      ...params.query,
+      per_page: params.query?.per_page ?? 100,
+      page: Number(params.query?.page ?? 1),
+    };
+    const seen = new Set<string>();
+    for (let count = 0; count < MAX_PAGES; count++) {
+      const response = await this.request(id, { ...params, query }, options);
       data.push(...response.data);
-      if (response.nextPage === undefined) return data;
-      if (response.nextPage <= page) guard('pagination_repeated');
-      page = response.nextPage;
+      if (response.next === undefined) return data;
+      const key = JSON.stringify(nextQuery(response.next));
+      if (seen.has(key)) guard('pagination_repeated');
+      seen.add(key);
+      query = { ...query, ...nextQuery(response.next) };
     }
     return guard('pagination_limit');
   }

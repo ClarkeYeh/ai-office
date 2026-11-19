@@ -240,6 +240,153 @@ describe('GitHub HTTP boundary', () => {
     ).rejects.toMatchObject({ category: 'guard' });
     expect(f.fetch).toHaveBeenCalledTimes(1);
   });
+  describe("GitHub's canonical cursor Link (M3-T15 live finding)", () => {
+    // Shape of GitHub's real `Link` for GET /repos/{o}/{r}/issues (sanitized:
+    // synthetic repository ID and cursor).
+    const query =
+      'state=all&per_page=100&sort=updated&direction=desc&after=Y3Vyc29yOnYyOpK0MjAyNi0xMS0xOVQwMDowMDowMFrOAAAAAQ%3D%3D&page=2';
+    const realLink = (path = '/repositories/123456789/issues', q = query) =>
+      `<https://api.github.com${path}?${q}>; rel="next"`;
+    const listQuery = {
+      state: 'all',
+      sort: 'updated',
+      direction: 'desc',
+      per_page: 100,
+    };
+    const urls = (f: ReturnType<typeof setup>) =>
+      f.fetch.mock.calls.map(([input]) => {
+        const url = new URL(String(input));
+        return `${url.pathname}?${[...url.searchParams.keys()].sort().join(',')}`;
+      });
+
+    it('learns the repository ID once and re-issues the authorized URL with the cursor', async () => {
+      const f = setup([
+        json([{ value: 1 }], 200, { link: realLink() }),
+        json({ id: 123456789, value: 0 }),
+        json([{ value: 2 }]),
+        json([{ value: 3 }], 200, { link: realLink() }),
+        json([{ value: 4 }]),
+      ]);
+      const options = { schema: z.array(schema) };
+      const all = (await f.http.paginate(
+        'issues.list',
+        { ...params, query: listQuery },
+        options,
+      )) as { value: number }[];
+      expect(all.map((row) => row.value)).toEqual([1, 2]);
+      expect(urls(f)).toEqual([
+        '/repos/owner/project/issues?direction,page,per_page,sort,state',
+        '/repos/owner/project?',
+        '/repos/owner/project/issues?after,direction,page,per_page,sort,state',
+      ]);
+      const second = new URL(String(f.fetch.mock.calls[2]![0]));
+      expect(second.searchParams.get('after')).toBe(
+        'Y3Vyc29yOnYyOpK0MjAyNi0xMS0xOVQwMDowMDowMFrOAAAAAQ==',
+      );
+      expect(second.searchParams.get('page')).toBe('2');
+      // The ID is cached: no second repository read.
+      await f.http.paginate(
+        'issues.list',
+        { ...params, query: listQuery },
+        options,
+      );
+      expect(f.fetch).toHaveBeenCalledTimes(5);
+      // Credentials only ever went to authorized /repos/owner/project URLs.
+      for (const [input] of f.fetch.mock.calls)
+        expect(String(input)).toMatch(
+          /^https:\/\/api\.github\.com\/repos\/owner\/project(\/|$|\?)/,
+        );
+    });
+    it('accepts a cursor link on the identical path', async () => {
+      const f = setup([
+        json([{ value: 1 }], 200, {
+          link: realLink('/repos/owner/project/issues'),
+        }),
+        json([{ value: 2 }]),
+      ]);
+      expect(
+        await f.http.paginate(
+          'issues.list',
+          { ...params, query: listQuery },
+          { schema: z.array(schema) },
+        ),
+      ).toHaveLength(2);
+      expect(f.fetch).toHaveBeenCalledTimes(2);
+    });
+    it('rejects a different repository ID after learning the real one', async () => {
+      const f = setup([
+        json([], 200, { link: realLink() }),
+        json({ id: 987654321 }),
+      ]);
+      await expect(
+        f.http.paginate(
+          'issues.list',
+          { ...params, query: listQuery },
+          { schema: z.array(schema) },
+        ),
+      ).rejects.toMatchObject({
+        category: 'guard',
+        code: 'invalid_pagination',
+      });
+      expect(f.fetch).toHaveBeenCalledTimes(2);
+    });
+    it.each([
+      ['a different suffix', realLink('/repositories/123456789/pulls')],
+      [
+        'another repository path form',
+        realLink('/repositories/123456789/../other/issues'),
+      ],
+      [
+        'another host',
+        `<https://evil.invalid/repositories/123456789/issues?${query}>; rel="next"`,
+      ],
+      ['an extra parameter', realLink(undefined, `${query}&labels=x`)],
+      [
+        'a changed parameter',
+        realLink(undefined, query.replace('all', 'open')),
+      ],
+      [
+        'a changed page size',
+        realLink(undefined, query.replace('per_page=100', 'per_page=50')),
+      ],
+      [
+        'a malformed cursor',
+        realLink(undefined, query.replace(/after=[^&]+/, 'after=%3Cx%3E')),
+      ],
+      [
+        'a repeated cursor parameter',
+        realLink(undefined, `${query}&after=Zm9v`),
+      ],
+      [
+        'no page or cursor',
+        realLink(undefined, query.replace(/&after=[^&]+&page=2/, '')),
+      ],
+    ])('rejects %s without a further request', async (_name, link) => {
+      const f = setup([json([], 200, { link })]);
+      await expect(
+        f.http.paginate(
+          'issues.list',
+          { ...params, query: listQuery },
+          { schema: z.array(schema) },
+        ),
+      ).rejects.toMatchObject({ category: 'guard' });
+      expect(f.fetch).toHaveBeenCalledTimes(1);
+    });
+    it('stops at the page cap', async () => {
+      let page = 1;
+      const f = setup([]);
+      f.fetch.mockImplementation(async () => {
+        page++;
+        return json([{ value: page }], 200, {
+          link: `<https://api.github.com/repos/owner/project/issues?per_page=100&page=${page}>; rel="next"`,
+        });
+      });
+      await expect(
+        f.http.paginate('issues.list', params, { schema: z.array(schema) }),
+      ).rejects.toMatchObject({ code: 'pagination_limit' });
+      expect(f.fetch).toHaveBeenCalledTimes(100);
+    });
+  });
   it('does not follow HTTP redirects or accept malformed consumed fields', async () => {
     const f = setup([
       new Response(null, {

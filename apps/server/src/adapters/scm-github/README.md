@@ -15,15 +15,23 @@ scopes temporary read access to registration; call `register(repo)` only after
 registration succeeds. All reads and writes recheck access when dequeued.
 
 `http.request(endpointId, params, {schema, conditional?, safety?})` returns
-`{data, status, notModified, etag?, nextPage?}`. Endpoint IDs and write schemas live
+`{data, status, notModified, etag?, next?}`. Endpoint IDs and write schemas live
 in `policy/endpoints.ts`; arbitrary URLs and redirects are rejected. `params`
 contains path variables (`owner`, `repo`, `number`, `id`, `ref`, `branch`, `base`,
 `head`, `sha`), `query`, and `body`. Branch path variables are encoded once.
 
 Use `z.looseObject` for response schemas: require consumed fields and accept
 additive fields. `paginate` accepts an array schema, fixes `per_page` to 100 by
-default (50 is also supported), and follows only increasing page numbers on the
-same authorized URL. It rejects changed origins, paths, filters, and cycles.
+default (50 is also supported) and stops after 100 pages (`pagination_limit`).
+A `Link: rel="next"` is validated against the authorized request URL
+(`http/pagination.ts`): `https://api.github.com` only; the same path or GitHub's
+canonical `/repositories/{id}<same suffix>`, whose ID must equal the repository's
+numeric ID (learned from `repos.get`, fetched once if unknown); every query
+parameter unchanged except `page`, `after` and `before` (opaque cursors, as on
+cursor-paginated Issue lists) and an unchanged `per_page`. The next request is
+the same endpoint ID with only those parameters replaced, so the endpoint and
+repository allowlists are re-checked and credentials never go to a Link URL.
+Anything else, and any repeated page or cursor, is a guard.
 
 Conditional reads cache parsed values by complete URL. `conditional: true` uses
 the cached ETag; a string pins a poll cursor's ETag. A 304 requires a matching
