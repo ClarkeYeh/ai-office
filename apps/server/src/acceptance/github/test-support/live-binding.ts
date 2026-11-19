@@ -103,6 +103,7 @@ export async function withLiveRun<T>(
       }));
       report.rateLimitAfter = await coreRemaining(harness);
       report.httpCalls = recorder.recordings.length;
+      report.withheldResponses = recorded.withheld();
       report.gateCalls = harness.gate.calls.length;
       const path = `${process.env.HOME}/.ai-office/test-state/t15-${name}-${runId}.json`;
       await mkdir(dirname(path), { recursive: true, mode: 0o700 });
@@ -148,6 +149,7 @@ function scopedRecording(transport: typeof fetch, runId: string) {
   let next: Response | undefined;
   const recorder = new RecordingFetch(async () => next!, runId);
   let tail: Promise<unknown> = Promise.resolve();
+  let withheld = 0;
   const record = async (request: Request): Promise<Response> => {
     const full = await transport(request.clone());
     const path = new URL(request.url).pathname;
@@ -173,7 +175,21 @@ function scopedRecording(transport: typeof fetch, runId: string) {
           headers: full.headers,
         });
     }
-    await recorder.fetch(request);
+    try {
+      await recorder.fetch(request);
+    } catch {
+      // The leak scan runs while recording (T8): a response carrying data that
+      // must never enter a fixture (e.g. the spike main commit's author) is
+      // recorded withheld. The adapter always gets the real response.
+      withheld++;
+      next = new Response(
+        [204, 205, 304].includes(full.status)
+          ? null
+          : JSON.stringify({ withheld: 'tape leak scan' }),
+        { status: full.status },
+      );
+      await recorder.fetch(request);
+    }
     return full;
   };
   const fetch: typeof globalThis.fetch = (input, init) => {
@@ -182,7 +198,7 @@ function scopedRecording(transport: typeof fetch, runId: string) {
     tail = result.catch(() => undefined);
     return result;
   };
-  return { recorder, fetch };
+  return { recorder, fetch, withheld: () => withheld };
 }
 
 /** JSON paths (never values) whose leaf fails the tape leak scan. */
