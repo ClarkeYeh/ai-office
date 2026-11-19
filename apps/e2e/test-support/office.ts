@@ -285,6 +285,9 @@ export class Office {
     ) => this.control('scm/pr-status', { number, ...status }),
     setConnected: (connected: boolean) =>
       this.control('runtime/connected', { connected }),
+    /** Another coordinator takes over every open run (M2 runtime-fake stimulus). */
+    hijack: () =>
+      this.control('runtime/hijack', {}) as Promise<{ hijacked: number }>,
   };
 
   /**

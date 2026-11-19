@@ -64,6 +64,29 @@ test('shows health, hijack, unverified, fake, degraded, replay and synchronizati
   ])
     expect(screen.getByTestId(id)).toBeTruthy();
 });
+test('translates M2 runtime warnings and shows unknown ones verbatim', () => {
+  const health: HealthView = {
+    status: 'healthy',
+    runtime: {
+      status: 'healthy',
+      mode: 'orca',
+      verified: true,
+      runOwned: true,
+      warnings: ['host_slept', 'future_warning'],
+    },
+    scm: { status: 'healthy' },
+    store: { status: 'healthy' },
+    usage: { status: 'healthy', sources: [] },
+    adapters: [],
+  };
+  render(<Banners health={health} />);
+  expect(screen.getByTestId('runtime-warning-host_slept').textContent).toBe(
+    t('banner.runtimeWarning', { warning: t('runtimeWarning.host_slept') }),
+  );
+  expect(screen.getByTestId('runtime-warning-future_warning').textContent).toBe(
+    t('banner.runtimeWarning', { warning: 'future_warning' }),
+  );
+});
 test('healthy production has no banners', () => {
   const health: HealthView = {
     status: 'healthy',

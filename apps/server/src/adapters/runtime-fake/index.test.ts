@@ -93,6 +93,18 @@ runtimePortContract(async () => {
   };
 });
 describe('FakeRuntime scenarios and faults', () => {
+  it('hijackAll fences every open run once and reports how many it took', async () => {
+    const f = await fixture();
+    expect(f.runtime.hijackAll()).toBe(1);
+    expect(f.runtime.hijackAll()).toBe(0);
+    const batch = await f.runtime.observe(f.session, null);
+    expect(
+      batch.events.filter((e) => e.type === 'runtime.identity_hijacked'),
+    ).toHaveLength(1);
+    await expect(f.runtime.spawnAgent(f.spawnRequest)).rejects.toMatchObject({
+      category: 'hijacked',
+    });
+  });
   it('holds concurrent retries until spawn settles and preserves deferred event time', async () => {
     const f = await fixture();
     f.runtime.holdSpawn();

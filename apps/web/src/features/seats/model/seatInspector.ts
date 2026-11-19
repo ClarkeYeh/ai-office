@@ -65,12 +65,15 @@ export function seatInspector(model: ReadModel | null, args: InspectorArgs) {
       : undefined);
   const item = model.workItems.find((i) => i.key === itemKey);
   // M4_PLAN §5.3: M2's optional camelCase object is authoritative until explicitly cleared.
-  const rateLimited = (
-    attempt as
-      { rateLimited?: { since: string; resetsAt?: string } | null } | undefined
-  )?.rateLimited;
+  const rateLimited = attempt?.rateLimited;
+  // G9: an estimated reset still ahead is shown in whole minutes, rounded up.
+  const resetsIn = rateLimited?.resetsAt
+    ? Math.ceil((Date.parse(rateLimited.resetsAt) - now) / 60_000)
+    : 0;
   const state = rateLimited
-    ? t('seats.rateLimited')
+    ? resetsIn > 0
+      ? t('seats.rateLimitedUntil', { n: resetsIn })
+      : t('seats.rateLimited')
     : attempt
       ? t(`office.attemptState.${attempt.state}`)
       : t('office.seat.away');

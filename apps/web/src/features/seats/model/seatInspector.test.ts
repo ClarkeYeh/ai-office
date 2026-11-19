@@ -105,6 +105,15 @@ test('optional camelCase rateLimited is detected without a future deadline guess
     rateLimited: { since: a.startedAt, resetsAt: a.startedAt },
   });
   expect(seatInspector(rm, args)!.state).toBe(t('seats.rateLimited'));
+  Object.assign(a, {
+    rateLimited: {
+      since: a.startedAt,
+      resetsAt: new Date(args.now + 90_000).toISOString(),
+    },
+  });
+  expect(seatInspector(rm, args)!.state).toBe(
+    t('seats.rateLimitedUntil', { n: 2 }),
+  );
   Object.assign(a, { rateLimited: null });
   expect(seatInspector(rm, args)!.state).toBe(t('office.attemptState.working'));
 });

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   AttemptStateSchema,
   ExceptionKindSchema,
+  MessageNudgePayloadSchema,
   PauseReasonSchema,
   WorkItemStatusSchema,
 } from '@ai-office/contracts/events';
@@ -14,12 +15,24 @@ describe('zh-TW catalog', () => {
     ['pause', PauseReasonSchema.options],
     ['office.attemptState', AttemptStateSchema.options],
     ['office.itemStatus', WorkItemStatusSchema.options],
+    ['nudge', MessageNudgePayloadSchema.shape.reason.options],
   ] as const)('covers every %s enum member', (prefix, values) => {
     for (const value of values) {
       const key = `${prefix}.${value}`;
       expect(hasMessage(key), key).toBe(true);
       if (hasMessage(key)) expect(t(key).length).toBeGreaterThan(0);
     }
+  });
+  test('covers every M2 RuntimeWarning string (M2_PLAN §8.4)', () => {
+    for (const warning of [
+      'codex_env_filtered',
+      'shim_folder_fallback',
+      'version_changed',
+      'host_slept',
+      'orphan_resources',
+      'chat_worker_identity_degraded',
+    ])
+      expect(hasMessage(`runtimeWarning.${warning}`), warning).toBe(true);
   });
   test('owns every office string and retains vocabulary', () => {
     for (const [key, value] of Object.entries(officeMessagesZhTW))

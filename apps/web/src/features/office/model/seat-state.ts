@@ -110,14 +110,8 @@ export const badgeOf = (
   vendor === 'claude-code' ? 'CC' : vendor === 'codex' ? 'CX' : undefined;
 
 /**
- * G9 (S26) is optional until M2 lands its contract: read `rateLimitedUntil` only
- * when the field exists and is still in the future.
+ * G9 (S26): `AttemptView.rateLimited` is set while the provider limit holds and
+ * reset to `null` when it lifts; `resetsAt` is only an estimate.
  */
-export function rateLimited(
-  attempt: AttemptView | undefined,
-  now: number,
-): boolean {
-  const until = (attempt as { rateLimitedUntil?: unknown } | undefined)
-    ?.rateLimitedUntil;
-  return typeof until === 'string' && Date.parse(until) > now;
-}
+export const rateLimited = (attempt: AttemptView | undefined): boolean =>
+  attempt?.rateLimited != null;

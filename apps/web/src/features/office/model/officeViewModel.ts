@@ -410,7 +410,7 @@ function seatStatus(ctx: Ctx, seat: SeatView, state: SeatState): string {
       break;
   }
   if (state.pose === 'away') return status;
-  if (rateLimited(attempt, now))
+  if (rateLimited(attempt))
     status = t('office.seat.tagged', {
       tag: t('office.seat.rateLimited'),
       status,

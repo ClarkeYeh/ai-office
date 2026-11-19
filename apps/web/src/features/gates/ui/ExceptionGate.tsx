@@ -22,7 +22,7 @@ export function ExceptionGate({
   const option = gate.options.find((o) => o.optionId === selected);
   const action = option ? optionAction(option, value) : null;
   const key =
-    gate.exceptionKind === ('spawn-stall' as string)
+    gate.exceptionKind === 'spawn-stall'
       ? 'gates.exception.spawn-stall'
       : `exception.${gate.exceptionKind}`;
   const label = option?.input ? t(`gates.exception.${option.input}`) : '';

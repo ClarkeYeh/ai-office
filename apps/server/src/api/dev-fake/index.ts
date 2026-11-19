@@ -14,6 +14,8 @@ export interface DevFakeControls {
     },
   ): void;
   setRuntimeConnected?(connected: boolean): void;
+  /** Another coordinator takes over every open run; returns how many. */
+  hijackRuntime?(): number;
   mergeOwner(number: number): Promise<{ mergeCommitSha: string }>;
 }
 
@@ -113,6 +115,20 @@ export async function registerDevFakeRoutes(
             throw new ApiError('validation_failed');
           controls.setRuntimeConnected!(body.connected);
           return { ok: true };
+        },
+      );
+    if (controls.hijackRuntime)
+      scope.post(
+        '/dev/fake/runtime/hijack',
+        { onRequest: requireSession(auth) },
+        async (request) => {
+          const body = request.body as unknown;
+          if (
+            body !== undefined &&
+            (typeof body !== 'object' || body === null || Array.isArray(body))
+          )
+            throw new ApiError('validation_failed');
+          return { hijacked: controls.hijackRuntime!() };
         },
       );
   });

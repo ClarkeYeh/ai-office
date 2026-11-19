@@ -195,7 +195,9 @@
         "hardLimitMultiplier": 2
       },
       "limits": {
-        "globalAgents": 10
+        "globalAgents": 10,
+        "spawnStallMs": 600000,
+        "budgetEnforcement": "on"
       },
       "acknowledgedUnverifiedRuntime": false
     },
@@ -1709,6 +1711,100 @@
     "occurredAt": "1970-01-01T00:01:12.000Z",
     "recordedAt": "1970-01-01T00:01:12.000Z",
     "workflowId": "00000000000000000000000001",
+    "stageId": "meeting",
+    "seatId": "00000000000000000000000001:lead",
+    "attemptId": "00000000000000000000000001/meeting/1/attempt/lead",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/meeting/1/attempt/lead",
+      "reason": "stopped",
+      "expected": true
+    },
+    "id": "00000000000000000000000073"
+  },
+  {
+    "seq": 74,
+    "occurredAt": "1970-01-01T00:01:13.000Z",
+    "recordedAt": "1970-01-01T00:01:13.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "meeting",
+    "seatId": "00000000000000000000000001:pm",
+    "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
+      "reason": "stopped",
+      "expected": true
+    },
+    "id": "00000000000000000000000074"
+  },
+  {
+    "seq": 75,
+    "occurredAt": "1970-01-01T00:01:14.000Z",
+    "recordedAt": "1970-01-01T00:01:14.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "meeting",
+    "seatId": "00000000000000000000000001:architect",
+    "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
+      "reason": "stopped",
+      "expected": true
+    },
+    "id": "00000000000000000000000075"
+  },
+  {
+    "seq": 76,
+    "occurredAt": "1970-01-01T00:01:15.000Z",
+    "recordedAt": "1970-01-01T00:01:15.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "meeting",
+    "seatId": "00000000000000000000000001:engineer",
+    "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.exited",
+    "payload": {
+      "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
+      "reason": "stopped",
+      "expected": true
+    },
+    "id": "00000000000000000000000076"
+  },
+  {
+    "seq": 77,
+    "occurredAt": "1970-01-01T00:01:16.000Z",
+    "recordedAt": "1970-01-01T00:01:16.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "breakdown",
+    "seatId": "00000000000000000000000001:lead",
+    "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
+      "state": "working"
+    },
+    "id": "00000000000000000000000077"
+  },
+  {
+    "seq": 78,
+    "occurredAt": "1970-01-01T00:01:17.000Z",
+    "recordedAt": "1970-01-01T00:01:17.000Z",
+    "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "seatId": "00000000000000000000000001:lead",
     "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
@@ -1768,12 +1864,12 @@
         }
       }
     },
-    "id": "00000000000000000000000073"
+    "id": "00000000000000000000000078"
   },
   {
-    "seq": 74,
-    "occurredAt": "1970-01-01T00:01:13.000Z",
-    "recordedAt": "1970-01-01T00:01:13.000Z",
+    "seq": 79,
+    "occurredAt": "1970-01-01T00:01:18.000Z",
+    "recordedAt": "1970-01-01T00:01:18.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -1786,12 +1882,12 @@
       "submissionId": "00000000000000000000000012",
       "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead"
     },
-    "id": "00000000000000000000000074"
+    "id": "00000000000000000000000079"
   },
   {
-    "seq": 75,
-    "occurredAt": "1970-01-01T00:01:14.000Z",
-    "recordedAt": "1970-01-01T00:01:14.000Z",
+    "seq": 80,
+    "occurredAt": "1970-01-01T00:01:19.000Z",
+    "recordedAt": "1970-01-01T00:01:19.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -1844,12 +1940,12 @@
         }
       ]
     },
-    "id": "00000000000000000000000075"
+    "id": "00000000000000000000000080"
   },
   {
-    "seq": 76,
-    "occurredAt": "1970-01-01T00:01:15.000Z",
-    "recordedAt": "1970-01-01T00:01:15.000Z",
+    "seq": 81,
+    "occurredAt": "1970-01-01T00:01:20.000Z",
+    "recordedAt": "1970-01-01T00:01:20.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -1860,12 +1956,12 @@
       "stageId": "breakdown",
       "attempt": 1
     },
-    "id": "00000000000000000000000076"
+    "id": "00000000000000000000000081"
   },
   {
-    "seq": 77,
-    "occurredAt": "1970-01-01T00:01:16.000Z",
-    "recordedAt": "1970-01-01T00:01:16.000Z",
+    "seq": 82,
+    "occurredAt": "1970-01-01T00:01:21.000Z",
+    "recordedAt": "1970-01-01T00:01:21.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "seatId": "00000000000000000000000001:lead",
@@ -1878,12 +1974,12 @@
       "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
       "removeWorkspace": false
     },
-    "id": "00000000000000000000000077"
+    "id": "00000000000000000000000082"
   },
   {
-    "seq": 78,
-    "occurredAt": "1970-01-01T00:01:17.000Z",
-    "recordedAt": "1970-01-01T00:01:17.000Z",
+    "seq": 83,
+    "occurredAt": "1970-01-01T00:01:22.000Z",
+    "recordedAt": "1970-01-01T00:01:22.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -1905,125 +2001,12 @@
       "stageKind": "planning",
       "optional": true
     },
-    "id": "00000000000000000000000078"
-  },
-  {
-    "seq": 79,
-    "occurredAt": "1970-01-01T00:01:18.000Z",
-    "recordedAt": "1970-01-01T00:01:18.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "meeting",
-    "seatId": "00000000000000000000000001:lead",
-    "attemptId": "00000000000000000000000001/meeting/1/attempt/lead",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/meeting/1/attempt/lead",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000079"
-  },
-  {
-    "seq": 80,
-    "occurredAt": "1970-01-01T00:01:19.000Z",
-    "recordedAt": "1970-01-01T00:01:19.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "meeting",
-    "seatId": "00000000000000000000000001:pm",
-    "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/meeting/1/attempt/pm",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000080"
-  },
-  {
-    "seq": 81,
-    "occurredAt": "1970-01-01T00:01:20.000Z",
-    "recordedAt": "1970-01-01T00:01:20.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "meeting",
-    "seatId": "00000000000000000000000001:architect",
-    "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/meeting/1/attempt/architect",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000081"
-  },
-  {
-    "seq": 82,
-    "occurredAt": "1970-01-01T00:01:21.000Z",
-    "recordedAt": "1970-01-01T00:01:21.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "meeting",
-    "seatId": "00000000000000000000000001:engineer",
-    "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/meeting/1/attempt/engineer",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000082"
-  },
-  {
-    "seq": 83,
-    "occurredAt": "1970-01-01T00:01:22.000Z",
-    "recordedAt": "1970-01-01T00:01:22.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "breakdown",
-    "seatId": "00000000000000000000000001:lead",
-    "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
-      "state": "working"
-    },
     "id": "00000000000000000000000083"
   },
   {
     "seq": 84,
     "occurredAt": "1970-01-01T00:01:23.000Z",
     "recordedAt": "1970-01-01T00:01:23.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "breakdown",
-    "seatId": "00000000000000000000000001:lead",
-    "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.exited",
-    "payload": {
-      "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
-      "reason": "stopped",
-      "expected": true
-    },
-    "id": "00000000000000000000000084"
-  },
-  {
-    "seq": 85,
-    "occurredAt": "1970-01-01T00:01:24.000Z",
-    "recordedAt": "1970-01-01T00:01:24.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "user",
@@ -2036,12 +2019,12 @@
       "by": "user",
       "version": 1
     },
-    "id": "00000000000000000000000085"
+    "id": "00000000000000000000000084"
   },
   {
-    "seq": 86,
-    "occurredAt": "1970-01-01T00:01:25.000Z",
-    "recordedAt": "1970-01-01T00:01:25.000Z",
+    "seq": 85,
+    "occurredAt": "1970-01-01T00:01:24.000Z",
+    "recordedAt": "1970-01-01T00:01:24.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -2054,12 +2037,12 @@
       "attempt": 1,
       "mode": "initial"
     },
-    "id": "00000000000000000000000086"
+    "id": "00000000000000000000000085"
   },
   {
-    "seq": 87,
-    "occurredAt": "1970-01-01T00:01:26.000Z",
-    "recordedAt": "1970-01-01T00:01:26.000Z",
+    "seq": 86,
+    "occurredAt": "1970-01-01T00:01:25.000Z",
+    "recordedAt": "1970-01-01T00:01:25.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -2116,12 +2099,12 @@
         }
       ]
     },
-    "id": "00000000000000000000000087"
+    "id": "00000000000000000000000086"
   },
   {
-    "seq": 88,
-    "occurredAt": "1970-01-01T00:01:27.000Z",
-    "recordedAt": "1970-01-01T00:01:27.000Z",
+    "seq": 87,
+    "occurredAt": "1970-01-01T00:01:26.000Z",
+    "recordedAt": "1970-01-01T00:01:26.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -2136,12 +2119,12 @@
       "purpose": "work-item",
       "itemKey": "lost"
     },
-    "id": "00000000000000000000000088"
+    "id": "00000000000000000000000087"
   },
   {
-    "seq": 89,
-    "occurredAt": "1970-01-01T00:01:28.000Z",
-    "recordedAt": "1970-01-01T00:01:28.000Z",
+    "seq": 88,
+    "occurredAt": "1970-01-01T00:01:27.000Z",
+    "recordedAt": "1970-01-01T00:01:27.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -2156,12 +2139,12 @@
       "purpose": "work-item",
       "itemKey": "policy"
     },
-    "id": "00000000000000000000000089"
+    "id": "00000000000000000000000088"
   },
   {
-    "seq": 90,
-    "occurredAt": "1970-01-01T00:01:29.000Z",
-    "recordedAt": "1970-01-01T00:01:29.000Z",
+    "seq": 89,
+    "occurredAt": "1970-01-01T00:01:28.000Z",
+    "recordedAt": "1970-01-01T00:01:28.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -2176,12 +2159,12 @@
       "purpose": "work-item",
       "itemKey": "question"
     },
-    "id": "00000000000000000000000090"
+    "id": "00000000000000000000000089"
   },
   {
-    "seq": 91,
-    "occurredAt": "1970-01-01T00:01:30.000Z",
-    "recordedAt": "1970-01-01T00:01:30.000Z",
+    "seq": 90,
+    "occurredAt": "1970-01-01T00:01:29.000Z",
+    "recordedAt": "1970-01-01T00:01:29.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -2196,12 +2179,12 @@
       "purpose": "work-item",
       "itemKey": "rework"
     },
-    "id": "00000000000000000000000091"
+    "id": "00000000000000000000000090"
   },
   {
-    "seq": 92,
-    "occurredAt": "1970-01-01T00:01:31.000Z",
-    "recordedAt": "1970-01-01T00:01:31.000Z",
+    "seq": 91,
+    "occurredAt": "1970-01-01T00:01:30.000Z",
+    "recordedAt": "1970-01-01T00:01:30.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "breakdown",
     "source": "engine",
@@ -2216,12 +2199,12 @@
       "purpose": "work-item",
       "itemKey": "conflict"
     },
-    "id": "00000000000000000000000092"
+    "id": "00000000000000000000000091"
   },
   {
-    "seq": 93,
-    "occurredAt": "1970-01-01T00:01:32.000Z",
-    "recordedAt": "1970-01-01T00:01:32.000Z",
+    "seq": 92,
+    "occurredAt": "1970-01-01T00:01:31.000Z",
+    "recordedAt": "1970-01-01T00:01:31.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -2237,12 +2220,12 @@
       "workspaceName": "aio-000000000001-lost",
       "baseSha": "0000000000000000000000001100000000000001"
     },
-    "id": "00000000000000000000000093"
+    "id": "00000000000000000000000092"
   },
   {
-    "seq": 94,
-    "occurredAt": "1970-01-01T00:01:33.000Z",
-    "recordedAt": "1970-01-01T00:01:33.000Z",
+    "seq": 93,
+    "occurredAt": "1970-01-01T00:01:32.000Z",
+    "recordedAt": "1970-01-01T00:01:32.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -2258,12 +2241,12 @@
       "workspaceName": "aio-000000000001-policy",
       "baseSha": "0000000000000000000000001100000000000001"
     },
-    "id": "00000000000000000000000094"
+    "id": "00000000000000000000000093"
   },
   {
-    "seq": 95,
-    "occurredAt": "1970-01-01T00:01:34.000Z",
-    "recordedAt": "1970-01-01T00:01:34.000Z",
+    "seq": 94,
+    "occurredAt": "1970-01-01T00:01:33.000Z",
+    "recordedAt": "1970-01-01T00:01:33.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -2279,12 +2262,12 @@
       "workspaceName": "aio-000000000001-question",
       "baseSha": "0000000000000000000000001100000000000001"
     },
-    "id": "00000000000000000000000095"
+    "id": "00000000000000000000000094"
   },
   {
-    "seq": 96,
-    "occurredAt": "1970-01-01T00:01:35.000Z",
-    "recordedAt": "1970-01-01T00:01:35.000Z",
+    "seq": 95,
+    "occurredAt": "1970-01-01T00:01:34.000Z",
+    "recordedAt": "1970-01-01T00:01:34.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -2300,12 +2283,12 @@
       "workspaceName": "aio-000000000001-rework",
       "baseSha": "0000000000000000000000001100000000000001"
     },
-    "id": "00000000000000000000000096"
+    "id": "00000000000000000000000095"
   },
   {
-    "seq": 97,
-    "occurredAt": "1970-01-01T00:01:36.000Z",
-    "recordedAt": "1970-01-01T00:01:36.000Z",
+    "seq": 96,
+    "occurredAt": "1970-01-01T00:01:35.000Z",
+    "recordedAt": "1970-01-01T00:01:35.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -2321,12 +2304,12 @@
       "workspaceName": "aio-000000000001-conflict",
       "baseSha": "0000000000000000000000001100000000000001"
     },
-    "id": "00000000000000000000000097"
+    "id": "00000000000000000000000096"
   },
   {
-    "seq": 98,
-    "occurredAt": "1970-01-01T00:01:37.000Z",
-    "recordedAt": "1970-01-01T00:01:37.000Z",
+    "seq": 97,
+    "occurredAt": "1970-01-01T00:01:36.000Z",
+    "recordedAt": "1970-01-01T00:01:36.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:lost",
@@ -2347,12 +2330,12 @@
       "itemKey": "lost",
       "spawnCommandId": "00000000000000000000000001/implement/lost/1/spawn"
     },
-    "id": "00000000000000000000000098"
+    "id": "00000000000000000000000097"
   },
   {
-    "seq": 99,
-    "occurredAt": "1970-01-01T00:01:38.000Z",
-    "recordedAt": "1970-01-01T00:01:38.000Z",
+    "seq": 98,
+    "occurredAt": "1970-01-01T00:01:37.000Z",
+    "recordedAt": "1970-01-01T00:01:37.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:policy",
@@ -2373,12 +2356,12 @@
       "itemKey": "policy",
       "spawnCommandId": "00000000000000000000000001/implement/policy/1/spawn"
     },
-    "id": "00000000000000000000000099"
+    "id": "00000000000000000000000098"
   },
   {
-    "seq": 100,
-    "occurredAt": "1970-01-01T00:01:39.000Z",
-    "recordedAt": "1970-01-01T00:01:39.000Z",
+    "seq": 99,
+    "occurredAt": "1970-01-01T00:01:38.000Z",
+    "recordedAt": "1970-01-01T00:01:38.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:question",
@@ -2399,12 +2382,12 @@
       "itemKey": "question",
       "spawnCommandId": "00000000000000000000000001/implement/question/1/spawn"
     },
-    "id": "00000000000000000000000100"
+    "id": "00000000000000000000000099"
   },
   {
-    "seq": 101,
-    "occurredAt": "1970-01-01T00:01:40.000Z",
-    "recordedAt": "1970-01-01T00:01:40.000Z",
+    "seq": 100,
+    "occurredAt": "1970-01-01T00:01:39.000Z",
+    "recordedAt": "1970-01-01T00:01:39.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:rework",
@@ -2425,12 +2408,12 @@
       "itemKey": "rework",
       "spawnCommandId": "00000000000000000000000001/implement/rework/1/spawn"
     },
-    "id": "00000000000000000000000101"
+    "id": "00000000000000000000000100"
   },
   {
-    "seq": 102,
-    "occurredAt": "1970-01-01T00:01:41.000Z",
-    "recordedAt": "1970-01-01T00:01:41.000Z",
+    "seq": 101,
+    "occurredAt": "1970-01-01T00:01:40.000Z",
+    "recordedAt": "1970-01-01T00:01:40.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:conflict",
@@ -2451,6 +2434,23 @@
       "itemKey": "conflict",
       "spawnCommandId": "00000000000000000000000001/implement/conflict/1/spawn"
     },
+    "id": "00000000000000000000000101"
+  },
+  {
+    "seq": 102,
+    "occurredAt": "1970-01-01T00:01:41.000Z",
+    "recordedAt": "1970-01-01T00:01:41.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "source": "engine",
+    "provenance": "decided",
+    "schemaVersion": 1,
+    "type": "workitem.status",
+    "payload": {
+      "itemKey": "lost",
+      "status": "in_progress",
+      "attemptId": "00000000000000000000000001/implement/lost/1/attempt"
+    },
     "id": "00000000000000000000000102"
   },
   {
@@ -2464,9 +2464,9 @@
     "schemaVersion": 1,
     "type": "workitem.status",
     "payload": {
-      "itemKey": "lost",
+      "itemKey": "policy",
       "status": "in_progress",
-      "attemptId": "00000000000000000000000001/implement/lost/1/attempt"
+      "attemptId": "00000000000000000000000001/implement/policy/1/attempt"
     },
     "id": "00000000000000000000000103"
   },
@@ -2481,9 +2481,9 @@
     "schemaVersion": 1,
     "type": "workitem.status",
     "payload": {
-      "itemKey": "policy",
+      "itemKey": "question",
       "status": "in_progress",
-      "attemptId": "00000000000000000000000001/implement/policy/1/attempt"
+      "attemptId": "00000000000000000000000001/implement/question/1/attempt"
     },
     "id": "00000000000000000000000104"
   },
@@ -2498,9 +2498,9 @@
     "schemaVersion": 1,
     "type": "workitem.status",
     "payload": {
-      "itemKey": "question",
+      "itemKey": "rework",
       "status": "in_progress",
-      "attemptId": "00000000000000000000000001/implement/question/1/attempt"
+      "attemptId": "00000000000000000000000001/implement/rework/1/attempt"
     },
     "id": "00000000000000000000000105"
   },
@@ -2515,9 +2515,9 @@
     "schemaVersion": 1,
     "type": "workitem.status",
     "payload": {
-      "itemKey": "rework",
+      "itemKey": "conflict",
       "status": "in_progress",
-      "attemptId": "00000000000000000000000001/implement/rework/1/attempt"
+      "attemptId": "00000000000000000000000001/implement/conflict/1/attempt"
     },
     "id": "00000000000000000000000106"
   },
@@ -2526,15 +2526,17 @@
     "occurredAt": "1970-01-01T00:01:46.000Z",
     "recordedAt": "1970-01-01T00:01:46.000Z",
     "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "source": "engine",
-    "provenance": "decided",
+    "stageId": "breakdown",
+    "seatId": "00000000000000000000000001:lead",
+    "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
+    "source": "runtime",
+    "provenance": "observed",
     "schemaVersion": 1,
-    "type": "workitem.status",
+    "type": "seat.exited",
     "payload": {
-      "itemKey": "conflict",
-      "status": "in_progress",
-      "attemptId": "00000000000000000000000001/implement/conflict/1/attempt"
+      "attemptId": "00000000000000000000000001/breakdown/1/attempt/lead",
+      "reason": "stopped",
+      "expected": true
     },
     "id": "00000000000000000000000107"
   },
@@ -2662,7 +2664,7 @@
       "attemptId": "00000000000000000000000001/implement/policy/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-121",
+          "messageId": "fake-message-122",
           "tool": "shell",
           "category": "shell",
           "inputLen": 34,
@@ -2689,7 +2691,7 @@
         {
           "rule": "push-default-branch",
           "severity": "high",
-          "messageId": "fake-message-121"
+          "messageId": "fake-message-122"
         }
       ]
     },
@@ -2757,7 +2759,7 @@
     "schemaVersion": 1,
     "type": "message.question",
     "payload": {
-      "questionId": "fake-question-124",
+      "questionId": "fake-question-125",
       "attemptId": "00000000000000000000000001/implement/question/1/attempt",
       "itemKey": "question",
       "body": "Which behavior should we ship?"
@@ -2799,7 +2801,7 @@
       "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-127",
+          "messageId": "fake-message-128",
           "tool": "read",
           "category": "read",
           "inputLen": 2,
@@ -2844,7 +2846,7 @@
       "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-129",
+          "messageId": "fake-message-130",
           "tool": "read",
           "category": "read",
           "inputLen": 2,
@@ -2879,6 +2881,114 @@
     "recordedAt": "1970-01-01T00:02:04.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:lost",
+    "attemptId": "00000000000000000000000001/implement/lost/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.status",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/lost/1/attempt",
+      "state": "lost"
+    },
+    "id": "00000000000000000000000125"
+  },
+  {
+    "seq": 126,
+    "occurredAt": "1970-01-01T00:02:05.000Z",
+    "recordedAt": "1970-01-01T00:02:05.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:rework",
+    "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.activity",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
+      "activity": [
+        {
+          "messageId": "fake-message-133",
+          "tool": "edit",
+          "category": "edit",
+          "inputLen": 2,
+          "outputLen": 0,
+          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
+        }
+      ]
+    },
+    "id": "00000000000000000000000126"
+  },
+  {
+    "seq": 127,
+    "occurredAt": "1970-01-01T00:02:06.000Z",
+    "recordedAt": "1970-01-01T00:02:06.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:rework",
+    "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "usage.turns",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
+      "turns": 1
+    },
+    "id": "00000000000000000000000127"
+  },
+  {
+    "seq": 128,
+    "occurredAt": "1970-01-01T00:02:07.000Z",
+    "recordedAt": "1970-01-01T00:02:07.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:conflict",
+    "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "seat.activity",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
+      "activity": [
+        {
+          "messageId": "fake-message-135",
+          "tool": "edit",
+          "category": "edit",
+          "inputLen": 2,
+          "outputLen": 0,
+          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
+        }
+      ]
+    },
+    "id": "00000000000000000000000128"
+  },
+  {
+    "seq": 129,
+    "occurredAt": "1970-01-01T00:02:08.000Z",
+    "recordedAt": "1970-01-01T00:02:08.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
+    "seatId": "00000000000000000000000001:engineer:conflict",
+    "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
+    "source": "runtime",
+    "provenance": "observed",
+    "schemaVersion": 1,
+    "type": "usage.turns",
+    "payload": {
+      "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
+      "turns": 1
+    },
+    "id": "00000000000000000000000129"
+  },
+  {
+    "seq": 130,
+    "occurredAt": "1970-01-01T00:02:09.000Z",
+    "recordedAt": "1970-01-01T00:02:09.000Z",
+    "workflowId": "00000000000000000000000001",
+    "stageId": "implement",
     "source": "engine",
     "provenance": "decided",
     "schemaVersion": 1,
@@ -2907,12 +3017,12 @@
       "kind": "exception",
       "exceptionKind": "anomaly"
     },
-    "id": "00000000000000000000000125"
+    "id": "00000000000000000000000130"
   },
   {
-    "seq": 126,
-    "occurredAt": "1970-01-01T00:02:05.000Z",
-    "recordedAt": "1970-01-01T00:02:05.000Z",
+    "seq": 131,
+    "occurredAt": "1970-01-01T00:02:10.000Z",
+    "recordedAt": "1970-01-01T00:02:10.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "source": "engine",
@@ -2922,14 +3032,14 @@
     "payload": {
       "stageId": "implement",
       "purpose": "oncall",
-      "queue": ["fake-question-124"]
+      "queue": ["fake-question-125"]
     },
-    "id": "00000000000000000000000126"
+    "id": "00000000000000000000000131"
   },
   {
-    "seq": 127,
-    "occurredAt": "1970-01-01T00:02:06.000Z",
-    "recordedAt": "1970-01-01T00:02:06.000Z",
+    "seq": 132,
+    "occurredAt": "1970-01-01T00:02:11.000Z",
+    "recordedAt": "1970-01-01T00:02:11.000Z",
     "workflowId": "00000000000000000000000001",
     "stageId": "implement",
     "seatId": "00000000000000000000000001:engineer:policy",
@@ -2942,114 +3052,6 @@
       "attemptId": "00000000000000000000000001/implement/policy/1/attempt",
       "reason": "stopped",
       "expected": true
-    },
-    "id": "00000000000000000000000127"
-  },
-  {
-    "seq": 128,
-    "occurredAt": "1970-01-01T00:02:07.000Z",
-    "recordedAt": "1970-01-01T00:02:07.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:lost",
-    "attemptId": "00000000000000000000000001/implement/lost/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.status",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/lost/1/attempt",
-      "state": "lost"
-    },
-    "id": "00000000000000000000000128"
-  },
-  {
-    "seq": 129,
-    "occurredAt": "1970-01-01T00:02:08.000Z",
-    "recordedAt": "1970-01-01T00:02:08.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:rework",
-    "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.activity",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
-      "activity": [
-        {
-          "messageId": "fake-message-134",
-          "tool": "edit",
-          "category": "edit",
-          "inputLen": 2,
-          "outputLen": 0,
-          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
-        }
-      ]
-    },
-    "id": "00000000000000000000000129"
-  },
-  {
-    "seq": 130,
-    "occurredAt": "1970-01-01T00:02:09.000Z",
-    "recordedAt": "1970-01-01T00:02:09.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:rework",
-    "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "usage.turns",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
-      "turns": 1
-    },
-    "id": "00000000000000000000000130"
-  },
-  {
-    "seq": 131,
-    "occurredAt": "1970-01-01T00:02:10.000Z",
-    "recordedAt": "1970-01-01T00:02:10.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:conflict",
-    "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "seat.activity",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
-      "activity": [
-        {
-          "messageId": "fake-message-136",
-          "tool": "edit",
-          "category": "edit",
-          "inputLen": 2,
-          "outputLen": 0,
-          "inputHash": "0000000000000000000000001100000000000000000000000011000000000000"
-        }
-      ]
-    },
-    "id": "00000000000000000000000131"
-  },
-  {
-    "seq": 132,
-    "occurredAt": "1970-01-01T00:02:11.000Z",
-    "recordedAt": "1970-01-01T00:02:11.000Z",
-    "workflowId": "00000000000000000000000001",
-    "stageId": "implement",
-    "seatId": "00000000000000000000000001:engineer:conflict",
-    "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
-    "source": "runtime",
-    "provenance": "observed",
-    "schemaVersion": 1,
-    "type": "usage.turns",
-    "payload": {
-      "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
-      "turns": 1
     },
     "id": "00000000000000000000000132"
   },
@@ -3069,7 +3071,7 @@
       "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-138",
+          "messageId": "fake-message-139",
           "tool": "bash",
           "category": "shell",
           "inputLen": 2,
@@ -3114,7 +3116,7 @@
       "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-140",
+          "messageId": "fake-message-141",
           "tool": "bash",
           "category": "shell",
           "inputLen": 2,
@@ -3159,7 +3161,7 @@
       "attemptId": "00000000000000000000000001/implement/rework/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-142",
+          "messageId": "fake-message-143",
           "tool": "git",
           "category": "git",
           "inputLen": 24,
@@ -3204,7 +3206,7 @@
       "attemptId": "00000000000000000000000001/implement/conflict/1/attempt",
       "activity": [
         {
-          "messageId": "fake-message-144",
+          "messageId": "fake-message-145",
           "tool": "git",
           "category": "git",
           "inputLen": 24,

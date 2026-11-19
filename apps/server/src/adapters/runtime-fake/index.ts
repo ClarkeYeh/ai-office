@@ -138,6 +138,12 @@ export class FakeRuntime implements RuntimePort {
       consumerGeneration: 2,
     });
   }
+  /** Dev stimulus: another coordinator takes over every run not yet hijacked. */
+  hijackAll(): number {
+    const runs = [...this.sessions.keys()].filter((s) => !this.hijacked.has(s));
+    for (const run of runs) this.hijack(run);
+    return runs.length;
+  }
   timeoutCheck(): void {
     this.checkTimeout = true;
   }

@@ -51,6 +51,16 @@ export function Banners({
               </Banner>
             ),
         )}
+      {health?.runtime.warnings?.map((warning) => {
+        const key = `runtimeWarning.${warning}`;
+        return (
+          <Banner key={warning} data-testid={`runtime-warning-${warning}`}>
+            {t('banner.runtimeWarning', {
+              warning: hasMessage(key) ? t(key) : warning,
+            })}
+          </Banner>
+        );
+      })}
       {health && !health.runtime.verified && (
         <Banner data-testid="banner-unverified">
           {t('banner.unverified')}

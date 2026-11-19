@@ -1137,6 +1137,7 @@ async function compose(
       },
       setRuntimeConnected: (connected) =>
         fakeWorld.runtime.setConnected(connected),
+      hijackRuntime: () => fakeWorld.runtime.hijackAll(),
       mergeOwner: (number) =>
         fakeWorld.scm.mergeOwner({ repo: FAKE_REPO.github, number }),
     });
