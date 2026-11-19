@@ -4,7 +4,7 @@ import type {
   RepoSnapshot,
   ExternalCommand,
 } from '@ai-office/contracts/events';
-import { decide, isAttemptAlive } from '@ai-office/domain';
+import { decide, isAttemptAlive, ownerReviewFeedback } from '@ai-office/domain';
 import type {
   StartWorkflow,
   DecideGate,
@@ -14,7 +14,7 @@ import type { Clock, IdGen, Redactor } from '../../ports/services.js';
 import type { EventStore, IdempotencyStore } from '../../ports/stores.js';
 import type { TemplateRepository } from '../../ports/template.js';
 import type { RuntimePort } from '../../ports/runtime.js';
-import type { ScmPort } from '../../ports/scm.js';
+import type { ReviewComment, ScmPort } from '../../ports/scm.js';
 import type { WorkflowRunners } from '../runner/runners.js';
 import {
   check,
@@ -59,6 +59,30 @@ export interface CommandUseCaseDeps {
   redactor: Redactor;
   limits: StartWorkflow['limits'];
 }
+/** The owner's comment plus the owner's PR review comments (S10). */
+export const revisionFeedback = (
+  comment: string | undefined,
+  review: { comments: readonly ReviewComment[]; ignored: number },
+): string | undefined => {
+  const parts = [
+    ...(comment?.trim() ? [comment] : []),
+    ...(review.comments.length === 0
+      ? []
+      : [
+          [
+            'Review comments by the repository owner on the final PR:',
+            ...review.comments.map(
+              (c) =>
+                `- ${c.path}${c.line === null ? '' : `:${c.line}`}: ${c.body}`,
+            ),
+          ].join('\n'),
+        ]),
+    ...(review.ignored === 0
+      ? []
+      : [`(${review.ignored} review comment(s) by other accounts ignored.)`]),
+  ];
+  return parts.length === 0 ? undefined : parts.join('\n\n');
+};
 const fields = [
   'summary',
   'decisions',
@@ -268,6 +292,31 @@ export class CommandUseCases {
               ],
             },
           });
+        }
+        // S10: a final-PR revision carries the owner's PR review comments;
+        // on a public repository anyone can review, so others only count.
+        const workflow = runner.state.workflow!;
+        if (
+          gate.kind === 'stage' &&
+          gate.stageKind === 'final-pr' &&
+          input.decision === 'reject' &&
+          workflow.finalPr !== undefined
+        ) {
+          let comments;
+          try {
+            comments = await this.deps.scm.listReviewComments({
+              repo: workflow.repo.github,
+              number: workflow.finalPr,
+            });
+          } catch {
+            return fail(503, 'scm_unavailable');
+          }
+          const feedback = revisionFeedback(
+            input.comment,
+            ownerReviewFeedback(comments, workflow.repo.ownerLogin),
+          );
+          if (feedback !== undefined)
+            command.comment = this.deps.redactor.maskSecrets(feedback);
         }
         // No await between checking current state and appending the atomic decision/outbox batch.
         const result = decide(runner.state, command);
