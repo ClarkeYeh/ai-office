@@ -1,5 +1,5 @@
 import type { ExternalCommandKind } from '@ai-office/contracts/events';
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { WorkItem } from '@ai-office/domain';
 import { createReact, DEFAULT_MODULES } from '../react.js';
 import { startWorkflow } from '../test-support/fixtures.js';
@@ -80,6 +80,12 @@ function setup(
     },
   };
 }
+const workerPrs = (sim: Simulator) =>
+  sim
+    .eventsOf('artifact.created')
+    .flatMap(({ payload: p }) =>
+      p.kind === 'pr' && p.purpose === 'worker' ? [p] : [],
+    );
 const done = (sim: Simulator, key: string) =>
   sim.dispatch({
     type: 'ObserveAttemptStatus',
@@ -126,6 +132,29 @@ it('golden: parallel workers queue PRs and only merged dependencies unlock a fre
   done(sim, 'C');
   merge(sim, 'C');
   expect(sim.state.stages.implement?.status).toBe('done');
+  // Each worker PR is recorded once, before its item is queued for merge.
+  const integration = sim.state.workflow!.integrationBranch;
+  expect(workerPrs(sim)).toEqual(
+    ['A', 'B', 'C'].map((key) => ({
+      kind: 'pr',
+      artifactId: expect.any(String),
+      number: sim.state.workItems[key]!.pr,
+      url: `https://github.com/octo/demo/pull/${sim.state.workItems[key]!.pr}`,
+      purpose: 'worker',
+      head: sim.state.workItems[key]!.branch,
+      base: integration,
+      itemKey: key,
+    })),
+  );
+  for (const key of ['A', 'B', 'C']) {
+    const seqOf = (type: 'artifact.created' | 'workitem.merge_queued') =>
+      sim
+        .eventsOf(type)
+        .find((e) => 'itemKey' in e.payload && e.payload.itemKey === key)!.seq;
+    expect(seqOf('artifact.created')).toBeLessThan(
+      seqOf('workitem.merge_queued'),
+    );
+  }
   expect(sim.liveAgents()).toBe(0);
   expect(sim.rejections).toEqual([]);
   expect(sim.warnings).toEqual([]);
@@ -133,7 +162,9 @@ it('golden: parallel workers queue PRs and only merged dependencies unlock a fre
     sim
       .trace()
       .filter((l) =>
-        /workitem\.|stage.completed|scm.compareBranch|scm.openPR/.test(l),
+        /workitem\.|stage.completed|scm.compareBranch|scm.openPR|artifact.created/.test(
+          l,
+        ),
       ),
   ).toMatchSnapshot();
 });
@@ -181,6 +212,8 @@ it('reworks on the same branch and PR with a fresh workspace and attempt', () =>
   expect(
     sim.issued.filter((c) => c.command.kind === 'scm.openPR'),
   ).toHaveLength(1);
+  // Same branch, same PR: rework does not record the PR again.
+  expect(workerPrs(sim).map((p) => p.number)).toEqual([first.pr]);
   merge(sim, 'A');
   expect(sim.liveAgents()).toBe(0);
   expect(sim.rejections).toEqual([]);
@@ -291,6 +324,12 @@ it('a failed-attempt retry uses -a2, changes agent, and closes and links the old
   expect(
     sim.issued.filter((c) => c.command.kind === 'scm.comment').at(-1)?.command,
   ).toMatchObject({ args: { body: expect.stringContaining('/pull/21') } });
+  // The retry opened a new PR on a new branch, so it gets its own artifact.
+  expect(workerPrs(sim).map((p) => [p.number, p.head])).toEqual([
+    [first.pr, first.branch],
+    [21, 'ai-office/ab12/A-a2'],
+  ]);
+  expect(sim.state.workItems.A?.pr).toBe(21);
   expect(sim.rejections).toEqual([]);
 });
 
@@ -563,13 +602,16 @@ it.each([
   expect(sim.rejections).toEqual([]);
 });
 
-it('rearms an item deadline that fired while paused', () => {
+it('rearms an item deadline that would have fired while paused', () => {
   const { sim } = setup({ items: [item('A')] });
   sim.dispatch({ type: 'PauseWorkflow', reason: 'anomaly' });
   sim.advance(45 * 60_000);
   expect(sim.eventsOf('message.nudge')).toHaveLength(0);
   sim.dispatch({ type: 'ResumeWorkflow', reason: 'anomaly' });
   sim.advance(0);
+  // FX8b: the pause did not count, so the full 45 minutes remain.
+  expect(sim.eventsOf('message.nudge')).toHaveLength(0);
+  sim.advance(45 * 60_000);
   expect(sim.eventsOf('message.nudge')).toHaveLength(1);
   expect(sim.rejections).toEqual([]);
 });
@@ -638,4 +680,122 @@ it('reserves global capacity for a live on-call instance before worker dispatch'
   });
   expect(sim.state.workItems.A?.status).toBe('in_progress');
   expect(sim.rejections).toEqual([]);
+});
+
+describe('pause time does not count toward deadlines (FX8, FX8b)', () => {
+  const MIN = 60_000;
+  const itemTimers = (
+    sim: Simulator,
+    type: 'timer.fired' | 'timer.scheduled',
+  ) =>
+    sim
+      .eventsOf(type)
+      .filter((e) => e.payload.timerId.includes('/item-timeout/'));
+
+  it('fires an item deadline with 10 minutes left about 10 minutes after a 60-minute pause', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.advance(35 * MIN);
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(60 * MIN);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    // Rescheduled under its own id with its remaining 10 minutes.
+    const shifted = sim
+      .eventsOf('timer.scheduled')
+      .filter((e) => e.payload.timerId.includes('/item-timeout/'));
+    expect(shifted).toHaveLength(2);
+    expect(shifted[1]!.payload.timerId).toBe(shifted[0]!.payload.timerId);
+    expect(
+      Date.parse(shifted[1]!.payload.fireAt) -
+        Date.parse(shifted[1]!.occurredAt),
+    ).toBe(10 * MIN);
+    sim.advance(10 * MIN - 1);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    expect(sim.eventsOf('message.nudge')).toHaveLength(0);
+    sim.advance(1);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    // The wallclock limit counts working time only: 45, not 105, minutes.
+    expect(sim.eventsOf('budget.exceeded').at(-1)?.payload).toMatchObject({
+      scope: 'item',
+      metric: 'wallclock',
+      used: 45,
+    });
+    expect(sim.eventsOf('message.nudge')).toHaveLength(1);
+    sim.advance(60 * MIN);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    expect(sim.state.workItems.A?.status).toBe('needs_attention');
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('does not reach the wallclock hard limit through pause time', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(100 * MIN);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    sim.advance(45 * MIN);
+    expect(sim.eventsOf('budget.exceeded').at(-1)?.payload).toMatchObject({
+      scope: 'item',
+      metric: 'wallclock',
+      used: 45,
+    });
+    expect(sim.eventsOf('budget.hard_limit')).toHaveLength(0);
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('counts nested pause reasons as one pause, from the first to full unpause', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.advance(35 * MIN);
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(15 * MIN);
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'budget' });
+    sim.advance(20 * MIN);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    sim.advance(25 * MIN);
+    expect(itemTimers(sim, 'timer.scheduled')).toHaveLength(1);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
+    expect(sim.state.workflow?.pauseWindows).toHaveLength(1);
+    sim.advance(10 * MIN - 1);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    sim.advance(1);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(1);
+    expect(sim.eventsOf('budget.exceeded').at(-1)?.payload.used).toBe(45);
+    expect(sim.rejections).toEqual([]);
+  });
+
+  it('gives a deadline armed during a pause its full delay after resume', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'budget' });
+    sim.advance(10 * MIN);
+    sim.inject('timer.scheduled', {
+      timerId: 'during-pause',
+      fireAt: new Date(Date.parse(sim.clock) + 20 * MIN).toISOString(),
+      payload: { purpose: 'question-timeout', questionId: 'q' },
+    });
+    sim.advance(30 * MIN);
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'budget' });
+    expect(sim.state.timers['during-pause']?.fireAt).toBe(
+      new Date(Date.parse(sim.clock) + 20 * MIN).toISOString(),
+    );
+  });
+
+  it('lets the resume re-evaluation cancel a held deadline before it fires', () => {
+    const { sim } = setup({ items: [item('A')] });
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.advance(50 * MIN);
+    done(sim, 'A');
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    expect(
+      sim
+        .eventsOf('timer.cancelled')
+        .filter((e) => e.payload.timerId.includes('/item-timeout/')),
+    ).toHaveLength(1);
+    // Cancelled, so not rescheduled.
+    expect(itemTimers(sim, 'timer.scheduled')).toHaveLength(1);
+    expect(sim.state.workItems.A?.status).toBe('merge_queued');
+    expect(sim.eventsOf('message.nudge')).toHaveLength(0);
+    sim.advance(60 * MIN);
+    expect(itemTimers(sim, 'timer.fired')).toHaveLength(0);
+    expect(sim.rejections).toEqual([]);
+  });
 });

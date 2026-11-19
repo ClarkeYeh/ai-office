@@ -6,3 +6,9 @@ coverage/
 .env*
 # Local planning docs (contain private context); sanitized docs are added explicitly later.
 /docs/
+
+# Isolated fake development data.
+.dev-home/
+
+# Python bytecode from running the sprite sources.
+__pycache__/

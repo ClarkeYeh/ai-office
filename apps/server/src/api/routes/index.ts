@@ -92,7 +92,7 @@ export function routeHandlers(
       return { accepted: true };
     },
     listGates: () => queries.listGates(),
-    getGate: (r) => found(queries.getGate(id(r))),
+    getGate: async (r) => found(await queries.getGate(id(r))),
     decideGate: async (r) => {
       await commands.decideGate(
         id(r),

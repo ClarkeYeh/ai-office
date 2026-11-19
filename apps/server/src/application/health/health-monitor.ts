@@ -7,6 +7,7 @@ import type {
 import type { Clock, ScheduledTimer, Scheduler } from '../../ports/services.js';
 import type { EventStore } from '../../ports/stores.js';
 import type { DomainCommand, WorkflowState } from '@ai-office/domain';
+import { PortError } from '../../ports/errors.js';
 
 export interface HealthWorkflow {
   readonly state: WorkflowState;
@@ -15,10 +16,15 @@ export interface HealthWorkflow {
 import { toErrorInfo } from '../commands/errors.js';
 
 export const HEALTH_TIMER_PREFIX = 'aio-health:';
+/** A probe still pending after this long counts as a transient failure. */
+export const PROBE_TIMEOUT_MS = 5_000;
 export const HEALTH_COMPONENTS = ['runtime', 'scm', 'store', 'usage'] as const;
 export type HealthComponent = (typeof HEALTH_COMPONENTS)[number];
 type Breaker = 'closed' | 'open' | 'half_open';
 type Sample = { at: number; duration: number; error?: ErrorCategory };
+type Status = 'healthy' | 'degraded' | 'unhealthy';
+/** What the event store last said about a component (the projected state). */
+type Published = { status: Status; breaker?: Breaker; verified?: boolean };
 type ComponentState = {
   breaker: Breaker;
   failures: number[];
@@ -32,6 +38,8 @@ export interface HealthMonitorDeps {
   scheduler: Scheduler;
   /** Dedicated, read-only probes; never replay a mutation as a probe. */
   probes: Record<HealthComponent, () => Promise<void>>;
+  /** Bound on each probe (default PROBE_TIMEOUT_MS); a real timer, not `clock`. */
+  probeTimeoutMs?: number;
   /** Uninstrumented store: health publication must not recursively record itself. */
   store: EventStore;
   /** Evaluated lazily to support composition with WorkflowRunners. */
@@ -53,6 +61,11 @@ export class HealthMonitor {
   private readonly waiters = new Set<() => void>();
   private readonly pending: DomainEventDraft[] = [];
   private syncing: Promise<void> = Promise.resolve();
+  /** Seeded lazily from the last persisted `health.changed` per component. */
+  private published: Partial<Record<HealthComponent, Published>> | undefined;
+  private runtimeVerified: boolean | undefined;
+  /** Set by publishInitial; afterwards a successful call republishes `healthy`. */
+  private announced = false;
 
   constructor(private readonly deps: HealthMonitorDeps) {}
 
@@ -130,7 +143,54 @@ export class HealthMonitor {
           ? [...state.failures.filter((at) => now - at <= 60_000), now]
           : [];
       if (state.failures.length >= 5) this.change(component, 'open');
+      else if (error === undefined && this.announced)
+        this.publish(component, 'healthy');
     }
+    await this.sync();
+  }
+
+  /**
+   * Startup (FX5): probe every component once and publish its actual state.
+   * Breaker transitions alone never publish a component that is healthy from
+   * the start, which would leave the projection's `degraded` seed forever.
+   * Idempotent across restarts: a state equal to the last persisted
+   * `health.changed` is not republished (`checkedAt` then stays at that
+   * event). A failed probe with a closed breaker publishes `degraded`; the
+   * next successful call publishes `healthy`. Call after `restore()`.
+   */
+  async publishInitial(): Promise<void> {
+    for (const component of HEALTH_COMPONENTS) {
+      let failed = false;
+      try {
+        await this.call(component, () => this.probe(component));
+      } catch {
+        failed = true;
+      }
+      this.publish(
+        component,
+        failed && this.states[component].breaker === 'closed'
+          ? 'degraded'
+          : this.status(component),
+      );
+    }
+    this.announced = true;
+    await this.sync();
+  }
+
+  /**
+   * The runtime identity probe succeeded (FX5): fake mode once the fake
+   * runtime is up; orca mode after CoordinatorIdentity `ensure()`. `verified`
+   * is the runtime's own verdict (orca: version within the supported range,
+   * §19). Before publishInitial it is only recorded (that event carries it);
+   * afterwards a changed value republishes `runtime` with `runtimeVerified`.
+   */
+  async runtimeIdentityVerified(verified: boolean): Promise<void> {
+    this.runtimeVerified = verified;
+    if (!this.announced) return;
+    this.publish(
+      'runtime',
+      this.publishedState().runtime?.status ?? this.status('runtime'),
+    );
     await this.sync();
   }
 
@@ -151,7 +211,7 @@ export class HealthMonitor {
     await this.sync();
     let success = false;
     try {
-      await this.call(component, this.deps.probes[component]);
+      await this.call(component, () => this.probe(component));
       success = true;
     } catch {
       /* Category recorded above; no raw error enters health events. */
@@ -231,6 +291,32 @@ export class HealthMonitor {
     };
   }
 
+  /**
+   * Runs a component's probe, bounded so that a hung adapter (an `orca` or
+   * `gh` that never answers) fails it as `transient` instead of blocking
+   * startup or the half-open probe; the late result is ignored.
+   */
+  private probe(component: HealthComponent): Promise<void> {
+    const ms = this.deps.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new PortError(
+              'transient',
+              'probe_timeout',
+              `${component} health probe timed out after ${ms} ms`,
+            ),
+          ),
+        ms,
+      );
+    });
+    return Promise.race([this.deps.probes[component](), timeout]).finally(() =>
+      clearTimeout(timer),
+    );
+  }
+
   private prune(state: ComponentState, now: number): void {
     state.samples = state.samples.filter((s) => now - s.at < 300_000);
   }
@@ -249,10 +335,64 @@ export class HealthMonitor {
     const state = this.states[component];
     state.breaker = breaker;
     state.failures = [];
+    this.publish(component, this.status(component), true);
+    if (breaker === 'open') {
+      state.probeAt = this.deps.clock.now().getTime() + 10_000;
+      this.deps.scheduler.schedule({
+        id: `${HEALTH_TIMER_PREFIX}${component}`,
+        workflowId: '__health__',
+        fireAt: new Date(state.probeAt).toISOString(),
+      });
+    } else delete state.probeAt;
+  }
+
+  private publishedState(): Partial<Record<HealthComponent, Published>> {
+    if (this.published) return this.published;
+    const published: Partial<Record<HealthComponent, Published>> = {};
+    let events;
+    try {
+      events = this.deps.store.read({ workflowId: null });
+    } catch {
+      // Store outage: compare against nothing (may republish); seed again later.
+      return published;
+    }
+    for (const event of events) {
+      if (event.type !== 'health.changed') continue;
+      const p = event.payload;
+      const verified = p.runtimeVerified ?? published[p.component]?.verified;
+      published[p.component] = {
+        status: p.status,
+        ...(p.breaker === undefined ? {} : { breaker: p.breaker }),
+        ...(verified === undefined ? {} : { verified }),
+      };
+    }
+    return (this.published = published);
+  }
+
+  /** Queues `health.changed` unless the store already says exactly this
+   * (`force`: breaker transitions always publish, as before FX5). */
+  private publish(component: HealthComponent, status: Status, force = false) {
+    const breaker = this.states[component].breaker;
+    const verified = component === 'runtime' ? this.runtimeVerified : undefined;
+    const published = this.publishedState();
+    const last = published[component];
+    if (
+      !force &&
+      last?.status === status &&
+      last.breaker === breaker &&
+      (verified === undefined || last.verified === verified)
+    )
+      return;
+    published[component] = {
+      status,
+      breaker,
+      ...(verified === undefined ? {} : { verified }),
+    };
     const payload: EventPayload<'health.changed'> = {
       component,
       breaker,
-      status: this.status(component),
+      status,
+      ...(verified === undefined ? {} : { runtimeVerified: verified }),
     };
     this.pending.push({
       type: 'health.changed',
@@ -263,14 +403,6 @@ export class HealthMonitor {
       provenance: 'observed',
       schemaVersion: CURRENT_SCHEMA_VERSION['health.changed'],
     });
-    if (breaker === 'open') {
-      state.probeAt = this.deps.clock.now().getTime() + 10_000;
-      this.deps.scheduler.schedule({
-        id: `${HEALTH_TIMER_PREFIX}${component}`,
-        workflowId: '__health__',
-        fireAt: new Date(state.probeAt).toISOString(),
-      });
-    } else delete state.probeAt;
   }
 
   /** Store outages retain health events in memory until a later probe can flush.

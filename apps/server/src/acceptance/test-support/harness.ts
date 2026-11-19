@@ -55,7 +55,9 @@ export function acceptanceWorld(
   const specStore = new FsSpecStore(`${dataDir}/data`);
   const scm = createFakeScm({
     clock,
-    autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs ?? 50,
+    ...(options.finalMergeMs === undefined
+      ? {}
+      : { autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs }),
     ...(options.mergeDelay === undefined ? {} : { delay: options.mergeDelay }),
   });
   scm.addRepo(FAKE_REPO.github);
@@ -245,12 +247,16 @@ export interface Office {
   /**
    * Plays the human: approves stage gates (or applies `policy`) until `done`
    * holds. Exception gates are left to `onException`, or fail the drive.
+   * `timeoutMs` bounds a stall (no new event), not the whole drive, so a slow
+   * but progressing run under load does not time out.
    */
   drive(
     workflowId: string,
     done: (workflow: Json) => boolean | Promise<boolean>,
     options?: {
       policy?: GatePolicy;
+      /** Disable the simulated human merge when testing the final gate itself. */
+      mergeFinalPr?: boolean;
       onException?: (gate: Json) => boolean | Promise<boolean>;
       timeoutMs?: number;
     },
@@ -389,11 +395,17 @@ export async function office(
       );
     },
     async drive(workflowId, done, driveOptions = {}) {
-      const deadline = Date.now() + (driveOptions.timeoutMs ?? 30_000);
+      const stallMs = driveOptions.timeoutMs ?? 30_000;
+      let deadline = Date.now() + stallMs;
+      let lastSeq = -1;
       const checked = new Set<string>();
       for (;;) {
         const workflow = await self.readModel(workflowId);
         if (await done(workflow)) return workflow;
+        if (workflow.lastSeq !== lastSeq) {
+          lastSeq = workflow.lastSeq as number;
+          deadline = Date.now() + stallMs;
+        }
         if (Date.now() > deadline)
           throw new Error(
             `Timed out at ${JSON.stringify(workflow.status)}\n${trace(await self.events(workflowId))}`,
@@ -418,7 +430,18 @@ export async function office(
               liveAgents: liveAgents(world),
             });
           }
-          if (gate.stageKind === 'final-pr') continue; // the fake owner merges it
+          if (gate.stageKind === 'final-pr') {
+            if (
+              driveOptions.mergeFinalPr === false ||
+              options.finalMergeMs !== undefined
+            )
+              continue;
+            const number =
+              server.runners.get(workflowId)?.state.workflow?.finalPr;
+            if (number !== undefined)
+              await world.scm.mergeOwner({ repo: FAKE_REPO.github, number });
+            continue;
+          }
           const detail = (
             await ui.call(
               'GET',

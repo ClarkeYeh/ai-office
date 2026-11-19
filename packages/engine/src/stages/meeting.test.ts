@@ -1,8 +1,9 @@
 import { replay } from '@ai-office/domain';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { Simulator } from '../test-support/simulator.js';
+import { pausingWorld, Simulator } from '../test-support/simulator.js';
 import { runMeeting, scenario } from '../test-support/meeting.js';
+import { createReact, DEFAULT_MODULES } from '../react.js';
 import { startWorkflow } from '../test-support/fixtures.js';
 import { conclusionHash } from './meeting.js';
 
@@ -275,4 +276,90 @@ it('does not let a satisfied agenda reminder expire the subsequent discussion', 
   checked(sim);
   expect(sim.eventsOf('meeting.round_started')).toHaveLength(1);
   expect(sim.eventsOf('gate.opened')).toHaveLength(0);
+});
+
+describe('re-evaluation on resume', () => {
+  const meetingOnly = createReact({
+    ...DEFAULT_MODULES,
+    stages: {
+      ...DEFAULT_MODULES.stages,
+      planning: { react: () => [] },
+      implement: { react: () => [] },
+    },
+  });
+  const pausedMeeting = (when: Parameters<typeof pausingWorld>[1]) => {
+    const sim = new Simulator({
+      world: pausingWorld(scenario(), when),
+      react: meetingOnly,
+    });
+    sim.dispatch(startWorkflow());
+    expect(sim.state.workflow?.pausedReasons).toEqual(['hijacked']);
+    return sim;
+  };
+  const resume = (sim: Simulator) =>
+    sim.dispatch({ type: 'ResumeWorkflow', reason: 'hijacked' });
+  const send = (subject: string) => (issued: { command: { kind: string } }) =>
+    issued.command.kind === 'runtime.send' &&
+    'args' in issued.command &&
+    (issued.command.args as { subject: string }).subject === subject;
+
+  it('starts round 1 for participants that became ready while paused', () => {
+    const sim = pausedMeeting(
+      (issued, current) =>
+        issued.command.kind === 'runtime.spawnAgent' &&
+        current.state.attempts[issued.attemptId!]?.purpose === 'participant',
+    );
+    expect(sim.eventsOf('meeting.round_started')).toHaveLength(0);
+    resume(sim);
+    expect(sim.eventsOf('meeting.round_completed')).toHaveLength(2);
+    expect(sim.state.stages.meeting?.status).toBe('awaiting_gate');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('records statements accepted while paused and completes the round', () => {
+    const sim = pausedMeeting(send('Meeting round 1'));
+    expect(sim.eventsOf('meeting.statement')).toHaveLength(0);
+    resume(sim);
+    expect(sim.eventsOf('meeting.statement')).toHaveLength(6);
+    expect(sim.eventsOf('meeting.round_completed')).toHaveLength(2);
+    expect(sim.state.stages.meeting?.status).toBe('awaiting_gate');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('concludes on a conclusion accepted while paused', () => {
+    const sim = pausedMeeting(send('Write meeting conclusion'));
+    expect(sim.eventsOf('meeting.concluded')).toHaveLength(0);
+    resume(sim);
+    expect(sim.eventsOf('meeting.concluded')).toHaveLength(1);
+    expect(sim.state.stages.meeting?.status).toBe('awaiting_gate');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('raises the violation for a worktree found dirty while paused', () => {
+    const world = scenario();
+    const sim = new Simulator({
+      world: (issued, current) =>
+        issued.command.kind === 'runtime.inspectWorkspace'
+          ? undefined
+          : world(issued, current),
+      react: meetingOnly,
+    });
+    sim.dispatch(startWorkflow());
+    const inspect = sim.issued.find(
+      (e) => e.command.kind === 'runtime.inspectWorkspace',
+    )!;
+    sim.dispatch({ type: 'PauseWorkflow', reason: 'hijacked' });
+    sim.inject(
+      'command.succeeded',
+      {
+        commandId: inspect.commandId,
+        kind: 'runtime.inspectWorkspace',
+        result: { clean: false, changedFiles: ['changed.ts'] },
+      },
+      { stageId: 'meeting' },
+    );
+    expect(sim.eventsOf('gate.opened')).toHaveLength(0);
+    resume(sim);
+    expect(sim.eventsOf('gate.opened').at(-1)?.payload).toMatchObject({
+      kind: 'exception',
+      exceptionKind: 'stage-violation',
+    });
+  });
 });

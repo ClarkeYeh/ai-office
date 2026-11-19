@@ -96,4 +96,63 @@ describe('ai-office start', () => {
     cli.kill('SIGINT');
     expect(await new Promise((done) => cli.once('exit', done))).toBe(0);
   }, 60_000);
+
+  it('the backend closes cleanly on a stop right after printing its bootstrap URL', async () => {
+    // The URL is printed before startServer resolves, and `start` forwards
+    // Ctrl-C as soon as it can: the backend must close, not die by signal.
+    const directory = home();
+    const server = spawn(
+      process.execPath,
+      [serverPath, '--dev', '--fake', 'mainline', '--port', '0'],
+      {
+        env: { ...process.env, AI_OFFICE_HOME: directory },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    let output = '';
+    server.stdout.on('data', (chunk) => {
+      output += String(chunk);
+      if (output.includes('/auth/bootstrap?code=')) server.kill('SIGTERM');
+    });
+    const [code, signal] = await new Promise<unknown[]>((done) =>
+      server.once('exit', (...result) => done(result)),
+    );
+    expect({ code, signal }).toEqual({ code: 0, signal: null });
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+  }, 30_000);
+
+  it('shuts down gracefully when SIGTERM repeats during shutdown', async () => {
+    const directory = home();
+    const child = spawn(
+      process.execPath,
+      [serverPath, '--dev', '--fake', 'mainline', '--port', '0'],
+      {
+        env: { ...process.env, AI_OFFICE_HOME: directory },
+        stdio: ['ignore', 'pipe', 'inherit'],
+      },
+    );
+    const exited = new Promise<[number | null, NodeJS.Signals | null]>((done) =>
+      child.once('exit', (code, signal) => done([code, signal])),
+    );
+    let out = '';
+    const bootstrap = await new Promise<string>((done, fail) => {
+      child.stdout.on('data', (chunk) => {
+        out += String(chunk);
+        const url = /Open (\S+)/.exec(out)?.[1];
+        if (url) done(url);
+      });
+      void exited.then(() => fail(new Error(`backend exited early: ${out}`)));
+    });
+    // A served request means main() is past startup and listening for signals.
+    expect((await fetch(bootstrap, { redirect: 'manual' })).status).toBe(302);
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(true);
+
+    // Keep signalling until it exits, as an impatient supervisor would.
+    const repeat = setInterval(() => child.kill('SIGTERM'), 1);
+    child.kill('SIGTERM');
+    const [code, signal] = await exited.finally(() => clearInterval(repeat));
+    expect({ code, signal }).toEqual({ code: 0, signal: null });
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+    expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
+  }, 60_000);
 });

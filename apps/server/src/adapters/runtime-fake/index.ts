@@ -647,6 +647,14 @@ export class FakeRuntime implements RuntimePort {
       .filter((a) => ['working', 'waiting_input', 'done'].includes(a.state))
       .map((a) => a.ref);
   }
+  /** Scheduled steps that will still run (due or not); test hook for draining. */
+  pendingSteps(): number {
+    return this.scheduled.filter(
+      (job) =>
+        job.generation === job.agent.generation &&
+        !['released', 'lost', 'stopped'].includes(job.agent.state),
+    ).length;
+  }
   async findByCorrelation(
     session: SessionRef,
     commandId: string,
@@ -766,7 +774,12 @@ export class FakeRuntime implements RuntimePort {
       this.pumping = false;
     }
   }
-  private async execute({ agent: a, action, at }: Scheduled): Promise<void> {
+  private async execute({
+    agent: a,
+    action,
+    at,
+    order,
+  }: Scheduled): Promise<void> {
     const emit = (body: EventBody) => this.emit(a.session, body, at);
     switch (action.type) {
       case 'submit': {
@@ -799,9 +812,18 @@ export class FakeRuntime implements RuntimePort {
           )
             throw error;
           // The agent retries its `ai-office submit` once the backend is back.
+          // The command blocks its turn: later steps (e.g. done) wait for it.
+          const retryAt = this.now() + retryMs;
+          for (const job of this.scheduled)
+            if (
+              job.agent === a &&
+              job.generation === a.generation &&
+              job.at < retryAt
+            )
+              job.at = retryAt;
           this.scheduled.push({
-            at: this.now() + retryMs,
-            order: ++this.sequence,
+            at: retryAt,
+            order,
             agent: a,
             generation: a.generation,
             action,

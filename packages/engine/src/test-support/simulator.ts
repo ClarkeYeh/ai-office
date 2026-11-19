@@ -13,7 +13,9 @@ import type {
 import {
   decide,
   evolveWithWarning,
+  heldTimerShifts,
   initialState,
+  isTimerHeld,
   possiblyLiveAttempts,
 } from '@ai-office/domain';
 import type {
@@ -33,7 +35,9 @@ import type { React } from '../react.js';
  * WorkflowRunner (§11.4) against a scripted outside world, on a virtual clock.
  * Inputs are processed FIFO; internal effects go to the back of the queue;
  * timer / cancelTimer / external effects are written immediately, in order,
- * as the runner does. Every event is checked against `DomainEventSchema`.
+ * as the runner does. Like the runner, a paused workflow holds its timers and
+ * the resume that unpauses it reschedules them with their remaining time
+ * (FX8b). Every event is checked against `DomainEventSchema`.
  */
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
@@ -55,10 +59,36 @@ export type World = (
   sim: Simulator,
 ) => WorldReply | undefined;
 
+/**
+ * Wraps a world so the first command matching `when` pauses the workflow
+ * (`hijacked`) just before its reply's observations land, which then all
+ * arrive while paused.
+ */
+export const pausingWorld = (
+  world: World,
+  when: (issued: IssuedCommand, sim: Simulator) => boolean,
+): World => {
+  let paused = false;
+  return (issued, sim) => {
+    const reply = world(issued, sim);
+    if (paused || reply === undefined || !when(issued, sim)) return reply;
+    paused = true;
+    return {
+      ...reply,
+      observe: [
+        { type: 'PauseWorkflow', reason: 'hijacked' },
+        ...(reply.observe ?? []),
+      ],
+    };
+  };
+};
+
 type Input =
   | { kind: 'spawn'; effect: SpawnEffect }
   | { kind: 'command'; command: DomainCommand }
-  | { kind: 'reply'; issued: IssuedCommand; reply: WorldReply };
+  | { kind: 'reply'; issued: IssuedCommand; reply: WorldReply }
+  | { kind: 'timer'; timerId: string }
+  | { kind: 'shift' };
 
 export interface SimulatorOptions {
   world?: World;
@@ -183,12 +213,16 @@ export class Simulator {
     return this.drain();
   }
 
-  /** Moves the clock forward, firing due timers in `fireAt` order. */
+  /** Moves the clock forward, firing due timers in `fireAt` order (held while paused). */
   advance(ms: number): this {
     const target = this.now + ms;
-    for (;;) {
+    while (!this.paused) {
       const due = Object.values(this.state.timers)
-        .filter((timer) => Date.parse(timer.fireAt) <= target)
+        .filter(
+          (timer) =>
+            Date.parse(timer.fireAt) <= target &&
+            !isTimerHeld(this.state, timer),
+        )
         .sort(
           (a, b) =>
             Date.parse(a.fireAt) - Date.parse(b.fireAt) ||
@@ -196,7 +230,7 @@ export class Simulator {
         )[0];
       if (due === undefined) break;
       this.now = Math.max(this.now, Date.parse(due.fireAt));
-      this.append(this.draft('timer.fired', { timerId: due.id }));
+      this.queue.push({ kind: 'timer', timerId: due.id });
       this.drain();
     }
     this.now = target;
@@ -226,9 +260,36 @@ export class Simulator {
         throw new Error(`Simulator exceeded ${this.maxSteps} steps`);
       if (input.kind === 'spawn') this.spawn(input.effect);
       else if (input.kind === 'command') this.run(input.command);
+      else if (input.kind === 'timer') this.fire(input.timerId);
+      else if (input.kind === 'shift') this.shift();
       else this.receive(input.issued, input.reply);
     }
     return this;
+  }
+
+  private get paused(): boolean {
+    return (this.state.workflow?.pausedReasons.length ?? 0) > 0;
+  }
+
+  /** The runner's timer delivery: fires only a pending timer a pause does not hold. */
+  private fire(timerId: string): void {
+    if (
+      Object.hasOwn(this.state.timers, timerId) &&
+      !isTimerHeld(this.state, this.state.timers[timerId]!)
+    )
+      this.append(this.draft('timer.fired', { timerId }));
+  }
+
+  /** The runner's FX8b shift: held timers get their remaining time back. */
+  private shift(): void {
+    for (const { timer, fireAt } of heldTimerShifts(this.state, this.clock))
+      this.append(
+        this.draft('timer.scheduled', {
+          timerId: timer.id,
+          fireAt,
+          payload: timer.payload,
+        }),
+      );
   }
 
   private run(command: DomainCommand): void {
@@ -344,6 +405,8 @@ export class Simulator {
           break;
       }
     }
+    // The runner shifts timers held while paused, behind the resume's effects.
+    if (event.type === 'workflow.resumed') this.queue.push({ kind: 'shift' });
   }
 
   private spawn(effect: SpawnEffect): void {

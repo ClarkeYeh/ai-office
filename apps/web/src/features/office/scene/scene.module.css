@@ -1,0 +1,384 @@
+/* Pixel office scene (M4_PLAN §3.6, M4_DESIGN §2, §5). Colours are Endesga 32. */
+
+.frame {
+  position: relative;
+  overflow: hidden;
+  background: #262b44;
+  image-rendering: pixelated;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.world {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: 0 0;
+}
+
+.world img,
+.sprite,
+.strip {
+  image-rendering: pixelated;
+}
+
+.background {
+  position: absolute;
+  left: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.sprite {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.strip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-repeat: no-repeat;
+}
+
+/* Transform strip animation: the whole strip slides one frame per step (§3.6).
+ * `jump-none` holds each of the n frames for 1/n of the cycle, so a one-shot
+ * animation ends on its last frame; --strip is −(n − 1) frame widths. */
+.animated {
+  animation-name: strip;
+  animation-duration: var(--dur);
+  animation-timing-function: steps(var(--frames), jump-none);
+  animation-iteration-count: var(--iter);
+  animation-fill-mode: forwards;
+  will-change: transform;
+}
+
+@keyframes strip {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(var(--strip));
+  }
+}
+
+.pane {
+  position: absolute;
+  pointer-events: none;
+}
+
+.hit {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.hit:focus-visible {
+  outline: 3px solid #feae34;
+  outline-offset: 1px;
+}
+
+.hit[data-interactive='false'] {
+  cursor: default;
+}
+
+.figure {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+}
+
+.figure[data-hidden='true'] {
+  visibility: hidden;
+}
+
+/* Nameplates: DOM text, white plate with ink text (§5.4 contrast). */
+.plate {
+  position: absolute;
+  z-index: 5;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 2px 5px 3px;
+  background: #ffffff;
+  border: 2px solid #262b44;
+  color: #262b44;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.plate[data-tone='need'] {
+  border-color: #feae34;
+  box-shadow: 0 0 0 1px #262b44;
+}
+
+.plate[data-tone='error'] {
+  border-color: #e43b44;
+}
+
+.plate[data-tone='selected'] {
+  background: #262b44;
+  color: #ffffff;
+}
+
+.plate[data-compact='true'] {
+  padding: 0 3px 1px;
+  border-width: 1px;
+}
+
+.plate[data-compact='true'] .plateTitle {
+  font-size: 10px;
+}
+
+.plate[data-flash='true'] {
+  outline: 3px solid #feae34;
+  outline-offset: 1px;
+}
+
+.plateTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'DotGothic16', ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.plateSubtitle {
+  font-size: 11px;
+}
+
+.badge {
+  padding: 0 2px;
+  font-family: 'DotGothic16', ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.2;
+  /* night: 5.6:1 on sky (CC), 8.4:1 on leaf (CX); ink was 4.35:1 on sky. */
+  color: #181425;
+}
+
+.badge[data-badge='CC'] {
+  background: #0099db;
+}
+
+.badge[data-badge='CX'] {
+  background: #63c74d;
+}
+
+.roomPlate {
+  position: absolute;
+  z-index: 4;
+  padding: 1px 4px;
+  background: #ffffff;
+  border: 2px solid #262b44;
+  color: #262b44;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.roomPlate:focus-visible {
+  outline: 3px solid #feae34;
+  outline-offset: 1px;
+}
+
+.roomPlate[aria-pressed='true'] {
+  background: #262b44;
+  color: #ffffff;
+}
+
+.whiteboardText {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 0.1em 0.3em;
+  color: #262b44;
+  font-family: 'LXGW WenKai TC', 'Kaiti TC', cursive;
+  line-height: 1.15;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.whiteboardTitle {
+  font-weight: 700;
+}
+
+.label {
+  position: absolute;
+  z-index: 4;
+  color: #262b44;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.doorSign {
+  font-family: 'DotGothic16', ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.cartLabel {
+  color: #ffffff;
+  font-family: 'DotGothic16', ui-monospace, monospace;
+}
+
+.inbox {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.inboxLink {
+  padding: 0 3px;
+  background: #ffffff;
+  border: 1px solid #262b44;
+  color: #262b44;
+  font-family: 'DotGothic16', ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.inboxLink:focus-visible {
+  outline: 3px solid #feae34;
+}
+
+.hush {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: rgb(38 43 68 / 68%);
+  pointer-events: none;
+}
+
+.effects {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.mover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+
+.trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  shape-rendering: crispEdges;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 9;
+  padding: 2px 6px;
+  background: #262b44;
+  color: #ffffff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* D4: reduced motion stops every strip animation; the player skips to results. */
+.frame[data-reduced='true'] .animated {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated {
+    animation: none;
+  }
+}
+
+/* Avatar (seat inspector): the front upper body in a pixel frame. */
+.avatar {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  background: #c0cbdc;
+  image-rendering: pixelated;
+}
+
+.bubble {
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 6;
+  display: block;
+  padding: 3px 5px;
+  border: solid #262b44;
+  background: white;
+  color: #262b44;
+  text-align: left;
+  line-height: 1.35;
+  pointer-events: auto;
+  box-shadow: 2px 2px 0 #262b44;
+}
+.bubble > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.bubble::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 4px;
+  background: white;
+  bottom: -5px;
+  left: var(--tail-x);
+  box-shadow:
+    2px 2px 0 #262b44,
+    4px 4px 0 #262b44;
+}
+.bubble[data-tail='up']::after {
+  top: -5px;
+  bottom: auto;
+  box-shadow:
+    -2px -2px 0 #262b44,
+    -4px -4px 0 #262b44;
+}
+.bubble[data-tail='left']::after {
+  top: 8px;
+  left: -5px;
+  bottom: auto;
+  box-shadow:
+    -2px 2px 0 #262b44,
+    -4px 4px 0 #262b44;
+}
+
+/* The still gate thumbnail (2×) keeps its plates and badges readable; speech
+   and tooltips are live-office detail and stay off the crop. */
+.frame[data-still] :is(.bubble, .tooltip) {
+  display: none;
+}
