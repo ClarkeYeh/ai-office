@@ -39,8 +39,12 @@ export default defineConfig({
           name: '@ai-office/' + name,
           root: 'apps/' + name,
           include: ['src/**/*.test.ts'],
-          // Live Orca files run only in @ai-office/server-orca (opt-in).
-          exclude: [...configDefaults.exclude, '**/*.orca.test.ts'],
+          // Live files belong only to their explicit opt-in projects.
+          exclude: [
+            ...configDefaults.exclude,
+            '**/*.orca.test.ts',
+            '**/*.github.test.ts',
+          ],
         },
       })),
       {
@@ -66,6 +70,14 @@ export default defineConfig({
           include: ['apps/server/src/**/*.orca.test.ts'],
           // Live files share one Orca and a global post-cleanup leak scan,
           // so a concurrent file's resources would false-fail another file.
+          fileParallelism: false,
+        },
+      },
+      {
+        test: {
+          name: '@ai-office/server-github',
+          include: ['apps/server/src/**/*.github.test.ts'],
+          // Live suites share a repo, ledger cleanup, and one live lock.
           fileParallelism: false,
         },
       },
