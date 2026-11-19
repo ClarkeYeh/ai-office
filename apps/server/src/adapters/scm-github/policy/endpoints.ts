@@ -87,12 +87,16 @@ export const endpoints = {
     true,
   ),
   'pulls.update': endpoint('PATCH', `${root}/pulls/{number}`, patch),
-  'pulls.merge': endpoint(
-    'PUT',
-    `${root}/pulls/{number}/merge`,
+  // S20/G11: the base is named explicitly, so a retargeted PR base cannot
+  // redirect the merge; GitHub marks the PR merged ~3 s later. PUT
+  // pulls/{n}/merge is deliberately absent: it follows the PR's live base.
+  'merges.create': endpoint(
+    'POST',
+    `${root}/merges`,
     z.strictObject({
-      merge_method: z.literal('merge'),
-      sha: text.regex(/^[a-f0-9]{40}$/i),
+      base: text.startsWith('ai-office/'),
+      head: text.regex(/^[a-f0-9]{40}$/i),
+      commit_message: text,
     }),
   ),
   'pulls.comments': endpoint('GET', `${root}/pulls/{number}/comments`),
@@ -154,10 +158,16 @@ export function prepareRequest(
   )
     guard('comment_delete_not_allowed');
   if (
-    id === 'pulls.merge' &&
-    (!safety?.defaultBranch ||
-      !safety.actualBase?.startsWith('ai-office/') ||
-      safety.actualBase === safety.defaultBranch)
+    id === 'merges.create' &&
+    (typeof params.body !== 'object' ||
+      params.body === null ||
+      !('base' in params.body) ||
+      typeof params.body.base !== 'string' ||
+      !params.body.base.startsWith('ai-office/') ||
+      !safety?.defaultBranch ||
+      params.body.base === safety.defaultBranch ||
+      safety.actualBase !== params.body.base ||
+      safety.protected !== false)
   )
     guard('merge_base_not_allowed');
   if (

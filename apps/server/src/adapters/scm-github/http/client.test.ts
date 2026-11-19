@@ -458,11 +458,14 @@ describe('GitHub HTTP boundary', () => {
       ['refs.delete', { ...params, ref: 'main' }],
       ['comments.delete', { ...params, id: 1 }],
       [
-        'pulls.merge',
+        'merges.create',
         {
           ...params,
-          number: 1,
-          body: { merge_method: 'merge', sha: 'a'.repeat(40) },
+          body: {
+            base: 'ai-office/int',
+            head: 'a'.repeat(40),
+            commit_message: 'm',
+          },
         },
       ],
       ['pulls.update', { ...params, number: 1, body: { base: 'main' } }],
@@ -475,6 +478,77 @@ describe('GitHub HTTP boundary', () => {
         f.http.request(id, p, { schema: emptySchema }),
       ).rejects.toMatchObject({ category: 'guard' });
     expect(f.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /merges policy (S20)', () => {
+  const body = {
+    base: 'ai-office/int',
+    head: 'a'.repeat(40),
+    commit_message: 'w1 (#1)',
+  };
+  const safety = {
+    defaultBranch: 'main',
+    actualBase: 'ai-office/int',
+    protected: false,
+  };
+  it('allows an unprotected ai-office/ base named by the fresh PR read', async () => {
+    const f = setup([json({ sha: 'b'.repeat(40) }, 201)]);
+    await f.http.request(
+      'merges.create',
+      { ...params, body },
+      { schema: emptySchema, safety },
+    );
+    expect(f.fetch.mock.calls[0]![0]).toBe(
+      'https://api.github.com/repos/owner/project/merges',
+    );
+  });
+  it.each([
+    [
+      'the default branch',
+      { ...body, base: 'main' },
+      { ...safety, actualBase: 'main' },
+    ],
+    [
+      'a non ai-office/ base',
+      { ...body, base: 'release' },
+      { ...safety, actualBase: 'release' },
+    ],
+    ['a protected base', body, { ...safety, protected: true }],
+    [
+      'unknown protection',
+      body,
+      { defaultBranch: 'main', actualBase: body.base },
+    ],
+    [
+      'a base other than the checked one',
+      body,
+      { ...safety, actualBase: 'ai-office/x' },
+    ],
+    ['a short head', { ...body, head: 'abc1234' }, safety],
+    ['missing evidence', body, undefined],
+  ])('refuses %s before fetch', async (_, b, evidence) => {
+    const f = setup([]);
+    await expect(
+      f.http.request(
+        'merges.create',
+        { ...params, body: b },
+        { schema: emptySchema, ...(evidence ? { safety: evidence } : {}) },
+      ),
+    ).rejects.toMatchObject({ category: 'guard' });
+    expect(f.fetch).not.toHaveBeenCalled();
+  });
+  it('no longer offers PUT pulls/{n}/merge', async () => {
+    const f = setup([]);
+    await expect(
+      f.http.request(
+        'pulls.merge' as EndpointId,
+        { ...params, number: 1 },
+        {
+          schema: emptySchema,
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'endpoint_not_allowed' });
   });
 });
 

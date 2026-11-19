@@ -20,7 +20,11 @@ Reconciliation checks runtime request receipts first. `absent` searches durable
 `aio:` markers before redo; `pending` waits for another pass. Workspace lookup
 uses the recorded deterministic name and `aio:<commandId>` comment; mismatches
 are guards. Pinned workspaces recover their original `baseSha` and never refetch
-onto a newer commit. SCM creation searches its command marker. Merges read PR
+onto a newer commit. SCM creation searches its command marker with `findByMarker(repo, id,
+{since: issuedAt, kind})` and records the returned real `url`; nothing found
+inside `CREATE_PENDING_WINDOW_MS` of the issue time is `pending` (the list can
+lag), only later `redone`. A PR already merged must match the recorded
+`expectedHeadSha` and the integration branch as base, or recovery gives up. Merges read PR
 state first and backfill the recorded merge SHA when already merged. Remaining
 idempotent operations redo their original arguments. A found result and its
 reconciled event commit atomically. An unrecoverable result commits failure,

@@ -31,7 +31,11 @@ import {
   WORKFLOW_ID,
 } from '../runner/test-support/harness.js';
 import type { RunnerReact } from '../runner/workflow-runner.js';
-import { ObservationLoop, OBSERVATION_TIMER_PREFIX } from './index.js';
+import {
+  ObservationLoop,
+  OBSERVATION_TIMER_PREFIX,
+  SCM_SLOW_INTERVAL_MS,
+} from './index.js';
 import { budgetFormula } from './usage.js';
 
 const session = SessionRefSchema.parse('session-1');
@@ -604,19 +608,142 @@ async function conclusion(h: Awaited<ReturnType<typeof setup>>) {
   return { issue, initial };
 }
 describe('SCM ingestion', () => {
-  it('records repeated default-head transitions even when the provider cursor does not change', async () => {
+  it('records each default-head transition from branch.head_changed, without compareBranch per poll', async () => {
     const h = await setup();
-    const a = 'a'.repeat(40),
-      b = 'b'.repeat(40);
-    vi.spyOn(h.scm, 'compareBranch')
-      .mockResolvedValueOnce({ ahead: 0, headSha: a })
-      .mockResolvedValueOnce({ ahead: 0, headSha: b })
-      .mockResolvedValueOnce({ ahead: 0, headSha: a })
-      .mockResolvedValueOnce({ ahead: 0, headSha: b });
-    for (let i = 0; i < 4; i++) await h.loop.pollScm(h.runner);
+    const compare = vi.spyOn(h.scm, 'compareBranch');
+    await h.loop.pollScm(h.runner);
+    for (let i = 0; i < 3; i++) {
+      h.scm.pushBranch(h.repo, 'main');
+      await h.loop.pollScm(h.runner);
+    }
+    await h.loop.pollScm(h.runner);
     expect(
       h.runner.state.anomalies.filter((a) => a.kind === 'default-branch-moved'),
     ).toHaveLength(3);
+    expect(compare).not.toHaveBeenCalled();
+    expect(h.store.readCursor('observation.scm', WORKFLOW_ID)).toEqual({
+      v: 2,
+      cursor: expect.any(String),
+    });
+  });
+  it('takes the first poll as the baseline even when the list replays older head moves', async () => {
+    const h = await setup();
+    h.scm.pushBranch(h.repo, 'main');
+    h.scm.pushBranch(h.repo, 'main');
+    await h.loop.pollScm(h.runner);
+    expect(h.runner.state.anomalies).toEqual([]);
+    h.scm.pushBranch(h.repo, 'main');
+    await h.loop.pollScm(h.runner);
+    expect(
+      h.runner.state.anomalies.filter((a) => a.kind === 'default-branch-moved'),
+    ).toHaveLength(1);
+  });
+  it('migrates a v1 checkpoint with one default-head comparison, then drops it', async () => {
+    const h = await setup();
+    await h.loop.pollScm(h.runner);
+    const v2 = h.store.readCursor('observation.scm', WORKFLOW_ID) as {
+      cursor: string;
+    };
+    const before = await h.scm.compareBranch(h.repo, 'main', 'main');
+    // A pre-M3 backend recorded the default head; it moved while stopped.
+    await h.runner.append(
+      [],
+      [
+        {
+          source: 'observation.scm',
+          scope: WORKFLOW_ID,
+          value: { cursor: v2.cursor, defaultSha: before!.headSha, poll: 4 },
+        },
+      ],
+    );
+    h.scm.pushBranch(h.repo, 'main');
+    const compare = vi.spyOn(h.scm, 'compareBranch');
+    await h.loop.pollScm(h.runner);
+    expect(compare).toHaveBeenCalledTimes(1);
+    expect(
+      h.runner.state.anomalies.filter((a) => a.kind === 'default-branch-moved'),
+    ).toHaveLength(1);
+    await h.loop.pollScm(h.runner);
+    expect(compare).toHaveBeenCalledTimes(1);
+    expect(h.store.readCursor('observation.scm', WORKFLOW_ID)).toEqual({
+      v: 2,
+      cursor: expect.any(String),
+    });
+  });
+  it('treats a head_changed with previousSha null as a baseline, never a move (T6 rule a)', async () => {
+    const h = await setup();
+    const sha = (c: string) => c.repeat(40);
+    const poll = vi.spyOn(h.scm, 'poll');
+    for (const [i, branchName] of [
+      h.runner.state.workflow!.repo.defaultBranch,
+      h.runner.state.workflow!.integrationBranch,
+    ].entries())
+      poll.mockResolvedValueOnce({
+        events: [
+          {
+            type: 'branch.head_changed',
+            externalKey: `baseline-${i}`,
+            occurredAt: START,
+            branch: branchName,
+            sha: sha('d'),
+            previousSha: null,
+          },
+        ],
+        cursor: (await h.scm.poll(h.repo, null)).cursor,
+      });
+    await h.loop.pollScm(h.runner);
+    await h.loop.pollScm(h.runner);
+    expect(h.runner.state.anomalies).toEqual([]);
+    expect(h.runner.state.workflow!.pausedReasons.includes('anomaly')).toBe(
+      false,
+    );
+  });
+  it('drops object.duplicate and integration-branch moves until T11 lands (part 3)', async () => {
+    const h = await setup();
+    const before = h.events().length;
+    const poll = vi.spyOn(h.scm, 'poll').mockResolvedValueOnce({
+      events: [
+        {
+          type: 'object.duplicate',
+          externalKey: 'dup-own',
+          occurredAt: START,
+          commandId: 'spawn-1',
+          kind: 'issue',
+          numbers: [3, 4],
+        },
+        {
+          type: 'object.duplicate',
+          externalKey: 'dup-foreign',
+          occurredAt: START,
+          commandId: 'other-run-cmd',
+          kind: 'comment',
+          target: { repo: h.repo, number: 3 },
+          commentIds: ['c1', 'c2'],
+        },
+        {
+          type: 'branch.head_changed',
+          externalKey: 'integration-move',
+          occurredAt: START,
+          branch: h.runner.state.workflow!.integrationBranch,
+          sha: 'e'.repeat(40),
+          previousSha: 'd'.repeat(40),
+        },
+      ],
+      cursor: (await h.scm.poll(h.repo, null)).cursor,
+    });
+    await h.loop.pollScm(h.runner);
+    expect(poll).toHaveBeenCalled();
+    // Only the cursor advanced: no events, anomaly, pause or command.
+    expect(h.events()).toHaveLength(before);
+    expect(h.runner.state.anomalies).toEqual([]);
+    expect(h.runner.state.workflow!.pausedReasons).toEqual([]);
+  });
+  it('ignores head moves of the integration and worker branches here', async () => {
+    const h = await setup();
+    await h.loop.pollScm(h.runner);
+    h.scm.pushBranch(h.repo, branch);
+    await h.loop.pollScm(h.runner);
+    expect(h.runner.state.anomalies).toEqual([]);
   });
   it('bumps conclusion version on body change only, and reports drift after approval', async () => {
     const h = await setup();
@@ -842,5 +969,62 @@ describe('transactions and lifecycle', () => {
     await flush();
     expect(h.timers.size).toBe(0);
     h.loop.stop();
+  });
+  it('slows SCM polls at a low rate limit and polls only the final PR or a merge in flight when critical (§12.2)', async () => {
+    const h = await setup();
+    let pace: 'normal' | 'slow' | 'critical' = 'normal';
+    const loop = new ObservationLoop({ ...h.deps, scmPace: () => pace });
+    const poll = vi.spyOn(h.scm, 'poll');
+    expect(loop.scmInterval(h.runner)).toBe(15_000);
+    pace = 'slow';
+    expect(loop.scmInterval(h.runner)).toBe(SCM_SLOW_INTERVAL_MS);
+    pace = 'critical';
+    expect(loop.scmInterval(h.runner)).toBe(SCM_SLOW_INTERVAL_MS);
+    await loop.pollScm(h.runner);
+    expect(poll).not.toHaveBeenCalled();
+    await h.runner.append([
+      draft('command.issued', {
+        commandId: 'merge',
+        kind: 'scm.mergePR',
+        args: {
+          pr: { repo: h.repo, number: 1 },
+          method: 'merge',
+          expectedHeadSha: 'a'.repeat(40),
+        },
+      }),
+    ]);
+    await loop.pollScm(h.runner);
+    expect(poll).toHaveBeenCalledTimes(1);
+    await h.runner.append([
+      draft('command.failed', {
+        commandId: 'merge',
+        kind: 'scm.mergePR',
+        attempts: 1,
+        error: {
+          category: 'permanent',
+          code: 'x',
+          message: 'x',
+          retryable: false,
+        },
+      }),
+      draft('gate.opened', {
+        gateId: 'final-gate',
+        stageId: 'final-pr',
+        kind: 'stage',
+        stageKind: 'final-pr',
+        templateGateId: 'final-pr',
+        optional: false,
+        title: 'Final',
+        options: [],
+        version: 1,
+        content: { type: 'final-pr', artifactId: 'final-pr', pr: 1 },
+      }),
+    ]);
+    await loop.pollScm(h.runner);
+    expect(poll).toHaveBeenCalledTimes(2);
+    pace = 'slow';
+    expect(loop.scmInterval(h.runner)).toBe(SCM_SLOW_INTERVAL_MS);
+    pace = 'normal';
+    expect(loop.scmInterval(h.runner)).toBe(30_000);
   });
 });
