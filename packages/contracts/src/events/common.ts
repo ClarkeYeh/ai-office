@@ -122,6 +122,10 @@ export const PolicyHitSchema = z.object({
     'gh-comment',
     'push-default-branch',
     'gh-label',
+    // rev2.15 §11.3 (M3-CP1): PRs and Issues are created only by the backend via ScmPort.
+    'gh-pr-create',
+    'gh-pr-edit',
+    'gh-issue-create',
   ]),
   severity: z.enum(['high', 'medium']),
   messageId: id,
@@ -154,6 +158,10 @@ export const RepoSnapshotSchema = z.object({
   visibility: z.enum(['public', 'private']),
   ownerLogin: id,
   defaultBranchProtected: z.union([z.boolean(), z.literal('unknown')]),
+  /** rev2.15 §17.3: `false` means the repo cannot start a workflow (`repo_not_ready`). */
+  allowMergeCommit: z.boolean().optional(),
+  /** rev2.15 §17.3 warning strings (M3 §8.6), usable as i18n keys. */
+  warnings: z.array(z.string()).optional(),
 });
 
 export { AgentKindSchema };

@@ -234,6 +234,7 @@ export class Reconciler {
       case 'scm.ensureLabels':
       case 'scm.ensureBranch':
       case 'scm.deleteBranch':
+      case 'scm.deleteComment':
       case 'scm.updateIssue':
       case 'scm.updatePR':
       case 'scm.setLabels':

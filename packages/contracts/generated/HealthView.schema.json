@@ -134,6 +134,19 @@
         "ghBinPath": {
           "type": "string"
         },
+        "tokenSource": {
+          "type": "string",
+          "enum": [
+            "env",
+            "gh"
+          ]
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "rateLimit": {
           "type": "object",
           "properties": {

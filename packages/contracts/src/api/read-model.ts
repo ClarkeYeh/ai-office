@@ -489,6 +489,10 @@ export const HealthViewSchema = z.object({
   scm: healthComponent.extend({
     login: id.optional(),
     ghBinPath: z.string().optional(),
+    /** Where the token came from; never the token itself. */
+    tokenSource: z.enum(['env', 'gh']).optional(),
+    /** SCM warning strings (M3 §8.6), usable as i18n keys. */
+    warnings: z.array(z.string()).optional(),
     rateLimit: z
       .object({
         limit: nonNegativeInt,

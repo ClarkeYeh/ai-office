@@ -721,12 +721,45 @@
             "expectedHeadSha": {
               "type": "string",
               "pattern": "^[0-9a-f]{7,64}$"
+            },
+            "expectedBaseSha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7,64}$"
             }
           },
           "required": [
             "pr",
             "method",
             "expectedHeadSha"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "args"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.deleteComment"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "$ref": "./ScmTarget.schema.json"
+            },
+            "commentId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "commentId"
           ]
         }
       },
