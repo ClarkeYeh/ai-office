@@ -51,6 +51,9 @@ type Pull = {
 /** A minimal GitHub that answers the poll's GET endpoints with strong ETags. */
 class FakeGithub {
   time = Date.parse('2026-11-19T06:00:00Z');
+  /** GitHub's real next links: `/repositories/{id}/…` plus an `after` cursor. */
+  canonicalLinks = false;
+  readonly repositoryId = 4242;
   issues = new Map<number, Issue>();
   pulls = new Map<number, Pull>();
   comments: {
@@ -134,6 +137,16 @@ class FakeGithub {
     if (page * size >= items.length) return { data: slice };
     const next = new URL(url);
     next.searchParams.set('page', String(page + 1));
+    if (this.canonicalLinks) {
+      next.pathname = next.pathname.replace(
+        `/repos/${repo.owner}/${repo.name}`,
+        `/repositories/${this.repositoryId}`,
+      );
+      next.searchParams.set(
+        'after',
+        Buffer.from(`cursor:${page * size}`).toString('base64'),
+      );
+    }
     return { data: slice, link: `<${next.href}>; rel="next"` };
   }
   private route(url: URL): { data: unknown; link?: string } | undefined {
@@ -144,6 +157,8 @@ class FakeGithub {
       items
         .filter((i) => !since || Date.parse(i.updated_at) >= Date.parse(since))
         .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+    if (path === root)
+      return { data: { id: this.repositoryId, default_branch: 'main' } };
     if (path === `${root}/issues`)
       return this.page(recent([...this.issues.values()]), url);
     if (path === `${root}/issues/comments`)
@@ -261,6 +276,36 @@ const ofType = <T extends ScmEvent['type']>(events: ScmEvent[], type: T) =>
   events.filter((e): e is Extract<ScmEvent, { type: T }> => e.type === type);
 
 describe('scm-github poll', () => {
+  it("follows GitHub's canonical cursor links past 100 Issues (M3-T15 live finding)", async () => {
+    const github = new FakeGithub();
+    github.canonicalLinks = true;
+    for (let i = 0; i < 120; i++) github.issue(`Old ${i}`, 'someone-else');
+    const { poll } = setup(github);
+    const first = await poll(null);
+    const conclusion = github.issue(`Conclusion\n${marker('c1')}`);
+    // More than one page changed since the watermark.
+    for (let i = 1; i <= 110; i++) github.touch(i, {});
+    const seen = await poll(first.cursor);
+    expect(
+      ofType(seen.events, 'repo.object_created').map((e) => e.ref.number),
+    ).toContain(conclusion);
+    github.touch(conclusion, { body: `Edited\n${marker('c1')}` });
+    const next = await poll(seen.cursor);
+    expect(
+      ofType(next.events, 'issue.edited').map((e) => e.issue.number),
+    ).toEqual([conclusion]);
+    // Later pages were re-requested on the authorized path with the cursor.
+    const root = `/repos/${repo.owner}/${repo.name}`;
+    expect(
+      github.log.some(
+        (r) =>
+          r.path.startsWith(`${root}/issues?`) && r.path.includes('after='),
+      ),
+    ).toBe(true);
+    expect(github.log.some((r) => r.path.startsWith('/repositories/'))).toBe(
+      false,
+    );
+  });
   it('is idle after the baseline: every request 304 and no events', async () => {
     const { github, poll } = setup();
     github.issue(`Conclusion\n${marker('c1')}`);

@@ -119,6 +119,8 @@ export class HealthMonitor {
     limitedUntil?: number;
     limitedCode?: string;
     loginMismatch: boolean;
+    /** The last SCM poll's non-transient failure code (`poll_failing`). */
+    pollFailure?: string;
   } = { warnings: [], pace: 'normal', loginMismatch: false };
   /** commandId → workflowId of scm commands rate limited past RATE_LIMIT_PAUSE_MS. */
   private readonly scmHolds = new Map<string, string>();
@@ -254,6 +256,19 @@ export class HealthMonitor {
     await this.sync();
   }
 
+  /**
+   * ObservationLoop reports each SCM poll: a non-transient failure (guard,
+   * contract_mismatch, …) shows `poll_failing:<code>` and degrades scm until
+   * a poll succeeds; it never touches the breaker.
+   */
+  async noteScmPoll(failureCode: string | undefined): Promise<void> {
+    if (this.scm.pollFailure === failureCode) return;
+    if (failureCode === undefined) delete this.scm.pollFailure;
+    else this.scm.pollFailure = failureCode;
+    this.publishScm();
+    await this.sync();
+  }
+
   /** SCM warnings for HealthView (M3_PLAN §8.6), adapter ones first. */
   private scmWarnings(): string[] {
     const warnings = new Set(this.scm.warnings);
@@ -265,6 +280,8 @@ export class HealthMonitor {
           : 'rate_limited',
       );
     if (this.scm.loginMismatch) warnings.add('active_account_mismatch');
+    if (this.scm.pollFailure !== undefined)
+      warnings.add(`poll_failing:${this.scm.pollFailure}`);
     return [...warnings];
   }
 
@@ -630,7 +647,9 @@ export class HealthMonitor {
   ): 'healthy' | 'degraded' | 'unhealthy' {
     return this.states[component].breaker === 'closed'
       ? component === 'scm' &&
-        (this.scmPace() === 'critical' || this.scm.loginMismatch)
+        (this.scmPace() === 'critical' ||
+          this.scm.loginMismatch ||
+          this.scm.pollFailure !== undefined)
         ? 'degraded'
         : 'healthy'
       : component === 'usage'

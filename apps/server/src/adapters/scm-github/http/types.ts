@@ -3,6 +3,7 @@ export type { RequestParams, RequestOptions } from './request.js';
 import type { Clock, Redactor } from '../../../ports/services.js';
 import type { EndpointId } from '../policy/endpoints.js';
 import type { RepoAllowlist } from '../policy/repos.js';
+import type { NextPage } from './pagination.js';
 
 /** The same boundary is used by native fetch and recording/replay transports. */
 export type GithubFetch = typeof globalThis.fetch;
@@ -21,7 +22,8 @@ export type GithubResponse<T> = {
   data: T;
   status: number;
   etag?: string;
-  nextPage?: number;
+  /** A validated next page of the same request (see `http/pagination.ts`). */
+  next?: NextPage;
   notModified: boolean;
 };
 export interface GithubHttp {

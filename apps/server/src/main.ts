@@ -1353,6 +1353,7 @@ async function compose(
     workflows: () => runners.all(),
     budgetFormula: settings.usage.budgetFormula,
     scmPace: () => health.scmPace(),
+    onScmPoll: (failureCode) => health.noteScmPoll(failureCode),
     // The fake answers instantly; poll fast so a scenario runs in seconds.
     runtimeIntervalMs: fake ? 100 : 2000,
     usageIntervalMs: fake ? 250 : 15_000,
