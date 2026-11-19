@@ -827,10 +827,24 @@ async function composeGithub(
     maskSecrets: masking.maskSecrets,
     registeredAt: (repo) => registeredAt.get(repoKey(repo)),
     tokenProvider: async ({ refresh }) => {
-      if (refresh)
+      if (refresh) {
         token = readGhToken(settings, dataDir, env, undefined, {
           user: ownerLogin,
         });
+        // Do not let a replacement environment token change write identity.
+        const verification = new GithubHttpClient({
+          tokenProvider: async () => token,
+          repoAllowlist: new RepoAllowlist(),
+          maskSecrets: masking.maskSecrets,
+          clock,
+        });
+        const viewer = await verification.request(
+          'user.get',
+          {},
+          { schema: viewerSchema, conditional: false },
+        );
+        if (!sameLogin(viewer.data.login)) throw mismatch();
+      }
       return token;
     },
   });
@@ -882,8 +896,43 @@ async function composeGithub(
   }
   // Persist only the login, never either credential.
   state.write('expected-login', ownerLogin);
+  const writes = new Set<keyof ScmPort>([
+    'ensureLabels',
+    'ensureBranch',
+    'deleteBranch',
+    'createIssue',
+    'updateIssue',
+    'comment',
+    'deleteComment',
+    'setLabels',
+    'openPR',
+    'updatePR',
+    'mergePR',
+  ]);
+  const guarded = new Proxy(adapter, {
+    get(target, property, receiver) {
+      const value: unknown = Reflect.get(target, property, receiver);
+      if (!writes.has(property as keyof ScmPort) || typeof value !== 'function')
+        return value;
+      return async (...args: unknown[]) => {
+        if (!authenticated)
+          throw new PortError(
+            'transient',
+            'scm_unavailable',
+            'GitHub identity has not been verified',
+          );
+        if (!activeMatches)
+          throw new PortError(
+            'auth',
+            'github_auth',
+            'Active GitHub account does not match',
+          );
+        return (value as (...args: unknown[]) => unknown).apply(target, args);
+      };
+    },
+  });
   const scm: ScmPort = {
-    ...adapter,
+    ...guarded,
     async health() {
       try {
         if (!authenticated) await checkBackend();
@@ -893,18 +942,29 @@ async function composeGithub(
           ...result,
           available: result.available && authenticated && activeMatches,
           tokenSource,
-          warnings: [...new Set([...(result.warnings ?? []), ...warnings])],
+          warnings: [
+            ...new Set([
+              ...(result.warnings ?? []),
+              ...adapter.diagnostics().rateLimit.warnings,
+              ...warnings,
+            ]),
+          ],
         };
       } catch (error) {
-        authenticated = false;
+        const limited =
+          error instanceof PortError && error.category === 'rate_limited';
+        if (!limited) authenticated = false;
         if (error instanceof UseCaseError) throw error;
+        const diagnostic = adapter.diagnostics().rateLimit;
         return {
-          available: false,
+          available: limited && authenticated && activeMatches,
           viewerLogin: ownerLogin,
-          rateLimitRemaining: 0,
-          rateLimitResetAt: clock.now().toISOString(),
+          rateLimitRemaining: diagnostic.remaining ?? 0,
+          rateLimitResetAt: new Date(
+            diagnostic.resetAt ?? clock.now().getTime(),
+          ).toISOString(),
           tokenSource,
-          warnings,
+          warnings: [...new Set([...warnings, ...diagnostic.warnings])],
         };
       }
     },

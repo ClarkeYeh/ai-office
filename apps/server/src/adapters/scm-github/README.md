@@ -106,6 +106,7 @@ These settings do not replace the adapter's explicit default-branch merge guard.
 The live test harness uses the reusable `ai-office-test` label. It closes test
 Issues instead of deleting them; labels are intentionally retained. Production
 code does not register or execute the live harness.
+
 ## PR methods and merge guards (M3-T5)
 
 `createPrMethods({http}, {sleep?})` in `methods/pulls.ts` provides `openPR`,

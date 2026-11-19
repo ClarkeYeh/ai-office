@@ -669,8 +669,7 @@ it('passes attempt start to usage lookup and stops locating once a session is fo
 
 describe('explicit dev startup and approved shim location', () => {
   it.each([
-    [{}, /Production.*M3/],
-    [{ runtime: 'orca' }, /Production.*M3/],
+    [{ runtime: 'orca' }, /--dev/],
     [{ dev: true }, /requires --fake.*--runtime orca/],
   ] as const)(
     'refuses %j before config, directories or runtime side effects',
@@ -891,6 +890,8 @@ function productionReplay(
     backendLogin?: string;
     activeLogin?: string;
     status?: number;
+    repoStatus?: number;
+    network?: boolean;
     merge?: boolean;
     protected?: boolean;
   } = {},
@@ -911,6 +912,9 @@ function productionReplay(
       return nativeFetch(input, init);
     const path = new URL(url).pathname;
     requests.push(path);
+    if (options.network) throw new TypeError('offline');
+    if (options.repoStatus && path === '/repos/fixture/project')
+      return new Response('{}', { status: options.repoStatus });
     if (options.status) return new Response('{}', { status: options.status });
     let body: unknown;
     if (path === '/user')
@@ -926,7 +930,7 @@ function productionReplay(
     else if (path === '/repos/fixture/project')
       body = {
         default_branch: 'main',
-        private: false,
+        visibility: 'public',
         archived: false,
         permissions: { push: true },
         allow_merge_commit: options.merge ?? true,
@@ -1036,4 +1040,93 @@ describe('production assembly', () => {
     expect(started.status).toBe(422);
     expect(JSON.stringify(started.body)).toContain('repo_not_ready');
   });
+});
+
+it('persists an inferred first-run owner and refuses an account change after restart', async () => {
+  const directory = home();
+  const options = { activeLogin: 'fixture-owner' };
+  const replay = productionReplay(directory, options);
+  hybridConfig(directory);
+  const server = await replay.start();
+  const ui = await browser(server);
+  expect((await ui.call('GET', '/api/v1/health')).body.scm.warnings).toContain(
+    'expected_login_unset',
+  );
+  await server.close();
+  options.activeLogin = 'different-owner';
+  await expect(replay.start()).rejects.toMatchObject({
+    code: 'scm_login_mismatch',
+  });
+});
+
+it('revalidates registered repos before listen and marks a missing repo invalid', async () => {
+  const directory = home();
+  const options: { repoStatus?: number } = {};
+  const replay = productionReplay(directory, options);
+  const first = await replay.start();
+  const registered = await (
+    await browser(first)
+  ).call('POST', '/api/v1/repos', { localPath: '/replay/repo' });
+  await first.close();
+  options.repoStatus = 404;
+  const ui = await browser(await replay.start());
+  const repos = await ui.call('GET', '/api/v1/repos');
+  expect(repos.body.repos[0].status).toBe('invalid');
+  const started = await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId: registered.body.repoId,
+    requirement: 'fixture',
+  });
+  expect(started.status).toBe(422);
+  expect(started.body.error.code).toBe('repo_not_ready');
+});
+
+it('serves degraded health during a network outage and recovers authentication', async () => {
+  const directory = home();
+  const options = { network: true };
+  const replay = productionReplay(directory, options);
+  const ui = await browser(await replay.start());
+  expect((await ui.call('GET', '/api/v1/health')).body.scm.status).toBe(
+    'degraded',
+  );
+  const refused = await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId: 'missing',
+    requirement: 'fixture',
+  });
+  expect(refused.status).toBe(503);
+  options.network = false;
+  expect(
+    (await ui.call('POST', '/api/v1/repos', { localPath: '/replay/repo' }))
+      .status,
+  ).toBe(201);
+});
+
+it('uses configured orca.homeDir in production', async () => {
+  const directory = home();
+  const replay = productionReplay(directory);
+  const approved = join(directory, 'approved-folder');
+  writeFileSync(
+    join(directory, 'config.toml'),
+    '[orca]\nbin = "/replay/orca"\npreventSleep = false\nhomeDir = ' +
+      JSON.stringify(approved) +
+      '\n[github]\nghBin = "/replay/gh"\nexpectedLogin = "fixture-owner"\n',
+  );
+  replayHybrid(directory, [], approved);
+  const ui = await browser(await replay.start());
+  expect(
+    (await ui.call('GET', '/api/v1/health')).body.runtime.shim.location,
+  ).toBe(approved);
+});
+
+it('allows an SCM injection in fake development mode without exposing production hooks', async () => {
+  const scm = createFakeScm();
+  scm.addRepo(FAKE_REPO.github, { defaultBranch: 'injected-dev' });
+  const inspect = vi.spyOn(scm, 'inspectRepo');
+  const ui = await browser(await boot(home(), { testOnly: { scm } }));
+  expect(
+    (await ui.call('GET', '/api/v1/repos')).body.repos[0].defaultBranch,
+  ).toBe('injected-dev');
+  expect(inspect).toHaveBeenCalledWith(FAKE_REPO.github);
+  expect(() => checkStartOptions({ testOnly: { scm } })).toThrow('--dev');
 });
