@@ -43,6 +43,12 @@ Read concurrency is four. Writes are serialized with at least one second between
 starts; Issue, PR, and comment creation is capped at twenty per rolling minute.
 Primary throttling blocks reads and writes; secondary throttling blocks its
 request class. Blocked requests return `rate_limited` with remaining wait time.
+An exhausted primary budget on a successful response also blocks requests.
+Concurrent responses never shorten an active cooldown. Remaining quota uses a
+conservative minimum across interleaved counters until the current reset window
+expires; reset timestamps and HTTP-date retry delays are corrected for the
+observed server clock offset. A clean response resets secondary fallback backoff
+without clearing an active cooldown.
 No breaker is owned by this adapter: diagnostics report throttling as degraded,
 never unhealthy. T9 applies polling thresholds and keeps rate limits out of the
 transient circuit breaker counter.

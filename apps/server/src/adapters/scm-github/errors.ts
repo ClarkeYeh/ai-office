@@ -9,7 +9,14 @@ export type GithubError = PortError & {
 export const CREATE_RETRY_AFTER_MS = 15_000;
 export const errorBodySchema = z.looseObject({
   message: z.string().optional(),
-  errors: z.array(z.looseObject({ code: z.string().optional() })).optional(),
+  errors: z
+    .array(
+      z.looseObject({
+        code: z.string().optional(),
+        message: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 export function unavailable(uncertain: boolean): GithubError {
   return Object.assign(
@@ -85,8 +92,11 @@ export function mapResponseError(
       ),
       {
         alreadyExists:
-          body.errors?.some((e) => e.code === 'already_exists') === true ||
-          /already exists/i.test(body.message ?? ''),
+          body.errors?.some(
+            (e) =>
+              e.code === 'already_exists' ||
+              /already exists/i.test(e.message ?? ''),
+          ) === true || /already exists/i.test(body.message ?? ''),
       },
     );
   return new PortError(
