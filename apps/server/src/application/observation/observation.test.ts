@@ -698,16 +698,84 @@ describe('SCM ingestion', () => {
       false,
     );
   });
-  it('drops object.duplicate and integration-branch moves until T11 lands (part 3)', async () => {
-    const h = await setup();
-    const before = h.events().length;
-    const poll = vi.spyOn(h.scm, 'poll').mockResolvedValueOnce({
-      events: [
+  describe('duplicates and integration-branch moves (M3-T9 part 3)', () => {
+    const sha = (c: string) => c.repeat(40);
+    type Poll = Awaited<ReturnType<FakeScm['poll']>>;
+    const listing = async (
+      h: Awaited<ReturnType<typeof setup>>,
+      events: Poll['events'],
+    ) => {
+      // The real first poll is the baseline; then serve `events` once.
+      await h.loop.pollScm(h.runner);
+      vi.spyOn(h.scm, 'poll').mockResolvedValueOnce({
+        events,
+        cursor: (await h.scm.poll(h.repo, null)).cursor,
+      });
+    };
+    const implementing = (h: Awaited<ReturnType<typeof setup>>) =>
+      h.runner.append([
+        draft('stage.started', {
+          stageId: 'implement',
+          kind: 'implement',
+          attempt: 1,
+          mode: 'initial',
+        }),
+      ]);
+    const move = (
+      h: Awaited<ReturnType<typeof setup>>,
+      key: string,
+      to: string,
+    ): Poll['events'][number] => ({
+      type: 'branch.head_changed',
+      externalKey: key,
+      occurredAt: START,
+      branch: h.runner.state.workflow!.integrationBranch,
+      sha: sha(to),
+      previousSha: sha('d'),
+    });
+    const mergeIssued = (h: Awaited<ReturnType<typeof setup>>) =>
+      h.runner.append([
+        draft('command.issued', {
+          commandId: 'merge-1',
+          kind: 'scm.mergePR',
+          args: {
+            pr: { repo: h.repo, number: 9 },
+            method: 'merge',
+            expectedHeadSha: sha('a'),
+          },
+        }),
+      ]);
+    const moved = (h: Awaited<ReturnType<typeof setup>>) =>
+      h.runner.state.anomalies.filter(
+        (a) => a.kind === 'integration-branch-moved',
+      );
+    const deferred = (h: Awaited<ReturnType<typeof setup>>) =>
+      (
+        h.store.readCursor('observation.scm', WORKFLOW_ID) as {
+          deferred?: unknown[];
+        }
+      ).deferred;
+
+    it("compensates only this workflow's duplicates and never pauses (T6 rule b)", async () => {
+      const h = await setup();
+      await h.runner.append([
+        draft('command.issued', {
+          commandId: 'issue-1',
+          kind: 'scm.createIssue',
+          args: { repo: h.repo, title: 't', body: 'b', labels: [] },
+        }),
+        draft('command.succeeded', {
+          commandId: 'issue-1',
+          kind: 'scm.createIssue',
+          result: { issue: 4, url: 'https://github.com/o/r/issues/4' },
+        }),
+      ]);
+      await listing(h, [
         {
           type: 'object.duplicate',
           externalKey: 'dup-own',
           occurredAt: START,
-          commandId: 'spawn-1',
+          commandId: 'issue-1',
           kind: 'issue',
           numbers: [3, 4],
         },
@@ -720,23 +788,84 @@ describe('SCM ingestion', () => {
           target: { repo: h.repo, number: 3 },
           commentIds: ['c1', 'c2'],
         },
-        {
-          type: 'branch.head_changed',
-          externalKey: 'integration-move',
-          occurredAt: START,
-          branch: h.runner.state.workflow!.integrationBranch,
-          sha: 'e'.repeat(40),
-          previousSha: 'd'.repeat(40),
-        },
-      ],
-      cursor: (await h.scm.poll(h.repo, null)).cursor,
+      ]);
+      await h.loop.pollScm(h.runner);
+      expect(
+        h.runner.state.anomalies.map((a) => [a.kind, a.number, a.commandId]),
+      ).toEqual([['duplicate-object', 3, 'issue-1']]);
+      expect(h.runner.state.workflow!.pausedReasons).toEqual([]);
+      expect(JSON.stringify(h.events())).not.toContain('other-run-cmd');
     });
-    await h.loop.pollScm(h.runner);
-    expect(poll).toHaveBeenCalled();
-    // Only the cursor advanced: no events, anomaly, pause or command.
-    expect(h.events()).toHaveLength(before);
-    expect(h.runner.state.anomalies).toEqual([]);
-    expect(h.runner.state.workflow!.pausedReasons).toEqual([]);
+
+    it('raises integration-branch-moved for a move outside a backend merge during implement', async () => {
+      const h = await setup();
+      await implementing(h);
+      await listing(h, [move(h, 'm1', 'e')]);
+      await h.loop.pollScm(h.runner);
+      expect(moved(h)).toMatchObject([
+        {
+          kind: 'integration-branch-moved',
+          severity: 'warning',
+          sha: sha('e'),
+        },
+      ]);
+      expect(deferred(h)).toBeUndefined();
+    });
+
+    it('holds a move back while a merge is in flight; its own merge commit stays quiet', async () => {
+      const h = await setup();
+      await implementing(h);
+      await mergeIssued(h);
+      await listing(h, [move(h, 'm1', 'f')]);
+      await h.loop.pollScm(h.runner);
+      expect(moved(h)).toEqual([]);
+      expect(deferred(h)).toHaveLength(1);
+      await h.runner.append([
+        draft('command.succeeded', {
+          commandId: 'merge-1',
+          kind: 'scm.mergePR',
+          result: { mergeCommitSha: sha('f') },
+        }),
+      ]);
+      await h.loop.pollScm(h.runner);
+      expect(moved(h)).toEqual([]);
+      expect(deferred(h)).toBeUndefined();
+    });
+
+    it('judges a held-back move once the merge fails, even when critical pace skips the poll', async () => {
+      const h = await setup();
+      await implementing(h);
+      await mergeIssued(h);
+      let pace: 'normal' | 'critical' = 'normal';
+      const loop = new ObservationLoop({ ...h.deps, scmPace: () => pace });
+      await loop.pollScm(h.runner);
+      vi.spyOn(h.scm, 'poll').mockResolvedValueOnce({
+        events: [move(h, 'm1', 'e')],
+        cursor: (await h.scm.poll(h.repo, null)).cursor,
+      });
+      await loop.pollScm(h.runner);
+      expect(deferred(h)).toHaveLength(1);
+      await h.runner.append([
+        draft('command.failed', {
+          commandId: 'merge-1',
+          kind: 'scm.mergePR',
+          attempts: 1,
+          error: {
+            category: 'conflict',
+            code: 'not_mergeable',
+            message: 'x',
+            retryable: false,
+          },
+        }),
+      ]);
+      pace = 'critical';
+      const poll = vi.spyOn(h.scm, 'poll');
+      poll.mockClear();
+      await loop.pollScm(h.runner);
+      expect(poll).not.toHaveBeenCalled();
+      expect(moved(h)).toMatchObject([{ sha: sha('e') }]);
+      expect(deferred(h)).toBeUndefined();
+    });
   });
   it('ignores head moves of the integration and worker branches here', async () => {
     const h = await setup();

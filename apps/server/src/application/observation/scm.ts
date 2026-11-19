@@ -4,14 +4,28 @@ import type { EventStore } from '../../ports/stores.js';
 import type { Redactor } from '../../ports/services.js';
 import { Batch } from './batch.js';
 
-/** `baseline`: the workflow's first poll; head moves it lists predate it. */
+/** An integration-branch move held back while a backend merge is in flight. */
+export type IntegrationMove = {
+  externalKey: string;
+  occurredAt: string;
+  sha: string;
+  previousSha: string;
+};
+
+/**
+ * `baseline`: the workflow's first poll; head moves it lists predate it.
+ * `deferred`: integration moves held back by earlier polls. Returns the moves
+ * still held back: while an `scm.mergePR` is issued but unsettled, a poll can
+ * list its merge before `command.succeeded` exempts the merge commit (S14).
+ */
 export function ingestScm(
   batch: Batch,
   events: readonly ScmEvent[],
   store: EventStore,
   redactor: Redactor,
   baseline = false,
-): void {
+  deferred: readonly IntegrationMove[] = [],
+): IntegrationMove[] {
   const workflow = batch.state.workflow!;
   const history = store.read({ workflowId: workflow.id });
   const matches = (repo: { owner: string; name: string }) =>
@@ -26,9 +40,31 @@ export function ingestScm(
       case 'branch.head_changed':
         heads.push(event);
         break;
-      // TODO([M3-T9 part 3], after T11): EvaluateAnomaly {kind:'duplicate'}
-      // for this workflow's own commandIds only (foreign ones are dropped).
       case 'object.duplicate':
+        // Another run's marker (T6 rule b): never compensate it.
+        if (batch.state.commands[event.commandId] === undefined) break;
+        if (event.target !== undefined && !matches(event.target.repo)) break;
+        batch.anomaly(
+          {
+            kind: 'duplicate',
+            commandId: event.commandId,
+            objectKind: event.kind,
+            ...(event.target === undefined
+              ? {}
+              : {
+                  target: {
+                    repo: event.target.repo,
+                    number: event.target.number,
+                  },
+                }),
+            ...(event.numbers === undefined ? {} : { numbers: event.numbers }),
+            ...(event.commentIds === undefined
+              ? {}
+              : { commentIds: event.commentIds }),
+          },
+          event,
+          'scm',
+        );
         break;
       case 'pr.state': {
         if (!matches(event.pr.repo)) continue;
@@ -163,8 +199,19 @@ export function ingestScm(
         break;
     }
   }
-  // TODO([M3-T9 part 3], after T11): integration-branch moves with a
-  // previousSha → EvaluateAnomaly {kind:'integration-branch'} (S14).
+  const moves: IntegrationMove[] = [...deferred];
+  for (const event of heads)
+    if (
+      event.branch === workflow.integrationBranch &&
+      event.previousSha !== null &&
+      !baseline
+    )
+      moves.push({
+        externalKey: event.externalKey,
+        occurredAt: event.occurredAt,
+        sha: event.sha,
+        previousSha: event.previousSha,
+      });
   for (const event of heads)
     if (event.branch === workflow.repo.defaultBranch && !baseline)
       batch.anomaly(
@@ -178,4 +225,21 @@ export function ingestScm(
         event,
         'scm',
       );
+  if (
+    Object.values(batch.state.commands).some(
+      (c) => c.status === 'issued' && c.issued.kind === 'scm.mergePR',
+    )
+  )
+    return moves;
+  for (const move of moves)
+    batch.anomaly(
+      {
+        kind: 'integration-branch',
+        sha: move.sha,
+        previousSha: move.previousSha,
+      },
+      move,
+      'scm',
+    );
+  return [];
 }

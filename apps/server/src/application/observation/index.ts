@@ -16,6 +16,7 @@ import { Batch } from './batch.js';
 import type { ObservationWorkflow } from './batch.js';
 import { ingestRuntime } from './runtime.js';
 import { ingestScm } from './scm.js';
+import type { IntegrationMove } from './scm.js';
 import { budgetFormula, DEFAULT_BUDGET_FORMULA, ingestUsage } from './usage.js';
 import type { UsageCheckpoint } from './usage.js';
 export type { ObservationWorkflow } from './batch.js';
@@ -62,7 +63,7 @@ type Job = { runner: ObservationWorkflow } & (
  * per poll; it is compared once more, then dropped.
  */
 type ScmCheckpoint =
-  | { v: 2; cursor: ScmCursor }
+  | { v: 2; cursor: ScmCursor; deferred?: IntegrationMove[] }
   | { v?: undefined; cursor: ScmCursor; defaultSha?: string; poll?: number };
 
 /** Composition: start after reconciliation, forward aio-observe timers to onTimer,
@@ -258,25 +259,28 @@ export class ObservationLoop {
   }
   pollScm(runner: ObservationWorkflow): Promise<void> {
     return this.serial(runner, 'scm', async () => {
-      // §12.2 below 200 remaining: only the final PR and merges in flight.
-      if (
-        this.deps.scmPace?.() === 'critical' &&
-        !finalGateOpen(runner) &&
-        !Object.values(runner.state.commands).some(
-          (c) => c.status === 'issued' && c.issued.kind === 'scm.mergePR',
-        )
-      )
-        return;
       const workflow = runner.state.workflow!;
       const scope = workflow.id;
       const checkpoint = this.deps.store.readCursor(
         'observation.scm',
         scope,
       ) as ScmCheckpoint | null;
-      const result = await this.deps.scm.poll(
-        workflow.repo.github,
-        checkpoint?.cursor ?? null,
-      );
+      const deferred = checkpoint?.v === 2 ? (checkpoint.deferred ?? []) : [];
+      // §12.2 below 200 remaining: only the final PR and merges in flight.
+      // Held-back integration moves are still judged once the merge settles.
+      const skip =
+        this.deps.scmPace?.() === 'critical' &&
+        !finalGateOpen(runner) &&
+        !Object.values(runner.state.commands).some(
+          (c) => c.status === 'issued' && c.issued.kind === 'scm.mergePR',
+        );
+      if (skip && (checkpoint === null || deferred.length === 0)) return;
+      const result = skip
+        ? { events: [], cursor: checkpoint!.cursor }
+        : await this.deps.scm.poll(
+            workflow.repo.github,
+            checkpoint?.cursor ?? null,
+          );
       const legacy =
         checkpoint !== null && checkpoint.v === undefined
           ? checkpoint
@@ -296,7 +300,7 @@ export class ObservationLoop {
         defaultBranch: workflow.repo.defaultBranch,
         integrationBranch: workflow.integrationBranch,
       });
-      ingestScm(
+      const held = ingestScm(
         batch,
         // The one-time comparison already covers this poll's default moves.
         head
@@ -309,6 +313,7 @@ export class ObservationLoop {
         this.deps.store,
         redactor,
         checkpoint === null,
+        deferred,
       );
       if (head && legacy?.defaultSha !== undefined)
         batch.anomaly(
@@ -323,7 +328,11 @@ export class ObservationLoop {
           },
           'scm',
         );
-      const value: ScmCheckpoint = { v: 2, cursor: result.cursor };
+      const value: ScmCheckpoint = {
+        v: 2,
+        cursor: result.cursor,
+        ...(held.length === 0 ? {} : { deferred: held }),
+      };
       await runner.append(batch.drafts, [
         { source: 'observation.scm', scope, value },
       ]);

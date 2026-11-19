@@ -22,7 +22,14 @@ Default-branch moves come from `branch.head_changed` (PP3), judged after the
 rest of the poll so a final merge listed later in the same poll still exempts
 its own merge commit; `previousSha: null` is a first observation and never a
 move. The v1 checkpoint's `defaultSha` (one `compareBranch(default, default)`
-per poll) is compared once more and dropped (checkpoint `v: 2`). Only the
+per poll) is compared once more and dropped (checkpoint `v: 2`). `object.duplicate`
+becomes `EvaluateAnomaly{kind:'duplicate'}` only for this workflow's own
+commandIds (another run's markers are never compensated). Integration-branch
+moves with a `previousSha` become `EvaluateAnomaly{kind:'integration-branch'}`
+(S14); while an `scm.mergePR` is issued but unsettled they are held in the
+checkpoint (`deferred`) and judged on the first poll after it settles (even one
+critical pace would skip), so a poll that lists the merge before
+`command.succeeded` raises no warning for the backend's own merge commit. Only the
 actual SCM merge commit exempts a final merge from default-head movement. Worker
 merges remain driven by backend command success; poll results only confirm them.
 Conclusion Issue body hashes update open gates; label-only changes do not change
