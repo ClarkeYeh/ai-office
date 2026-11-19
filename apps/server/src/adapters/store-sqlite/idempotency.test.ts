@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { spawnSync } from 'node:child_process';
+import { ProcessGroups, SpawnExec } from '../runtime-orca/cli/process.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -136,7 +136,7 @@ it('rolls back all events and cursors on a SQLite failure at the idempotency ins
 
 it.each(['before-record', 'after-commit'])(
   'recovers after SIGKILL %s without losing or duplicating the batch',
-  (point) => {
+  async (point) => {
     const directory = mkdtempSync(join(tmpdir(), 'aio-idempotency-'));
     paths.push(directory);
     const filename = join(directory, 'store.sqlite');
@@ -183,7 +183,7 @@ it.each(['before-record', 'after-commit'])(
     const script = `
     import { registerHooks } from 'node:module';
     import ts from 'typescript';
-    import { existsSync, readFileSync } from 'node:fs';
+    import { existsSync, readFileSync, writeSync } from 'node:fs';
     registerHooks({
       resolve(specifier, context, next) {
         if (specifier.startsWith('.') && specifier.endsWith('.js') && context.parentURL?.endsWith('.ts')) {
@@ -204,7 +204,7 @@ it.each(['before-record', 'after-commit'])(
     db.pragma('journal_mode = WAL'); db.pragma('synchronous = FULL'); migrate(db);
     let id = 0;
     const events = new SqliteEventStore(db, { now: () => new Date('2026-01-01') }, { ulid: () => String(++id).padStart(26, '0') });
-    const kill = () => process.kill(process.pid, 'SIGKILL');
+    const kill = () => { writeSync(1, 'SIGKILL'); process.kill(process.pid, 'SIGKILL'); };
     if (${JSON.stringify(point)} === 'before-record') {
       db.function('crash', kill);
       db.exec('CREATE TEMP TRIGGER crash_before_record BEFORE INSERT ON idempotency_keys BEGIN SELECT crash(); END');
@@ -212,17 +212,19 @@ it.each(['before-record', 'after-commit'])(
     events.append(${JSON.stringify(batch)}, { idempotency: ${JSON.stringify(write)}, cursors: [{ source: 's', scope: 'x', value: 1 }] });
     process.exit(99);
   `;
-    const child = spawnSync(
-      process.execPath,
-      ['--input-type=module', '-e', script],
-      {
-        cwd: fileURLToPath(new URL('../../../', import.meta.url)),
-        encoding: 'utf8',
-        timeout: 10_000,
-      },
+    // Reuse the existing subprocess boundary; this runs Node, never the Orca CLI.
+    const exec = new SpawnExec(
+      new ProcessGroups({ read: () => null, write: () => {} }),
     );
-    expect(child.error).toBeUndefined();
-    expect(child.signal, child.stderr).toBe('SIGKILL');
+    const child = await exec.run({
+      bin: process.execPath,
+      args: ['--input-type=module', '-e', script],
+      cwd: fileURLToPath(new URL('../../../', import.meta.url)),
+      env: {},
+      timeoutMs: 10_000,
+    });
+    expect(child.stdout).toBe('SIGKILL');
+    expect(child.exitCode).toBeNull();
     const s = openSqliteStores(options(filename));
     close.push(s.close);
     const committed = point === 'after-commit';
