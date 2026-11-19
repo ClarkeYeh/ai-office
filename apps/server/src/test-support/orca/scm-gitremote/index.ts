@@ -55,6 +55,9 @@ type ObjectState = {
 const VIEWER = 'scm-test';
 const marker = (id: string) => `<!-- ai-office:cmd=${id} -->`;
 const anyMarker = /<!-- ai-office:cmd=.+? -->/;
+// Like scm-github: engine bodies already carry the marker; append it once.
+const marked = (body: string, id: string) =>
+  body.includes(marker(id)) ? body : `${body}\n\n${marker(id)}`;
 function fail(
   category: 'guard' | 'conflict' | 'permanent' | 'validation',
   code: string,
@@ -285,7 +288,7 @@ export class GitRemoteScm implements ScmPort {
       ref: { repo: structuredClone(this.repo), number: this.objects.size + 1 },
       kind,
       title: draft.title,
-      body: `${draft.body}\n\n${marker(c.commandId)}`,
+      body: marked(draft.body, c.commandId),
       labels: 'labels' in draft ? [...draft.labels] : [],
       state: 'open',
       base: 'base' in draft ? draft.base : '',
@@ -400,7 +403,7 @@ export class GitRemoteScm implements ScmPort {
     const now = this.nowMs(),
       mine = (s: StoredComment) => s.body.includes(marker(c.commandId));
     if (obj.comments.some((s) => s.listedAt <= now && mine(s))) return;
-    this.addComment(obj, `${body}\n\n${marker(c.commandId)}`, VIEWER);
+    this.addComment(obj, marked(body, c.commandId), VIEWER);
     const commentIds = obj.comments.filter(mine).map((s) => s.id);
     if (commentIds.length > 1)
       this.emit({

@@ -200,7 +200,10 @@ describe('on-demand engine', () => {
     merge(sim, 'merge-A', 11);
     expect(reviewHeads(sim, 'A')).toEqual(['abcdef1']);
     expect(merges(sim)).toEqual([
-      expect.objectContaining({ expectedBaseSha: 'abcdef1' }),
+      expect.objectContaining({
+        expectedBaseSha: 'abcdef1',
+        expectedBase: sim.state.workflow!.integrationBranch,
+      }),
     ]);
     clean(sim);
   });

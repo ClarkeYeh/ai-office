@@ -15,6 +15,15 @@ export function commandMarker(commandId: string): string {
   if (!commandId || /[\s<>]/.test(commandId)) guard('invalid_command_marker');
   return `<!-- ai-office:cmd=${commandId} -->`;
 }
+/**
+ * Append the command marker once. Engine bodies already carry it, so the body
+ * on GitHub stays byte-identical to the recorded command args and its
+ * `bodyHash` matches the gate's `renderedHash`.
+ */
+export function markedBody(body: string, commandId: string): string {
+  const marker = commandMarker(commandId);
+  return body.includes(marker) ? body : `${body}\n\n${marker}`;
+}
 const actor = z.looseObject({ login: z.string() });
 const markedIssue = z.looseObject({
   number: z.number().int().positive(),

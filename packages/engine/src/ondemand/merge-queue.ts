@@ -98,6 +98,8 @@ export const reactMergeSubmission = (
               pr: { repo: ctx.state.workflow!.repo.github, number: item.pr },
               method: 'merge',
               expectedHeadSha: submission.payload.expectedHeadSha,
+              // S20: merge only into our recorded base; a retargeted PR fails.
+              expectedBase: ctx.state.workflow!.integrationBranch,
               ...(expectedBaseSha === undefined ? {} : { expectedBaseSha }),
             },
           },

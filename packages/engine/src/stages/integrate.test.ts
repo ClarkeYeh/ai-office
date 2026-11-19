@@ -180,6 +180,12 @@ describe('wrap-up and final PR', () => {
     expect(gate.options.map((o) => o.optionId)).toEqual(['keep-open', 'abort']);
     expect(sim.state.workflow?.status).toBe('running');
     status('open');
+    expect(finalGate(sim).options.map((o) => o.optionId)).toEqual([
+      'request-changes',
+      'keep-open',
+      'abort',
+    ]);
+    expect(finalGate(sim).content).not.toHaveProperty('prClosedAt');
     merge(sim);
     expect(sim.state.workflow?.status).toBe('completed');
     expect(sim.rejections).toEqual([]);

@@ -1049,6 +1049,14 @@ describe('anomaly classification', () => {
       },
     );
     expect(emitted(h, anomaly(moved))).toEqual([]);
+    // Any known merge result: an observed merged PR (e.g. a human merge).
+    h.given(
+      eventDraft(
+        'pr.status',
+        pr({ pr: 13, state: 'merged', mergeCommitSha: 'abcdef4' }),
+      ),
+    );
+    expect(emitted(h, anomaly({ ...moved, sha: 'abcdef4' }))).toEqual([]);
     const events = emitted(h, anomaly({ ...moved, sha: 'abcdef3' }));
     expect(payloads(events)).toEqual([
       {

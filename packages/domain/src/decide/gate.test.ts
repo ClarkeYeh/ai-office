@@ -336,9 +336,15 @@ describe('gate invariants', () => {
     expect(h.state.prsClosedAt).toEqual({ '7': at(40) });
     expect(h.state.workflow?.status).toBe('running');
     error(h, decision({ decision: 'reject' }), 'invalid_gate_decision');
-    // Reopened: the mark clears; merging still completes as usual.
+    // Reopened: the mark clears and the full option set returns; merging
+    // still completes as usual.
     h.given(status('open', 60));
     expect(h.state.gates.g!.content).not.toHaveProperty('prClosedAt');
+    expect(h.state.gates.g!.options.map((o) => o.optionId)).toEqual([
+      'request-changes',
+      'keep-open',
+      'abort',
+    ]);
     expect(h.state.prsClosedAt).toEqual({});
     h.given(status('merged', 70), {
       type: 'CloseGate',
@@ -352,6 +358,11 @@ describe('gate invariants', () => {
       decision({ decision: 'option', optionId: 'keep-open' }),
     );
     expect(keep.state.gates.g?.status).toBe('approved');
+    // With no revisions left, a reopen has nothing to restore.
+    const exhausted = final();
+    exhausted.state.stages.integrate!.revisions = 2;
+    exhausted.given(status('closed', 40), status('open', 50));
+    expect(exhausted.state.gates.g!.options).toEqual([]);
   });
   test('merged closure requires observed final PR and works after keep-open', () => {
     const close = {

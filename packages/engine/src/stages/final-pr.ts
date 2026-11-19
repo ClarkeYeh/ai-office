@@ -1,3 +1,4 @@
+import { REQUEST_CHANGES_OPTION } from '@ai-office/domain';
 import type { WorkflowState } from '@ai-office/domain';
 import { metaFor } from '../context.js';
 import { external, internal } from '../effects.js';
@@ -47,7 +48,7 @@ const gate: StageGateBuilder = (state, stageId) => {
     title: config.gate.title,
     options: [
       ...(integrate.revisions < config.maxRevisions && closedAt === undefined
-        ? [{ optionId: 'request-changes', label: 'Request changes' }]
+        ? [{ ...REQUEST_CHANGES_OPTION }]
         : []),
       { optionId: 'keep-open', label: 'Keep open for manual handling' },
       { optionId: 'abort', label: 'Abort workflow' },
