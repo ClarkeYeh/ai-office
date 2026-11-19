@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { PortError } from '../../../ports/errors.js';
-import type { RequestOptions, RequestParams } from '../http/types.js';
+import type { RequestOptions, RequestParams } from '../http/request.js';
 import type { RepoAllowlist } from './repos.js';
 const root = '/repos/{owner}/{repo}';
 const text = z.string();
