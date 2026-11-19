@@ -1,7 +1,7 @@
 import { PortError } from '../../ports/errors.js';
 import { z } from 'zod';
+// retryAfterMs lives on PortError itself (PP4).
 export type GithubError = PortError & {
-  retryAfterMs?: number;
   status?: number;
   requestId?: string;
   alreadyExists?: boolean;
