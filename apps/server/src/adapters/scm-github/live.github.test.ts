@@ -1,3 +1,4 @@
+import { scenarioTime } from '../../test-support/github/scenario-time.js';
 import { assembleContractScm } from './test-support/assembly.js';
 import { realGithubSuite } from '../../test-support/github/gating.js';
 import { githubContract } from '../../test-support/github/contract-binding.js';
@@ -13,10 +14,13 @@ import { RecordingFetch } from '../../test-support/github/recording.js';
 import { encodedRefScenario } from '../../test-support/github/ref-paths.js';
 import { tapePath } from '../../test-support/github/contract-binding.js';
 realGithubSuite('live recording probes', () => {
-  it('verifies percent-encoded git/ref and git/refs paths', async () => {
+  it('verifies percent-encoded git/ref and git/refs paths', async ({
+    signal,
+  }) => {
     const harness = await openHarness();
     try {
       const startedAt = new Date().toISOString();
+      const time = scenarioTime('live', [], signal);
       const recorder = new RecordingFetch(
         harness.fetch,
         harness.ledger.data.runId,
@@ -27,6 +31,7 @@ realGithubSuite('live recording probes', () => {
           harness.ledger.data.runId,
           startedAt,
           assembleContractScm,
+          time,
         );
       } finally {
         // Cleanup and scan must succeed before publishing evidence.
@@ -49,10 +54,14 @@ realGithubSuite('live recording probes', () => {
         const path = tapePath('encoded refs');
         await mkdir(dirname(path), { recursive: true });
         await recorder.save(path);
-        await writeFile(path + '.clock.json', JSON.stringify({ startedAt }), {
-          flag: 'wx',
-          mode: 0o600,
-        });
+        await writeFile(
+          path + '.clock.json',
+          JSON.stringify({ startedAt, clockReads: time.reads }),
+          {
+            flag: 'wx',
+            mode: 0o600,
+          },
+        );
       }
     } finally {
       await harness.close();

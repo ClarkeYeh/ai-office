@@ -1,3 +1,4 @@
+import { scenarioTime } from '../../test-support/github/scenario-time.js';
 import { assembleContractScm } from './test-support/assembly.js';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -23,17 +24,20 @@ it('replays the integrator percent-encoded ref probe strictly', async ({
   if (!existsSync(path))
     skip('Pending integrator live recording of encoded refs');
   const rows = JSON.parse(await readFile(path, 'utf8')) as Recording[];
-  const { startedAt } = JSON.parse(
+  const { startedAt, clockReads } = JSON.parse(
     await readFile(path + '.clock.json', 'utf8'),
-  ) as { startedAt: string };
+  ) as { startedAt: string; clockReads: number[] };
   const replay = new ReplayFetch(rows);
+  const time = scenarioTime('replay', clockReads);
   await encodedRefScenario(
     replay.fetch,
     '000000000001',
     startedAt,
     assembleContractScm,
+    time,
   );
   replay.assertConsumed();
+  time.assertConsumed();
 });
 
 it('keeps synthetic token and body secrets out of recorded fixtures and adapter diagnostics, then strictly replays getIssue', async () => {

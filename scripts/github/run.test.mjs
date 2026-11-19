@@ -89,6 +89,7 @@ test('opted-in commands route only to the serialized GitHub project', async () =
         '@ai-office/server-github',
         '--maxWorkers=2',
         '--hookTimeout=120000',
+        '--bail=1',
         '--passWithNoTests',
         ...(command === 'record-contract'
           ? ['apps/server/src/adapters/scm-github/live.github.test.ts']

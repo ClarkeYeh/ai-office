@@ -1,7 +1,7 @@
 import { expect } from 'vitest';
 import type { GithubBindingFactory } from './contract-binding.js';
 import { contractRepo, contractUrl } from './contract-transport.js';
-import { FakeClock } from '../services.js';
+import type { scenarioTime } from './scenario-time.js';
 
 /** Uses the actual encoded ref URLs, including a second slash in the branch. */
 export async function encodedRefScenario(
@@ -9,14 +9,12 @@ export async function encodedRefScenario(
   runId: string,
   startedAt: string,
   create: GithubBindingFactory,
+  time: ReturnType<typeof scenarioTime>,
 ): Promise<void> {
-  const clock = new FakeClock(startedAt);
   const scm = create({
     fetch,
-    clock,
-    sleep: async (ms) => {
-      clock.advance(ms);
-    },
+    clock: time.clock,
+    sleep: time.sleep,
     registeredAt: () => startedAt,
   });
   const name = `ai-office/t${runId}-encoded/path`;
