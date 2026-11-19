@@ -22,6 +22,7 @@
     "scm.setLabels",
     "scm.openPR",
     "scm.updatePR",
-    "scm.mergePR"
+    "scm.mergePR",
+    "scm.deleteComment"
   ]
 }

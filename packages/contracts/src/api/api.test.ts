@@ -601,6 +601,16 @@ describe('error response', () => {
     expect(API_ERRORS.gate_content_changed.status).toBe(409);
     expect(API_ERRORS.runtime_unverified_ack_required.status).toBe(428);
   });
+  test('M3-CP1 adds repo_not_ready and scm_login_mismatch', () => {
+    expect(API_ERRORS.repo_not_ready).toEqual({
+      status: 422,
+      category: 'validation',
+    });
+    expect(API_ERRORS.scm_login_mismatch).toEqual({
+      status: 409,
+      category: 'conflict',
+    });
+  });
 });
 
 test('accepted submissions survive workflow snapshot JSON round trips', () => {
@@ -726,4 +736,33 @@ describe('M2-CP1 optional read-model fields', () => {
         false,
       );
   });
+});
+
+describe('M3-CP1 optional health fields', () => {
+  const health = responses.getHealth as z.input<typeof HealthViewSchema>;
+  const withScm = (scm: object) => ({
+    ...health,
+    scm: { ...health.scm, ...scm },
+  });
+
+  test('health accepts SCM tokenSource and warnings and still parses without them', () => {
+    for (const tokenSource of ['env', 'gh']) {
+      const full = withScm({
+        tokenSource,
+        warnings: ['rate_limit_low', 'active_account_mismatch'],
+      });
+      expect(HealthViewSchema.parse(JSON.parse(JSON.stringify(full)))).toEqual(
+        full,
+      );
+    }
+    expect(HealthViewSchema.safeParse(health).success).toBe(true);
+  });
+  test.each([
+    { tokenSource: 'auto' },
+    { tokenSource: 'ghp_x' },
+    { warnings: 'rate_limited' },
+    { warnings: [1] },
+  ])('health rejects malformed SCM details: %o', (scm) =>
+    expect(HealthViewSchema.safeParse(withScm(scm)).success).toBe(false),
+  );
 });
