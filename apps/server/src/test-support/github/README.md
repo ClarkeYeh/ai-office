@@ -52,7 +52,10 @@ is never stolen, and a confirmed dead PID can be reclaimed.
 normalized path, sorted query, normalized body SHA-256), status, allowlisted
 response headers, and sanitized response. No request headers or plaintext body
 are recorded. Run IDs normalize to `000000000001` before sanitization. Pagination
-links use relative API paths on disk and are restored on replay. `ReplayFetch`
+links use relative API paths on disk and are restored on replay. Node IDs use
+stable per-tape placeholders; response API URLs and avatars become valid URLs
+under the permitted spike HTML root before generic redaction and the final leak
+scan. Persistence errors are aggregated at suite end so later cases still run. `ReplayFetch`
 has no network fallback; missing, extra, reordered, or different calls fail.
 Always call `assertConsumed()`. Supply known synthetic `bodies` for SHA-256
 rehydration (including markers); unknown summaries become deterministic strings.

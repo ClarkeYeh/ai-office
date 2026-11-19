@@ -51,3 +51,64 @@ scmPortContract(async () => {
     await rm(dir, { recursive: true, force: true });
   }
 }, 35_000);
+
+it('reports persistence failures after later cases and every cleanup have run', async () => {
+  const dir = await mkdtemp(join(import.meta.dirname, 'hook-probe-'));
+  try {
+    const path = join(dir, 'persistence.test.ts');
+    await writeFile(
+      path,
+      `import { afterAll, afterEach, expect, it } from 'vitest';
+import { PersistenceFailures } from '../persistence-failures.js';
+const failures = new PersistenceFailures();
+const cleaned = [];
+const saved = [];
+afterEach(async ({task}) => {
+  cleaned.push(task.name);
+  await failures.capture(task.name, async () => {
+    if (task.name !== 'third') throw new Error('private error must not be logged');
+    saved.push(task.name);
+  });
+});
+it('first', () => {});
+it('second', () => {});
+it('third', () => {});
+afterAll(() => {
+  expect(cleaned).toEqual(['first', 'second', 'third']);
+  expect(saved).toEqual(['third']);
+  failures.assertSuccess();
+});
+`,
+    );
+    const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+    const result = spawnSync(
+      process.execPath,
+      [
+        join(root, 'node_modules/vitest/vitest.mjs'),
+        'run',
+        path,
+        '--project',
+        '@ai-office/server',
+        '--maxWorkers=2',
+        '--reporter=json',
+      ],
+      { cwd: root, encoding: 'utf8', timeout: 30_000 },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    const report = JSON.parse(result.stdout) as {
+      numPassedTests: number;
+      numPendingTests: number;
+    };
+    expect(report.numPassedTests).toBe(3);
+    expect(report.numPendingTests).toBe(0);
+    expect(result.stdout).toContain(
+      'Tape persistence failed for 2 case(s): first, second',
+    );
+    expect(result.stdout + result.stderr).not.toContain(
+      'private error must not be logged',
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}, 35_000);
