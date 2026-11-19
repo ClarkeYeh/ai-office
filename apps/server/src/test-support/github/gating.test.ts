@@ -49,12 +49,18 @@ realGithubSuite('synthetic GitHub probe', () => {
         scripts: Record<string, string>;
       };
       for (const script of ['test', 'test:coverage']) {
-        expect(pkg.scripts[script]).toContain(
-          "--project '!@ai-office/server-github'",
-        );
-        expect(pkg.scripts[script]).toContain(
-          "--project '!@ai-office/server-orca'",
-        );
+        // Vitest ORs repeated --project filters, so two negations would let each
+        // live project back in through the other; collect with the script's own filters.
+        const filters = [
+          ...(pkg.scripts[script] ?? '').matchAll(/--project '([^']+)'/g),
+        ].flatMap((match) => ['--project', match[1] ?? '']);
+        expect(filters).toEqual(['--project', '!@ai-office/server-*']);
+        const collected = run(['list', '--filesOnly', '--json', ...filters], {
+          CI: 'true',
+          AIO_REAL_GITHUB: '1',
+        });
+        expect(collected).toContain('test-support/github/gating.test.ts');
+        expect(collected).not.toMatch(/\.(github|orca)\.test\.ts/);
       }
       // Even excluding only the GitHub project must remove every GitHub live file.
       const files = run(
