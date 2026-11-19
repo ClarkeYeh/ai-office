@@ -1069,7 +1069,12 @@ async function compose(
                 ? { location: runtimeMetadata.shimLocation }
                 : {}),
             },
-            runOwned: runtimeMetadata.ownership === 'owned',
+            // The projection flips on identity_hijacked/restored events; the
+            // adapter snapshot adds hijacks found at probe time. `none` (no run
+            // yet) is not a takeover.
+            runOwned:
+              view.runtime.runOwned !== false &&
+              runtimeMetadata.ownership !== 'hijacked',
             ...(runtimeMetadata.binPath
               ? { binPath: runtimeMetadata.binPath }
               : {}),

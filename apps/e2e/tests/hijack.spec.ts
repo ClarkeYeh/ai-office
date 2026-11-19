@@ -34,6 +34,9 @@ test('a run takeover pauses the workflow and is reclaimed through the hijack gat
     (model) => model.status === 'running',
     'workflow running',
   );
+  await office().login(page, `/workflows/${encodeURIComponent(workflowId)}`);
+  await expect(page.getByTestId('office-scene')).toBeVisible();
+  await expect(page.getByTestId('banner-hijacked')).toHaveCount(0);
   expect((await office().fake.hijack()).hijacked).toBeGreaterThan(0);
   const gate = openHijackGate(
     await until(
@@ -44,7 +47,6 @@ test('a run takeover pauses the workflow and is reclaimed through the hijack gat
   )!;
 
   expect((await readModel(office(), workflowId)).pausedReasons).not.toEqual([]);
-  await office().login(page, `/workflows/${encodeURIComponent(workflowId)}`);
   await expect(page.getByTestId('banner-hijacked')).toBeVisible();
   await expect(page.locator('[data-testid^="pause-"]').first()).toBeVisible();
 
