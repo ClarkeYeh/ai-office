@@ -61,3 +61,25 @@ secret masking after exact token/request-value removal, before truncation.
 
 All tests here use synthetic injected transports. Live testing belongs to the
 coordinator/test harness under M3 safety gates; this task does not call live APIs.
+
+## PR methods and merge guards (M3-T5)
+
+`createPrMethods({http}, {sleep?})` in `methods/pulls.ts` provides `openPR`,
+`getPR`, `updatePR`, `closePR`, `mergePR` and `listReviewComments`; T4 wires them
+into the ScmPort. `openPR` appends the command marker and requires an
+`ai-office/` head; a 422 duplicate (G10) adopts the open PR for the same
+head/base only when it carries this command's marker. `updatePR` sends title,
+body and state only (never the base); closing re-reads the PR fresh and requires
+an AI Office marker.
+
+`mergePR` reads the PR, the repository and the base branch fresh, then refuses
+(`guard`) a base equal to the default branch, outside `ai-office/`, or with
+`protected: true`, and any method other than `merge`. A head other than
+`expectedHeadSha` is non-retryable `head_mismatch`; a base head other than
+`expectedBaseSha` is `base_moved`. An already merged PR returns its merge commit
+(G4). After the merge it short-polls the PR (G11: GitHub may flag it merged ~3 s
+later) and raises `guard merge_base_changed` when `base.ref` differs (not
+`base.sha`, which is the PR-open snapshot). Timeouts surface as retryable
+`github_unavailable`: a retried merge finds the PR merged or gets GitHub's
+idempotent 200, and a retried create gets the 422 duplicate.
+`POST /merges` (G11) is not in the endpoint table until S20 is decided.
