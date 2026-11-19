@@ -183,6 +183,30 @@ describe('GitHub HTTP boundary', () => {
       ),
     ).rejects.toMatchObject({ category: 'contract_mismatch' });
   });
+  it('sends a pinned cursor ETag only while its representation is cached', async () => {
+    const f = setup([
+      json({ value: 1 }, 200, { etag: '"a"' }),
+      new Response(null, { status: 304 }),
+      json({}, 200),
+      json({ value: 1 }, 200, { etag: '"a"' }),
+    ]);
+    await f.http.request('repos.get', params, { schema, conditional: true });
+    await expect(
+      f.http.request('repos.get', params, { schema, conditional: '"a"' }),
+    ).resolves.toMatchObject({ data: { value: 1 }, notModified: true });
+    // Any write clears the shared cache; the cursor still holds "a".
+    await f.http.request(
+      'issues.labels',
+      { ...params, number: 1, body: { labels: [] } },
+      { schema: emptySchema },
+    );
+    await expect(
+      f.http.request('repos.get', params, { schema, conditional: '"a"' }),
+    ).resolves.toMatchObject({ data: { value: 1 }, notModified: false });
+    expect(
+      new Headers(f.fetch.mock.calls[3]![1]?.headers).has('if-none-match'),
+    ).toBe(false);
+  });
   it('follows and caches page links without accepting a URL escape', async () => {
     const link =
       '<https://api.github.com/repos/owner/project/issues?per_page=100&page=2>; rel="next"';

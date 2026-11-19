@@ -114,9 +114,13 @@ export class GithubHttpClient implements GithubHttp {
           this.options.repoAllowlist,
         );
         const cached = this.cache.get(url.href);
+        // A pinned cursor ETag is sent only while its representation is cached:
+        // after a restart, eviction or write invalidation a 304 could not be served.
         const etag =
           typeof options.conditional === 'string'
-            ? options.conditional
+            ? cached?.etag === options.conditional
+              ? options.conditional
+              : undefined
             : options.conditional
               ? cached?.etag
               : undefined;
