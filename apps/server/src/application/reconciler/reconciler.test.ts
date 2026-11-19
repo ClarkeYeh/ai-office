@@ -16,6 +16,7 @@ import {
   ManualScheduler,
   MemoryLogger,
 } from '../../test-support/services.js';
+import { CREATE_PENDING_WINDOW_MS } from '../../ports/scm.js';
 import type { EventStore } from '../../ports/stores.js';
 import { CommandExecutor, portHandlers } from '../commands/executor.js';
 import type { CommandHandlers } from '../commands/executor.js';
@@ -66,16 +67,11 @@ async function fixture() {
   const runtime = new FakeRuntime({ clock });
   const scm = new FakeScm({ clock });
   scm.addRepo(repo);
-  await scm.ensureBranch(
-    repo,
-    'ai-office/integration',
-    'main',
-    correlation('base'),
-  );
+  await scm.ensureBranch(repo, INTEGRATION, 'main', correlation('base'));
   await scm.ensureBranch(
     repo,
     'ai-office/worker',
-    'ai-office/integration',
+    INTEGRATION,
     correlation('worker'),
   );
   const session = await runtime.openSession({
@@ -149,6 +145,8 @@ async function fixture() {
 }
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
+/** The integration branch `startWorkflow()` derives (§16.3). */
+const INTEGRATION = 'ai-office/ab12-add-dark-mode-toggle';
 async function commandFor(
   f: Fixture,
   kind: 'spawn' | 'issue' | 'pr' | 'merge' | 'workspace',
@@ -185,7 +183,7 @@ async function commandFor(
           repo,
           title: 'Worker PR',
           body: '',
-          base: 'ai-office/integration',
+          base: INTEGRATION,
           head: 'ai-office/worker',
         },
       };
@@ -195,14 +193,14 @@ async function commandFor(
         {
           title: 'Merge queue review',
           body: '',
-          base: 'ai-office/integration',
+          base: INTEGRATION,
           head: 'ai-office/worker',
         },
         correlation('setup-pr'),
       );
       const head = await f.scm.compareBranch(
         repo,
-        'ai-office/integration',
+        INTEGRATION,
         'ai-office/worker',
       );
       return {
@@ -211,16 +209,8 @@ async function commandFor(
       };
     }
     case 'workspace': {
-      const head = await f.scm.compareBranch(
-        repo,
-        'ai-office/integration',
-        'ai-office/integration',
-      );
-      f.runtime.setRemoteBranch(
-        runtimeRepo,
-        'ai-office/integration',
-        head!.headSha,
-      );
+      const head = await f.scm.compareBranch(repo, INTEGRATION, INTEGRATION);
+      f.runtime.setRemoteBranch(runtimeRepo, INTEGRATION, head!.headSha);
       return {
         kind: 'runtime.prepareWorkspace',
         args: {
@@ -228,7 +218,7 @@ async function commandFor(
           session: f.session,
           name: 'aio-ab12-item-a1',
           branch: 'ai-office/item',
-          fetchBranch: 'ai-office/integration',
+          fetchBranch: INTEGRATION,
           baseBranch: head!.headSha,
         },
       };
@@ -323,6 +313,8 @@ describe('SQLite close/reopen outbox crash windows', () => {
         await first.runners.start(startWorkflow()).catch(() => undefined);
         await flush();
         const recovered = f.restart(react);
+        // Past the create pending window, absence of a marker means redo.
+        f.clock.advance(CREATE_PENDING_WINDOW_MS);
         expect(await f.reconciler().reconcile(recovered.runners)).toEqual({
           pending: 0,
         });
@@ -372,6 +364,7 @@ async function pendingCommand(f: Fixture, command: ExternalCommand) {
     .build(react, {}, store)
     .runners.start(startWorkflow())
     .catch(() => undefined);
+  f.clock.advance(CREATE_PENDING_WINDOW_MS);
   return { react, recovered: f.restart(react) };
 }
 
@@ -772,4 +765,126 @@ test('replays an explicitly issued reclaim idempotently after a crash without a 
     reconciled: 'redone',
     result: { kind: 'runtime.reclaimSession', result: { reclaimed: true } },
   });
+});
+
+describe('M3-T9 SCM recovery (AP1)', () => {
+  test('uses the url the marker scan returns, with the issue-time since and kind hints', async () => {
+    const f = await fixture();
+    const command = await commandFor(f, 'issue');
+    const { recovered } = await pendingCommand(f, command);
+    const issuedAt =
+      recovered.runners.get(WORKFLOW_ID)!.state.commands.recover!.issuedAt;
+    const find = vi.spyOn(f.scm, 'findByMarker').mockResolvedValue({
+      repo,
+      number: 41,
+      kind: 'issue',
+      url: 'https://github.example/o/r/issues/41',
+    });
+    expect(await f.reconciler().reconcile(recovered.runners)).toEqual({
+      pending: 0,
+    });
+    expect(find).toHaveBeenCalledExactlyOnceWith(repo, 'recover', {
+      since: issuedAt,
+      kind: 'issue',
+    });
+    const success = f.stores.events
+      .read({})
+      .find((e) => e.type === 'command.succeeded');
+    expect(success?.payload).toMatchObject({
+      result: { issue: 41, url: 'https://github.example/o/r/issues/41' },
+    });
+  });
+
+  test.each(['issue'] as const)(
+    '%s: an unlisted object is pending inside the create window, redone after it',
+    async (kind) => {
+      const f = await fixture();
+      const command = await commandFor(f, kind);
+      const react = onStart(command);
+      const store = crashStore(
+        f.stores.events,
+        (events) => events.some((e) => e.type === 'command.issued'),
+        true,
+      );
+      await f
+        .build(react, {}, store)
+        .runners.start(startWorkflow())
+        .catch(() => undefined);
+      const recovered = f.restart(react);
+      const create = vi.spyOn(
+        f.scm,
+        kind === 'issue' ? 'createIssue' : 'openPR',
+      );
+      const reconciler = f.reconciler();
+      f.clock.advance(CREATE_PENDING_WINDOW_MS - 1);
+      expect(await reconciler.reconcile(recovered.runners)).toEqual({
+        pending: 1,
+      });
+      expect(create).not.toHaveBeenCalled();
+      f.clock.advance(1);
+      expect(await reconciler.reconcile(recovered.runners)).toEqual({
+        pending: 0,
+      });
+      await recovered.runners.idle();
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(
+        recovered.runners.get(WORKFLOW_ID)!.state.commands.recover,
+      ).toMatchObject({ status: 'succeeded', reconciled: 'redone' });
+    },
+  );
+
+  test('pr: an unlisted PR is redone at once (GitHub keeps one open PR per head/base)', async () => {
+    const f = await fixture();
+    const react = onStart(await commandFor(f, 'pr'));
+    const store = crashStore(
+      f.stores.events,
+      (events) => events.some((e) => e.type === 'command.issued'),
+      true,
+    );
+    await f
+      .build(react, {}, store)
+      .runners.start(startWorkflow())
+      .catch(() => undefined);
+    const recovered = f.restart(react);
+    const open = vi.spyOn(f.scm, 'openPR');
+    expect(await f.reconciler().reconcile(recovered.runners)).toEqual({
+      pending: 0,
+    });
+    await recovered.runners.idle();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    ['head', { headSha: 'e'.repeat(40) }, 'merged_head_mismatch'],
+    ['base', { base: 'ai-office/other' }, 'merged_base_mismatch'],
+  ] as const)(
+    'a PR merged with another %s gives up with an anomaly gate',
+    async (_name, patch, code) => {
+      const f = await fixture();
+      const command = await commandFor(f, 'merge');
+      if (command.kind !== 'scm.mergePR') return never();
+      const { recovered } = await pendingCommand(f, command);
+      const real = await f.scm.getPR(command.args.pr);
+      vi.spyOn(f.scm, 'getPR').mockResolvedValue({
+        ...real,
+        headSha: command.args.expectedHeadSha,
+        base: INTEGRATION,
+        state: 'merged',
+        mergeCommitSha: 'c'.repeat(40),
+        ...patch,
+      });
+      const merge = vi.spyOn(f.scm, 'mergePR');
+      await f.reconciler().reconcile(recovered.runners);
+      expect(merge).not.toHaveBeenCalled();
+      const runner = recovered.runners.get(WORKFLOW_ID)!;
+      expect(runner.state.commands.recover).toMatchObject({
+        status: 'failed',
+        reconciled: 'gave_up',
+      });
+      expect(runner.state.gates['reconcile:recover']?.content).toMatchObject({
+        summary: code,
+      });
+      expect(runner.state.workflow?.pausedReasons).toContain('anomaly');
+    },
+  );
 });

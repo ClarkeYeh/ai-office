@@ -7,6 +7,7 @@ import type {
 } from '@ai-office/contracts/events';
 import type { Clock, ScheduledTimer, Scheduler } from '../../ports/services.js';
 import type { EventStore } from '../../ports/stores.js';
+import type { ScmHealth } from '../../ports/scm.js';
 import type { DomainCommand, WorkflowState } from '@ai-office/domain';
 import { PortError } from '../../ports/errors.js';
 
@@ -20,6 +21,25 @@ export const HEALTH_TIMER_PREFIX = 'aio-health:';
 /** A probe still pending after this long counts as a transient failure. */
 export const PROBE_TIMEOUT_MS = 5_000;
 export const HEALTH_COMPONENTS = ['runtime', 'scm', 'store', 'usage'] as const;
+/** AP5: how often the active gh login is compared with ownerLogin (§17.2). */
+export const ACTIVE_LOGIN_INTERVAL_MS = 5 * 60_000;
+/** How often `scmStatus` (login, rate limit; `GET /rate_limit` is free) is read. */
+export const SCM_STATUS_INTERVAL_MS = 60_000;
+/**
+ * §12.2 slowdown thresholds on `x-ratelimit-remaining`. Each level is left
+ * only `RATE_LIMIT_HYSTERESIS` above where it was entered: the primary budget
+ * is shared with the owner's own `gh`, so samples jitter around a threshold.
+ */
+export const RATE_LIMIT_SLOW_BELOW = 1_000;
+export const RATE_LIMIT_CRITICAL_BELOW = 200;
+export const RATE_LIMIT_HYSTERESIS = 100;
+/** The primary limit of a user token (§12.2); ScmHealth reports no limit. */
+export const GITHUB_PRIMARY_LIMIT = 5_000;
+/**
+ * `normal`: §12.2 cadence; `slow`: SCM polls every 60 s; `critical`: poll
+ * only the final PR and PRs with a merge in flight, scm `degraded`.
+ */
+export type ScmPace = 'normal' | 'slow' | 'critical';
 export type HealthComponent = (typeof HEALTH_COMPONENTS)[number];
 /** The breakers a command kind waits for (SPEC §15 S21, M3_PLAN §4.7). */
 export const dispatchComponents = (
@@ -54,6 +74,15 @@ export interface HealthMonitorDeps {
   store: EventStore;
   /** Evaluated lazily to support composition with WorkflowRunners. */
   workflows: () => readonly HealthWorkflow[];
+  /**
+   * AP5 (T12 injects): resolves whether gh's active login still equals
+   * ownerLogin. Checked every ACTIVE_LOGIN_INTERVAL_MS; a mismatch pauses
+   * running workflows with `auth` until it matches again. A throw (gh
+   * unavailable) leaves the last verdict.
+   */
+  activeLoginProbe?: () => Promise<boolean>;
+  /** The SCM adapter's own report (login, rate limit, token source, warnings). */
+  scmStatus?: () => Promise<ScmHealth>;
   /** T10 supplies the Orca adapter callback; absent in fake mode. */
   forceRecheck?: () => Promise<void>;
   /** Monotonic milliseconds, injectable for clock-jump tests. */
@@ -81,6 +110,21 @@ export class HealthMonitor {
   /** Set by publishInitial; afterwards a successful call republishes `healthy`. */
   private announced = false;
 
+  private readonly scm: {
+    login?: string;
+    tokenSource?: 'env' | 'gh';
+    warnings: readonly string[];
+    rateLimit?: { remaining: number; resetAt: string };
+    pace: ScmPace;
+    limitedUntil?: number;
+    limitedCode?: string;
+    loginMismatch: boolean;
+  } = { warnings: [], pace: 'normal', loginMismatch: false };
+  /** commandId → workflowId of scm commands rate limited past RATE_LIMIT_PAUSE_MS. */
+  private readonly scmHolds = new Map<string, string>();
+  /** Workflows this monitor paused with `auth` (it resumes only those). */
+  private readonly authPaused = new Set<string>();
+
   private tickAt: number | undefined;
   private lastWall = 0;
   private lastMono = 0;
@@ -89,6 +133,16 @@ export class HealthMonitor {
 
   constructor(private readonly deps: HealthMonitorDeps) {
     if (deps.forceRecheck) this.scheduleTick();
+    if (deps.activeLoginProbe)
+      this.scheduleAt('login', ACTIVE_LOGIN_INTERVAL_MS);
+  }
+
+  private scheduleAt(timer: 'login' | 'scm-status' | 'scm-limit', ms: number) {
+    this.deps.scheduler.schedule({
+      id: `${HEALTH_TIMER_PREFIX}${timer}`,
+      workflowId: '__health__',
+      fireAt: new Date(this.deps.clock.now().getTime() + ms).toISOString(),
+    });
   }
 
   private scheduleTick(): void {
@@ -107,6 +161,116 @@ export class HealthMonitor {
     this.stopped = true;
     this.tickAt = undefined;
     this.deps.scheduler.cancel(HEALTH_TIMER_PREFIX + 'clock');
+    for (const timer of ['login', 'scm-status', 'scm-limit'])
+      this.deps.scheduler.cancel(HEALTH_TIMER_PREFIX + timer);
+  }
+
+  /** §12.2 slowdown level for the ObservationLoop's SCM cadence. */
+  scmPace(): ScmPace {
+    return this.rateLimitedNow() ? 'critical' : this.scm.pace;
+  }
+
+  /**
+   * The executor got `rate_limited` with `retryAfterMs` (§12.2): scm shows
+   * `degraded` and a `rate_limited`/`secondary_rate_limited` warning until
+   * then. The breaker is untouched.
+   */
+  async noteRateLimit(code: string, retryAfterMs: number): Promise<void> {
+    const until = this.deps.clock.now().getTime() + retryAfterMs;
+    if (until > (this.scm.limitedUntil ?? 0)) {
+      this.scm.limitedUntil = until;
+      this.scm.limitedCode = code;
+      this.scheduleAt('scm-limit', retryAfterMs);
+    }
+    this.publishScm();
+    await this.sync();
+  }
+
+  /**
+   * A workflow's scm command has been rate limited for over five minutes
+   * (§12.2): pause it with `scm_unhealthy` until `releaseScm`. Only the
+   * workflow's new work stops; runtime commands still run (S21).
+   */
+  async holdScm(workflowId: string, commandId: string): Promise<void> {
+    this.scmHolds.set(commandId, workflowId);
+    await this.sync();
+  }
+
+  async releaseScm(commandId: string): Promise<void> {
+    if (!this.scmHolds.delete(commandId)) return;
+    await this.sync();
+  }
+
+  private rateLimitedNow(): boolean {
+    return (this.scm.limitedUntil ?? 0) > this.deps.clock.now().getTime();
+  }
+
+  private async refreshScm(): Promise<void> {
+    if (!this.deps.scmStatus) return;
+    let status: ScmHealth;
+    try {
+      status = await this.deps.scmStatus();
+    } catch {
+      return; // The breaker accounting stays with probes and real calls.
+    } finally {
+      if (!this.stopped) this.scheduleAt('scm-status', SCM_STATUS_INTERVAL_MS);
+    }
+    const remaining = Math.max(0, Math.floor(status.rateLimitRemaining));
+    const { pace } = this.scm;
+    this.scm.pace =
+      remaining < RATE_LIMIT_CRITICAL_BELOW ||
+      (pace === 'critical' &&
+        remaining < RATE_LIMIT_CRITICAL_BELOW + RATE_LIMIT_HYSTERESIS)
+        ? 'critical'
+        : remaining < RATE_LIMIT_SLOW_BELOW ||
+            (pace !== 'normal' &&
+              remaining < RATE_LIMIT_SLOW_BELOW + RATE_LIMIT_HYSTERESIS)
+          ? 'slow'
+          : 'normal';
+    this.scm.rateLimit = { remaining, resetAt: status.rateLimitResetAt };
+    if (status.viewerLogin === null) delete this.scm.login;
+    else this.scm.login = status.viewerLogin;
+    if (status.tokenSource === undefined) delete this.scm.tokenSource;
+    else this.scm.tokenSource = status.tokenSource;
+    this.scm.warnings = status.warnings ?? [];
+    this.publishScm();
+    await this.sync();
+  }
+
+  private async loginTick(): Promise<void> {
+    if (this.stopped) return;
+    this.scheduleAt('login', ACTIVE_LOGIN_INTERVAL_MS);
+    let matches = !this.scm.loginMismatch;
+    try {
+      await this.bounded('scm', async () => {
+        matches = await this.deps.activeLoginProbe!();
+      });
+    } catch {
+      return;
+    }
+    if (this.scm.loginMismatch === !matches) return;
+    this.scm.loginMismatch = !matches;
+    this.publishScm();
+    await this.sync();
+  }
+
+  /** SCM warnings for HealthView (M3_PLAN §8.6), adapter ones first. */
+  private scmWarnings(): string[] {
+    const warnings = new Set(this.scm.warnings);
+    if (this.scm.pace !== 'normal') warnings.add('rate_limit_low');
+    if (this.rateLimitedNow())
+      warnings.add(
+        this.scm.limitedCode === 'secondary_rate_limit'
+          ? 'secondary_rate_limited'
+          : 'rate_limited',
+      );
+    if (this.scm.loginMismatch) warnings.add('active_account_mismatch');
+    return [...warnings];
+  }
+
+  /** Republish scm when its degraded state changed (after publishInitial). */
+  private publishScm(): void {
+    if (this.announced) this.publish('scm', this.status('scm'));
   }
 
   private async clockTick(timer: ScheduledTimer): Promise<void> {
@@ -241,7 +405,7 @@ export class HealthMonitor {
           : [];
       if (state.failures.length >= 5) this.change(component, 'open');
       else if (error === undefined && this.announced)
-        this.publish(component, 'healthy');
+        this.publish(component, this.status(component));
     }
     await this.sync();
   }
@@ -256,6 +420,7 @@ export class HealthMonitor {
    * next successful call publishes `healthy`. Call after `restore()`.
    */
   async publishInitial(): Promise<void> {
+    await this.refreshScm();
     for (const component of HEALTH_COMPONENTS) {
       let failed = false;
       try {
@@ -295,6 +460,13 @@ export class HealthMonitor {
   async onTimer(timer: ScheduledTimer): Promise<void> {
     if (timer.id === HEALTH_TIMER_PREFIX + 'clock')
       return this.clockTick(timer);
+    if (timer.id === HEALTH_TIMER_PREFIX + 'login') return this.loginTick();
+    if (timer.id === HEALTH_TIMER_PREFIX + 'scm-status')
+      return this.refreshScm();
+    if (timer.id === HEALTH_TIMER_PREFIX + 'scm-limit') {
+      this.publishScm();
+      return this.sync();
+    }
     const component = HEALTH_COMPONENTS.find(
       (c) => timer.id === `${HEALTH_TIMER_PREFIX}${c}`,
     );
@@ -356,16 +528,38 @@ export class HealthMonitor {
         detail?: string;
       }
     >;
+    const scmWarnings = this.scmWarnings();
     return {
       status: this.dispatchBlocked
         ? ('unhealthy' as const)
-        : components.usage.status,
+        : components.usage.status === 'degraded' ||
+            components.scm.status === 'degraded'
+          ? ('degraded' as const)
+          : ('healthy' as const),
       runtime: {
         ...components.runtime,
         ...this.deps.runtime,
         ...(this.slept ? { warnings: ['host_slept'] } : {}),
       },
-      scm: components.scm,
+      scm: {
+        ...components.scm,
+        ...(this.scm.login === undefined ? {} : { login: this.scm.login }),
+        ...(this.scm.tokenSource === undefined
+          ? {}
+          : { tokenSource: this.scm.tokenSource }),
+        ...(scmWarnings.length === 0 ? {} : { warnings: scmWarnings }),
+        ...(this.scm.rateLimit === undefined
+          ? {}
+          : {
+              rateLimit: {
+                limit: Math.max(
+                  GITHUB_PRIMARY_LIMIT,
+                  this.scm.rateLimit.remaining,
+                ),
+                ...this.scm.rateLimit,
+              },
+            }),
+      },
       store: components.store,
       usage: { ...components.usage, sources: [] },
       adapters: HEALTH_COMPONENTS.map((adapter) => {
@@ -435,7 +629,10 @@ export class HealthMonitor {
     component: HealthComponent,
   ): 'healthy' | 'degraded' | 'unhealthy' {
     return this.states[component].breaker === 'closed'
-      ? 'healthy'
+      ? component === 'scm' &&
+        (this.scmPace() === 'critical' || this.scm.loginMismatch)
+        ? 'degraded'
+        : 'healthy'
       : component === 'usage'
         ? 'degraded'
         : 'unhealthy';
@@ -528,20 +725,49 @@ export class HealthMonitor {
         }
         for (const runner of this.deps.workflows()) {
           if (runner.state.workflow?.status !== 'running') continue;
+          const workflowId = runner.state.workflow.id;
+          const meta = {
+            occurredAt: this.deps.clock.now().toISOString(),
+            source: 'system' as const,
+          };
+          const held = [...this.scmHolds.values()].includes(workflowId);
           for (const component of ['runtime', 'scm', 'store'] as const) {
             const reason = `${component}_unhealthy` as const;
             const paused = runner.state.workflow.pausedReasons.includes(reason);
-            const blocked = this.states[component].breaker !== 'closed';
+            const blocked =
+              this.states[component].breaker !== 'closed' ||
+              (component === 'scm' && held);
             if (paused === blocked) continue;
             await runner.dispatch({
               type: blocked ? 'PauseWorkflow' : 'ResumeWorkflow',
               reason,
-              meta: {
-                occurredAt: this.deps.clock.now().toISOString(),
-                source: 'system',
-              },
+              ...(blocked && component === 'scm' && held
+                ? { detail: 'rate_limited' }
+                : {}),
+              meta,
             });
           }
+          // AP5: resume only `auth` pauses this monitor made; a 401 pause stays.
+          const authPaused =
+            runner.state.workflow?.pausedReasons.includes('auth') === true;
+          if (this.scm.loginMismatch && !authPaused) {
+            await runner.dispatch({
+              type: 'PauseWorkflow',
+              reason: 'auth',
+              detail: 'active_account_mismatch',
+              meta,
+            });
+            this.authPaused.add(workflowId);
+          } else if (
+            !this.scm.loginMismatch &&
+            this.authPaused.delete(workflowId) &&
+            authPaused
+          )
+            await runner.dispatch({
+              type: 'ResumeWorkflow',
+              reason: 'auth',
+              meta,
+            });
         }
       } catch {
         /* Retry publication and pause synchronization on the next observation/probe. */

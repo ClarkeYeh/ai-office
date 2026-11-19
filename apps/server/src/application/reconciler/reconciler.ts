@@ -8,6 +8,7 @@ import type {
 } from '@ai-office/contracts/events';
 import { PortError } from '../../ports/errors.js';
 import type { RuntimePort } from '../../ports/runtime.js';
+import { CREATE_PENDING_WINDOW_MS } from '../../ports/scm.js';
 import type { ScmPort } from '../../ports/scm.js';
 import type { Clock } from '../../ports/services.js';
 import type { SpecStore } from '../../ports/stores.js';
@@ -59,7 +60,13 @@ export class Reconciler {
         const stageId = runner.issuedCommand(commandId)?.stageId;
         let recovery: Recovery;
         try {
-          recovery = await this.lookup(commandId, orcaRequestId, concrete);
+          recovery = await this.lookup(
+            commandId,
+            orcaRequestId,
+            concrete,
+            record.issuedAt,
+            runner.state.workflow?.integrationBranch,
+          );
         } catch (error) {
           // Connectivity does not establish absence or justify a duplicate mutation.
           if (
@@ -122,6 +129,8 @@ export class Reconciler {
     commandId: string,
     requestId: string | undefined,
     command: ExternalCommand,
+    issuedAt: string,
+    integrationBranch: string | undefined,
   ): Promise<Recovery> {
     const found = (result: CommandResult): Recovery => {
       if (result.kind !== command.kind)
@@ -194,8 +203,26 @@ export class Reconciler {
           command.kind === 'scm.comment'
             ? command.args.target.repo
             : command.args.repo;
-        const ref = await this.deps.scm.findByMarker(repo, commandId);
-        if (!ref) return { outcome: 'redone' };
+        // AP1: list scans from the issue time (the adapter widens it by
+        // MARKER_SCAN_SLACK_MS); an object may stay unlisted for the
+        // pending window, so absence only counts after it (SPEC §11.5).
+        const ref = await this.deps.scm.findByMarker(repo, commandId, {
+          since: issuedAt,
+          kind:
+            command.kind === 'scm.comment'
+              ? 'comment'
+              : command.kind === 'scm.openPR'
+                ? 'pr'
+                : 'issue',
+        });
+        // PRs are unique per head/base on GitHub; only Issues and comments
+        // can be duplicated by an early redo.
+        if (!ref)
+          return command.kind !== 'scm.openPR' &&
+            this.deps.clock.now().getTime() - Date.parse(issuedAt) <
+              CREATE_PENDING_WINDOW_MS
+            ? { outcome: 'pending' }
+            : { outcome: 'redone' };
         if (command.kind === 'scm.comment') {
           if (ref.number !== command.args.target.number)
             throw new PortError(
@@ -205,10 +232,15 @@ export class Reconciler {
             );
           return found({ kind: command.kind, result: {} });
         }
-        const url = `https://github.com/${repo.owner}/${repo.name}/${command.kind === 'scm.openPR' ? 'pull' : 'issues'}/${ref.number}`;
         return command.kind === 'scm.openPR'
-          ? found({ kind: command.kind, result: { pr: ref.number, url } })
-          : found({ kind: command.kind, result: { issue: ref.number, url } });
+          ? found({
+              kind: command.kind,
+              result: { pr: ref.number, url: ref.url },
+            })
+          : found({
+              kind: command.kind,
+              result: { issue: ref.number, url: ref.url },
+            });
       }
       case 'scm.mergePR': {
         const pr = await this.deps.scm.getPR(command.args.pr);
@@ -218,6 +250,20 @@ export class Reconciler {
             'bug',
             'missing_merge_sha',
             'Merged PR has no commit SHA',
+          );
+        // AP1: someone else's merge of another head, or into another base,
+        // is not this command's result.
+        if (pr.headSha !== command.args.expectedHeadSha)
+          throw new PortError(
+            'guard',
+            'merged_head_mismatch',
+            'Merged PR head differs from the recorded head',
+          );
+        if (integrationBranch !== undefined && pr.base !== integrationBranch)
+          throw new PortError(
+            'guard',
+            'merged_base_mismatch',
+            'Merged PR base is not the integration branch',
           );
         return found({
           kind: command.kind,
