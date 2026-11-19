@@ -27,6 +27,31 @@ test('scm.deleteComment deletes the one comment on its target (CP1)', async () =
   );
 });
 
+test('scm.mergePR forwards expectedBase when recorded (S20)', async () => {
+  const mergePR = vi.fn(async () => ({ mergeCommitSha: 'f'.repeat(40) }));
+  const merge = handlers({ mergePR })['scm.mergePR']!;
+  const pr = { repo, number: 2 };
+  await merge(
+    {
+      pr,
+      method: 'merge',
+      expectedHeadSha: 'a'.repeat(40),
+      expectedBase: 'ai-office/abcd1234-integration',
+    },
+    ctx,
+  );
+  expect(mergePR.mock.calls).toEqual([
+    [
+      pr,
+      {
+        method: 'merge',
+        expectedHeadSha: 'a'.repeat(40),
+        expectedBase: 'ai-office/abcd1234-integration',
+      },
+    ],
+  ]);
+});
+
 test('scm.mergePR forwards expectedBaseSha only when recorded', async () => {
   const mergePR = vi.fn(async () => ({ mergeCommitSha: 'f'.repeat(40) }));
   const merge = handlers({ mergePR })['scm.mergePR']!;

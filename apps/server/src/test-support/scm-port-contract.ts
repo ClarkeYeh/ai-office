@@ -368,6 +368,43 @@ export function scmPortContract(
         base: f.defaultBranch,
       });
     });
+    it('PR retargeted to another ai-office/ branch → base_mismatch, no merge', async ({
+      skip,
+    }) => {
+      const { retargetExternally } = controls(skip, 'retargetExternally');
+      const { sha, pr } = await workerPr();
+      // E.g. another run's integration branch: a valid base, but not ours.
+      await f.scm.ensureBranch(
+        f.repo,
+        branch('other'),
+        branch('integration'),
+        c('other'),
+      );
+      const before = {
+        integration: await headOf(branch('integration')),
+        other: await headOf(branch('other')),
+      };
+      await retargetExternally(pr, branch('other'), 'now');
+      await expect(
+        f.scm.mergePR(pr, {
+          method: 'merge',
+          expectedHeadSha: sha,
+          expectedBase: branch('integration'),
+        }),
+      ).rejects.toMatchObject({
+        category: 'conflict',
+        code: 'base_mismatch',
+        retryable: false,
+      });
+      expect(await f.scm.getPR(pr)).toMatchObject({
+        state: 'open',
+        base: branch('other'),
+      });
+      expect({
+        integration: await headOf(branch('integration')),
+        other: await headOf(branch('other')),
+      }).toEqual(before);
+    });
     it('guards a base retargeted while merging (merge_base_changed)', async ({
       skip,
     }) => {

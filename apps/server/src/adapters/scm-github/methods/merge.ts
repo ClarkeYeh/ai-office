@@ -25,6 +25,8 @@ export type MergeOptions = {
   method: 'merge';
   expectedHeadSha: string;
   expectedBaseSha?: string;
+  /** The base branch from our record (S20); defaults to the PR's current base. */
+  expectedBase?: string;
 };
 const conflict = (code: string, message: string) =>
   new PortError('conflict', code, message);
@@ -60,9 +62,14 @@ export async function mergePR(
       { schema: repoSchema, conditional: false },
     )
   ).data;
-  const base = pull.base.ref;
-  if (base === defaultBranch) guard('default_branch_merge');
-  if (!base.startsWith('ai-office/')) guard('base_not_ai_office');
+  const base = opts.expectedBase ?? pull.base.ref;
+  for (const branch of [base, pull.base.ref]) {
+    if (branch === defaultBranch) guard('default_branch_merge');
+    if (!branch.startsWith('ai-office/')) guard('base_not_ai_office');
+  }
+  // E.g. retargeted to another run's integration branch: never merge there.
+  if (pull.base.ref !== base)
+    throw conflict('base_mismatch', 'PR base is not the expected base');
   if (isMerged(pull)) {
     if (pull.head.sha !== opts.expectedHeadSha)
       throw conflict('head_mismatch', 'PR was merged at another head');

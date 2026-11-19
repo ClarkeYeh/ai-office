@@ -114,6 +114,8 @@ export interface ScmPort {
    * `conflict base_moved`. Already merged at the expected head → the same
    * merge commit. The PR is read again after merging: a base that changed
    * meanwhile → `guard merge_base_changed` (there is no atomic base lock).
+   * `expectedBase` (the branch from our record) is merged into by name; a
+   * PR whose base differs → `conflict base_mismatch`, never merged.
    */
   mergePR(
     ref: PrRef,
@@ -121,6 +123,7 @@ export interface ScmPort {
       method: 'merge';
       expectedHeadSha: string;
       expectedBaseSha?: string;
+      expectedBase?: string;
     },
   ): Promise<{ mergeCommitSha: string }>;
   // 列表掃描（不用 Search API），精確比對 marker；多個符合時回保留者（最小編號）

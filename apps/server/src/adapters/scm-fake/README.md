@@ -39,7 +39,9 @@ at the port boundary, without HTTP. State and returned objects are isolated.
 Branch creation, pushes and merges of the default and `ai-office/` branches
 emit `branch.head_changed` (PP3). Branches are created only under `ai-office/`;
 merges are judged by the PR's actual base (must be `ai-office/`, never the
-default branch) and honour `expectedBaseSha` (`conflict base_moved`). Deleting a
+default branch) and honour `expectedBaseSha` (`conflict base_moved`) and
+`expectedBase` (`conflict base_mismatch`, never merged); like scm-github's
+`POST /merges`, a merge goes into the checked base. Deleting a
 PR's head branch closes the PR, as on GitHub. `findByMarker` takes the `since`
 and `kind` hint, returns the real-shaped URL (and `commentId` for comments) and
 keeps the lowest match when duplicated. `deleteComment` removes only the

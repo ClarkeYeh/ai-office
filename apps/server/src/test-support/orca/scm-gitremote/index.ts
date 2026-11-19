@@ -515,12 +515,17 @@ export class GitRemoteScm implements ScmPort {
       method: 'merge';
       expectedHeadSha: string;
       expectedBaseSha?: string;
+      expectedBase?: string;
     },
   ) {
     const obj = this.object(ref, 'pr');
     // The PR's actual base decides; guard() refuses the default branch too.
     this.remote.guard(obj.base);
     this.remote.guard(obj.head);
+    if (opts.expectedBase !== undefined) {
+      this.remote.guard(opts.expectedBase);
+      if (obj.base !== opts.expectedBase) fail('conflict', 'base_mismatch');
+    }
     return this.remote.serial(async () => {
       if (obj.mergeCommitSha && obj.headSha === opts.expectedHeadSha)
         return { mergeCommitSha: obj.mergeCommitSha };
@@ -535,16 +540,16 @@ export class GitRemoteScm implements ScmPort {
         heads.get(read) !== opts.expectedBaseSha
       )
         fail('conflict', 'base_moved');
-      // Like GitHub, the merge goes into whatever base the PR has by now.
+      // Like scm-github's POST /merges: into the base that was checked.
       const retarget = this.retargets.get(obj.ref.number);
       if (retarget !== undefined) {
         this.retargets.delete(obj.ref.number);
         obj.base = retarget;
         heads = await this.remote.heads();
       }
-      const base = heads.get(obj.base);
+      const base = heads.get(read);
       if (!base) fail('conflict', 'base_missing');
-      await this.remote.own(obj.base);
+      await this.remote.own(read);
       await this.remote.fetch();
       await git(this.remote.path, ['checkout', '--detach', '--force', base]);
       try {
@@ -556,7 +561,7 @@ export class GitRemoteScm implements ScmPort {
       const sha = await git(this.remote.path, ['rev-parse', 'HEAD']);
       if ((await this.remote.heads()).get(obj.head) !== head)
         fail('conflict', 'head_mismatch');
-      await this.remote.push(obj.base, sha, base);
+      await this.remote.push(read, sha, base);
       obj.headSha = head;
       obj.mergeCommitSha = sha;
       obj.state = 'merged';
