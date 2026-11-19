@@ -61,3 +61,47 @@ secret masking after exact token/request-value removal, before truncation.
 
 All tests here use synthetic injected transports. Live testing belongs to the
 coordinator/test harness under M3 safety gates; this task does not call live APIs.
+
+## Production setup
+
+`ai-office start` composes Orca, GitHub and session-log usage. All startup
+checks and reconciliation complete before the localhost server listens.
+Development flags (`--fake`, `--runtime`, `--orca-home`) and programmatic
+`testOnly` hooks require `--dev`.
+
+```toml
+[github]
+expectedLogin = "your-github-login"
+tokenSource = "auto"
+ghBin = "/absolute/path/to/gh"
+[orca]
+homeDir = "/absolute/path/to/registered-orca-folder"
+```
+
+Empty `orca.homeDir` uses `<AI_OFFICE_HOME>/orca-home`; the folder must already
+be registered in Orca. In development, `--orca-home` overrides this setting.
+An empty `github.expectedLogin` uses the first registered repo's owner login,
+then the persisted first-run identity, then the active gh account. Set the key
+explicitly to remove the `expected_login_unset` health warning.
+
+With `tokenSource = "auto"`, `AI_OFFICE_GITHUB_TOKEN` takes precedence; otherwise
+AI Office runs `gh auth token --user <expectedLogin> --hostname github.com`.
+`env` requires the environment token and `gh` always uses gh. Credentials stay
+in memory. The backend token and the active gh account must both identify the
+expected owner. A mismatch refuses startup; the active account is checked every
+five minutes and a later mismatch pauses workflows with `auth`. Select the
+expected account yourself before restarting; AI Office never switches accounts.
+For isolation, use a `GH_CONFIG_DIR` with only that account, and retain it in
+`env.passthrough` for gh and git fetch.
+
+Repository registration and production startup inspect branch protection,
+push permission, archival state and merge-commit support. Unavailable repos
+and disabled merge commits prevent new workflows with `repo_not_ready` (422).
+Insufficient branch protection is advisory. A practical default-branch ruleset
+requires a PR with zero required approvals (or an owner bypass); avoid applying
+approval/check restrictions or merge-method restrictions to `ai-office/*`.
+These settings do not replace the adapter's explicit default-branch merge guard.
+
+The live test harness uses the reusable `ai-office-test` label. It closes test
+Issues instead of deleting them; labels are intentionally retained. Production
+code does not register or execute the live harness.

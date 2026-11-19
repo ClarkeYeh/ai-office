@@ -58,6 +58,15 @@ import type {
   RuntimeScenario,
 } from './adapters/runtime-fake/index.js';
 import { createFakeScm } from './adapters/scm-fake/index.js';
+import {
+  createGithubScm,
+  GithubHttpClient,
+  RepoAllowlist,
+  viewerSchema,
+  rateLimitSchema,
+} from './adapters/scm-github/index.js';
+import type { RepoSnapshot } from '@ai-office/contracts/events';
+import { draft, UseCaseError } from './application/use-cases/support.js';
 import type { FakeScm } from './adapters/scm-fake/index.js';
 import { createFakeUsage } from './adapters/usage-fake/index.js';
 import type { FakeUsage } from './adapters/usage-fake/index.js';
@@ -106,6 +115,8 @@ import {
   acquireInstanceLock,
   createDataDirectories,
   readSettings,
+  readGhToken,
+  readActiveGhLogin,
   resolveDataDir,
 } from './config/index.js';
 import type { Settings } from './config/index.js';
@@ -190,11 +201,23 @@ export class StartupError extends Error {}
 
 /** Validates flag combinations before any side effect (Q7). */
 export function checkStartOptions(options: StartOptions): void {
-  if (options.dev !== true)
+  if (
+    options.dev !== true &&
+    (options.fake !== undefined ||
+      options.runtime !== undefined ||
+      options.orcaHome !== undefined ||
+      options.testOnly !== undefined ||
+      options.fakeWorld !== undefined ||
+      options.fakeFinalMergeMs !== undefined)
+  )
     throw new StartupError(
-      'Production SCM is available in M3; --dev and an explicit --fake or --runtime orca are required',
+      'Fake/runtime overrides and testOnly hooks require --dev',
     );
-  if (options.fake === undefined && options.runtime === undefined)
+  if (
+    options.dev === true &&
+    options.fake === undefined &&
+    options.runtime === undefined
+  )
     throw new StartupError(
       '--dev requires --fake <scenario> or --runtime orca',
     );
@@ -215,11 +238,12 @@ export function checkStartOptions(options: StartOptions): void {
     options.testOnly !== undefined &&
     !(
       options.dev === true &&
-      options.runtime === 'orca' &&
-      options.fake === undefined
+      (options.runtime === 'orca' || options.fake !== undefined)
     )
   )
-    throw new StartupError('testOnly hooks require --dev --runtime orca');
+    throw new StartupError(
+      'testOnly hooks require --dev --runtime orca or --dev --fake',
+    );
   if (options.fake !== undefined && !(options.fake in FAKE_SCENARIOS))
     throw new StartupError(
       `Unknown fake scenario "${options.fake}" (available: ${Object.keys(FAKE_SCENARIOS).join(', ')})`,
@@ -589,7 +613,8 @@ async function composeOrca(
     dataDir,
     shimLocation: settings.orca.shimLocation,
     closeOnExit: settings.orca.shim.closeOnExit,
-    ...(options.orcaHome === undefined ? {} : { orcaHome: options.orcaHome }),
+    orcaHome:
+      options.orcaHome ?? (settings.orca.homeDir || `${dataDir}/orca-home`),
     ...(options.testOnly?.onShimCreated === undefined
       ? {}
       : { onCreated: options.testOnly.onShimCreated }),
@@ -706,6 +731,245 @@ async function composeOrca(
   };
 }
 
+/** Production GitHub credentials and registration boundary; all I/O stays injectable. */
+async function composeGithub(
+  settings: Settings,
+  dataDir: string,
+  env: NodeJS.ProcessEnv,
+  stores: ReturnType<typeof openSqliteStores<ReadModel>>,
+  clock: SystemClock,
+  masking: Redactor,
+  logger: Logger,
+  cleanup: (() => void | Promise<void>)[],
+) {
+  const repos = new Map<string, RepoSnapshot>();
+  const registeredAt = new Map<string, string>();
+  const repoKey = (repo: RepoScmRef) =>
+    JSON.stringify([repo.owner.toLowerCase(), repo.name.toLowerCase()]);
+  for (const event of stores.events.read({ workflowId: null })) {
+    if (event.type === 'repo.registered') {
+      repos.set(event.payload.repoId, event.payload);
+      registeredAt.set(repoKey(event.payload.github), event.occurredAt);
+    } else if (event.type === 'repo.updated') {
+      const old = repos.get(event.payload.repoId);
+      if (old)
+        repos.set(old.repoId, {
+          ...old,
+          ...Object.fromEntries(
+            Object.entries(event.payload).filter(
+              ([, value]) => value !== undefined,
+            ),
+          ),
+        });
+    }
+  }
+  const state = stores.adapterState('scm-github');
+  const readActive = () =>
+    readActiveGhLogin(
+      settings,
+      dataDir,
+      async (token) => {
+        const client = new GithubHttpClient({
+          tokenProvider: async () => token,
+          repoAllowlist: new RepoAllowlist(),
+          maskSecrets: masking.maskSecrets,
+          clock,
+        });
+        return (
+          await client.request(
+            'user.get',
+            {},
+            { schema: viewerSchema, conditional: false },
+          )
+        ).data.login;
+      },
+      env,
+    );
+  const savedLogin = state.read('expected-login');
+  const firstOwner = repos.values().next().value?.ownerLogin;
+  const ownerLogin =
+    settings.github.expectedLogin ||
+    firstOwner ||
+    (typeof savedLogin === 'string' ? savedLogin : '') ||
+    (await readActive());
+  const sameLogin = (login: string) =>
+    login.toLowerCase() === ownerLogin.toLowerCase();
+  const mismatch = () =>
+    new UseCaseError(
+      409,
+      'scm_login_mismatch',
+      'GitHub login differs from the expected owner; select that account with gh auth switch -u ' +
+        ownerLogin,
+    );
+  if ([...repos.values()].some((repo) => !sameLogin(repo.ownerLogin)))
+    throw mismatch();
+  const warnings = settings.github.expectedLogin
+    ? []
+    : ['expected_login_unset'];
+  if (warnings.length)
+    logger.warn(
+      { warnings },
+      'Set github.expectedLogin to pin the GitHub owner',
+    );
+  let token = readGhToken(settings, dataDir, env, undefined, {
+    user: ownerLogin,
+  });
+  const tokenSource =
+    settings.github.tokenSource !== 'gh' && env.AI_OFFICE_GITHUB_TOKEN?.trim()
+      ? ('env' as const)
+      : ('gh' as const);
+  const allowlist = new RepoAllowlist(
+    [...repos.values()].map((repo) => repo.github),
+  );
+  const adapter = createGithubScm({
+    clock,
+    repoAllowlist: allowlist,
+    maskSecrets: masking.maskSecrets,
+    registeredAt: (repo) => registeredAt.get(repoKey(repo)),
+    tokenProvider: async ({ refresh }) => {
+      if (refresh)
+        token = readGhToken(settings, dataDir, env, undefined, {
+          user: ownerLogin,
+        });
+      return token;
+    },
+  });
+  let authenticated = false;
+  let activeMatches = false;
+  const checkBackend = async () => {
+    const viewer = await adapter.http.request(
+      'user.get',
+      {},
+      { schema: viewerSchema, conditional: false },
+    );
+    if (!sameLogin(viewer.data.login)) throw mismatch();
+    await adapter.http.request(
+      'rateLimit.get',
+      {},
+      { schema: rateLimitSchema, conditional: false },
+    );
+    authenticated = true;
+  };
+  const activeLoginProbe = async () => {
+    activeMatches = sameLogin(await readActive());
+    return activeMatches;
+  };
+  try {
+    await checkBackend();
+  } catch (error) {
+    if (
+      !(error instanceof PortError) ||
+      !['transient', 'rate_limited'].includes(error.category)
+    )
+      throw error;
+    logger.warn(
+      {},
+      'GitHub unavailable at startup; workflow creation is disabled until authentication recovers',
+    );
+  }
+  try {
+    if (!(await activeLoginProbe())) throw mismatch();
+  } catch (error) {
+    if (
+      !(error instanceof PortError) ||
+      !['transient', 'rate_limited'].includes(error.category)
+    )
+      throw error;
+    logger.warn(
+      {},
+      'Active GitHub identity cannot be verified; workflow creation is disabled',
+    );
+  }
+  // Persist only the login, never either credential.
+  state.write('expected-login', ownerLogin);
+  const scm: ScmPort = {
+    ...adapter,
+    async health() {
+      try {
+        if (!authenticated) await checkBackend();
+        if (!activeMatches) await activeLoginProbe();
+        const result = await adapter.health();
+        return {
+          ...result,
+          available: result.available && authenticated && activeMatches,
+          tokenSource,
+          warnings: [...new Set([...(result.warnings ?? []), ...warnings])],
+        };
+      } catch (error) {
+        authenticated = false;
+        if (error instanceof UseCaseError) throw error;
+        return {
+          available: false,
+          viewerLogin: ownerLogin,
+          rateLimitRemaining: 0,
+          rateLimitResetAt: clock.now().toISOString(),
+          tokenSource,
+          warnings,
+        };
+      }
+    },
+    async inspectRepo(repo) {
+      await checkBackend();
+      if (!(await activeLoginProbe())) throw mismatch();
+      return adapter.inspectRepo(repo);
+    },
+  };
+  // A durable registration, not an inspection, grants write access.
+  cleanup.push(
+    stores.events.subscribe((event) => {
+      if (event.type === 'repo.registered') {
+        allowlist.register(event.payload.github);
+        registeredAt.set(repoKey(event.payload.github), event.occurredAt);
+      }
+    }),
+  );
+  for (const repo of repos.values()) {
+    let patch: Partial<RepoSnapshot> & { status: 'registered' | 'invalid' };
+    try {
+      const info = await scm.inspectRepo(repo.github);
+      patch = {
+        status:
+          info.archived ||
+          info.canPush === false ||
+          info.allowMergeCommit === false
+            ? 'invalid'
+            : 'registered',
+        defaultBranch: info.defaultBranch,
+        visibility: info.visibility,
+        defaultBranchProtected: info.defaultBranchProtected,
+        allowMergeCommit: info.allowMergeCommit,
+        warnings: info.warnings ?? [],
+      };
+    } catch (error) {
+      if (
+        error instanceof UseCaseError ||
+        (error instanceof PortError && error.category === 'auth')
+      )
+        throw error;
+      if (
+        error instanceof PortError &&
+        ['transient', 'rate_limited'].includes(error.category)
+      )
+        continue;
+      allowlist.remove(repo.github);
+      patch = {
+        status: 'invalid',
+      };
+    }
+    if (
+      Object.entries(patch).some(
+        ([key, value]) =>
+          JSON.stringify(repo[key as keyof RepoSnapshot]) !==
+          JSON.stringify(value),
+      )
+    )
+      stores.events.append([
+        draft(clock, null, 'repo.updated', { repoId: repo.repoId, ...patch }),
+      ]);
+  }
+  return { scm, ownerLogin, activeLoginProbe };
+}
+
 async function compose(
   options: StartOptions,
   env: NodeJS.ProcessEnv,
@@ -749,6 +1013,7 @@ async function compose(
   let scm: ScmPort;
   let usage: UsagePort;
   let orca: Awaited<ReturnType<typeof composeOrca>> | undefined;
+  let github: Awaited<ReturnType<typeof composeGithub>> | undefined;
   if (fake) {
     world =
       options.fakeWorld ??
@@ -786,7 +1051,7 @@ async function compose(
       }
     });
     runtime = world.runtime;
-    scm = world.scm;
+    scm = options.testOnly?.scm ?? world.scm;
     usage = world.usage;
   } else {
     orca = await composeOrca(
@@ -801,8 +1066,19 @@ async function compose(
       options,
     );
     runtime = orca.runtime;
-    scm = options.testOnly?.scm ?? createFakeScm({ clock });
-    if (options.testOnly?.scm === undefined) {
+    if (options.dev !== true)
+      github = await composeGithub(
+        settings,
+        dataDir,
+        env,
+        stores,
+        clock,
+        masking,
+        logger,
+        cleanup,
+      );
+    scm = github?.scm ?? options.testOnly?.scm ?? createFakeScm({ clock });
+    if (!github && options.testOnly?.scm === undefined) {
       const fakeScm = scm as FakeScm;
       const inspect = runtime.inspectLocalRepo.bind(runtime);
       runtime.inspectLocalRepo = async (path) => {
@@ -873,6 +1149,8 @@ async function compose(
     store: stores.events,
     workflows: (): readonly WorkflowRunner[] => runners.all(),
     runtime: runtimeMetadata,
+    scmStatus: () => scm.health(),
+    ...(github ? { activeLoginProbe: github.activeLoginProbe } : {}),
     ...(orca
       ? {
           forceRecheck: async () => {
@@ -949,6 +1227,7 @@ async function compose(
     logger,
     workflows: () => runners.all(),
     budgetFormula: settings.usage.budgetFormula,
+    scmPace: () => health.scmPace(),
     // The fake answers instantly; poll fast so a scenario runs in seconds.
     runtimeIntervalMs: fake ? 100 : 2000,
     usageIntervalMs: fake ? 250 : 15_000,
@@ -1021,6 +1300,14 @@ async function compose(
       budgetEnforcement: settings.budget.enforcement,
     },
   });
+  if (github) {
+    const start = commands.startWorkflow;
+    commands.startWorkflow = async (input) => {
+      if (!(await scm.health()).available)
+        throw new UseCaseError(503, 'scm_unavailable', 'GitHub is unavailable');
+      return start(input);
+    };
+  }
   if (fake) await commands.registerRepo({ localPath: FAKE_REPO.localPath });
 
   const healthPoll = setInterval(() => {
@@ -1197,7 +1484,7 @@ async function compose(
   lock.writeRuntime(port);
   const bootstrapUrl = `${url}/auth/bootstrap?code=${stores.sessions.issueBootstrapCode()}`;
   print(
-    `AI Office listening on ${url} (runtime: ${runtimeMode}, ${world ? `scenario: ${world.scenario}` : 'scm: fake (M2)'})`,
+    `AI Office listening on ${url} (runtime: ${runtimeMode}, ${world ? `scenario: ${world.scenario}` : github ? `scm: github ${github.ownerLogin}` : 'scm: fake'})`,
   );
   print(`Open ${bootstrapUrl}`);
   logger.info(

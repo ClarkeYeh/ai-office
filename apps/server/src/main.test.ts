@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import * as sleepWake from './adapters/runtime-orca/sleep-wake.js';
+import * as githubConfig from './config/read-gh-token.js';
 import * as runtimeConfig from './config/runtime-config.js';
 import { HealthMonitor } from './application/health/health-monitor.js';
 import { TimerScheduler } from './adapters/system/index.js';
@@ -186,7 +187,7 @@ describe('start options', () => {
     expect(() => parseArgs(['--bogus'])).toThrow(/Unknown option/);
   });
 
-  it('refuses production mode until M3, releasing the lock', async () => {
+  it('accepts production and refuses development overrides without --dev', async () => {
     const directory = home();
     hybridConfig(directory);
     await expect(
@@ -195,7 +196,8 @@ describe('start options', () => {
         env: { AI_OFFICE_HOME: directory },
         port: 0,
       }),
-    ).rejects.toThrow(/M3/);
+    ).rejects.toThrow(/--dev/);
+    expect(() => checkStartOptions({})).not.toThrow();
     expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
   });
 });
@@ -419,11 +421,7 @@ describe('hybrid composition', () => {
       StartupError,
     );
     const scm = createFakeScm();
-    for (const options of [
-      { dev: true, fake: 'mainline' },
-      { runtime: 'orca' as const },
-      { dev: true },
-    ]) {
+    for (const options of [{ runtime: 'orca' as const }, { dev: true }]) {
       const directory = home();
       await expect(
         startServer({
@@ -448,7 +446,7 @@ describe('hybrid composition', () => {
       print: (line) => lines.push(line),
     });
     const ui = await browser(server);
-    expect(lines.join('\n')).toContain('runtime: orca, scm: fake (M2)');
+    expect(lines.join('\n')).toContain('runtime: orca, scm: fake');
     expect(server.fakeWorld).toBeUndefined();
     const health = await ui.call('GET', '/api/v1/health');
     expect(health.status).toBe(200);
@@ -883,5 +881,159 @@ it('reports a fresh fake office as owned and a dev hijack as a takeover', async 
   expect(hijack.body.hijacked).toBeGreaterThan(0);
   await vi.waitFor(async () => expect(await runOwned()).toBe(false), {
     timeout: 10_000,
+  });
+});
+
+/** Synthetic GitHub transport; local browser requests still use native fetch. */
+function productionReplay(
+  directory: string,
+  options: {
+    backendLogin?: string;
+    activeLogin?: string;
+    status?: number;
+    merge?: boolean;
+    protected?: boolean;
+  } = {},
+) {
+  hybridConfig(directory, 'expectedLogin = "fixture-owner"\n');
+  replayHybrid(directory);
+  const token = vi
+    .spyOn(githubConfig, 'readGhToken')
+    .mockReturnValue('backend-example');
+  vi.spyOn(githubConfig, 'readActiveGhLogin').mockImplementation(
+    async (_settings, _dir, lookup) => lookup('active-example'),
+  );
+  const nativeFetch = globalThis.fetch;
+  const requests: string[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (!url.startsWith('https://api.github.com/'))
+      return nativeFetch(input, init);
+    const path = new URL(url).pathname;
+    requests.push(path);
+    if (options.status) return new Response('{}', { status: options.status });
+    let body: unknown;
+    if (path === '/user')
+      body = {
+        login: new Headers(init?.headers)
+          .get('authorization')
+          ?.includes('active-example')
+          ? (options.activeLogin ?? 'fixture-owner')
+          : (options.backendLogin ?? 'fixture-owner'),
+      };
+    else if (path === '/rate_limit')
+      body = { resources: { core: { remaining: 4999, reset: 1900000000 } } };
+    else if (path === '/repos/fixture/project')
+      body = {
+        default_branch: 'main',
+        private: false,
+        archived: false,
+        permissions: { push: true },
+        allow_merge_commit: options.merge ?? true,
+      };
+    else if (path === '/repos/fixture/project/branches/main')
+      body = { protected: options.protected ?? true };
+    else if (path.includes('/rules/branches/')) body = [];
+    else if (path.endsWith('/protection'))
+      return new Response('{}', { status: 404 });
+    else throw new Error('Unexpected GitHub request: ' + path);
+    return new Response(JSON.stringify(body), {
+      headers: {
+        'content-type': 'application/json',
+        'x-ratelimit-remaining': '4999',
+        'x-ratelimit-reset': '1900000000',
+      },
+    });
+  });
+  const start = async () => {
+    const server = await startServer({
+      port: 0,
+      env: { AI_OFFICE_HOME: directory, HOME: directory },
+      webDist: join(directory, 'no-web'),
+      print: () => {},
+    });
+    servers.push(server);
+    return server;
+  };
+  return { start, token, requests };
+}
+
+describe('production assembly', () => {
+  it('assembles production, registers through GitHub, and publishes safe SCM health', async () => {
+    const directory = home();
+    const replay = productionReplay(directory, { protected: false });
+    const server = await replay.start();
+    const ui = await browser(server);
+    const registered = await ui.call('POST', '/api/v1/repos', {
+      localPath: '/replay/repo',
+    });
+    expect(registered.status, JSON.stringify(registered.body)).toBe(201);
+    expect(registered.body).toMatchObject({
+      ownerLogin: 'fixture-owner',
+      allowMergeCommit: true,
+      defaultBranchProtected: false,
+      warnings: ['default_unprotected'],
+    });
+    expect(replay.token).toHaveBeenCalledWith(
+      expect.anything(),
+      directory,
+      expect.anything(),
+      undefined,
+      { user: 'fixture-owner' },
+    );
+    const health = await ui.call('GET', '/api/v1/health');
+    expect(health.body.scm).toMatchObject({
+      login: 'fixture-owner',
+      tokenSource: 'gh',
+      ghBinPath: '/replay/gh',
+    });
+    expect(JSON.stringify(health.body)).not.toContain('backend-example');
+    expect(replay.requests).toContain('/rate_limit');
+  });
+  it.each([{ backendLogin: 'other' }, { activeLogin: 'other' }])(
+    'refuses identity mismatch before listen: %j',
+    async (options) => {
+      const directory = home();
+      const replay = productionReplay(directory, options);
+      await expect(replay.start()).rejects.toMatchObject({
+        status: 409,
+        code: 'scm_login_mismatch',
+      });
+      expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+      expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
+    },
+  );
+  it('refuses a 401 before listen', async () => {
+    const directory = home();
+    const replay = productionReplay(directory, { status: 401 });
+    await expect(replay.start()).rejects.toMatchObject({ category: 'auth' });
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+  });
+  it('refuses missing credentials without leaking the credential output', async () => {
+    const directory = home();
+    const replay = productionReplay(directory);
+    replay.token.mockImplementation(() => {
+      throw new Error(
+        'GitHub authentication failed; run gh auth login for fixture-owner',
+      );
+    });
+    await expect(replay.start()).rejects.toThrow('run gh auth login');
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+  });
+  it('registers a merge-disabled repo but rejects workflow creation with 422', async () => {
+    const directory = home();
+    const replay = productionReplay(directory, { merge: false });
+    const ui = await browser(await replay.start());
+    const registered = await ui.call('POST', '/api/v1/repos', {
+      localPath: '/replay/repo',
+    });
+    expect(registered.status).toBe(201);
+    const started = await ui.call('POST', '/api/v1/workflows', {
+      templateId: 'feature-to-pr',
+      repoId: registered.body.repoId,
+      requirement: 'fixture',
+    });
+    expect(started.status).toBe(422);
+    expect(JSON.stringify(started.body)).toContain('repo_not_ready');
   });
 });

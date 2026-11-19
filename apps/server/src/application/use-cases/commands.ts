@@ -121,8 +121,11 @@ export class CommandUseCases {
       fail(404, `unknown_${kind === 'gates' ? 'gate' : 'question'}`)
     );
   }
-  private repos(): RepoSnapshot[] {
-    const repos = new Map<string, RepoSnapshot>();
+  private repos(): (RepoSnapshot & { status?: 'registered' | 'invalid' })[] {
+    const repos = new Map<
+      string,
+      RepoSnapshot & { status?: 'registered' | 'invalid' }
+    >();
     for (const event of this.deps.store.read({ workflowId: null })) {
       if (event.type === 'repo.registered')
         repos.set(event.payload.repoId, event.payload);
@@ -152,6 +155,16 @@ export class CommandUseCases {
       this.repos().find((r) => r.repoId === input.repoId) ??
       fail(404, 'unknown_repo');
     const health = await runtime.health();
+    if (
+      repo.status === 'invalid' ||
+      repo.allowMergeCommit === false ||
+      repo.warnings?.some((warning) =>
+        ['merge_commit_disabled', 'archived', 'no_push_permission'].includes(
+          warning,
+        ),
+      )
+    )
+      fail(422, 'repo_not_ready');
     if (!health.available) fail(503, 'runtime_unavailable');
     if (!health.verified && !input.acknowledgeUnverifiedRuntime)
       fail(428, 'runtime_unverified');
@@ -473,6 +486,19 @@ export class CommandUseCases {
         visibility: info.visibility,
         ownerLogin: info.viewerLogin,
         defaultBranchProtected: info.defaultBranchProtected,
+        ...(info.allowMergeCommit === undefined
+          ? {}
+          : { allowMergeCommit: info.allowMergeCommit }),
+        warnings: [
+          ...new Set([
+            ...(info.warnings ?? []),
+            ...(info.archived ? ['archived'] : []),
+            ...(info.canPush === false ? ['no_push_permission'] : []),
+            ...(info.allowMergeCommit === false
+              ? ['merge_commit_disabled']
+              : []),
+          ]),
+        ],
       };
       this.deps.store.append([
         draft(this.deps.clock, null, 'repo.registered', repo),
