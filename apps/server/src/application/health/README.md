@@ -48,7 +48,10 @@ derives `scmPace()` for the ObservationLoop: `slow` below 1,000 remaining,
 with breaker closed. The executor reports `rate_limited` waits
 (`noteRateLimit` → `rate_limited`/`secondary_rate_limited` warnings) and a
 command rate limited for over five minutes holds its workflow in
-`paused{scm_unhealthy, detail: rate_limited}` until it settles. With
+`paused{scm_unhealthy, detail: rate_limited}` until it settles. The ObservationLoop
+reports each SCM poll (`noteScmPoll`): a non-transient failure (guard,
+contract mismatch, …) shows `poll_failing:<code>` and scm `degraded` until a poll
+succeeds, without touching the breaker; transient failures stay with the breaker. With
 `activeLoginProbe` (T12) the active gh login is checked every five minutes; a
 mismatch adds `active_account_mismatch`, shows scm `degraded` and pauses running
 workflows with `auth`; a match resumes only the `auth` pauses the monitor made.

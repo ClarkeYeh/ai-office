@@ -481,6 +481,9 @@ export class FakeScm implements ScmPort {
       ref: obj.ref,
       author,
       hasMarker: anyMarker.test(obj.body),
+      ...(kind === 'issue'
+        ? { bodyHash: bodyHash(obj.body), updatedAt: obj.updatedAt }
+        : {}),
     });
     return obj;
   }

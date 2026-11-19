@@ -14,8 +14,10 @@ Each poll reads, in order:
 
 1. `/issues?state=all&sort=updated&direction=desc&since=<watermark − 2 min>` (up to
    5 pages; the baseline reads one unfiltered page): `repo.object_created` for unseen
-   Issues/PRs, `issue.edited` when the body hash or sorted labels change (comments
-   alone never trigger it), and Issue/PR command markers of the viewer.
+   Issues/PRs (for an Issue also its `bodyHash` and `updatedAt` as sighted, so an edit
+   made before the first sighting is not lost: ingest compares it with an open
+   conclusion gate), `issue.edited` when the body hash or sorted labels change
+   (comments alone never trigger it), and Issue/PR command markers of the viewer.
 2. `/issues/comments?sort=updated&since=…` repo-wide: comment markers of the viewer.
    One list request replaces per-Issue comment reads (list lag ≈ 0.5 s, G6).
 3. `/pulls?state=all&sort=updated` (paging on only while every PR on a page changed),
@@ -35,3 +37,14 @@ timestamps, except for refs and checks, which have none and use the clock.
 
 The cursor is versioned JSON bounded by `CURSOR_LIMITS`; malformed cursors and
 cursors of another repository fail with `validation invalid_cursor`.
+
+Transition keys are chained (FX-C): `pr.state`, `issue.edited`,
+`branch.head_changed` and `pr.checks` use `<readable state>:<H(previous key,
+state)>`, with the object's previous key (`pr:<n>`, `issue:<n>`, `ref:<branch>`,
+`ck:<n>`) kept in the cursor's `k` map. A return to an earlier state (a reopened
+PR, a reverted body, a branch moved back, flapping checks) therefore gets a fresh
+key instead of being dropped by ingestion as already observed, while replaying a
+cursor repeats its keys. `k` holds one key per object the cursor still tracks and
+is pruned with it. A cursor written before FX-C has no `k`: its chains start
+empty, so no transition is re-emitted (events still come only from the state diff)
+and later keys simply carry the suffix.

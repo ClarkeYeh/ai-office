@@ -51,6 +51,9 @@ type Pull = {
 /** A minimal GitHub that answers the poll's GET endpoints with strong ETags. */
 class FakeGithub {
   time = Date.parse('2026-11-19T06:00:00Z');
+  /** GitHub's real next links: `/repositories/{id}/…` plus an `after` cursor. */
+  canonicalLinks = false;
+  readonly repositoryId = 4242;
   issues = new Map<number, Issue>();
   pulls = new Map<number, Pull>();
   comments: {
@@ -134,6 +137,16 @@ class FakeGithub {
     if (page * size >= items.length) return { data: slice };
     const next = new URL(url);
     next.searchParams.set('page', String(page + 1));
+    if (this.canonicalLinks) {
+      next.pathname = next.pathname.replace(
+        `/repos/${repo.owner}/${repo.name}`,
+        `/repositories/${this.repositoryId}`,
+      );
+      next.searchParams.set(
+        'after',
+        Buffer.from(`cursor:${page * size}`).toString('base64'),
+      );
+    }
     return { data: slice, link: `<${next.href}>; rel="next"` };
   }
   private route(url: URL): { data: unknown; link?: string } | undefined {
@@ -144,6 +157,8 @@ class FakeGithub {
       items
         .filter((i) => !since || Date.parse(i.updated_at) >= Date.parse(since))
         .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+    if (path === root)
+      return { data: { id: this.repositoryId, default_branch: 'main' } };
     if (path === `${root}/issues`)
       return this.page(recent([...this.issues.values()]), url);
     if (path === `${root}/issues/comments`)
@@ -260,7 +275,212 @@ function setup(github = new FakeGithub()) {
 const ofType = <T extends ScmEvent['type']>(events: ScmEvent[], type: T) =>
   events.filter((e): e is Extract<ScmEvent, { type: T }> => e.type === type);
 
+describe('scm-github poll transition keys survive a return to an earlier state (FX-C)', () => {
+  const keys = (events: ScmEvent[]) => events.map((e) => e.externalKey);
+  it('reopened PR: open → closed → open get three distinct keys; a replayed cursor repeats them', async () => {
+    const { github, poll } = setup();
+    let cursor = (await poll(null)).cursor;
+    const pr = github.pull('ai-office/abc-int', 'main', true);
+    const seen: string[] = [];
+    const step = async () => {
+      const before = cursor;
+      const result = await poll(before);
+      cursor = result.cursor;
+      const states = ofType(result.events, 'pr.state').filter(
+        (e) => e.pr.number === pr,
+      );
+      seen.push(...keys(states));
+      // Replaying the uncommitted cursor yields the same keys.
+      expect(keys(ofType((await poll(before)).events, 'pr.state'))).toEqual(
+        keys(ofType(result.events, 'pr.state')),
+      );
+      return states;
+    };
+    expect((await step()).map((e) => e.state)).toEqual(['open']);
+    github.updatePull(pr, { state: 'closed' });
+    expect((await step()).map((e) => e.state)).toEqual(['closed']);
+    github.updatePull(pr, { state: 'open' });
+    expect((await step()).map((e) => e.state)).toEqual(['open']);
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('body edited, reverted and edited again: every edit has a fresh key', async () => {
+    const { github, poll } = setup();
+    let cursor = (await poll(null)).cursor;
+    const issue = github.issue(`Original\n${marker('c1')}`);
+    cursor = (await poll(cursor)).cursor;
+    const seen: string[] = [];
+    for (const body of ['Edited', 'Original', 'Edited']) {
+      github.touch(issue, { body: `${body}\n${marker('c1')}` });
+      const result = await poll(cursor);
+      cursor = result.cursor;
+      const edits = ofType(result.events, 'issue.edited');
+      expect(edits.map((e) => e.bodyHash)).toEqual([
+        bodyHash(`${body}\n${marker('c1')}`),
+      ]);
+      seen.push(...keys(edits));
+    }
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('branch moved A → B → A: every move has a fresh key', async () => {
+    const { github, poll } = setup();
+    github.refs.set('ai-office/abc-int', sha('A'));
+    let cursor = (await poll(null)).cursor;
+    const seen: string[] = [];
+    for (const seed of ['B', 'A', 'B']) {
+      github.refs.set('ai-office/abc-int', sha(seed));
+      const result = await poll(cursor);
+      cursor = result.cursor;
+      const moves = ofType(result.events, 'branch.head_changed').filter(
+        (e) => e.branch === 'ai-office/abc-int',
+      );
+      expect(moves.map((e) => e.sha)).toEqual([sha(seed)]);
+      seen.push(...keys(moves));
+    }
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('checks flapping none ↔ pending: every change has a fresh key', async () => {
+    const { github, poll } = setup();
+    const pr = github.pull('ai-office/abc-int', 'main', true);
+    const head = github.pulls.get(pr)!.head.sha;
+    let cursor = (await poll(null)).cursor;
+    cursor = (await poll(cursor)).cursor;
+    const seen: string[] = [];
+    for (const pending of [true, false, true]) {
+      github.runs.set(
+        head,
+        pending ? [{ status: 'in_progress', conclusion: null }] : [],
+      );
+      github.touch(pr, {});
+      const result = await poll(cursor);
+      cursor = result.cursor;
+      const checks = ofType(result.events, 'pr.checks');
+      expect(checks.map((e) => e.status)).toEqual([
+        pending ? 'pending' : 'none',
+      ]);
+      seen.push(...keys(checks));
+    }
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('accepts a cursor written before FX-C and starts its chains', async () => {
+    const { github, poll } = setup();
+    const pr = github.pull('ai-office/abc-int', 'main', true);
+    const first = await poll(null);
+    const legacy = JSON.parse(first.cursor) as Record<string, unknown>;
+    delete legacy.k;
+    github.updatePull(pr, { state: 'closed' });
+    const next = await poll(ScmCursorSchema.parse(JSON.stringify(legacy)));
+    expect(ofType(next.events, 'pr.state').map((e) => e.state)).toEqual([
+      'closed',
+    ]);
+    expect(JSON.parse(next.cursor).k[`pr:${pr}`]).toBe(
+      ofType(next.events, 'pr.state')[0]!.externalKey,
+    );
+  });
+  it('sheds chain keys rather than failing when a full cursor exceeds the byte limit', () => {
+    // Every map at capacity with long (valid) branch names: without the chain
+    // keys this fits, so the chains must never make the cursor unencodable.
+    const state = emptyState(repo, 'main');
+    const branch = (i: number) =>
+      `ai-office/${String(i).padStart(4, '0')}/`.padEnd(200, 'x');
+    const suffix = 'f'.repeat(16);
+    state.k = {};
+    for (let i = 0; i < CURSOR_LIMITS.refs; i++) {
+      state.refs[branch(i)] = sha(`r${i}`);
+      state.k[`ref:${branch(i)}`] =
+        `gh:ref:${branch(i)}:${sha(`r${i}`)}:${suffix}`;
+    }
+    for (let i = 1; i <= CURSOR_LIMITS.prs; i++) {
+      state.prs[i] = { s: 'open', h: sha(`h${i}`), b: branch(i), m: true };
+      state.ck[i] = 'pending';
+      state.k[`pr:${i}`] =
+        `gh:pr:${i}:open:${sha(`h${i}`)}:true:${branch(i)}:${suffix}`;
+      state.k[`ck:${i}`] = `gh:checks:${i}:${sha(`h${i}`)}:pending:${suffix}`;
+    }
+    for (let i = 1000; i < 1000 + CURSOR_LIMITS.issues; i++) {
+      state.is[i] = ['a'.repeat(16), 'b'.repeat(16)];
+      state.k[`issue:${i}`] = `gh:issue:${i}:${'c'.repeat(64)}:${suffix}`;
+    }
+    const cursor = encodeCursor(state);
+    expect(cursor.length).toBeLessThanOrEqual(CURSOR_LIMITS.bytes);
+    const decoded = JSON.parse(cursor);
+    expect(Object.keys(decoded.refs)).toHaveLength(CURSOR_LIMITS.refs);
+    expect(Object.keys(decoded.prs)).toHaveLength(CURSOR_LIMITS.prs);
+    expect(Object.keys(decoded.k).length).toBeLessThan(
+      Object.keys(state.k).length,
+    );
+  });
+  it('keeps one chain key per tracked object', () => {
+    const state = emptyState(repo, 'main');
+    state.prs = { 7: { s: 'open', h: sha('h'), b: 'main', m: true } };
+    state.refs = { main: sha('m') };
+    state.is = { 9: ['a', 'b'] };
+    state.k = {
+      'pr:7': 'kept-pr',
+      'ck:7': 'kept-checks',
+      'ref:main': 'kept-ref',
+      'issue:9': 'kept-issue',
+      'pr:8': 'dropped',
+      'issue:10': 'dropped',
+      'ref:ai-office/gone': 'dropped',
+    };
+    expect(JSON.parse(encodeCursor(state)).k).toEqual({
+      'pr:7': 'kept-pr',
+      'ck:7': 'kept-checks',
+      'ref:main': 'kept-ref',
+      'issue:9': 'kept-issue',
+    });
+  });
+});
+
 describe('scm-github poll', () => {
+  it('carries the body hash on first sighting, including an edit made before it (FX-B)', async () => {
+    const { github, poll } = setup();
+    const first = await poll(null);
+    const issue = github.issue(`Conclusion\n${marker('c1')}`);
+    const edited = `Conclusion, edited at once\n${marker('c1')}`;
+    github.touch(issue, { body: edited });
+    const pr = github.pull('ai-office/abc-int', 'main');
+    const seen = await poll(first.cursor);
+    const created = ofType(seen.events, 'repo.object_created');
+    expect(created.find((e) => e.ref.number === issue)).toMatchObject({
+      bodyHash: bodyHash(edited),
+      updatedAt: github.issues.get(issue)!.updated_at,
+    });
+    expect(created.find((e) => e.ref.number === pr)).not.toHaveProperty(
+      'bodyHash',
+    );
+    expect(ofType(seen.events, 'issue.edited')).toEqual([]);
+  });
+  it("follows GitHub's canonical cursor links past 100 Issues (M3-T15 live finding)", async () => {
+    const github = new FakeGithub();
+    github.canonicalLinks = true;
+    for (let i = 0; i < 120; i++) github.issue(`Old ${i}`, 'someone-else');
+    const { poll } = setup(github);
+    const first = await poll(null);
+    const conclusion = github.issue(`Conclusion\n${marker('c1')}`);
+    // More than one page changed since the watermark.
+    for (let i = 1; i <= 110; i++) github.touch(i, {});
+    const seen = await poll(first.cursor);
+    expect(
+      ofType(seen.events, 'repo.object_created').map((e) => e.ref.number),
+    ).toContain(conclusion);
+    github.touch(conclusion, { body: `Edited\n${marker('c1')}` });
+    const next = await poll(seen.cursor);
+    expect(
+      ofType(next.events, 'issue.edited').map((e) => e.issue.number),
+    ).toEqual([conclusion]);
+    // Later pages were re-requested on the authorized path with the cursor.
+    const root = `/repos/${repo.owner}/${repo.name}`;
+    expect(
+      github.log.some(
+        (r) =>
+          r.path.startsWith(`${root}/issues?`) && r.path.includes('after='),
+      ),
+    ).toBe(true);
+    expect(github.log.some((r) => r.path.startsWith('/repositories/'))).toBe(
+      false,
+    );
+  });
   it('is idle after the baseline: every request 304 and no events', async () => {
     const { github, poll } = setup();
     github.issue(`Conclusion\n${marker('c1')}`);

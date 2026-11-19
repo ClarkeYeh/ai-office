@@ -1,5 +1,7 @@
 import { createRedactor } from '@ai-office/redaction';
 import process from 'node:process';
+import { resolve, sep } from 'node:path';
+import { githubRefRedactor } from './github-redaction.ts';
 import { isUsageFixture, preserveUsageCounters } from './usage-redaction.ts';
 
 // Fixture provenance configuration belongs to the caller, not the shared rules.
@@ -13,6 +15,8 @@ export function fixtureRedactor(path?: string) {
       .map((url) => url.trim())
       .filter(Boolean),
   });
+  if (path && resolve(path).startsWith(resolve('fixtures/github') + sep))
+    return githubRefRedactor(redactor);
   if (!isUsageFixture(path)) return redactor;
   const sanitize = (value: unknown): unknown =>
     preserveUsageCounters(value, redactor.sanitize(value));

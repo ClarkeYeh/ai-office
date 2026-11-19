@@ -5,6 +5,7 @@ import { CREATE_PENDING_WINDOW_MS } from '../../../ports/scm.js';
 import type { RepoScmRef, ScmCursor } from '../../../ports/refs.js';
 import type { ScmEvent } from '../../../ports/scm-events.js';
 import type { EndpointId } from '../policy/endpoints.js';
+import { nextQuery } from '../http/pagination.js';
 import type { RequestParams } from '../http/types.js';
 import { rollupChecks } from './checks.js';
 import {
@@ -90,6 +91,7 @@ class Poll {
       d: defaultBranch,
       e: {},
       ck: {},
+      k: { ...this.prev.k },
     };
     const viewer = await this.deps.viewerLogin();
     const created: ScmEvent[] = [],
@@ -134,8 +136,8 @@ class Poll {
     more: (page: T[]) => boolean = () => true,
   ): Promise<T[]> {
     const items: T[] = [];
+    let q: Record<string, string | number> = { ...query };
     for (let page = 1; page <= pages; page++) {
-      const q = { ...query, ...(page > 1 ? { page } : {}) };
       const key = `${id}?${new URLSearchParams(
         Object.entries(q)
           .map(([k, v]): [string, string] => [k, String(v)])
@@ -143,7 +145,11 @@ class Poll {
       )}`;
       const response = await this.read(id, key, { query: q }, schema);
       items.push(...response.data);
-      if (response.nextPage === undefined || !more(response.data)) break;
+      if (response.next === undefined || !more(response.data)) break;
+      // GitHub's validated next link: page number and, for cursor lists, `after`.
+      q = { ...query };
+      for (const [key, value] of Object.entries(nextQuery(response.next)))
+        if (value !== undefined) q[key] = value;
     }
     return items;
   }
@@ -195,6 +201,13 @@ class Poll {
           ref,
           author: item.user?.login ?? '',
           hasMarker: ids.length > 0,
+          // The body as first sighted: it may already carry an owner edit.
+          ...(pr
+            ? {}
+            : {
+                bodyHash: bodyHash(item.body ?? ''),
+                updatedAt: item.updated_at,
+              }),
         });
       if (item.user?.login === viewer)
         for (const id of ids)
@@ -218,7 +231,10 @@ class Poll {
       )
         edited.push({
           type: 'issue.edited',
-          externalKey: `gh:issue:${item.number}:${hash}:${labelsHash}`,
+          externalKey: this.chain(
+            `issue:${item.number}`,
+            `gh:issue:${item.number}:${hash}:${labelsHash}`,
+          ),
           occurredAt: item.updated_at,
           issue: ref,
           bodyHash: hash,
@@ -309,7 +325,10 @@ class Poll {
         continue;
       events.push({
         type: 'pr.state',
-        externalKey: `gh:pr:${item.number}:${s}:${record.h}:${mergeable}:${record.b}`,
+        externalKey: this.chain(
+          `pr:${item.number}`,
+          `gh:pr:${item.number}:${s}:${record.h}:${mergeable}:${record.b}`,
+        ),
         occurredAt: detail.updated_at,
         pr: { repo: { ...this.repo }, number: item.number },
         state: s,
@@ -326,6 +345,21 @@ class Poll {
       });
     }
     return events;
+  }
+  /**
+   * FX-C: a transition key chained to the object's previous one. A return to
+   * an earlier state (a reopened PR, a reverted body, a branch moved back,
+   * flapping checks) gets a fresh key; replaying a cursor repeats its keys.
+   * Cursors from before FX-C start the chain from nothing.
+   */
+  private chain(object: string, base: string): string {
+    const previous = this.prev.k?.[object] ?? '';
+    const key = `${base}:${createHash('sha256')
+      .update(`${previous}\n${base}`)
+      .digest('hex')
+      .slice(0, 16)}`;
+    this.next.k![object] = key;
+    return key;
   }
   private summaryChanged(pr: z.infer<typeof pullListSchema>[number]) {
     const known = this.prev.prs[pr.number];
@@ -364,7 +398,10 @@ class Poll {
       if (rolled === known) continue;
       events.push({
         type: 'pr.checks',
-        externalKey: `gh:checks:${number}:${pr.h}:${rolled}`,
+        externalKey: this.chain(
+          `ck:${number}`,
+          `gh:checks:${number}:${pr.h}:${rolled}`,
+        ),
         occurredAt: this.now,
         pr: { repo: { ...this.repo }, number: Number(number) },
         status: rolled,
@@ -401,7 +438,7 @@ class Poll {
       if (previous === sha) continue;
       events.push({
         type: 'branch.head_changed',
-        externalKey: `gh:ref:${branch}:${sha}`,
+        externalKey: this.chain(`ref:${branch}`, `gh:ref:${branch}:${sha}`),
         occurredAt: this.now,
         branch,
         sha,

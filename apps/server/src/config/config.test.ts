@@ -136,7 +136,9 @@ describe('GitHub token', () => {
       status: 0,
       signal: null,
     });
-    readGhToken(SettingsSchema.parse({}), '/tmp/example', {}, run, {
+    // An absolute ghBin: CI runners have no gh at the known macOS paths.
+    const settings = SettingsSchema.parse({ github: { ghBin: '/fixture/gh' } });
+    readGhToken(settings, '/tmp/example', {}, run, {
       user: 'fixture-owner',
     });
     expect(run.mock.calls[0]?.[1]).toEqual([
@@ -150,7 +152,7 @@ describe('GitHub token', () => {
     run.mockClear();
     for (const user of ['--hostname', 'a b', 'a/b', 'a--b', '', 'a'.repeat(40)])
       expect(() =>
-        readGhToken(SettingsSchema.parse({}), '/tmp/example', {}, run, {
+        readGhToken(settings, '/tmp/example', {}, run, {
           user,
         }),
       ).toThrow('Invalid GitHub login');
@@ -167,7 +169,9 @@ describe('GitHub token', () => {
     });
     expect(
       readGhToken(
-        SettingsSchema.parse({ github: { tokenSource: 'env' } }),
+        SettingsSchema.parse({
+          github: { tokenSource: 'env', ghBin: '/fixture/gh' },
+        }),
         '/tmp/example',
         { AI_OFFICE_GITHUB_TOKEN: 'backend-example' },
         run,

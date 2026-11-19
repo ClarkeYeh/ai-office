@@ -1,8 +1,9 @@
+import type { NextPage } from './http/pagination.js';
 /** Bounded in-memory representations; values never leave the adapter as diagnostics. */
 export class EtagCache {
   private entries = new Map<
     string,
-    { etag: string; data: unknown; nextPage?: number }
+    { etag: string; data: unknown; next?: NextPage }
   >();
   constructor(private capacity = 500) {}
   get(url: string) {
@@ -10,7 +11,7 @@ export class EtagCache {
   }
   set(
     url: string,
-    entry: { etag: string; data: unknown; nextPage?: number },
+    entry: { etag: string; data: unknown; next?: NextPage },
   ): void {
     this.entries.delete(url);
     this.entries.set(url, structuredClone(entry));

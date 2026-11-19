@@ -210,6 +210,75 @@ describe('M1 acceptance: gates', { timeout: 60_000 }, () => {
     });
   });
 
+  it('approves an owner edit made before the first poll that lists the conclusion Issue (M3-T15 live finding)', async () => {
+    const o = await office();
+    const scm = o.world.scm;
+    const poll = scm.poll.bind(scm);
+    // GitHub lists a new Issue once, with its body at listing time: an edit
+    // before that first sighting has no `issue.edited` of its own.
+    let hold = true;
+    vi.spyOn(scm, 'poll').mockImplementation(async (repo, cursor) => {
+      if (hold && cursor !== null) return { events: [], cursor };
+      const result = await poll(repo, cursor);
+      const created = new Set(
+        result.events.flatMap((e) =>
+          e.type === 'repo.object_created' ? [e.ref.number] : [],
+        ),
+      );
+      const events = [];
+      for (const event of result.events) {
+        if (event.type === 'issue.edited' && created.has(event.issue.number))
+          continue;
+        if (event.type === 'repo.object_created' && event.bodyHash) {
+          const now = await scm.getIssue(event.ref);
+          events.push({
+            ...event,
+            bodyHash: now.bodyHash,
+            updatedAt: now.updatedAt,
+          });
+        } else events.push(event);
+      }
+      return { ...result, events };
+    });
+    const workflowId = await o.start();
+    const gate = await until(
+      () => o.gates(workflowId),
+      (gates) => gates.some((g) => g.status === 'open'),
+      'the conclusion gate',
+    ).then((gates) => gates.find((g) => g.status === 'open')!);
+    const issue = (await o.events(workflowId)).find(
+      (e) =>
+        e.type === 'artifact.created' && e.payload.purpose === 'conclusion',
+    )!.payload.number as number;
+    const ref = { repo: FAKE_REPO.github, number: issue };
+    const path = `/api/v1/gates/${encodeURIComponent(gate.gateId)}`;
+    const before = (await o.ui.call('GET', path)).body;
+    const edited = `${(await scm.getIssue(ref)).body}\n\nEdited on GitHub at once.`;
+    await scm.editIssueBody(ref, edited);
+    hold = false;
+    const shown = await until(
+      async () => (await o.ui.call('GET', path)).body,
+      (d) => d.version > before.version,
+      'the first sighting to reach the gate',
+    );
+    expect(shown.conclusion.githubBodyHash).toBe(
+      (await scm.getIssue(ref)).bodyHash,
+    );
+    const approved = await o.ui.call('POST', `${path}/decision`, {
+      decision: 'approve',
+      expectedVersion: shown.version,
+      githubBodyHash: shown.conclusion.githubBodyHash,
+    });
+    expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+    const decided = (await o.events(workflowId)).find(
+      (e) => e.type === 'gate.decided' && e.payload.gateId === gate.gateId,
+    )!;
+    expect(decided.payload.approvedSnapshot).toMatchObject({
+      source: 'github',
+      body: edited,
+    });
+  });
+
   it('opens an anomaly gate and pauses instead of the stage gate while an agent is still alive', async () => {
     // §8.1 waits 60 s + 30 s for agents to end; jump the backend's clock.
     vi.useFakeTimers({

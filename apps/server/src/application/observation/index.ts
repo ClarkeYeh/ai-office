@@ -2,6 +2,7 @@ import type { EventPayload } from '@ai-office/contracts/events';
 import type { Attempt } from '@ai-office/domain';
 import type { RuntimePort } from '../../ports/runtime.js';
 import type { ScmPort } from '../../ports/scm.js';
+import { PortError } from '../../ports/errors.js';
 import type { UsageLocateRef, UsagePort } from '../../ports/usage.js';
 import type { RuntimeCursor, ScmCursor, SessionRef } from '../../ports/refs.js';
 import type {
@@ -49,6 +50,12 @@ export interface ObservationLoopDeps {
   scmIntervalMs?: number;
   /** §12.2 slowdown from the rate limit (HealthMonitor.scmPace); absent → normal. */
   scmPace?: () => ScmPace;
+  /**
+   * Each SCM poll's outcome (HealthMonitor.noteScmPoll): the code of a
+   * non-transient failure, or undefined after a successful poll. Transient
+   * failures belong to the breaker and leave the last outcome unchanged.
+   */
+  onScmPoll?: (failureCode: string | undefined) => Promise<void>;
 }
 /** Mirrors HealthMonitor's ScmPace (§12.2). */
 export type ScmPace = 'normal' | 'slow' | 'critical';
@@ -157,8 +164,20 @@ export class ObservationLoop {
     try {
       if (job.kind === 'runtime')
         await this.pollRuntime(job.runner, job.session);
-      else if (job.kind === 'scm') await this.pollScm(job.runner);
-      else
+      else if (job.kind === 'scm') {
+        try {
+          await this.pollScm(job.runner);
+        } catch (error) {
+          if (
+            error instanceof PortError &&
+            error.category !== 'transient' &&
+            error.retryAfterMs === undefined
+          )
+            await this.reportScmPoll(error.code);
+          throw error;
+        }
+        await this.reportScmPoll(undefined);
+      } else
         for (const attempt of Object.values(job.runner.state.attempts)) {
           if (!this.unsubscribe) break;
           await this.pollUsage(job.runner, attempt.attemptId);
@@ -172,6 +191,13 @@ export class ObservationLoop {
     } finally {
       this.running.delete(timer.id);
       this.refresh();
+    }
+  }
+  private async reportScmPoll(code: string | undefined): Promise<void> {
+    try {
+      await this.deps.onScmPoll?.(code);
+    } catch {
+      this.deps.logger.warn({ source: 'scm' }, 'SCM poll health report failed');
     }
   }
   scmInterval(runner: ObservationWorkflow): number {
