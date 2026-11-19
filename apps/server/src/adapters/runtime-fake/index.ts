@@ -138,6 +138,12 @@ export class FakeRuntime implements RuntimePort {
       consumerGeneration: 2,
     });
   }
+  /** Dev stimulus: another coordinator takes over every run not yet hijacked. */
+  hijackAll(): number {
+    const runs = [...this.sessions.keys()].filter((s) => !this.hijacked.has(s));
+    for (const run of runs) this.hijack(run);
+    return runs.length;
+  }
   timeoutCheck(): void {
     this.checkTimeout = true;
   }
@@ -961,6 +967,14 @@ export class FakeRuntime implements RuntimePort {
     return [...this.agents.values()]
       .filter((a) => ['working', 'waiting_input', 'done'].includes(a.state))
       .map((a) => a.ref);
+  }
+  /** Scheduled steps that will still run (due or not); test hook for draining. */
+  pendingSteps(): number {
+    return this.scheduled.filter(
+      (job) =>
+        job.generation === job.agent.generation &&
+        !['released', 'lost', 'stopped'].includes(job.agent.state),
+    ).length;
   }
   async findByCorrelation(
     session: SessionRef,

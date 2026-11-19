@@ -92,11 +92,11 @@
   },
   {
     "file": "apps/web/src/features/office/scene/bad.ts",
-    "rules": ["scene-only-own-view-model"]
+    "rules": ["scene-allowed-dependencies"]
   },
   {
     "file": "apps/web/src/features/office/scene/value.ts",
-    "rules": ["scene-only-type-imports"]
+    "rules": ["scene-model-type-only"]
   },
   {
     "file": "apps/web/src/features/office/cross.ts",
@@ -324,5 +324,129 @@
   {
     "file": "apps/server/src/test-support/orca/execa.ts",
     "rules": ["execa-only-in-runtime-config-cli-start"]
+  },
+  {
+    "file": "apps/web/src/features/office/scene/allowed.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/features/office/scene/runtime-sprites.ts",
+    "rules": ["scene-no-runtime-sprites"]
+  },
+  {
+    "file": "apps/web/src/features/office/scene/sprites/bad.ts",
+    "rules": ["sprites-pure-data"]
+  },
+  {
+    "file": "apps/web/src/features/office/scene/sprites/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/features/office/model/react.ts",
+    "rules": ["model-pure"]
+  },
+  {
+    "file": "apps/web/src/features/office/model/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/features/office/ui/cross.ts",
+    "rules": ["ui-no-cross-feature"]
+  },
+  {
+    "file": "apps/web/src/features/office/ui/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/features/office/connect/bad.ts",
+    "rules": ["connect-allowed-dependencies", "no-import-app"]
+  },
+  {
+    "file": "apps/web/src/features/office/connect/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/api/bad.ts",
+    "rules": ["web-api-allowed-dependencies"]
+  },
+  {
+    "file": "apps/web/src/api/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/realtime/bad.ts",
+    "rules": ["realtime-allowed-dependencies"]
+  },
+  {
+    "file": "apps/web/src/realtime/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/shared/lib/bad.ts",
+    "rules": ["shared-lib-allowed-dependencies"]
+  },
+  {
+    "file": "apps/web/src/shared/lib/contracts-value.ts",
+    "rules": ["shared-contracts-type-only"]
+  },
+  {
+    "file": "apps/web/src/shared/lib/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/shared/ui/bad.ts",
+    "rules": ["shared-ui-allowed-dependencies"]
+  },
+  {
+    "file": "apps/web/src/shared/ui/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/main.tsx",
+    "rules": []
+  },
+  {
+    "file": "apps/e2e/tests/good.spec.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/e2e/test-support/process.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/e2e/tests/bad.spec.ts",
+    "rules": ["e2e-allowed-dependencies"]
+  },
+  {
+    "file": "apps/e2e/tests/contracts.spec.ts",
+    "rules": ["e2e-contracts-type-only"]
+  },
+  {
+    "file": "apps/web/src/import-e2e.test.ts",
+    "rules": ["no-import-e2e"]
+  },
+  {
+    "file": "apps/server/src/api/dev-fake/bad.ts",
+    "rules": ["dev-fake-api-allowed"]
+  },
+  {
+    "file": "apps/server/src/api/dev-fake/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/realtime/react.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/web/src/realtime/other.ts",
+    "rules": ["realtime-react-only-in-bridge"]
+  },
+  {
+    "file": "apps/server/src/api/dev-fake/auth-good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/api/dev-fake/internal-bad.ts",
+    "rules": ["dev-fake-api-allowed"]
   }
 ]

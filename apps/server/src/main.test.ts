@@ -863,3 +863,25 @@ it('shares one long-poll per run, one caffeinate and the current observer across
     replay.exec.mock.calls.some(([r]) => r.bin === '/usr/bin/caffeinate'),
   ).toBe(false);
 });
+
+it('reports a fresh fake office as owned and a dev hijack as a takeover', async () => {
+  const server = await boot(home());
+  const ui = await browser(server);
+  const runOwned = async () =>
+    (await ui.call('GET', '/api/v1/health')).body.runtime.runOwned;
+  // The adapter reports ownership `none` before any run exists.
+  expect(await runOwned()).toBe(true);
+  const repoId = (await ui.call('GET', '/api/v1/repos')).body.repos[0].repoId;
+  const started = await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId,
+    requirement: 'Hijack me',
+  });
+  expect(started.status).toBe(201);
+  await server.runners.idle();
+  const hijack = await ui.call('POST', '/dev/fake/runtime/hijack', {});
+  expect(hijack.body.hijacked).toBeGreaterThan(0);
+  await vi.waitFor(async () => expect(await runOwned()).toBe(false), {
+    timeout: 10_000,
+  });
+});

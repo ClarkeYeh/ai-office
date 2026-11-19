@@ -1,5 +1,6 @@
 import { evolveGlobal, initialGlobalReadModel } from '@ai-office/projection';
 import type { EventStore } from '../../ports/stores.js';
+import { withGateBodies, type GateBodyDeps } from './gate-bodies.js';
 import type { ProjectionService } from './projection-service.js';
 export { ProjectionService } from './projection-service.js';
 export type { WorkflowSnapshot } from './projection-service.js';
@@ -11,6 +12,7 @@ export class QueryService {
     private readonly events: EventStore,
     private readonly projections: ProjectionService,
     runtimeMode: 'orca' | 'fake' = 'orca',
+    private readonly gateBodies: GateBodyDeps = {},
   ) {
     this.global = initialGlobalReadModel(runtimeMode);
   }
@@ -36,12 +38,14 @@ export class QueryService {
   listGates() {
     return structuredClone({ gates: this.current().gateInbox });
   }
-  getGate(id: string) {
-    return structuredClone(
+  /** Conclusion gates also get request-time `githubBody` and `renderedBody` (G3b). */
+  async getGate(id: string) {
+    const gate = structuredClone(
       Object.values(this.current().workflows)
         .flatMap((w) => w.gates)
         .find((g) => g.gateId === id) ?? null,
     );
+    return gate && withGateBodies(gate, this.events, this.gateBodies);
   }
   listQuestions() {
     return structuredClone({ questions: this.current().escalatedQuestions });

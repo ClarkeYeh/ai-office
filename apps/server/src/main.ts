@@ -1,4 +1,11 @@
 import {
+  demoScenario,
+  parallelScenario,
+  troubleScenario,
+  load10Scenario,
+  stallScenario,
+} from './adapters/runtime-fake/scenarios/index.js';
+import {
   existsSync,
   readFileSync,
   writeFileSync,
@@ -120,6 +127,11 @@ import type { UsagePort } from './ports/usage.js';
 
 export const FAKE_SCENARIOS: Readonly<Record<string, RuntimeScenario>> = {
   mainline: mainlineScenario,
+  demo: demoScenario,
+  parallel: parallelScenario,
+  trouble: troubleScenario,
+  'load-10': load10Scenario,
+  stall: stallScenario,
 };
 
 /** The repository the fake world knows; registered automatically in fake mode. */
@@ -1057,7 +1069,11 @@ async function compose(
                 ? { location: runtimeMetadata.shimLocation }
                 : {}),
             },
-            runOwned: runtimeMetadata.ownership === 'owned',
+            // Once an ownership event exists (hijacked, restored, reclaimed)
+            // the projection decides; before that the adapter probe does, and
+            // `none` (no run yet) is not a takeover.
+            runOwned:
+              view.runtime.runOwned ?? runtimeMetadata.ownership !== 'hijacked',
             ...(runtimeMetadata.binPath
               ? { binPath: runtimeMetadata.binPath }
               : {}),
@@ -1093,7 +1109,10 @@ async function compose(
           },
         };
       }
-    })(stores.events, projections, runtimeMode),
+    })(stores.events, projections, runtimeMode, {
+      scm: observedScm,
+      logger,
+    }),
     templates: new TemplateQueries(templates),
     sessions: new SessionService(stores.sessions),
     stream: new StreamService(stores.events),
@@ -1108,10 +1127,23 @@ async function compose(
       : { devOrigin: options.devOrigin }),
   };
   await registerApi(app, apiDeps);
-  if (options.dev === true && world)
+  const fakeWorld = world;
+  if (options.dev === true && fakeWorld)
     await registerDevFakeRoutes(app, apiDeps, {
+      editIssueBody: (number, body) =>
+        fakeWorld.scm.editIssueBody({ repo: FAKE_REPO.github, number }, body),
+      setPrStatus: (number, status) => {
+        const ref = { repo: FAKE_REPO.github, number };
+        if (status.mergeable !== undefined)
+          fakeWorld.scm.setMergeable(ref, status.mergeable);
+        if (status.checks !== undefined)
+          fakeWorld.scm.setChecks(ref, status.checks);
+      },
+      setRuntimeConnected: (connected) =>
+        fakeWorld.runtime.setConnected(connected),
+      hijackRuntime: () => fakeWorld.runtime.hijackAll(),
       mergeOwner: (number) =>
-        world!.scm.mergeOwner({ repo: FAKE_REPO.github, number }),
+        fakeWorld.scm.mergeOwner({ repo: FAKE_REPO.github, number }),
     });
   const webDist =
     options.webDist ?? resolve(import.meta.dirname, '../../web/dist');

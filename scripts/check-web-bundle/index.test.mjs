@@ -76,3 +76,52 @@ test('rejects a stale manifest/stats pair', () =>
     await json('module-stats.json', stats);
     await assert.rejects(checkWebBundle(directory), /Stats missing/);
   }));
+
+const oversized = /** @type {[string, number, RegExp][]} */ ([
+  ['sprites.png', 250001, /Sprite PNG budget/],
+  ['font.woff2', 300001, /Font budget/],
+]);
+for (const [file, size, message] of oversized) {
+  test(`rejects oversized ${file}`, () =>
+    fixture(async ({ directory }) => {
+      await writeFile(join(directory, file), Buffer.alloc(size));
+      await assert.rejects(checkWebBundle(directory), message);
+    }));
+}
+const resources = /** @type {[string, string][]} */ ([
+  ['styles.css', '@font-face{src:url(https://example.org/font.woff2)}'],
+  ['styles.css', '@import "//example.org/theme.css";'],
+  ['index.html', '<script src="https://example.org/main.js"></script>'],
+  ['app.js', 'const url="https://cdn.jsdelivr.net/npm/example";'],
+]);
+for (const [file, source] of resources) {
+  test(`rejects external resource in ${file}: ${source}`, () =>
+    fixture(async ({ directory }) => {
+      await writeFile(join(directory, file), source);
+      await assert.rejects(checkWebBundle(directory), /External/);
+    }));
+}
+test('rejects production scene harness', () =>
+  fixture(async ({ directory, stats, json }) => {
+    stats.modules.push('/repo/apps/web/src/test-support/harness/main.tsx');
+    await json('module-stats.json', stats);
+    await assert.rejects(checkWebBundle(directory), /Forbidden web module/);
+  }));
+test('counts static imports but not lazy chunks in the initial JS budget', () =>
+  fixture(async ({ directory, manifest, stats, json }) => {
+    const { randomBytes } = await import('node:crypto');
+    await writeFile(join(directory, 'large.js'), randomBytes(300000));
+    stats.chunks.push('large.js');
+    await json('module-stats.json', stats);
+    const lazy = {
+      ...manifest,
+      lazy: { file: 'large.js', isDynamicEntry: true },
+    };
+    await json('manifest.json', lazy);
+    await checkWebBundle(directory);
+    await json('manifest.json', {
+      ...lazy,
+      'index.html': { ...manifest['index.html'], imports: ['lazy'] },
+    });
+    await assert.rejects(checkWebBundle(directory), /Initial JS gzip budget/);
+  }));

@@ -1,5 +1,6 @@
+import { safeWebEvents } from '../record-web-fixtures/scan-events.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
 import process from 'node:process';
 import { fixtureRedactor } from './redaction.ts';
 
@@ -35,13 +36,23 @@ function scan(
       }
       if (entry.name.endsWith('.json')) {
         try {
-          const parsed: unknown = JSON.parse(text);
-          if (/\/(?:Users|home)\/[^/\s"]+/.test(JSON.stringify(parsed)))
+          const value: unknown = JSON.parse(text);
+          if (/\/(?:Users|home)\/[^/\s"]+/.test(JSON.stringify(value)))
             failures++;
-          if (fixtureRedactor(path).hasLeaks(parsed)) failures++;
+          if (
+            entry.name.endsWith('.events.json') &&
+            resolve(dirname(path)) === resolve('fixtures/web')
+          ) {
+            if (!safeWebEvents(value, redactor)) failures++;
+          } else if (fixtureRedactor(path).hasLeaks(value)) failures++;
         } catch {
           failures++;
         }
+      } else if (
+        entry.name.endsWith('.yaml') &&
+        resolve(dirname(path)) === resolve('fixtures/web/templates')
+      ) {
+        if (maskText(text) !== text) failures++;
       } else if (entry.name === '.gitkeep') {
         if (text !== '') failures++;
       } else if (entry.name === 'README.md') {

@@ -164,6 +164,7 @@ const config = {
       '^packages/projection/',
       packagePath('react'),
       packagePath('react-dom'),
+      packagePath('zustand'),
     ]),
     rule(
       'no-web-to-server',
@@ -193,12 +194,12 @@ const config = {
     placement(
       'process-only-in-runtime-config-cli-start',
       '^(node:)?child_process$',
-      `^${server}(adapters/runtime-orca/|config/|test-support/orca/)|^apps/cli/src/(commands/)?start(\\.[cm]?ts$|/)`,
+      `^${server}(adapters/runtime-orca/|config/|test-support/orca/)|^apps/cli/src/(commands/)?start(\\.[cm]?ts$|/)|^apps/e2e/test-support/`,
     ),
     placement(
       'execa-only-in-runtime-config-cli-start',
       packagePath('execa'),
-      `^${server}(adapters/runtime-orca/|config/)|^apps/cli/src/(commands/)?start(\\.[cm]?ts$|/)`,
+      `^${server}(adapters/runtime-orca/|config/)|^apps/cli/src/(commands/)?start(\\.[cm]?ts$|/)|^apps/e2e/test-support/`,
     ),
     placement(
       'pino-only-in-logger-or-main',
@@ -215,16 +216,131 @@ const config = {
       { path: '^apps/web/src/features/[^/]+/ui/', pathNot: test },
       { path: '^apps/web/src/(api|realtime)/' },
     ),
+    // M4 frontend layers: keep data and rendering independent of transport.
     boundary(
-      'scene-only-own-view-model',
+      'scene-allowed-dependencies',
       '^apps/web/src/features/office/scene/',
-      ['^apps/web/src/features/office/model/'],
+      [
+        '^apps/web/src/features/office/(scene|model)/',
+        packagePath('react'),
+        packagePath('react-dom'),
+      ],
     ),
     rule(
-      'scene-only-type-imports',
+      'scene-model-type-only',
       { path: '^apps/web/src/features/office/scene/', pathNot: test },
-      { dependencyTypesNot: ['type-only'] },
+      {
+        path: '^apps/web/src/features/office/model/',
+        dependencyTypesNot: ['type-only'],
+      },
     ),
+    rule(
+      'scene-no-runtime-sprites',
+      {
+        path: '^apps/web/src/features/office/scene/',
+        pathNot: [test, '/scene/sprites/'],
+      },
+      {
+        path: '^apps/web/src/features/office/scene/sprites/',
+        dependencyTypesNot: ['type-only'],
+      },
+    ),
+    boundary(
+      'sprites-pure-data',
+      '^apps/web/src/features/office/scene/sprites/',
+      ['^apps/web/src/features/office/scene/sprites/'],
+    ),
+    boundary('model-pure', '^apps/web/src/features/([^/]+)/model/', [
+      '^apps/web/src/features/$1/model/',
+      '^' + contracts,
+      '^packages/projection/',
+      '^apps/web/src/shared/lib/',
+    ]),
+    rule(
+      'ui-no-cross-feature',
+      { path: '^apps/web/src/features/([^/]+)/ui/', pathNot: test },
+      {
+        path: '^apps/web/src/features/',
+        pathNot: '^apps/web/src/features/$1/',
+      },
+    ),
+    boundary(
+      'connect-allowed-dependencies',
+      '^apps/web/src/features/([^/]+)/connect/',
+      [
+        '^apps/web/src/(api|realtime|shared)/',
+        '^apps/web/src/features/$1/(connect|model|ui|scene)/',
+        '^apps/web/src/features/[^/]+/index\\.tsx?$',
+        packagePath('react'),
+        packagePath('zustand'),
+      ],
+    ),
+    boundary('web-api-allowed-dependencies', '^apps/web/src/api/', [
+      '^apps/web/src/api/',
+      '^' + contracts,
+    ]),
+    boundary('realtime-allowed-dependencies', '^apps/web/src/realtime/', [
+      '^apps/web/src/(realtime|api|shared/lib)/',
+      '^' + contracts,
+      '^packages/projection/',
+      packagePath('zustand'),
+      packagePath('react'),
+    ]),
+    // Only this bridge connects the vanilla store to React hooks (M4-T3).
+    rule(
+      'realtime-react-only-in-bridge',
+      {
+        path: '^apps/web/src/realtime/',
+        pathNot: [test, '^apps/web/src/realtime/react\\.ts$'],
+      },
+      { path: packagePath('react') },
+    ),
+    boundary('shared-lib-allowed-dependencies', '^apps/web/src/shared/lib/', [
+      '^apps/web/src/shared/lib/',
+      '^' + contracts,
+    ]),
+    rule(
+      'shared-contracts-type-only',
+      { path: '^apps/web/src/shared/lib/', pathNot: test },
+      { path: '^' + contracts, dependencyTypesNot: ['type-only'] },
+    ),
+    boundary('shared-ui-allowed-dependencies', '^apps/web/src/shared/ui/', [
+      '^apps/web/src/shared/',
+      packagePath('react'),
+    ]),
+    rule(
+      'no-import-app',
+      { pathNot: ['^apps/web/src/(main\\.tsx$|app/)', test] },
+      { path: '^apps/web/src/app/' },
+    ),
+    // E2E remains a test workspace, but this boundary also applies to test files.
+    rule(
+      'e2e-allowed-dependencies',
+      { path: '^apps/e2e/' },
+      {
+        dependencyTypesNot: ['core'],
+        pathNot: [
+          '^apps/e2e/',
+          packagePath('@playwright/test'),
+          packagePath('@axe-core/playwright'),
+          '^' + contracts,
+          '^node:',
+        ],
+      },
+    ),
+    rule(
+      'e2e-contracts-type-only',
+      { path: '^apps/e2e/' },
+      { path: '^' + contracts, dependencyTypesNot: ['type-only'] },
+    ),
+    rule('no-import-e2e', { pathNot: '^apps/e2e/' }, { path: '^apps/e2e/' }),
+    boundary('dev-fake-api-allowed', '^apps/server/src/api/dev-fake/', [
+      '^apps/server/src/api/dev-fake/',
+      '^apps/server/src/api/auth/index\\.ts$',
+      '^apps/server/src/api/errors\\.ts$',
+      packagePath('@fastify/cookie'),
+      packagePath('fastify'),
+    ]),
     rule(
       'cross-feature-through-index',
       { path: '^apps/web/src/features/([^/]+)/', pathNot: test },
@@ -242,7 +358,7 @@ const config = {
     tsPreCompilationDeps: 'specify',
     doNotFollow: { path: 'node_modules' },
     exclude: {
-      path: '(^|/)(dist|coverage|\\.git)/|^scripts/depcruise-selftest/samples/',
+      path: '(^|/)(dist|coverage|\\.git|\\.dev-home)/|^scripts/depcruise-selftest/samples/',
     },
     enhancedResolveOptions: {
       exportsFields: ['exports'],

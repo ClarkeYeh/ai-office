@@ -5,3 +5,8 @@ coverage/
 pnpm-lock.yaml
 docs/
 packages/contracts/generated/
+
+# Verbatim design sources and byte-checked sprite output.
+tools/sprites-src/*
+!tools/sprites-src/README.md
+apps/web/src/features/office/scene/assets/

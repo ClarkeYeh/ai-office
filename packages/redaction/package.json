@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/redaction"
+    "test": "pnpm --workspace-root exec vitest run --config vitest.config.ts --project @ai-office/redaction"
   },
   "devDependencies": {
     "@types/node": "^24.19.2"
