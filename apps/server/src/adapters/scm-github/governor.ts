@@ -2,6 +2,10 @@ import type { Clock } from '../../ports/services.js';
 import { rateLimited, type GithubError } from './errors.js';
 export type RequestClass = 'read' | 'write';
 type Block = { until: number; code: string };
+const unsigned = (value: string | null): number | undefined =>
+  value !== null && /^\d+$/.test(value) && Number.isSafeInteger(Number(value))
+    ? Number(value)
+    : undefined;
 export class GithubGovernor {
   private readers = 0;
   private readQueue: (() => void)[] = [];
@@ -24,6 +28,20 @@ export class GithubGovernor {
     const block = this.blocks[kind];
     if (block && block.until > this.now())
       throw rateLimited(block.code, block.until - this.now());
+  }
+  private block(kind: RequestClass, code: string, delay: number): void {
+    const until = this.now() + delay;
+    // Concurrent responses must never shorten a cooldown already in effect.
+    if (until > (this.blocks[kind]?.until ?? 0))
+      this.blocks[kind] = { code, until };
+  }
+  private resetDelay(): number {
+    return Math.max(
+      1000,
+      this.resetAt === undefined
+        ? 60_000
+        : this.resetAt - (this.now() + this.clockOffsetMs),
+    );
   }
   async run<T>(
     kind: RequestClass,
@@ -74,14 +92,52 @@ export class GithubGovernor {
     }
   }
   observe(headers: Headers): void {
-    const remaining = headers.get('x-ratelimit-remaining');
-    const reset = headers.get('x-ratelimit-reset');
-    if (remaining !== null && /^\d+$/.test(remaining))
-      this.remaining = Number(remaining);
-    if (reset !== null && /^\d+$/.test(reset))
-      this.resetAt = Number(reset) * 1000;
+    const remaining = unsigned(headers.get('x-ratelimit-remaining'));
+    const seconds = unsigned(headers.get('x-ratelimit-reset'));
+    const reset =
+      seconds !== undefined && Number.isSafeInteger(seconds * 1000)
+        ? seconds * 1000
+        : undefined;
     const date = Date.parse(headers.get('date') ?? '');
     if (Number.isFinite(date)) this.clockOffsetMs = date - this.now();
+    const serverNow = this.now() + this.clockOffsetMs;
+    // Ignore a delayed response from a retired window. Within an active window,
+    // interleaved GitHub counters can increase remaining or shift the reset: use
+    // the conservative minimum and latest reset until that window expires.
+    if (
+      reset !== undefined &&
+      this.resetAt !== undefined &&
+      reset < this.resetAt &&
+      reset <= serverNow
+    )
+      return;
+    const freshWindow =
+      reset !== undefined &&
+      (this.resetAt === undefined ||
+        (serverNow >= this.resetAt && reset > this.resetAt));
+    if (remaining !== undefined)
+      this.remaining =
+        freshWindow || this.remaining === undefined
+          ? remaining
+          : Math.min(this.remaining, remaining);
+    if (reset !== undefined)
+      this.resetAt = Math.max(this.resetAt ?? reset, reset);
+    // A successful last-budget response can exhaust quota without a 403/429.
+    if (remaining === 0) {
+      this.block('read', 'primary_rate_limit', this.resetDelay());
+      this.block('write', 'primary_rate_limit', this.resetDelay());
+    }
+  }
+  success(): void {
+    this.secondaryCount = 0;
+  }
+  private retryDelay(headers: Headers): number | undefined {
+    const retry = headers.get('retry-after');
+    const parsed =
+      retry !== null && /^\d+(?:\.\d+)?$/.test(retry)
+        ? Number(retry) * 1000
+        : Date.parse(retry ?? '') - (this.now() + this.clockOffsetMs);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
   }
   failure(
     status: number,
@@ -93,33 +149,27 @@ export class GithubGovernor {
     let code: string, delay: number;
     if (headers.get('x-ratelimit-remaining') === '0') {
       code = 'primary_rate_limit';
-      delay = Math.max(
-        1000,
-        (this.resetAt ?? this.now() + 60_000) - this.now(),
-      );
+      delay = Math.max(this.resetDelay(), this.retryDelay(headers) ?? 0);
     } else if (
       status === 429 ||
       headers.has('retry-after') ||
       /secondary rate limit|abuse detection/i.test(message)
     ) {
       code = 'secondary_rate_limit';
-      const retry = headers.get('retry-after');
-      const parsed =
-        retry !== null && /^\d+(?:\.\d+)?$/.test(retry)
-          ? Number(retry) * 1000
-          : Date.parse(retry ?? '') - this.now();
       delay =
-        Number.isFinite(parsed) && parsed >= 0
-          ? parsed
-          : Math.min(900_000, 60_000 * 2 ** Math.min(this.secondaryCount++, 4));
+        this.retryDelay(headers) ??
+        Math.min(900_000, 60_000 * 2 ** Math.min(this.secondaryCount++, 4));
     } else return;
-    const block = { code, until: this.now() + delay };
-    this.blocks[kind] = block;
+    this.block(kind, code, delay);
     if (code === 'primary_rate_limit') {
-      this.blocks.read = block;
-      this.blocks.write = block;
+      this.block('read', code, delay);
+      this.block('write', code, delay);
     }
-    return rateLimited(code, delay);
+    const blocked = this.blocks[kind];
+    return rateLimited(
+      blocked?.code ?? code,
+      Math.max(delay, (blocked?.until ?? 0) - this.now()),
+    );
   }
   snapshot() {
     const now = this.now();
@@ -127,7 +177,10 @@ export class GithubGovernor {
     const retryAfterMs = Math.max(0, ...blocks.map((b) => b.until - now));
     return {
       remaining: this.remaining,
-      resetAt: this.resetAt,
+      resetAt:
+        this.resetAt === undefined
+          ? undefined
+          : this.resetAt - this.clockOffsetMs,
       clockOffsetMs: this.clockOffsetMs,
       retryAfterMs,
       status:

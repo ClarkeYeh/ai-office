@@ -39,11 +39,13 @@ export class GithubHttpClient implements GithubHttp {
   }
   private async getToken(refresh: boolean): Promise<string> {
     if (!this.token || refresh) {
-      this.token = this.options.tokenProvider({ refresh }).then((token) => {
-        if (!token || /[\r\n]/.test(token))
-          throw new Error('Invalid credential');
-        return token;
-      });
+      this.token = Promise.resolve()
+        .then(() => this.options.tokenProvider({ refresh }))
+        .then((token) => {
+          if (!token || /[\r\n]/.test(token))
+            throw new Error('Invalid credential');
+          return token;
+        });
     }
     try {
       return await this.token;
@@ -67,12 +69,7 @@ export class GithubHttpClient implements GithubHttp {
       ...options,
       ...(options.safety ? { safety: structuredClone(options.safety) } : {}),
     };
-    const prepared = prepareRequest(
-      id,
-      params,
-      options,
-      this.options.repoAllowlist,
-    );
+    prepareRequest(id, params, options, this.options.repoAllowlist);
     const token = await this.getToken(false);
     try {
       return await this.attempt(id, params, options, token);
@@ -87,7 +84,6 @@ export class GithubHttpClient implements GithubHttp {
       this.cache.clear();
       const refreshed = await this.getToken(true);
       // Only an explicit 401 is retried; ambiguous writes are never replayed here.
-      void prepared;
       return this.attempt(id, params, options, refreshed);
     }
   }
@@ -168,7 +164,7 @@ export class GithubHttpClient implements GithubHttp {
           if (status >= 300 && status < 400 && status !== 304)
             guard('github_redirect_not_allowed');
           if (status === 304) {
-            if (!cached || !etag || cached.etag !== etag)
+            if (write || !cached || !etag || cached.etag !== etag)
               throw contractMismatch();
             const parsed = options.schema.safeParse(
               structuredClone(cached.data),
@@ -229,6 +225,7 @@ export class GithubHttpClient implements GithubHttp {
             ...(next ? { nextPage: next } : {}),
           };
         } finally {
+          if (!failed) this.governor.success();
           if (write && failed) this.cache.clear();
           this.metrics.record(
             id,

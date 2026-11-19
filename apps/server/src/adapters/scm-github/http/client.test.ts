@@ -264,6 +264,27 @@ describe('GitHub HTTP boundary', () => {
     [405, { message: 'Merge conflict' }, 'conflict', 'not_mergeable'],
     [
       405,
+      { message: 'Base branch was modified. Review and try the merge again.' },
+      'conflict',
+      'base_moved',
+    ],
+    [
+      409,
+      { message: 'Base branch was modified. Review and try the merge again.' },
+      'conflict',
+      'base_moved',
+    ],
+    [
+      405,
+      {
+        message:
+          'Pull Request is not mergeable. Review and try the merge again.',
+      },
+      'conflict',
+      'not_mergeable',
+    ],
+    [
+      405,
       { message: 'Required checks failed' },
       'permanent',
       'merge_blocked_by_rules',
@@ -454,5 +475,102 @@ describe('GitHub HTTP boundary', () => {
         f.http.request(id, p, { schema: emptySchema }),
       ).rejects.toMatchObject({ category: 'guard' });
     expect(f.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('GitHub recovery boundary regressions', () => {
+  it('resets the secondary fallback after a clean HTTP response', async () => {
+    const f = setup([
+      json({}, 429),
+      json({}, 429),
+      json({ value: 1 }),
+      json({}, 429),
+    ]);
+    await expect(
+      f.http.request('repos.get', params, { schema }),
+    ).rejects.toMatchObject({ retryAfterMs: 60000 });
+    f.advance(60000);
+    await expect(
+      f.http.request('repos.get', params, { schema }),
+    ).rejects.toMatchObject({ retryAfterMs: 120000 });
+    f.advance(120000);
+    await f.http.request('repos.get', params, { schema });
+    await expect(
+      f.http.request('repos.get', params, { schema }),
+    ).rejects.toMatchObject({ retryAfterMs: 60000 });
+  });
+  it('masks a synchronous credential-provider failure', async () => {
+    const f = setup([], {
+      tokenProvider: () => {
+        throw new Error('sensitive-provider-output');
+      },
+    });
+    await expect(
+      f.http.request('user.get', {}, { schema: viewerSchema }),
+    ).rejects.toMatchObject({
+      category: 'auth',
+      message: 'GitHub credentials are unavailable',
+    });
+  });
+  it('treats a hung creation as unknown, aborts its signal and never replays', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetch = vi.fn<typeof globalThis.fetch>(() => new Promise(() => {}));
+      const f = setup([], { fetch, timeoutMs: 50 });
+      const pending = f.http
+        .request(
+          'issues.create',
+          { ...params, body: { title: 'title', body: 'body' } },
+          { schema },
+        )
+        .catch((error) => error as unknown);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(await pending).toMatchObject({
+        category: 'transient',
+        code: 'create_outcome_unknown',
+        retryAfterMs: 15000,
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch.mock.calls[0]![1]?.signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('invalidates representations after an ambiguous write', async () => {
+    const f = setup([
+      json({ value: 1 }, 200, { etag: '"one"' }),
+      new Error('response lost'),
+      json({ value: 2 }),
+    ]);
+    await f.http.request('repos.get', params, { schema, conditional: true });
+    await expect(
+      f.http.request(
+        'issues.create',
+        { ...params, body: { title: 'title', body: 'body' } },
+        { schema },
+      ),
+    ).rejects.toMatchObject({ code: 'create_outcome_unknown' });
+    await f.http.request('repos.get', params, { schema, conditional: true });
+    expect(
+      new Headers(f.fetch.mock.calls[2]![1]?.headers).has('if-none-match'),
+    ).toBe(false);
+  });
+  it('never treats a write response as a cached 304 success', async () => {
+    const f = setup([
+      json({ value: 1 }, 200, { etag: '"one"' }),
+      new Response(null, { status: 304 }),
+    ]);
+    await f.http.request(
+      'issues.get',
+      { ...params, number: 1 },
+      { schema, conditional: true },
+    );
+    await expect(
+      f.http.request(
+        'issues.update',
+        { ...params, number: 1, body: { title: 'new' } },
+        { schema, conditional: true },
+      ),
+    ).rejects.toMatchObject({ category: 'contract_mismatch' });
   });
 });
