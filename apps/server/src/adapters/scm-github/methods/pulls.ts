@@ -4,7 +4,7 @@ import type { PrRef, RepoScmRef } from '../../../ports/refs.js';
 import type { Correlation } from '../../../ports/runtime.js';
 import type { PrDraft, PrPatch, ScmPort } from '../../../ports/scm.js';
 import type { GithubError } from '../errors.js';
-import type { GithubHttp } from '../http/types.js';
+import type { ScmGithubDeps } from './deps.js';
 import { guard } from '../policy/endpoints.js';
 import { mergePR } from './merge.js';
 import {
@@ -16,11 +16,8 @@ import {
 } from './pr-schemas.js';
 import { listReviewComments } from './reviews.js';
 
-/**
- * The part of T4's `ScmGithubDeps` (methods/deps.ts) these methods use, so
- * the full deps object can be passed once it lands.
- */
-export type PrMethodsDeps = { http: GithubHttp };
+/** The part of `ScmGithubDeps` these methods use. */
+export type PrMethodsDeps = Pick<ScmGithubDeps, 'http'>;
 export type PrMethodsOptions = {
   /** Spaces the post-merge read-back; tests inject a fake. */
   sleep?: (ms: number) => Promise<void>;

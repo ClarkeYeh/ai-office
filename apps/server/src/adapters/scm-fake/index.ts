@@ -736,7 +736,11 @@ export class FakeScm implements ScmPort {
   }
   private checkMerge(
     obj: ObjectState,
-    opts: { expectedHeadSha: string; expectedBaseSha?: string },
+    opts: {
+      expectedHeadSha: string;
+      expectedBaseSha?: string;
+      expectedBase?: string;
+    },
   ) {
     const repo = this.repo(obj.ref.repo);
     // The PR's actual base decides, whatever the command asked for.
@@ -751,6 +755,12 @@ export class FakeScm implements ScmPort {
         'guard',
         'base_not_ai_office',
         'Only ai-office/ bases may be merged into',
+      );
+    if (opts.expectedBase !== undefined && obj.base !== opts.expectedBase)
+      throw new PortError(
+        'conflict',
+        'base_mismatch',
+        'PR base is not the expected base',
       );
     if (obj.state === 'merged') {
       // Pre-M3 snapshots did not freeze the merged head.
@@ -777,21 +787,21 @@ export class FakeScm implements ScmPort {
         'PR cannot be merged',
       );
   }
-  private merge(obj: ObjectState, author: string) {
+  private merge(obj: ObjectState, author: string, into = obj.base) {
     if (obj.mergeCommitSha) return { mergeCommitSha: obj.mergeCommitSha };
     const repo = this.repo(obj.ref.repo),
-      base = repo.branches.get(obj.base),
+      base = repo.branches.get(into),
       head = repo.branches.get(obj.head);
     if (!base || !head)
       throw new PortError('permanent', 'branch_not_found', 'Unknown PR branch');
     const sha = this.sha();
     repo.parents.set(sha, [base, head]);
-    repo.branches.set(obj.base, sha);
+    repo.branches.set(into, sha);
     obj.state = 'merged';
     obj.mergeCommitSha = sha;
     obj.mergedBy = author;
     obj.headSha = head;
-    this.moved(repo, obj.base, sha, base);
+    this.moved(repo, into, sha, base);
     this.prState(obj);
     return { mergeCommitSha: sha };
   }
@@ -811,6 +821,7 @@ export class FakeScm implements ScmPort {
       method: 'merge';
       expectedHeadSha: string;
       expectedBaseSha?: string;
+      expectedBase?: string;
     },
   ) {
     const obj = this.object(ref, 'pr');
@@ -834,8 +845,8 @@ export class FakeScm implements ScmPort {
       this.retargets.delete(JSON.stringify(obj.ref));
       obj.base = retarget;
     }
-    const result = this.merge(obj, this.repo(ref.repo).info.viewerLogin);
-    // Read back like scm-github: GitHub merged into whatever base it had.
+    // Like scm-github's POST /merges: into the base that was checked.
+    const result = this.merge(obj, this.repo(ref.repo).info.viewerLogin, base);
     if (obj.base !== base)
       throw new PortError(
         'guard',

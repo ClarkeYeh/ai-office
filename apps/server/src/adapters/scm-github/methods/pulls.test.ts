@@ -305,6 +305,65 @@ describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
   });
 });
 
+describe('mergePR expectedBase (our record, S20)', () => {
+  const other = 'ai-office/t000000000002-int';
+  it('merges into expectedBase by name and verifies against it', async () => {
+    const routes = preMerge();
+    routes[merges] = [recorded('g11-merges.merges-201')];
+    routes['GET /pulls/8'].push(g11Merged());
+    const f = setup(routes);
+    await expect(
+      f.mergePR(pr8, { ...opts, expectedBase: int }),
+    ).resolves.toEqual({ mergeCommitSha: g11Sha });
+    expect(f.calls.find((call) => call.key === merges)!.body).toMatchObject({
+      base: int,
+    });
+    allConsumed(routes);
+  });
+  it('refuses a PR retargeted to another ai-office/ branch as non-retryable base_mismatch, without merging', async () => {
+    const f = setup({
+      'GET /pulls/8': [openPull((pull) => (pull.base.ref = other))],
+      'GET ': [repoInfo()],
+    });
+    await expect(
+      f.mergePR(pr8, { ...opts, expectedBase: int }),
+    ).rejects.toMatchObject({
+      category: 'conflict',
+      code: 'base_mismatch',
+      retryable: false,
+    });
+    expect(f.keys()).toEqual(['GET /pulls/8', 'GET ']);
+  });
+  it('refuses an already merged PR whose base is not expectedBase', async () => {
+    const f = setup({
+      'GET /pulls/8': [mergedPull((pull) => (pull.base.ref = other))],
+      'GET ': [repoInfo()],
+    });
+    await expect(
+      f.mergePR(pr8, { ...opts, expectedBase: int }),
+    ).rejects.toMatchObject({ category: 'conflict', code: 'base_mismatch' });
+  });
+  it.each([
+    ['main', 'default_branch_merge'],
+    ['release', 'base_not_ai_office'],
+  ])('guards an expectedBase of %s', async (expectedBase, code) => {
+    const f = setup({ 'GET /pulls/8': [openPull()], 'GET ': [repoInfo()] });
+    await expect(
+      f.mergePR(pr8, { ...opts, expectedBase }),
+    ).rejects.toMatchObject({ category: 'guard', code });
+    expect(f.keys()).not.toContain(merges);
+  });
+  it('flags a retarget after the read against expectedBase', async () => {
+    const routes = preMerge();
+    routes[merges] = [recorded('g11-merges.merges-201')];
+    routes['GET /pulls/8'].push(openPull((pull) => (pull.base.ref = other)));
+    const f = setup(routes);
+    await expect(
+      f.mergePR(pr8, { ...opts, expectedBase: int }),
+    ).rejects.toMatchObject({ category: 'guard', code: 'merge_base_changed' });
+  });
+});
+
 describe('mergePR idempotency and recorded responses', () => {
   it('returns the original merge commit for an already merged PR without merging again', async () => {
     const f = setup({ 'GET /pulls/8': [mergedPull()], 'GET ': [repoInfo()] });
