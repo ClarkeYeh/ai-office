@@ -184,6 +184,8 @@ export const ExternalCommandSchema = z.discriminatedUnion('kind', [
       expectedHeadSha: GitShaSchema,
       /** rev2.15 §7.4: integration-branch head at merge-request time; mismatch → `base_moved`. */
       expectedBaseSha: GitShaSchema.optional(),
+      /** M3 S20: the base branch from our record; a PR retargeted elsewhere → `base_mismatch`. */
+      expectedBase: id.optional(),
     }),
   ),
   // Only for compensating duplicate marker comments (M3 §4.8); the adapter also

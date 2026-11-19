@@ -1426,6 +1426,29 @@ describe('M3-CP1 contract additions', () => {
       ).toBe(false);
   });
 
+  test('scm.mergePR takes an optional expectedBase; older commands still parse', () => {
+    const legacy = commandExamples['scm.mergePR'] as object;
+    for (const args of [
+      legacy,
+      { ...legacy, expectedBase: 'ai-office/abcd1234-demo' },
+      {
+        ...legacy,
+        expectedBase: 'ai-office/abcd1234-demo',
+        expectedBaseSha: 'c'.repeat(40),
+      },
+    ])
+      expect(
+        ExternalCommandSchema.parse({ kind: 'scm.mergePR', args }),
+      ).toEqual({ kind: 'scm.mergePR', args });
+    for (const expectedBase of ['', 7])
+      expect(
+        ExternalCommandSchema.safeParse({
+          kind: 'scm.mergePR',
+          args: { ...legacy, expectedBase },
+        }).success,
+      ).toBe(false);
+  });
+
   test('scm.deleteComment targets one comment and succeeds with an empty result', () => {
     const args = commandExamples['scm.deleteComment'] as object;
     expect(

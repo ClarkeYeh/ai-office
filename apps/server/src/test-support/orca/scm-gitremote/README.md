@@ -33,7 +33,8 @@ State is not durable across restarting this double; no final PR auto-merge occur
 M3-T2: `poll` also reports `branch.head_changed` for the default and test
 branches it sees move. The M3 ScmPort semantics match scm-fake: `findByMarker`
 hints, real-shaped URLs and comment IDs, `deleteComment`, `getPR` head/base/
-mergedBy, `expectedBaseSha`, read-back `merge_base_changed`, PRs closed when
+mergedBy, `expectedBaseSha`, `expectedBase` (`base_mismatch`), merges into the
+checked base with read-back `merge_base_changed`, PRs closed when
 their head branch is deleted. Test controls: an injectable `clock`,
 `loseNextResponse`, `setListLag`, `retargetExternally`, `createExternalIssue` and
 `addExternalComment`.
