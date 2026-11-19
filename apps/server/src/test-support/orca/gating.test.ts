@@ -66,17 +66,11 @@ realOrcaSuite('synthetic live probe', {}, () => {
       };
       for (const script of ['test', 'test:coverage']) {
         expect(pkg.scripts[script]).toContain(
-          "--project '!@ai-office/server-orca'",
+          "--project '!@ai-office/server-*'",
         );
       }
       const files = run(
-        [
-          'list',
-          '--filesOnly',
-          '--json',
-          '--project',
-          '!@ai-office/server-orca',
-        ],
+        ['list', '--filesOnly', '--json', '--project', '!@ai-office/server-*'],
         { CI: 'true', AIO_REAL_ORCA: '', AIO_REAL_AGENTS: '' },
       );
       expect(files).not.toContain('.orca.test.ts');
