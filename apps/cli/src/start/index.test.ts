@@ -31,6 +31,10 @@ describe('ai-office start', () => {
     });
     expect((await start(['--bogus'], options)).exitCode).toBe(1);
     expect((await start(['--fake'], options)).exitCode).toBe(1);
+    expect((await start(['--runtime', 'orca'], options)).exitCode).toBe(1);
+    expect(
+      (await start(['--orca-home', '/fixture/orca'], options)).exitCode,
+    ).toBe(1);
     expect(spawnSpy).not.toHaveBeenCalled();
   });
 

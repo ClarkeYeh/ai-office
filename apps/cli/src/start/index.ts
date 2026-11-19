@@ -20,7 +20,7 @@ export interface StartOptions {
 }
 
 const usage =
-  'Usage: ai-office start [--dev] [--fake <scenario>] [--runtime orca] [--orca-home <path>] [--port <n>] [--break-lock] [--no-open]';
+  'Usage: ai-office start [--port <n>] [--break-lock] [--no-open] (production); development: --dev (--fake <scenario> | --runtime orca [--orca-home <path>])';
 
 const SERVER_FLAGS = new Set(['--dev', '--break-lock']);
 const SERVER_VALUES = new Set([
@@ -89,6 +89,14 @@ export async function start(
     return {
       exitCode: 1,
       message: `--fake ${fake} requires --dev: fake runtime, SCM and usage must never serve production.`,
+    };
+  if (
+    !dev &&
+    forwarded.some((arg) => arg === '--runtime' || arg === '--orca-home')
+  )
+    return {
+      exitCode: 1,
+      message: `--runtime and --orca-home require --dev. ${usage}`,
     };
 
   const env = options.env ?? process.env;

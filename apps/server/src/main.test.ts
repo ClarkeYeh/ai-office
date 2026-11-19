@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import * as sleepWake from './adapters/runtime-orca/sleep-wake.js';
+import * as githubConfig from './config/read-gh-token.js';
 import * as runtimeConfig from './config/runtime-config.js';
 import { HealthMonitor } from './application/health/health-monitor.js';
 import { TimerScheduler } from './adapters/system/index.js';
@@ -186,7 +187,7 @@ describe('start options', () => {
     expect(() => parseArgs(['--bogus'])).toThrow(/Unknown option/);
   });
 
-  it('refuses production mode until M3, releasing the lock', async () => {
+  it('accepts production and refuses development overrides without --dev', async () => {
     const directory = home();
     hybridConfig(directory);
     await expect(
@@ -195,7 +196,8 @@ describe('start options', () => {
         env: { AI_OFFICE_HOME: directory },
         port: 0,
       }),
-    ).rejects.toThrow(/M3/);
+    ).rejects.toThrow(/--dev/);
+    expect(() => checkStartOptions({})).not.toThrow();
     expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
   });
 });
@@ -419,11 +421,7 @@ describe('hybrid composition', () => {
       StartupError,
     );
     const scm = createFakeScm();
-    for (const options of [
-      { dev: true, fake: 'mainline' },
-      { runtime: 'orca' as const },
-      { dev: true },
-    ]) {
+    for (const options of [{ runtime: 'orca' as const }, { dev: true }]) {
       const directory = home();
       await expect(
         startServer({
@@ -448,7 +446,7 @@ describe('hybrid composition', () => {
       print: (line) => lines.push(line),
     });
     const ui = await browser(server);
-    expect(lines.join('\n')).toContain('runtime: orca, scm: fake (M2)');
+    expect(lines.join('\n')).toContain('runtime: orca, scm: fake');
     expect(server.fakeWorld).toBeUndefined();
     const health = await ui.call('GET', '/api/v1/health');
     expect(health.status).toBe(200);
@@ -671,8 +669,7 @@ it('passes attempt start to usage lookup and stops locating once a session is fo
 
 describe('explicit dev startup and approved shim location', () => {
   it.each([
-    [{}, /Production.*M3/],
-    [{ runtime: 'orca' }, /Production.*M3/],
+    [{ runtime: 'orca' }, /--dev/],
     [{ dev: true }, /requires --fake.*--runtime orca/],
   ] as const)(
     'refuses %j before config, directories or runtime side effects',
@@ -884,4 +881,318 @@ it('reports a fresh fake office as owned and a dev hijack as a takeover', async 
   await vi.waitFor(async () => expect(await runOwned()).toBe(false), {
     timeout: 10_000,
   });
+});
+
+/** Synthetic GitHub transport; local browser requests still use native fetch. */
+function productionReplay(
+  directory: string,
+  options: {
+    backendLogin?: string;
+    activeLogin?: string;
+    status?: number;
+    repoStatus?: number;
+    network?: boolean;
+    merge?: boolean;
+    protected?: boolean;
+  } = {},
+) {
+  hybridConfig(directory, 'expectedLogin = "fixture-owner"\n');
+  replayHybrid(directory);
+  const token = vi
+    .spyOn(githubConfig, 'readGhToken')
+    .mockReturnValue('backend-example');
+  vi.spyOn(githubConfig, 'readActiveGhLogin').mockImplementation(
+    async (_settings, _dir, lookup) => lookup('active-example'),
+  );
+  const nativeFetch = globalThis.fetch;
+  const requests: string[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (!url.startsWith('https://api.github.com/'))
+      return nativeFetch(input, init);
+    const path = new URL(url).pathname;
+    requests.push(path);
+    if (options.network) throw new TypeError('offline');
+    if (options.repoStatus && path === '/repos/fixture/project')
+      return new Response('{}', { status: options.repoStatus });
+    if (options.status) return new Response('{}', { status: options.status });
+    let body: unknown;
+    if (path === '/user')
+      body = {
+        login: new Headers(init?.headers)
+          .get('authorization')
+          ?.includes('active-example')
+          ? (options.activeLogin ?? 'fixture-owner')
+          : (options.backendLogin ?? 'fixture-owner'),
+      };
+    else if (path === '/rate_limit')
+      body = { resources: { core: { remaining: 4999, reset: 1900000000 } } };
+    else if (path === '/repos/fixture/project')
+      body = {
+        default_branch: 'main',
+        visibility: 'public',
+        archived: false,
+        permissions: { push: true },
+        allow_merge_commit: options.merge ?? true,
+      };
+    else if (path === '/repos/fixture/project/branches/main')
+      body = { protected: options.protected ?? true };
+    else if (path.includes('/rules/branches/')) body = [];
+    else if (path.endsWith('/protection'))
+      return new Response('{}', { status: 404 });
+    else throw new Error('Unexpected GitHub request: ' + path);
+    return new Response(JSON.stringify(body), {
+      headers: {
+        'content-type': 'application/json',
+        'x-ratelimit-remaining': '4999',
+        'x-ratelimit-reset': '1900000000',
+      },
+    });
+  });
+  const start = async () => {
+    const server = await startServer({
+      port: 0,
+      env: { AI_OFFICE_HOME: directory, HOME: directory },
+      webDist: join(directory, 'no-web'),
+      print: () => {},
+    });
+    servers.push(server);
+    return server;
+  };
+  return { start, token, requests };
+}
+
+describe('production assembly', () => {
+  it('assembles production, registers through GitHub, and publishes safe SCM health', async () => {
+    const directory = home();
+    const replay = productionReplay(directory, { protected: false });
+    const server = await replay.start();
+    const ui = await browser(server);
+    const registered = await ui.call('POST', '/api/v1/repos', {
+      localPath: '/replay/repo',
+    });
+    expect(registered.status, JSON.stringify(registered.body)).toBe(201);
+    expect(registered.body).toMatchObject({
+      ownerLogin: 'fixture-owner',
+      allowMergeCommit: true,
+      defaultBranchProtected: false,
+      warnings: ['default_unprotected'],
+    });
+    expect(replay.token).toHaveBeenCalledWith(
+      expect.anything(),
+      directory,
+      expect.anything(),
+      undefined,
+      { user: 'fixture-owner' },
+    );
+    const health = await ui.call('GET', '/api/v1/health');
+    expect(health.body.scm).toMatchObject({
+      login: 'fixture-owner',
+      tokenSource: 'gh',
+      ghBinPath: '/replay/gh',
+    });
+    expect(JSON.stringify(health.body)).not.toContain('backend-example');
+    expect(replay.requests).toContain('/rate_limit');
+  });
+  it.each([{ backendLogin: 'other' }, { activeLogin: 'other' }])(
+    'refuses identity mismatch before listen: %j',
+    async (options) => {
+      const directory = home();
+      const replay = productionReplay(directory, options);
+      await expect(replay.start()).rejects.toMatchObject({
+        status: 409,
+        code: 'scm_login_mismatch',
+      });
+      expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+      expect(existsSync(join(directory, 'data/.lock'))).toBe(false);
+    },
+  );
+  it('refuses a 401 before listen', async () => {
+    const directory = home();
+    const replay = productionReplay(directory, { status: 401 });
+    await expect(replay.start()).rejects.toMatchObject({ category: 'auth' });
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+  });
+  it('refuses missing credentials without leaking the credential output', async () => {
+    const directory = home();
+    const replay = productionReplay(directory);
+    replay.token.mockImplementation(() => {
+      throw new Error(
+        'GitHub authentication failed; run gh auth login for fixture-owner',
+      );
+    });
+    await expect(replay.start()).rejects.toThrow('run gh auth login');
+    expect(existsSync(join(directory, 'runtime.json'))).toBe(false);
+  });
+  it('registers a merge-disabled repo but rejects workflow creation with 422', async () => {
+    const directory = home();
+    const replay = productionReplay(directory, { merge: false });
+    const ui = await browser(await replay.start());
+    const registered = await ui.call('POST', '/api/v1/repos', {
+      localPath: '/replay/repo',
+    });
+    expect(registered.status).toBe(201);
+    const started = await ui.call('POST', '/api/v1/workflows', {
+      templateId: 'feature-to-pr',
+      repoId: registered.body.repoId,
+      requirement: 'fixture',
+    });
+    expect(started.status).toBe(422);
+    expect(JSON.stringify(started.body)).toContain('repo_not_ready');
+  });
+});
+
+it('persists an inferred first-run owner and refuses an account change after restart', async () => {
+  const directory = home();
+  const options = { activeLogin: 'fixture-owner' };
+  const replay = productionReplay(directory, options);
+  hybridConfig(directory);
+  const server = await replay.start();
+  const ui = await browser(server);
+  expect((await ui.call('GET', '/api/v1/health')).body.scm.warnings).toContain(
+    'expected_login_unset',
+  );
+  await server.close();
+  options.activeLogin = 'different-owner';
+  await expect(replay.start()).rejects.toMatchObject({
+    code: 'scm_login_mismatch',
+  });
+});
+
+it('revalidates registered repos before listen and marks a missing repo invalid', async () => {
+  const directory = home();
+  const options: { repoStatus?: number } = {};
+  const replay = productionReplay(directory, options);
+  const first = await replay.start();
+  const registered = await (
+    await browser(first)
+  ).call('POST', '/api/v1/repos', { localPath: '/replay/repo' });
+  await first.close();
+  options.repoStatus = 404;
+  const ui = await browser(await replay.start());
+  const repos = await ui.call('GET', '/api/v1/repos');
+  expect(repos.body.repos[0].status).toBe('invalid');
+  const started = await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId: registered.body.repoId,
+    requirement: 'fixture',
+  });
+  expect(started.status).toBe(422);
+  expect(started.body.error.code).toBe('repo_not_ready');
+});
+
+it('serves degraded health during a network outage and recovers authentication', async () => {
+  const directory = home();
+  const options = { network: true };
+  const replay = productionReplay(directory, options);
+  const ui = await browser(await replay.start());
+  expect((await ui.call('GET', '/api/v1/health')).body.scm.status).toBe(
+    'degraded',
+  );
+  const refused = await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId: 'missing',
+    requirement: 'fixture',
+  });
+  expect(refused.status).toBe(503);
+  options.network = false;
+  expect(
+    (await ui.call('POST', '/api/v1/repos', { localPath: '/replay/repo' }))
+      .status,
+  ).toBe(201);
+});
+
+it('uses configured orca.homeDir in production', async () => {
+  const directory = home();
+  const replay = productionReplay(directory);
+  const approved = join(directory, 'approved-folder');
+  writeFileSync(
+    join(directory, 'config.toml'),
+    '[orca]\nbin = "/replay/orca"\npreventSleep = false\nhomeDir = ' +
+      JSON.stringify(approved) +
+      '\n[github]\nghBin = "/replay/gh"\nexpectedLogin = "fixture-owner"\n',
+  );
+  replayHybrid(directory, [], approved);
+  const ui = await browser(await replay.start());
+  expect(
+    (await ui.call('GET', '/api/v1/health')).body.runtime.shim.location,
+  ).toBe(approved);
+});
+
+it('allows an SCM injection in fake development mode without exposing production hooks', async () => {
+  const scm = createFakeScm();
+  scm.addRepo(FAKE_REPO.github, { defaultBranch: 'injected-dev' });
+  const inspect = vi.spyOn(scm, 'inspectRepo');
+  const ui = await browser(await boot(home(), { testOnly: { scm } }));
+  expect(
+    (await ui.call('GET', '/api/v1/repos')).body.repos[0].defaultBranch,
+  ).toBe('injected-dev');
+  expect(inspect).toHaveBeenCalledWith(FAKE_REPO.github);
+  expect(() => checkStartOptions({ testOnly: { scm } })).toThrow('--dev');
+});
+
+it('creates fresh github-mainline worlds and wires the harness bridge and fixed shortId', async () => {
+  const fakeModule = await import('./adapters/runtime-fake/index.js');
+  const factory = vi.spyOn(fakeModule, 'createFakeRuntime');
+  createFakeWorld('github-mainline', { readSpec: () => null });
+  const firstScenario = factory.mock.calls.at(-1)![0].scenario;
+  const directory = home();
+  const github = { owner: 'fixture', name: 'mixed' };
+  const scm = createFakeScm();
+  scm.addRepo(github);
+  const snapshot = vi.spyOn(scm, 'snapshot');
+  const onPush = vi.fn();
+  const remoteHead = vi.fn(async () => 'a'.repeat(40));
+  const server = await boot(directory, {
+    fake: 'github-mainline',
+    testOnly: {
+      scm,
+      shortId: 'fixture1',
+      fakeRepo: {
+        localPath: '/fixture/mixed',
+        runtime: { orcaRepoId: 'fixture-repo', localPath: '/fixture/mixed' },
+        github,
+      },
+      fakeRuntime: { onPush, remoteHead, refreshHeadAfterPush: true },
+    },
+  });
+  const composed = factory.mock.calls.at(-1)![0];
+  expect(composed.scenario).not.toBe(firstScenario);
+  expect(composed).toMatchObject({
+    onPush,
+    remoteHead,
+    refreshHeadAfterPush: true,
+  });
+  const ui = await browser(server);
+  const repo = (await ui.call('GET', '/api/v1/repos')).body.repos[0];
+  expect(repo.github).toEqual(github);
+  const started = await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId: repo.repoId,
+    requirement: 'fixture',
+  });
+  expect(started.status).toBe(201);
+  expect(
+    server.runners.get(started.body.workflowId)!.state.workflow!.shortId,
+  ).toBe('fixture1');
+  await server.close();
+  expect(snapshot).not.toHaveBeenCalled();
+  expect(existsSync(join(directory, 'data/fake-world.json'))).toBe(false);
+});
+
+it('refuses configured shim homes containing cli-cwd before any process starts', async () => {
+  const directory = home();
+  writeFileSync(
+    join(directory, 'config.toml'),
+    '[orca]\nhomeDir = ' + JSON.stringify(directory) + '\n',
+  );
+  const exec = vi
+    .spyOn(SpawnExec.prototype, 'run')
+    .mockImplementation(async () => {
+      throw new Error('No process allowed');
+    });
+  await expect(
+    startServer({ env: { AI_OFFICE_HOME: directory } }),
+  ).rejects.toThrow('cli-cwd must not be inside orca.homeDir');
+  expect(exec).not.toHaveBeenCalled();
 });

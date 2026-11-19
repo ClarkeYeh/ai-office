@@ -226,6 +226,52 @@ describe('StartWorkflow and registration', () => {
   });
 });
 
+describe('repository readiness', () => {
+  it.each(['merge_commit_disabled', 'archived', 'no_push_permission'])(
+    'blocks workflow creation for %s',
+    async (warning) => {
+      const h = setup();
+      h.store.append([
+        draft(h.clock, null, 'repo.updated', {
+          repoId: 'repo-1',
+          status: 'registered',
+          warnings: [warning],
+        }),
+      ]);
+      await expect(h.start()).rejects.toMatchObject({
+        status: 422,
+        code: 'repo_not_ready',
+      });
+      expect(h.runners.all()).toHaveLength(0);
+    },
+  );
+  it('blocks disabled merge commits without relying on a warning', async () => {
+    const h = setup();
+    h.store.append([
+      draft(h.clock, null, 'repo.updated', {
+        repoId: 'repo-1',
+        status: 'registered',
+        allowMergeCommit: false,
+      }),
+    ]);
+    await expect(h.start()).rejects.toMatchObject({
+      status: 422,
+      code: 'repo_not_ready',
+    });
+  });
+  it('keeps protection warnings advisory', async () => {
+    const h = setup();
+    h.store.append([
+      draft(h.clock, null, 'repo.updated', {
+        repoId: 'repo-1',
+        status: 'registered',
+        warnings: ['default_unprotected', 'ai_office_branches_ruled'],
+      }),
+    ]);
+    await expect(h.start()).resolves.toHaveProperty('workflowId');
+  });
+});
+
 describe('gate decisions', () => {
   describe('final-PR revision feedback (S10)', () => {
     const openFinal = async (h: ReturnType<typeof setup>) => {
