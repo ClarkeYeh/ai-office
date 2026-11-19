@@ -335,7 +335,7 @@ describe('gate invariants', () => {
     expect(gate.options.map((o) => o.optionId)).toEqual(['keep-open', 'abort']);
     expect(h.state.prsClosedAt).toEqual({ '7': at(40) });
     expect(h.state.workflow?.status).toBe('running');
-    error(h, decision({ decision: 'reject' }), 'final_pr_closed');
+    error(h, decision({ decision: 'reject' }), 'invalid_gate_decision');
     // Reopened: the mark clears; merging still completes as usual.
     h.given(status('open', 60));
     expect(h.state.gates.g!.content).not.toHaveProperty('prClosedAt');

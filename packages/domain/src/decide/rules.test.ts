@@ -935,6 +935,65 @@ describe('anomaly classification', () => {
       [],
     );
   });
+  test('duplicate edge cases: non-numeric ids, matching target, kind and count guards', () => {
+    const target = { type: 'issue' as const, repo, number: 4 };
+    const h = issued(createIssue(meeting()), {
+      commandId: 'wf/comment',
+      kind: 'scm.comment',
+      args: { target, body: 'hi' },
+    });
+    expect(
+      payloads(
+        emitted(
+          h,
+          anomaly({
+            kind: 'duplicate',
+            commandId: 'wf/comment',
+            objectKind: 'comment',
+            target: { repo, number: 4 },
+            commentIds: ['c-b', 'c-a', '7'],
+          }),
+        ),
+      ),
+    ).toEqual([
+      { kind: 'duplicate-object', severity: 'warning', commentId: 'c-b' },
+      { kind: 'duplicate-object', severity: 'warning', commentId: 'c-a' },
+    ]);
+    for (const observation of [
+      { objectKind: 'comment' as const, commandId: 'wf/issue' },
+      { objectKind: 'pr' as const, commandId: 'wf/issue' },
+      { objectKind: 'issue' as const, commandId: 'wf/issue', numbers: [5] },
+      { objectKind: 'issue' as const, commandId: 'wf/issue' },
+    ])
+      expect(
+        emitted(
+          h,
+          anomaly({
+            kind: 'duplicate',
+            commentIds: ['1', '2'],
+            ...observation,
+          }),
+        ),
+      ).toEqual([]);
+  });
+  test('a worker PR auto-closed by the backend deleting its head branch is managed', () => {
+    const h = openPr(meeting(), 12);
+    issued(h, {
+      commandId: 'wf/delete',
+      kind: 'scm.deleteBranch',
+      args: { repo, name: 'ai-office/worker' },
+    });
+    expect(
+      emitted(
+        h,
+        anomaly({
+          kind: 'pr',
+          pr: pr({ state: 'closed', head: 'ai-office/worker' }),
+          managed: true,
+        }),
+      ),
+    ).toEqual([]);
+  });
   test('merge-base-changed is a high anomaly that pauses, once per command', () => {
     const h = issued(meeting(), {
       commandId: 'wf/merge',

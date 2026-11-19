@@ -120,9 +120,9 @@ const decide = (
           gate.content.prClosedAt !== undefined
         )
           return reject(
-            'conflict',
-            'final_pr_closed',
-            'Only keep-open or abort remains',
+            'validation',
+            'invalid_gate_decision',
+            'The final PR was closed on GitHub; only keep-open or abort remains',
           );
         events.push(
           draft(
