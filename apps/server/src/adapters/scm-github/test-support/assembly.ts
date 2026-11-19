@@ -7,6 +7,7 @@ const redactor = createRedactor();
 export const assembleContractScm: GithubBindingFactory = (options) =>
   createGithubScm({
     ...options,
+    timeoutMs: 90_000,
     repoAllowlist: new RepoAllowlist([contractRepo]),
     tokenProvider: async () => 'offline-contract-token',
     maskSecrets: <T>(value: T): T => redactor.sanitize(value) as T,

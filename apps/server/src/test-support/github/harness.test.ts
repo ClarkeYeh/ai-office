@@ -237,7 +237,10 @@ describe('janitor', () => {
         );
       throw new Error('Unexpected fake route');
     });
-    const result = await cleanup(l, api, { apply: true });
+    const result = await cleanup(l, api, {
+      apply: true,
+      sleep: async () => {},
+    });
     expect(result).toEqual({
       leftovers: 0,
       scan: { openObjects: [], branches: [] },
@@ -249,7 +252,7 @@ describe('janitor', () => {
       'DELETE',
     ]);
     const count = writes.length;
-    await cleanup(l, api, { apply: true });
+    await cleanup(l, api, { apply: true, sleep: async () => {} });
     expect(writes).toHaveLength(count);
     expect(
       (await loadLedger(l.path)).resources.every((r) => r.state === 'done'),
@@ -502,7 +505,10 @@ describe('integration seams', () => {
     await l.created(await l.intent('branch', `ai-office/t${runId}-protected`));
     const network = vi.fn<typeof fetch>(async () => json({ protected: true }));
     await expect(
-      cleanup(l, new GithubApi(network), { apply: true }),
+      cleanup(l, new GithubApi(network), {
+        apply: true,
+        sleep: async () => {},
+      }),
     ).rejects.toThrow('protected');
     expect(
       network.mock.calls.every(

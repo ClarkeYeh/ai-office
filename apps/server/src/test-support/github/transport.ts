@@ -54,7 +54,7 @@ export function guardedFetch(
     )
       throw new Error('Request outside spike');
     const path = decodeURIComponent(url.pathname.slice(ROOT.length));
-    if (path.includes('..') || path.includes('\\'))
+    if (path.split('/').includes('..') || path.includes('\\'))
       throw new Error('Unsafe API path');
     const method = request.method;
     if (method === 'GET') {

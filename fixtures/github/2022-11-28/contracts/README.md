@@ -35,8 +35,8 @@ from responses so the shared suite remains unchanged. Collection responses are
 scoped to this run before recording, while preserving pagination headers. It
 does not replace the adapter or copy the contract assertions. External body edits
 retain the ownership marker needed for safe cleanup. Lost responses and list lag
-are explicitly injected locally after recording real responses; `settle` advances
-the scenario clock. These cases do not claim GitHub actually lost a response or
+are explicitly injected locally after recording real responses; `settle` sleeps for real elapsed time in live mode; format-2 tapes record every
+adapter clock read, so replay can reproduce timing without sleeping. These cases do not claim GitHub actually lost a response or
 exhibited the injected lag.
 
 Pending / intentionally unavailable live controls:
@@ -57,3 +57,27 @@ Pending / intentionally unavailable live controls:
 T8 makes no contract/schema additions. All existing names remain those registered
 in M3_PLAN §8. The integrator's final report must distinguish replay/live passes,
 skips, actual status responses, and zero-leftover evidence.
+
+## Live binding corrections (part 2)
+
+Live mode uses wall time, including HTTP latency and every `retryAfterMs` wait.
+The harness waits up to 30 seconds for created/updated objects to appear in
+collections, and for PR closure after deleting a head, before returning a write
+to the shared assertions. These read-only probes go through the guarded harness
+and appear in its call report; they are outside the adapter tape and outside the
+explicitly injected fault layer. Replay consumes recorded clock reads strictly;
+old format-1 scenario tapes must be recorded again (none were committed).
+
+Cleanup checks scan hits with fresh object reads and performs a second marker
+inventory after 15 seconds before completing each object ledger entry. This
+covers the observed 4–9 second list lag and recovers duplicates even when the
+ledger already contains one returned number. Unknown intents still fail closed
+if neither pass finds an object; consistency delays beyond this bounded window
+remain a limitation, not a guarantee of absence.
+
+The shared suite accepts explicit test/hook timeout options. Both its factory
+and disposal hooks receive the 300-second live bound. A per-case scope rejects
+new work after abort, drains already-started requests, pushes and sleeps, then
+cleans up and releases the lock exactly once, including factory failures. The
+live CLI stops after the first failed case (`--bail=1`) rather than cascading into
+more live work. No force-unlock or stale-lock takeover policy was loosened.

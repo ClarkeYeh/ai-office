@@ -77,7 +77,8 @@ After review, the integrator uses `AIO_REAL_GITHUB=1 pnpm test:github:record`.
 This runs only the shared ScmPort live binding and its encoded-ref probe, serially.
 See [the contract recording instructions](../../../../../../fixtures/github/2022-11-28/contracts/README.md)
 for pending evidence, replay commands and deliberate live exclusions. Cleanup
-hooks have a 120-second bound; the shared suite retains its existing case bounds.
+hooks have explicit 300-second bounds in the shared suite (independent of project
+defaults); live cases have a 360-second bound for pending-window tests.
 Git pushes obtain the selected `--user ClarkeYeh` credential and pass it only in
 process-local HTTP configuration, never via the active-account credential helper.
 The independent scan includes exact imported production command IDs and claim

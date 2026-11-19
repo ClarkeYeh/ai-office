@@ -55,17 +55,21 @@ type Control = Exclude<
 >;
 export function scmPortContract(
   factory: () => ScmContractFixture | Promise<ScmContractFixture>,
+  timing: { timeoutMs?: number; hookTimeoutMs?: number } = {},
 ): void {
   // Git-backed and recorded bindings run many subprocesses or requests per case.
-  describe('ScmPort contract', { timeout: 30_000 }, () => {
+  describe('ScmPort contract', { timeout: timing.timeoutMs ?? 30_000 }, () => {
     let f: ScmContractFixture;
+    let dispose: ScmContractFixture['dispose'];
     const c = (commandId: string) => ({ workflowId: 'workflow', commandId });
     beforeEach(async () => {
+      dispose = undefined;
       f = await factory();
-    });
+      dispose = f.dispose;
+    }, timing.hookTimeoutMs);
     afterEach(async () => {
-      await f.dispose?.();
-    });
+      await dispose?.();
+    }, timing.hookTimeoutMs);
     const branch = (name: string) => `${f.branchPrefix ?? 'ai-office/'}${name}`;
     /** Skips the case unless the binding supplies every named control. */
     function controls<K extends Control>(
