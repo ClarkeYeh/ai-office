@@ -25,7 +25,7 @@ describe('M3-T15 mixed acceptance (CI replay)', { timeout: 300_000 }, () => {
     const run = await runMixedMainline(office);
     expect(run.steps.every((s) => s.ok)).toBe(true);
     expect(run.steps.map((s) => s.step)).toEqual([
-      1, 2, 3, 2, 1, 4, 5, 6, 7, 8, 9, 10, 11,
+      1, 2, 3, 2, 1, 4, 5, 6, 7, 8, 9, 10, 11, 13,
     ]);
     if (!existsSync(liveTracePath)) return;
     const recorded = JSON.parse(

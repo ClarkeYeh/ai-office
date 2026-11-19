@@ -495,6 +495,22 @@ export async function runMixedMainline(o: MixedOffice): Promise<MixedRun> {
     },
   );
 
+  await step(
+    13,
+    'merge commits: owner noreply author (no private email)',
+    async () => {
+      const merged = of(await events(), 'workitem.merged').map(
+        (e) => e.payload.mergeCommitSha as string,
+      );
+      expect(merged.length).toBeGreaterThanOrEqual(2);
+      for (const sha of merged)
+        expect(await owner.commitIdentity(sha)).toEqual({
+          authorNoreply: true,
+          committerNoreply: true,
+        });
+    },
+  );
+
   return { workflowId, steps, events: await events(), objects };
 }
 

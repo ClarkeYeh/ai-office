@@ -21,9 +21,19 @@ export interface OwnerActions {
   /** An owner comment without an `ai-office:cmd` marker (E13 `/approve`). */
   ownerComment(number: number, purpose: string, text: string): Promise<void>;
   setPrState(number: number, state: 'open' | 'closed'): Promise<void>;
+  /** Commit identities, reduced to whether each is a GitHub noreply address. */
+  commitIdentity(
+    sha: string,
+  ): Promise<{ authorNoreply: boolean; committerNoreply: boolean }>;
 }
 
 type Row = Record<string, unknown>;
+/** The owner's noreply identity; GitHub's web-flow committer is also private. */
+const ownerNoreply = (email: unknown): boolean =>
+  typeof email === 'string' &&
+  /^\d+\+ClarkeYeh@users\.noreply\.github\.com$/i.test(email);
+const noreply = (email: unknown): boolean =>
+  ownerNoreply(email) || email === 'noreply@github.com';
 const labelNames = (labels: unknown): string[] =>
   Array.isArray(labels)
     ? labels
@@ -94,6 +104,16 @@ export function githubOwnerActions(
     },
     async setPrState(number, state) {
       await api.request('PATCH', `/pulls/${number}`, { state });
+    },
+    async commitIdentity(sha) {
+      if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid commit SHA');
+      const commit = (await get(`/commits/${sha}`)).commit as
+        | { author?: { email?: string }; committer?: { email?: string } }
+        | undefined;
+      return {
+        authorNoreply: ownerNoreply(commit?.author?.email),
+        committerNoreply: noreply(commit?.committer?.email),
+      };
     },
   };
 }

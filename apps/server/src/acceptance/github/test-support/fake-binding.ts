@@ -65,6 +65,11 @@ export function fakeBinding(): MixedBinding & { fake: FakeScm } {
         `${text}\n\n${ownerMarker(`t${CANONICAL_RUN}:owner-${purpose}`)}`,
       ),
     setPrState: (number, state) => fake.updatePR(ref(number), { state }),
+    // scm-fake has no commit identities; the live run checks GitHub.
+    commitIdentity: async () => ({
+      authorNoreply: true,
+      committerNoreply: true,
+    }),
   };
   let down = false;
   const scm = new Proxy(fake as ScmPort, {
