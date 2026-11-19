@@ -118,9 +118,6 @@ export async function runMixedMainline(
     2,
     'GitHub edit → gate.content_updated{github}, version +1',
     async () => {
-      // Reported product gap: an edit before the first poll that lists the
-      // new Issue is never reported (its first sighting carries no drift).
-      await sleep(pollMs);
       const before = await o.detail(meeting);
       const body = `${(await owner.issue(conclusion)).body}\n\nOwner edit on GitHub (T15 step 2).`;
       await owner.editIssueBody(conclusion, body);
