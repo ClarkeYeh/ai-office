@@ -370,8 +370,31 @@ export interface EvaluateAnomaly extends Base<'EvaluateAnomaly'> {
         managed: boolean;
         createdAt?: string;
       }
-    /** ObservationLoop supplies its persisted compareBranch polling baseline. */
-    | { kind: 'default-branch'; sha: string; previousSha?: string }
+    /**
+     * `previousSha` is the last observed head; `null`/absent is the first
+     * observation (baseline) and never raises `default-branch-moved`.
+     */
+    | { kind: 'default-branch'; sha: string; previousSha?: string | null }
+    /** S14: `branch.head_changed` on this workflow's integration branch. */
+    | {
+        kind: 'integration-branch';
+        sha: string;
+        previousSha: string | null;
+      }
+    /**
+     * S19 (M3 §4.8): one command marker on two or more objects. Ignored unless
+     * `commandId` is one of this workflow's commands; never pauses.
+     */
+    | {
+        kind: 'duplicate';
+        commandId: string;
+        objectKind: 'issue' | 'pr' | 'comment';
+        target?: { repo: { owner: string; name: string }; number: number };
+        numbers?: number[];
+        commentIds?: string[];
+      }
+    /** EP1: `scm.mergePR` failed with `guard merge_base_changed`. */
+    | { kind: 'merge-base-changed'; commandId: string; pr: number }
     | {
         kind: 'policy-hits';
         attemptId: string;

@@ -92,6 +92,14 @@ function apiWriteRule(args: string[]): PolicyHit['rule'] | undefined {
   // all ref mutations as high-risk pushes, even if the body names another branch.
   if (/^\/?repos\/[^/]+\/[^/]+\/git\/refs(?:\/.*)?$/.test(path))
     return 'push-default-branch';
+  // S20 (rev2.15 §11.3): PRs and Issues are created and edited only by AI Office.
+  const verb = method ?? (hasBody ? 'POST' : 'GET');
+  if (/^\/?repos\/[^/]+\/[^/]+\/pulls$/.test(path) && verb === 'POST')
+    return 'gh-pr-create';
+  if (/^\/?repos\/[^/]+\/[^/]+\/pulls\/\d+$/.test(path) && verb === 'PATCH')
+    return 'gh-pr-edit';
+  if (/^\/?repos\/[^/]+\/[^/]+\/issues$/.test(path) && verb === 'POST')
+    return 'gh-issue-create';
 }
 
 export function policyRules(
@@ -133,6 +141,9 @@ export function policyRules(
     }
     if (executable === 'gh') {
       if (group === 'pr' && action === 'merge') hits.add('gh-merge');
+      if (group === 'pr' && action === 'create') hits.add('gh-pr-create');
+      if (group === 'pr' && action === 'edit') hits.add('gh-pr-edit');
+      if (group === 'issue' && action === 'create') hits.add('gh-issue-create');
       if ((group === 'issue' || group === 'pr') && action === 'comment')
         hits.add('gh-comment');
       if (group === 'label') hits.add('gh-label');

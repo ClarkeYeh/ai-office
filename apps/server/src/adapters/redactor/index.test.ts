@@ -47,6 +47,9 @@ const cases = [
     'gh issue view 12 --comments',
   ],
   ['gh-label', 'gh label create bug', 'gh issue list --label bug'],
+  ['gh-pr-create', 'gh pr create --fill --base main', 'gh pr list'],
+  ['gh-pr-edit', 'gh pr edit 12 --base main', 'gh pr view 12 --json base'],
+  ['gh-issue-create', 'gh issue create --title x --body y', 'gh issue view 3'],
   [
     'push-default-branch',
     'git -C /tmp/repo push origin HEAD:refs/heads/trunk',
@@ -89,6 +92,10 @@ describe('policy detection', () => {
     ['git push origin trunk', 'push-default-branch'],
     ['git push --repo=origin HEAD:trunk', 'push-default-branch'],
     ['git push --all origin', 'push-default-branch'],
+    ["bash -lc 'gh pr edit 3 --base main'", 'gh-pr-edit'],
+    ['gh api -X PATCH repos/o/r/pulls/3 -f base=main', 'gh-pr-edit'],
+    ['gh api repos/o/r/pulls -f head=x -f base=main', 'gh-pr-create'],
+    ['gh api --method POST /repos/o/r/issues -f title=x', 'gh-issue-create'],
   ])('detects %s', (command, rule) => {
     expect(
       redactor
@@ -102,6 +109,10 @@ describe('policy detection', () => {
     'gh pr merger',
     'git push origin trunk-backup',
     'git push origin refs/heads/feature',
+    'gh pr editor',
+    'gh api repos/o/r/pulls/3',
+    'gh api repos/o/r/issues',
+    'gh api -X PATCH repos/o/r/issues/3/comments/9 -f body=x',
   ])('does not flag %s', (command) => {
     expect(redactor.toActivity(output({ command })).policyHits).toEqual([]);
   });
@@ -154,8 +165,8 @@ describe('follow-up policy gaps', () => {
     'gh api -X GET repos/o/r/git/refs/heads/main',
     'gh api repos/o/r/git/refs --method GET -f per_page=10',
     'gh api --method HEAD repos/o/r/pulls/12/merge',
-    'gh api -X POST repos/o/r/issues -f body=repos/o/r/merges',
-    'gh api -X POST repos/o/r/issues --template repos/o/r/merges',
+    'gh api -X POST repos/o/r/statuses/abc -f body=repos/o/r/merges',
+    'gh api -X POST repos/o/r/statuses/abc --template repos/o/r/merges',
     'gh api -X POST repos/o/r/git/matching-refs',
     'gh pr view 12 --comments',
     'echo "gh pr comment 12 --body hello"',

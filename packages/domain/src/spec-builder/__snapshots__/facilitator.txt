@@ -59,6 +59,7 @@ Never run any of these commands, directly or through a script or alias. AI Offic
 - `orca terminal create`
 - `gh pr merge`
 - `gh pr create`
+- `gh pr edit`
 - `gh issue create`
 - `gh issue comment`
 - `gh label`

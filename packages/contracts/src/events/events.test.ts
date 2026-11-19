@@ -1411,6 +1411,27 @@ describe('M3-CP1 contract additions', () => {
     expect(AnomalyKindSchema.safeParse('duplicate_object').success).toBe(false);
   });
 
+  test('anomaly.detected takes an optional commentId; legacy payloads still parse', () => {
+    const schema = EVENT_PAYLOAD_SCHEMAS['anomaly.detected'];
+    const legacy = {
+      kind: 'duplicate-object',
+      severity: 'warning',
+      summary: 'x',
+      commandId: 'c1',
+      number: 7,
+    };
+    expect(schema.parse(legacy)).toEqual(legacy);
+    const comment = {
+      kind: 'duplicate-object',
+      severity: 'warning',
+      summary: 'x',
+      commandId: 'c1',
+      commentId: '123456789',
+    };
+    expect(schema.parse(comment)).toEqual(comment);
+    expect(schema.safeParse({ ...legacy, commentId: '' }).success).toBe(false);
+  });
+
   test('scm.mergePR takes an optional expectedBaseSha; older commands still parse', () => {
     const legacy = commandExamples['scm.mergePR'] as object;
     for (const args of [legacy, { ...legacy, expectedBaseSha: 'c'.repeat(40) }])

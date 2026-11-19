@@ -168,6 +168,35 @@ export function applyGates(m: ReadModel, e: DomainEvent): void {
       }
       return;
     }
+    case 'pr.status': {
+      // Mirrors domain evolve (S9): an open final-PR gate shows when its PR
+      // was closed without merging and then offers only keep-open and abort.
+      const p = e.payload;
+      for (const gate of m.gates) {
+        const content = gate.content;
+        if (
+          gate.status !== 'open' ||
+          gate.kind !== 'stage' ||
+          content.type !== 'final-pr' ||
+          content.pr !== p.pr
+        )
+          continue;
+        if (p.state === 'closed') {
+          gate.content = {
+            ...content,
+            prClosedAt: content.prClosedAt ?? e.occurredAt,
+          };
+          gate.options = gate.options.filter(
+            (o) => o.optionId !== 'request-changes',
+          );
+        } else if (content.prClosedAt !== undefined) {
+          const reopened = { ...content };
+          delete reopened.prClosedAt;
+          gate.content = reopened;
+        }
+      }
+      return;
+    }
     case 'gate.closed': {
       const gate = m.gates.find((g) => g.gateId === e.payload.gateId);
       if (gate) {

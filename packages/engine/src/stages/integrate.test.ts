@@ -156,6 +156,51 @@ describe('wrap-up and final PR', () => {
     expect(sim.state.workflow?.status).toBe('completed');
     expect(sim.rejections).toEqual([]);
   });
+  it('keeps the gate open when the final PR is closed unmerged, then still completes on merge (S9)', () => {
+    const sim = report(setup());
+    const status = (state: 'closed' | 'open') =>
+      sim.inject('pr.status', {
+        pr: 2,
+        state,
+        head: sim.state.workflow!.integrationBranch,
+        base: 'main',
+        headSha: 'abcdef1',
+        mergeable: true,
+      });
+    expect(finalGate(sim).options.map((o) => o.optionId)).toContain(
+      'request-changes',
+    );
+    status('closed');
+    const gate = finalGate(sim);
+    expect(gate.status).toBe('open');
+    expect(gate.content).toMatchObject({
+      type: 'final-pr',
+      prClosedAt: expect.any(String),
+    });
+    expect(gate.options.map((o) => o.optionId)).toEqual(['keep-open', 'abort']);
+    expect(sim.state.workflow?.status).toBe('running');
+    status('open');
+    merge(sim);
+    expect(sim.state.workflow?.status).toBe('completed');
+    expect(sim.rejections).toEqual([]);
+  });
+  it('builds the final gate narrowed when the PR was already closed before it opened (S9)', () => {
+    const sim = setup();
+    sim.inject('pr.status', {
+      pr: 2,
+      state: 'closed',
+      head: sim.state.workflow!.integrationBranch,
+      base: 'main',
+      headSha: 'abcdef1',
+      mergeable: true,
+    });
+    report(sim);
+    const gate = finalGate(sim);
+    expect(gate.options.map((o) => o.optionId)).toEqual(['keep-open', 'abort']);
+    expect(gate.content).toMatchObject({
+      prClosedAt: sim.state.prsClosedAt!['2'],
+    });
+  });
   it('continues observing merge after keep-open', () => {
     const sim = report(setup());
     sim.dispatch({
