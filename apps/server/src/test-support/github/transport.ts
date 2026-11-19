@@ -142,6 +142,22 @@ export function guardedFetch(
       if (found.status !== 404 && found.data.protected !== false)
         throw new Error('Branch is protected');
       allowed = true;
+    } else if (method === 'POST' && path === '/merges') {
+      // S20: scm-github merges with an explicit base; only run-owned,
+      // unprotected ai-office/ test bases (never the default branch).
+      assertBranch(String(body.base), ledger.data.runId, ledger.data.claims);
+      if (
+        !/^[a-f0-9]{40}$/.test(String(body.head)) ||
+        typeof body.commit_message !== 'string'
+      )
+        throw new Error('Merge requires pinned head');
+      const target = await api.request(
+        'GET',
+        `/branches/${encodeURIComponent(String(body.base))}`,
+      );
+      if (target.data.protected !== false)
+        throw new Error('Branch is protected');
+      allowed = true;
     } else if (/^\/(issues|pulls)\/\d+(?:\/labels|\/merge)?$/.test(path)) {
       const [, group, number, action] = path.split('/');
       const object = await owned(

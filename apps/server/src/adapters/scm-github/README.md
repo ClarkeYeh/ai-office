@@ -34,7 +34,8 @@ the cache, including ambiguous writes. Cache entries and metrics are bounded.
 Method implementations must fetch fresh safety evidence (`conditional: false`)
 immediately before destructive writes. Supply `safety.defaultBranch` and
 `safety.protected: false` for ref deletion; `viewer`, `author`, `body`, `commandId`
-for comment deletion; `defaultBranch`, `actualBase` for merge; and the fetched
+for comment deletion; `defaultBranch`, `actualBase`, `protected: false` for
+`POST /merges`; and the fetched
 `body` for PR closure. The HTTP layer checks that evidence; method layers own
 fetching it and the required pre/post-merge checks. The base cannot establish
 remote ownership from caller-supplied evidence by itself.
@@ -61,3 +62,29 @@ secret masking after exact token/request-value removal, before truncation.
 
 All tests here use synthetic injected transports. Live testing belongs to the
 coordinator/test harness under M3 safety gates; this task does not call live APIs.
+
+## PR methods and merge guards (M3-T5)
+
+`createPrMethods({http}, {sleep?})` in `methods/pulls.ts` provides `openPR`,
+`getPR`, `updatePR`, `closePR`, `mergePR` and `listReviewComments`; T4 wires them
+into the ScmPort. `openPR` appends the command marker and requires an
+`ai-office/` head; a 422 duplicate (G10) adopts the open PR for the same
+head/base only when it carries this command's marker. `updatePR` sends title,
+body and state only (never the base); closing re-reads the PR fresh and requires
+an AI Office marker.
+
+`mergePR` reads the PR, the repository and the base branch fresh, then refuses
+(`guard`) a base equal to the default branch, outside `ai-office/`, or with
+`protected: true`, and any method other than `merge`. A head other than
+`expectedHeadSha` is non-retryable `head_mismatch`; a base head other than
+`expectedBaseSha` is `base_moved`. An already merged PR returns its merge commit
+(G4). The merge is `POST /merges {base, head: expectedHeadSha}` (S20): the base
+is named from the fresh read, so a PR retargeted meanwhile cannot redirect it.
+201 and 204 (head already in base) both continue to the read-back; 409 is
+`conflict not_mergeable`. The read-back short-polls the PR with backoff for up to
+10 s (G11: GitHub flags it merged ~3 s later): `base.ref` other than the merged
+base raises `guard merge_base_changed` (not `base.sha`, the PR-open snapshot),
+and a PR never flagged merged raises `guard pr_not_marked_merged`. There is no
+`PUT pulls/{n}/merge` endpoint, so no fallback that follows the PR's live base.
+Timeouts surface as retryable `github_unavailable`: a retried merge finds the PR
+merged or gets 204, and a retried create gets the 422 duplicate.
