@@ -76,6 +76,7 @@ export async function withLiveRun<T>(
           setScmDown(value) {
             down = value;
           },
+          isScmDown: () => down,
         },
       });
       report.steps = outcome.steps;

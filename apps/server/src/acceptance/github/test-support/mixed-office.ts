@@ -47,6 +47,7 @@ export interface MixedBinding {
     loseNextCreateIssue(listLagMs: number): void;
     /** Every SCM call fails transiently until restored (opens the breaker). */
     setScmDown(down: boolean): void;
+    isScmDown(): boolean;
   };
 }
 
@@ -74,7 +75,11 @@ export interface MixedOffice {
 export async function mixedOffice(binding: MixedBinding): Promise<MixedOffice> {
   const shortId = binding.runId;
   const scm = scopeGithubScm(
-    throttlePoll(binding.scm, binding.scmPollIntervalMs),
+    throttlePoll(
+      binding.scm,
+      binding.scmPollIntervalMs,
+      () => binding.faults?.isScmDown() ?? false,
+    ),
     binding.runId,
     shortId,
   );
@@ -200,11 +205,17 @@ export async function waitFor<T>(
 }
 
 /** Real polls at most once per interval; in between, the unchanged cursor. */
-export function throttlePoll(scm: ScmPort, intervalMs?: number): ScmPort {
+// During an injected outage every poll reaches the adapter and fails: a
+// throttled "no change" would count as a success and reset the breaker streak.
+export function throttlePoll(
+  scm: ScmPort,
+  intervalMs?: number,
+  bypass: () => boolean = () => false,
+): ScmPort {
   if (intervalMs === undefined) return scm;
   let last = 0;
   const poll: ScmPort['poll'] = async (repo, cursor) => {
-    if (cursor !== null && Date.now() - last < intervalMs)
+    if (cursor !== null && !bypass() && Date.now() - last < intervalMs)
       return { events: [], cursor };
     last = Date.now();
     return scm.poll(repo, cursor);

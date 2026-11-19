@@ -17,7 +17,8 @@ afterEach(async () => {
  */
 describe('M3-T15 step 12 fault injection (CI)', { timeout: 120_000 }, () => {
   it('keeps one Issue after a lost create; cancel reaches the runtime while the SCM breaker is open', async () => {
-    office = await mixedOffice(fakeBinding());
+    // The live cadence: throttled polls must not mask the outage.
+    office = await mixedOffice({ ...fakeBinding(), scmPollIntervalMs: 15_000 });
     const run = await runFaults(office);
     expect(run.steps.map((s) => [s.title, s.ok])).toEqual([
       ['lost createIssue response + list lag → one conclusion Issue', true],

@@ -88,6 +88,7 @@ export function fakeBinding(): MixedBinding & { fake: FakeScm } {
       setScmDown(value) {
         down = value;
       },
+      isScmDown: () => down,
     },
     runId: CANONICAL_RUN,
     pusher: {
