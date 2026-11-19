@@ -51,3 +51,21 @@ Test-only adaptations, all on the harness side:
   unmarked. The scenario asserts both halves: the owner marker is on the
   object and no `ai-office:cmd` marker is, and the product still raises
   `unknown-object` (step 9) and changes no state (step 10).
+
+## Live result (2026-11-19, `integration/m3` 375bd08)
+
+Serial on `ClarkeYeh/ai-office-spike`, never merging into `main`; each step passed
+on its first attempt.
+
+| Run                        | Steps                                                                                  | Objects (all closed or deleted)                             | Core rate limit |
+| -------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------- |
+| faults (`t8ab953cab224`)   | 12a lost create + list lag → one Issue; 12b breaker open → cancel reaches stop/release | Issues #123–125, 1 comment, 2 branches                      | 4932 → 4876     |
+| mainline (`t55ca44099feb`) | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 and 13 (merge commits: owner noreply author)         | Issues #126–128, #133; PRs #129–132; 3 comments; 4 branches | 4873 → 4698     |
+
+Janitor leftovers 0 and the independent scan 0 after each run. Responses the
+tape leak scan rejects (the spike `main` head commit predates M3 and has a
+non-noreply author) are recorded as `{withheld: "tape leak scan"}`; the adapter
+always received the real response. Product defects found by earlier live
+attempts and fixed before this run: #157 (dev cadence with an injected SCM),
+#161 (GitHub's canonical cursor `Link`), #162 (first sighting carries the body
+hash) and #164 (chained transition keys; a reopened PR was dropped).
