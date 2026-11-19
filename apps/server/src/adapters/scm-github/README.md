@@ -66,8 +66,8 @@ coordinator/test harness under M3 safety gates; this task does not call live API
 ## PR methods and merge guards (M3-T5)
 
 `createPrMethods({http}, {sleep?})` in `methods/pulls.ts` provides `openPR`,
-`getPR`, `updatePR`, `closePR`, `mergePR` and `listReviewComments`; T4 wires them
-into the ScmPort. `openPR` appends the command marker and requires an
+`getPR`, `updatePR`, `closePR`, `mergePR` and `listReviewComments`;
+`createGithubScm` assembles them into the ScmPort (sharing the HTTP `sleep`). `openPR` appends the command marker and requires an
 `ai-office/` head; a 422 duplicate (G10) adopts the open PR for the same
 head/base only when it carries this command's marker. `updatePR` sends title,
 body and state only (never the base); closing re-reads the PR fresh and requires
