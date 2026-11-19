@@ -20,7 +20,8 @@ import {
   flush,
 } from '../runner/test-support/harness.js';
 import { HEALTH_TIMER_PREFIX, HealthMonitor } from './health-monitor.js';
-import type { HealthComponent } from './health-monitor.js';
+import type { HealthComponent, HealthMonitorDeps } from './health-monitor.js';
+import type { ScmHealth } from '../../ports/scm.js';
 
 const transient = () =>
   new PortError('transient', 'unavailable', 'sensitive raw error');
@@ -29,6 +30,7 @@ function setup(
   react: RunnerReact = () => [],
   store = new InMemoryEventStore(),
   probeTimeoutMs?: number,
+  extra: Partial<HealthMonitorDeps> = {},
 ) {
   const clock = new FakeClock();
   const probes = {
@@ -49,6 +51,7 @@ function setup(
     workflows: () => runners.all(),
     runtime: { mode: 'fake', verified: true },
     ...(probeTimeoutMs === undefined ? {} : { probeTimeoutMs }),
+    ...extra,
   });
   const executor = new CommandExecutor({
     handlers,
@@ -660,6 +663,188 @@ describe('HealthMonitor', () => {
       expect(view.runtime.status).toBe('unhealthy');
       expect(view.usage.status).toBe('degraded');
       expect(view.status).toBe('unhealthy');
+    });
+  });
+
+  describe('SCM status, slowdown and the active login (M3-T9)', () => {
+    const scmHealth = (remaining: number, extra: Partial<ScmHealth> = {}) => ({
+      available: true,
+      viewerLogin: 'owner',
+      rateLimitRemaining: remaining,
+      rateLimitResetAt: '2026-01-01T01:00:00.000Z',
+      ...extra,
+    });
+    const paused = (h: ReturnType<typeof setup>) =>
+      h.runners.get('wf-1')?.state.workflow?.pausedReasons;
+
+    it('maps the adapter report into HealthView and publishes degraded below 200', async () => {
+      const scmStatus = vi
+        .fn<() => Promise<ScmHealth>>()
+        .mockResolvedValue(
+          scmHealth(4_000, { tokenSource: 'gh', warnings: ['token_reloaded'] }),
+        );
+      const h = setup({}, () => [], undefined, undefined, { scmStatus });
+      await h.health.publishInitial();
+      const view = h.health.snapshot();
+      expect(view.scm).toMatchObject({
+        status: 'healthy',
+        login: 'owner',
+        tokenSource: 'gh',
+        warnings: ['token_reloaded'],
+        rateLimit: {
+          limit: 5_000,
+          remaining: 4_000,
+          resetAt: '2026-01-01T01:00:00.000Z',
+        },
+      });
+      expect(HealthViewSchema.safeParse(view).success).toBe(true);
+      scmStatus.mockResolvedValue(scmHealth(150));
+      await h.advance(60_000);
+      expect(h.health.snapshot()).toMatchObject({
+        status: 'degraded',
+        scm: {
+          status: 'degraded',
+          breaker: 'closed',
+          warnings: ['rate_limit_low'],
+        },
+      });
+      expect(
+        h.store
+          .read({})
+          .filter(
+            (e) => e.type === 'health.changed' && e.payload.component === 'scm',
+          )
+          .map((e) => e.payload),
+      ).toEqual([
+        { component: 'scm', status: 'healthy', breaker: 'closed' },
+        { component: 'scm', status: 'degraded', breaker: 'closed' },
+      ]);
+      expect(JSON.stringify(h.store.read({}))).not.toContain('token');
+    });
+
+    it('smooths the slowdown thresholds with hysteresis', async () => {
+      const samples = [
+        4_000, 999, 1_050, 1_099, 1_100, 199, 250, 299, 300, 1_099, 1_100,
+      ];
+      const scmStatus = vi.fn<() => Promise<ScmHealth>>();
+      for (const remaining of samples)
+        scmStatus.mockResolvedValueOnce(scmHealth(remaining));
+      const h = setup({}, () => [], undefined, undefined, { scmStatus });
+      await h.health.publishInitial();
+      const paces = [h.health.scmPace()];
+      for (let i = 1; i < samples.length; i++) {
+        await h.advance(60_000);
+        paces.push(h.health.scmPace());
+      }
+      expect(paces).toEqual([
+        'normal',
+        'slow',
+        'slow',
+        'slow',
+        'normal',
+        'critical',
+        'critical',
+        'critical',
+        'slow',
+        'slow',
+        'normal',
+      ]);
+    });
+
+    it('pauses with auth while the active login differs and resumes when it matches', async () => {
+      const activeLoginProbe = vi.fn(async () => true);
+      const h = setup({}, () => [], undefined, undefined, { activeLoginProbe });
+      await h.runners.start(startWorkflow());
+      await h.advance(5 * 60_000 - 1);
+      expect(activeLoginProbe).not.toHaveBeenCalled();
+      await h.advance(1);
+      expect(activeLoginProbe).toHaveBeenCalledTimes(1);
+      expect(paused(h)).toEqual([]);
+      activeLoginProbe.mockResolvedValue(false);
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual(['auth']);
+      expect(h.health.snapshot().scm).toMatchObject({
+        status: 'degraded',
+        breaker: 'closed',
+        warnings: ['active_account_mismatch'],
+      });
+      expect(h.health.dispatchBlockedFor('runtime.stop')).toBe(false);
+      // gh unavailable: the verdict stands.
+      activeLoginProbe.mockRejectedValueOnce(new Error('gh missing'));
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual(['auth']);
+      activeLoginProbe.mockResolvedValue(true);
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual([]);
+      expect(
+        h.store
+          .read({})
+          .filter((e) => e.type === 'workflow.paused')
+          .map((e) => e.payload),
+      ).toEqual([{ reason: 'auth', detail: 'active_account_mismatch' }]);
+    });
+
+    it('never resumes an auth pause it did not make', async () => {
+      const activeLoginProbe = vi.fn(async () => true);
+      const h = setup({}, () => [], undefined, undefined, { activeLoginProbe });
+      await h.runners.start(startWorkflow());
+      await h.runners.dispatch('wf-1', {
+        type: 'PauseWorkflow',
+        reason: 'auth',
+        meta: { occurredAt: h.clock.now().toISOString(), source: 'system' },
+      });
+      activeLoginProbe.mockResolvedValue(false);
+      await h.advance(5 * 60_000);
+      activeLoginProbe.mockResolvedValue(true);
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual(['auth']);
+    });
+
+    it('pauses scm_unhealthy once a command is rate limited past five minutes, without holding runtime commands', async () => {
+      const rateLimited = () =>
+        new PortError(
+          'rate_limited',
+          'primary_rate_limit',
+          'limited',
+          true,
+          4 * 60_000,
+        );
+      const label = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited())
+        .mockRejectedValueOnce(rateLimited())
+        .mockResolvedValue({});
+      const stop = vi.fn(async () => ({}));
+      const h = setup({ 'scm.ensureLabels': label, 'runtime.stop': stop });
+      await h.runners.start(startWorkflow());
+      const outcome = vi.fn();
+      void h.executor
+        .execute({
+          ...issued,
+          command: {
+            kind: 'scm.ensureLabels',
+            args: { repo: { owner: 'o', name: 'r' }, labels: [] },
+          },
+        })
+        .then(outcome);
+      await flush();
+      expect(paused(h)).toEqual([]);
+      await h.advance(4 * 60_000);
+      // The second wait takes the streak past five minutes.
+      expect(paused(h)).toEqual(['scm_unhealthy']);
+      expect(h.health.snapshot().scm.breaker).toBe('closed');
+      expect(await h.executor.execute(issued)).toMatchObject({ ok: true });
+      await h.advance(4 * 60_000);
+      expect(outcome).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true, attempts: 3 }),
+      );
+      expect(paused(h)).toEqual([]);
+      expect(
+        h.store
+          .read({})
+          .filter((e) => e.type === 'workflow.paused')
+          .map((e) => e.payload),
+      ).toEqual([{ reason: 'scm_unhealthy', detail: 'rate_limited' }]);
     });
   });
 });
