@@ -41,6 +41,10 @@
       "type": "string",
       "minLength": 1
     },
+    "commentId": {
+      "type": "string",
+      "minLength": 1
+    },
     "seq": {
       "type": "integer",
       "exclusiveMinimum": 0,

@@ -110,8 +110,8 @@ code does not register or execute the live harness.
 ## PR methods and merge guards (M3-T5)
 
 `createPrMethods({http}, {sleep?})` in `methods/pulls.ts` provides `openPR`,
-`getPR`, `updatePR`, `closePR`, `mergePR` and `listReviewComments`; T4 wires them
-into the ScmPort. `openPR` appends the command marker and requires an
+`getPR`, `updatePR`, `closePR`, `mergePR` and `listReviewComments`;
+`createGithubScm` assembles them into the ScmPort (sharing the HTTP `sleep`). `openPR` appends the command marker and requires an
 `ai-office/` head; a 422 duplicate (G10) adopts the open PR for the same
 head/base only when it carries this command's marker. `updatePR` sends title,
 body and state only (never the base); closing re-reads the PR fresh and requires
@@ -121,7 +121,9 @@ an AI Office marker.
 (`guard`) a base equal to the default branch, outside `ai-office/`, or with
 `protected: true`, and any method other than `merge`. A head other than
 `expectedHeadSha` is non-retryable `head_mismatch`; a base head other than
-`expectedBaseSha` is `base_moved`. An already merged PR returns its merge commit
+`expectedBaseSha` is `base_moved`. `expectedBase` (the branch from our record)
+becomes the merged base; a PR whose base differs is non-retryable
+`conflict base_mismatch` and is never merged. An already merged PR returns its merge commit
 (G4). The merge is `POST /merges {base, head: expectedHeadSha}` (S20): the base
 is named from the fresh read, so a PR retargeted meanwhile cannot redirect it.
 201 and 204 (head already in base) both continue to the read-back; 409 is

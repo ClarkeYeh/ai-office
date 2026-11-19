@@ -34,6 +34,8 @@ export type FakeRuntimeOptions = {
   scenario?: RuntimeScenario;
   submitter?: Submitter;
   onPush?: PushHandler;
+  /** Mixed GitHub tests: replace illustrative DSL SHAs with the pushed remote head. */
+  refreshHeadAfterPush?: boolean;
   localRepos?: Readonly<
     Record<string, Awaited<ReturnType<RuntimePort['inspectLocalRepo']>>>
   >;
@@ -1203,7 +1205,7 @@ export class FakeRuntime implements RuntimePort {
         if (!this.options.onPush) throw fail('missing_push_handler');
         // A scenario's branch name is illustrative; agents push their own worktree.
         const own = this.workspaceBranches.get(a.workspace);
-        if (own?.repo) {
+        if (own?.repo && !this.options.refreshHeadAfterPush) {
           this.local(own.repo).set(own.branch, action.headSha);
           this.setRemoteBranch(own.repo, own.branch, action.headSha);
         }
@@ -1214,6 +1216,18 @@ export class FakeRuntime implements RuntimePort {
           headSha: action.headSha,
           ...(own?.base === undefined ? {} : { base: own.base }),
         });
+        if (this.options.refreshHeadAfterPush) {
+          const head = await this.options.remoteHead?.(
+            own?.branch ?? action.branch,
+          );
+          if (!head || !/^[a-f0-9]{40}$/.test(head))
+            throw fail('pushed_head_unavailable');
+          if (own?.repo) {
+            this.local(own.repo).set(own.branch, head);
+            this.setRemoteBranch(own.repo, own.branch, head);
+            own.base = head;
+          }
+        }
         break;
       }
       case 'ask': {

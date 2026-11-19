@@ -6,6 +6,7 @@ import type { Effect } from './effects.js';
 import { reactLifecycle } from './lifecycle.js';
 import { budgetPolicy, filterPolicyEffects } from './policies/budget.js';
 import { cancelPolicy } from './policies/cancel.js';
+import { duplicatePolicy } from './policies/duplicates.js';
 import { exceptionsPolicy } from './policies/exceptions.js';
 import {
   pauseRateLimitedTimers,
@@ -50,6 +51,7 @@ export const DEFAULT_MODULES: EngineModules = {
     spawnStallPolicy,
     rateLimitPolicy,
     cancelPolicy,
+    duplicatePolicy,
   ],
 };
 

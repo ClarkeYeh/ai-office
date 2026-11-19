@@ -4,23 +4,47 @@ import {
   leftovers,
   validateResource,
   type Resource,
+  type ResourceLedger,
 } from './ledger.js';
 import { LABEL, marker } from './safety.js';
 
 export async function scan(
   api: GithubApi,
+  ledger?: Pick<ResourceLedger, 'claims' | 'commands'>,
 ): Promise<{ openObjects: number[]; branches: string[] }> {
   const objects = await api.list('/issues?state=open');
   const branches = await api.list('/git/matching-refs/heads/ai-office/');
   return {
     openObjects: objects
-      .filter((o) =>
-        /<!-- ai-office:cmd=t[a-f0-9]{12}[:-]/.test(String(o.body)),
-      )
+      .filter((o) => {
+        const commands = [
+          ...String(o.body).matchAll(
+            /<!-- ai-office:cmd=([a-zA-Z0-9:_/-]+) -->/g,
+          ),
+        ].map((m) => m[1]!);
+        return commands.some(
+          (command) =>
+            /^t[a-f0-9]{12}[:-]/.test(command) ||
+            ledger?.commands.includes(command) ||
+            ledger?.claims.some(
+              (claim) =>
+                command.startsWith(claim + ':') ||
+                command.startsWith(claim + '-'),
+            ),
+        );
+      })
       .map((o) => Number(o.number)),
     branches: branches
       .map((b) => String(b.ref).replace(/^refs\/heads\//, ''))
-      .filter((b) => /^ai-office\/t[a-f0-9]{12}(?:[-/]|$)/.test(b)),
+      .filter(
+        (b) =>
+          /^ai-office\/t[a-f0-9]{12}(?:[-/]|$)/.test(b) ||
+          ledger?.claims.some(
+            (claim) =>
+              b.startsWith(`ai-office/${claim}-`) ||
+              b.startsWith(`ai-office/${claim}/`),
+          ),
+      ),
   };
 }
 const owns = (r: Resource, o: JsonObject) =>
@@ -132,5 +156,8 @@ export async function cleanup(
       if (options.apply) await ledger.done(r);
     }
   }
-  return { leftovers: leftovers(ledger.data).length, scan: await scan(api) };
+  return {
+    leftovers: leftovers(ledger.data).length,
+    scan: await scan(api, ledger.data),
+  };
 }

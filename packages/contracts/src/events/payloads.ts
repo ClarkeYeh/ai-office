@@ -646,6 +646,8 @@ export const AnomalyDetectedPayloadSchema = z.object({
   attemptId: id.optional(),
   dispatch: id.optional(),
   commandId: id.optional(),
+  /** M3 §4.8: an extra marker comment that compensation deletes (`duplicate-object`). */
+  commentId: id.optional(),
 });
 
 // usage / budget ------------------------------------------------------------

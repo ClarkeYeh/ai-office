@@ -35,6 +35,8 @@ const gate: StageGateBuilder = (state, stageId) => {
     integrate?.status !== 'done'
   )
     return undefined;
+  // S9: a final PR already closed on GitHub leaves only keep-open and abort.
+  const closedAt = state.prsClosedAt?.[String(workflow.finalPr)];
   return {
     kind: 'stage',
     gateId: `${workflow.id}/${stageId}/gate/${integrate.attempt}`,
@@ -44,7 +46,7 @@ const gate: StageGateBuilder = (state, stageId) => {
     optional: false,
     title: config.gate.title,
     options: [
-      ...(integrate.revisions < config.maxRevisions
+      ...(integrate.revisions < config.maxRevisions && closedAt === undefined
         ? [{ optionId: 'request-changes', label: 'Request changes' }]
         : []),
       { optionId: 'keep-open', label: 'Keep open for manual handling' },
@@ -54,6 +56,7 @@ const gate: StageGateBuilder = (state, stageId) => {
       type: 'final-pr',
       artifactId: report.artifactId ?? report.id,
       pr: workflow.finalPr,
+      ...(closedAt === undefined ? {} : { prClosedAt: closedAt }),
     },
   };
 };

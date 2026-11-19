@@ -38,7 +38,8 @@
     "test:github": "node scripts/github/run.mjs test",
     "test:github:e2e": "node scripts/github/run.mjs e2e",
     "github:record": "node scripts/github/run.mjs record",
-    "github:janitor": "node scripts/github/run.mjs janitor"
+    "github:janitor": "node scripts/github/run.mjs janitor",
+    "test:github:record": "node scripts/github/run.mjs record-contract"
   },
   "devDependencies": {
     "@ai-office/redaction": "workspace:*",

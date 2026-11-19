@@ -171,6 +171,101 @@ describe('on-demand engine', () => {
     expect(instance(sim).current).toBe('B');
     clean(sim);
   });
+  const mergeError = (code: string) => ({
+    ok: false as const,
+    error: {
+      category:
+        code === 'base_moved' ? ('conflict' as const) : ('guard' as const),
+      code,
+      message: code,
+      retryable: false,
+    },
+  });
+  const reviewHeads = (sim: Simulator, key: string) =>
+    sim.issued.flatMap((i) =>
+      i.command.kind === 'runtime.send' && i.command.args.subject === key
+        ? [
+            (JSON.parse(i.command.args.body) as { integrationHead: string })
+              .integrationHead,
+          ]
+        : [],
+    );
+  const merges = (sim: Simulator) =>
+    sim.issued.flatMap((i) =>
+      i.command.kind === 'scm.mergePR' ? [i.command.args] : [],
+    );
+  it('merges with expectedBaseSha = the integration head sent for review (EP1)', () => {
+    const sim = setup();
+    enqueue(sim, 'A');
+    merge(sim, 'merge-A', 11);
+    expect(reviewHeads(sim, 'A')).toEqual(['abcdef1']);
+    expect(merges(sim)).toEqual([
+      expect.objectContaining({ expectedBaseSha: 'abcdef1' }),
+    ]);
+    clean(sim);
+  });
+  it('re-reviews the same PR on base_moved without rework, then opens merge-review-failed after two in a row', () => {
+    let head = 1;
+    const sim = setup((issued, worldSim) => {
+      if (issued.command.kind === 'scm.mergePR')
+        return mergeError('base_moved');
+      if (issued.command.kind === 'scm.compareBranch')
+        return {
+          ok: true,
+          result: { ahead: 0, headSha: `abcdef${++head + 1}` },
+        };
+      return cooperativeWorld(issued, worldSim);
+    });
+    enqueue(sim, 'A');
+    merge(sim, 'merge-A1', 11);
+    // One base_moved: the integration head is re-read and the review re-sent.
+    expect(reviewHeads(sim, 'A')).toEqual(['abcdef1', 'abcdef3']);
+    expect(sim.state.workItems.A!.status).toBe('in_review');
+    expect(sim.state.workItems.A!.rework ?? 0).toBe(0);
+    expect(instance(sim).current).toBe('A');
+    expect(sim.eventsOf('gate.opened')).toEqual([]);
+    merge(sim, 'merge-A2', 11);
+    expect(merges(sim).map((m) => m.expectedBaseSha)).toEqual([
+      'abcdef1',
+      'abcdef3',
+    ]);
+    const gate = sim.eventsOf('gate.opened').at(-1)!.payload;
+    expect(gate).toMatchObject({
+      kind: 'exception',
+      exceptionKind: 'merge-review-failed',
+      content: { itemKey: 'A' },
+    });
+    expect(sim.state.workItems.A!.status).toBe('needs_attention');
+    expect(
+      sim.issued.filter((i) => i.command.kind === 'scm.compareBranch'),
+    ).toHaveLength(1);
+    clean(sim);
+  });
+  it('turns merge_base_changed into a high anomaly that pauses (EP1)', () => {
+    const sim = setup((issued, worldSim) =>
+      issued.command.kind === 'scm.mergePR'
+        ? mergeError('merge_base_changed')
+        : cooperativeWorld(issued, worldSim),
+    );
+    enqueue(sim, 'A');
+    merge(sim, 'merge-A', 11);
+    expect(sim.eventsOf('anomaly.detected').map((e) => e.payload)).toEqual([
+      expect.objectContaining({
+        kind: 'merge-base-changed',
+        severity: 'high',
+        number: 11,
+      }),
+    ]);
+    expect(sim.state.workflow!.pausedReasons).toContain('anomaly');
+    expect(
+      sim.issued.filter(
+        (i) =>
+          i.command.kind === 'runtime.send' &&
+          i.command.args.body.startsWith('Merge failed'),
+      ),
+    ).toEqual([]);
+    clean(sim);
+  });
   it('nudges once, replaces a timed-out reviewer once, then escalates', () => {
     const sim = setup();
     enqueue(sim, 'A');

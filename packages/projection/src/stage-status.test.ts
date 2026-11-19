@@ -82,3 +82,47 @@ test('the final-pr gate closing on merge moves the stage to done; other closes d
     expect(replay(s.events)).toEqual(s.model);
   }
 });
+
+test('a final PR closed unmerged marks its open gate (prClosedAt) and narrows the options (S9)', () => {
+  const s = scenario();
+  s.push('stage.started', {
+    stageId: 'final-pr',
+    kind: 'final-pr',
+    attempt: 1,
+    mode: 'initial',
+  });
+  s.push('stage.completed', { stageId: 'final-pr', attempt: 1 });
+  s.push('gate.opened', {
+    gateId: 'gf',
+    stageId: 'final-pr',
+    kind: 'stage',
+    templateGateId: 'final-pr',
+    stageKind: 'final-pr',
+    optional: false,
+    title: 'Final PR',
+    options: ['request-changes', 'keep-open', 'abort'].map((optionId) => ({
+      optionId,
+      label: optionId,
+    })),
+    content: { type: 'final-pr', artifactId: 'art9', pr: 9 },
+    version: 1,
+  });
+  const status = (state: 'closed' | 'open') =>
+    s.push('pr.status', {
+      pr: 9,
+      state,
+      base: 'main',
+      head: 'ai-office/x',
+      headSha: 'abcdef1',
+      mergeable: true,
+    });
+  const gate = () => s.model.gates.find((g) => g.gateId === 'gf')!;
+  status('closed');
+  expect(gate().status).toBe('open');
+  expect(gate().content).toMatchObject({ prClosedAt: expect.any(String) });
+  expect(gate().options.map((o) => o.optionId)).toEqual(['keep-open', 'abort']);
+  expect(replay(s.events)).toEqual(s.model);
+  status('open');
+  expect(gate().content).not.toHaveProperty('prClosedAt');
+  expect(replay(s.events)).toEqual(s.model);
+});

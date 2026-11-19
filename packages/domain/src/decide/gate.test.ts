@@ -305,6 +305,54 @@ describe('gate invariants', () => {
     );
     expect(aborted.state.workflow?.cancelRequested).toBe(true);
   });
+  test('a final PR closed on GitHub keeps the gate open with prClosedAt; only keep-open/abort (S9)', () => {
+    const status = (state: 'open' | 'closed' | 'merged', second: number) =>
+      eventDraft(
+        'pr.status',
+        {
+          pr: 7,
+          state,
+          base: 'main',
+          head: 'integration',
+          headSha: 'abcdef1',
+          mergeable: true,
+        },
+        { second },
+      );
+    const h = final();
+    h.state.gates.g = {
+      ...h.state.gates.g!,
+      options: [
+        { optionId: 'request-changes', label: 'Request changes' },
+        { optionId: 'keep-open', label: 'Keep open' },
+        { optionId: 'abort', label: 'Abort' },
+      ],
+    };
+    h.given(status('closed', 40), status('closed', 50));
+    const gate = h.state.gates.g!;
+    expect(gate.status).toBe('open');
+    expect(gate.content).toMatchObject({ prClosedAt: at(40) });
+    expect(gate.options.map((o) => o.optionId)).toEqual(['keep-open', 'abort']);
+    expect(h.state.prsClosedAt).toEqual({ '7': at(40) });
+    expect(h.state.workflow?.status).toBe('running');
+    error(h, decision({ decision: 'reject' }), 'invalid_gate_decision');
+    // Reopened: the mark clears; merging still completes as usual.
+    h.given(status('open', 60));
+    expect(h.state.gates.g!.content).not.toHaveProperty('prClosedAt');
+    expect(h.state.prsClosedAt).toEqual({});
+    h.given(status('merged', 70), {
+      type: 'CloseGate',
+      meta: meta(),
+      gateId: 'g',
+      reason: 'merged',
+    });
+    expect(h.state.gates.g?.closedReason).toBe('merged');
+    const keep = final().given(
+      status('closed', 40),
+      decision({ decision: 'option', optionId: 'keep-open' }),
+    );
+    expect(keep.state.gates.g?.status).toBe('approved');
+  });
   test('merged closure requires observed final PR and works after keep-open', () => {
     const close = {
       type: 'CloseGate',

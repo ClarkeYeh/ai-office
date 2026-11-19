@@ -165,11 +165,14 @@ describe('GitHub T4 methods through the HTTP boundary (offline)', () => {
     });
     f.done();
   });
-  it('does not hide unfinished PR integration behind successful no-ops', async () => {
-    const f = setup([]);
-    await expect(f.scm.getPR(target)).rejects.toMatchObject({
-      category: 'bug',
-      code: 'not_implemented',
+  it('assembles the M3-T5 PR methods into the ScmPort', async () => {
+    const f = setup([recorded(`${base}/pulls/8`, 'g4-merge.get-pr-merged')]);
+    expect(await f.scm.getPR({ repo, number: 8 })).toEqual({
+      state: 'merged',
+      mergeCommitSha: '110c57cf717783ed4d0b66638187956fce2f1f30',
+      headSha: 'afc56c9bd427d5dedbf1b6582a9df010f498ee0e',
+      base: 'ai-office/t000000000001-int',
+      mergedBy: 'ClarkeYeh',
     });
     f.done();
   });

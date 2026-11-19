@@ -114,6 +114,16 @@ const decide = (
             'max_revisions_exceeded',
             'Only keep-open or abort remains',
           );
+        // S9: a final PR closed on GitHub narrows the gate to keep-open/abort.
+        if (
+          gate.content.type === 'final-pr' &&
+          gate.content.prClosedAt !== undefined
+        )
+          return reject(
+            'validation',
+            'invalid_gate_decision',
+            'The final PR was closed on GitHub; only keep-open or abort remains',
+          );
         events.push(
           draft(
             command.meta,

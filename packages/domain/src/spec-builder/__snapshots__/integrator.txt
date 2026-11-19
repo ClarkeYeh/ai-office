@@ -60,11 +60,12 @@ Never run any of these commands, directly or through a script or alias. AI Offic
 - `orca terminal create`
 - `gh pr merge`
 - `gh pr create`
+- `gh pr edit`
 - `gh issue create`
 - `gh issue comment`
 - `gh label`
 - `git push` to the default branch `main`, including force pushes and pushes through another remote or refspec
-- `gh pr close`, `gh pr edit`, `gh pr comment`, `gh pr review`, and every other `gh issue` write
+- `gh pr close`, `gh pr comment`, `gh pr review`, and every other `gh issue` write
 
 AI Office alone starts, stops and releases agents, merges pull requests and writes to GitHub Issues. Do not start helper workers or sub-agents. The only Orca commands you may run are the reporting commands from your Orca dispatch preamble (`worker_done`, and `ask` where this spec allows questions).
 

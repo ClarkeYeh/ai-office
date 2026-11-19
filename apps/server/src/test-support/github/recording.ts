@@ -134,6 +134,14 @@ export class ReplayFetch {
     for (const body of options.bodies ?? [])
       this.known.set(hash(this.normalizer.normalize(body)), body);
   }
+  /** Known synthetic request values are available before their echoed response. */
+  addKnownValues(value: unknown): void {
+    if (typeof value === 'string')
+      this.known.set(hash(this.normalizer.normalize(value)), value);
+    else if (Array.isArray(value)) value.forEach((v) => this.addKnownValues(v));
+    else if (value && typeof value === 'object')
+      Object.values(value).forEach((v) => this.addKnownValues(v));
+  }
   private rehydrate(value: unknown): unknown {
     if (typeof value === 'string') {
       const summary = /^<redacted length=\d+ sha256=([a-f0-9]{64})>$/.exec(

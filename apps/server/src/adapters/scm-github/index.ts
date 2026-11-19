@@ -1,4 +1,3 @@
-import { PortError } from '../../ports/errors.js';
 import type { ScmPort } from '../../ports/scm.js';
 import type { RepoScmRef } from '../../ports/refs.js';
 import { viewerSchema } from './schemas/common.js';
@@ -9,6 +8,7 @@ import { createIssueMethods } from './methods/issues.js';
 import { createCommentMethods } from './methods/comments.js';
 import { createPoller } from './poll/index.js';
 import { createMarkerMethods } from './methods/marker.js';
+import { createPrMethods } from './methods/pulls.js';
 import type { ScmGithubDeps } from './methods/deps.js';
 export type { ScmGithubDeps } from './methods/deps.js';
 import { GithubHttpClient } from './http/client.js';
@@ -33,10 +33,6 @@ export {
 
 export type GithubScmOptions = GithubHttpOptions & {
   registeredAt?: (repo: RepoScmRef) => string | undefined;
-};
-/** Temporary PR assembly slots; replaced by createPrMethods in T5. */
-const notImplemented = async (task: string): Promise<never> => {
-  throw new PortError('bug', 'not_implemented', task);
 };
 export function createGithubScm(options: GithubScmOptions) {
   const http = new GithubHttpClient(options);
@@ -84,11 +80,7 @@ export function createGithubScm(options: GithubScmOptions) {
     ...createIssueMethods(deps),
     ...createCommentMethods(deps),
     ...createMarkerMethods(deps),
-    openPR: () => notImplemented('M3-T5'),
-    updatePR: () => notImplemented('M3-T5'),
-    getPR: () => notImplemented('M3-T5'),
-    mergePR: () => notImplemented('M3-T5'),
-    listReviewComments: () => notImplemented('M3-T5'),
+    ...createPrMethods(deps, options.sleep ? { sleep: options.sleep } : {}),
     ...createPoller(deps),
   };
   return {
