@@ -86,3 +86,19 @@ Git pushes obtain the selected `--user ClarkeYeh` credential and pass it only in
 process-local HTTP configuration, never via the active-account credential helper.
 The independent scan includes exact imported production command IDs and claim
 namespaces as well as all test namespaces; it still never mutates by prefix alone.
+
+## Production startup acceptance (T16) and T17 preparation
+
+`production-smoke.ts` is an Orca runner scenario (`acceptance/github/production.github.test.ts`,
+`pnpm test:github:e2e` after `pnpm -r build`, with the Orca variables as well).
+It starts the built `ai-office start` without `--dev` in an isolated home under the
+Orca harness's private dataDir, with `orca.homeDir` set to the owner-approved
+`~/.ai-office/orca-home`. It runs the refusal matrix first (`--fake` without
+`--dev`, an invalid `AI_OFFICE_GITHUB_TOKEN`, an expectedLogin that is not
+logged in, and an active-account mismatch through an in-process injected
+`readActiveGhLogin`), then a clean start, spike registration and one restart.
+Production only reads GitHub: the T7 ledger stays empty, and the spike's open
+objects and `ai-office/` branches must be identical before and after. Shims are
+ledgered by marker scan because production has no `testOnly` seam. T17 helpers
+(`smokeRequirement`, `smokeItems`, `driveSmokeToFinalGate`, `noreplyPlan`) only
+prepare; nothing here sets the clone's git identity.
