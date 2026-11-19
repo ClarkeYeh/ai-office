@@ -2,7 +2,7 @@
 
 `createPoller(deps)` returns `{ poll(repo, cursor) }` for T4 to compose into the
 ScmPort. It needs `http`, `clock`, `viewerLogin` and `defaultBranch` from
-`ScmGithubDeps` (`deps.ts` mirrors T4's type until it merges). The poll is read-only.
+`ScmGithubDeps` in `../methods/deps.ts`. The poll is read-only.
 
 Events are the diff between the cursor's state and GitHub's current state, so a
 replayed uncommitted cursor yields the same events. Each read sends the cursor's

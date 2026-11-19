@@ -13,7 +13,7 @@ import {
   encodeCursor,
   type PollState,
 } from './cursor.js';
-import type { PollDeps } from './deps.js';
+import type { ScmGithubDeps } from '../methods/deps.js';
 import {
   checkRunsSchema,
   combinedStatusSchema,
@@ -26,7 +26,11 @@ import {
 } from './schemas.js';
 export { CURSOR_LIMITS } from './cursor.js';
 export { rollupChecks } from './checks.js';
-export type { PollDeps, ScmGithubDeps } from './deps.js';
+export type { ScmGithubDeps } from '../methods/deps.js';
+export type PollDeps = Pick<
+  ScmGithubDeps,
+  'http' | 'clock' | 'viewerLogin' | 'defaultBranch'
+>;
 
 /** List scans restart this far before the watermark (list lag p99 ≈ 9 s, G6). */
 export const POLL_WATERMARK_SLACK_MS = 2 * 60_000;

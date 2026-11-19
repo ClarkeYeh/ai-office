@@ -7,6 +7,7 @@ import { createBranchMethods } from './methods/branches.js';
 import { createLabelMethods } from './methods/labels.js';
 import { createIssueMethods } from './methods/issues.js';
 import { createCommentMethods } from './methods/comments.js';
+import { createPoller } from './poll/index.js';
 import { createMarkerMethods } from './methods/marker.js';
 import type { ScmGithubDeps } from './methods/deps.js';
 export type { ScmGithubDeps } from './methods/deps.js';
@@ -33,7 +34,7 @@ export {
 export type GithubScmOptions = GithubHttpOptions & {
   registeredAt?: (repo: RepoScmRef) => string | undefined;
 };
-/** Temporary assembly slots; replaced by createPrMethods / createPoller in T5/T6. */
+/** Temporary PR assembly slots; replaced by createPrMethods in T5. */
 const notImplemented = async (task: string): Promise<never> => {
   throw new PortError('bug', 'not_implemented', task);
 };
@@ -88,7 +89,7 @@ export function createGithubScm(options: GithubScmOptions) {
     getPR: () => notImplemented('M3-T5'),
     mergePR: () => notImplemented('M3-T5'),
     listReviewComments: () => notImplemented('M3-T5'),
-    poll: () => notImplemented('M3-T6'),
+    ...createPoller(deps),
   };
   return {
     ...methods,

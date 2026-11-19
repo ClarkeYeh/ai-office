@@ -116,6 +116,30 @@ function inspection(): Step[] {
 }
 
 describe('GitHub T4 methods through the HTTP boundary (offline)', () => {
+  it('assembles the real poller with shared cached repository and viewer dependencies', async () => {
+    const round: Step[] = [
+      { path: `${base}/issues`, data: [] },
+      { path: `${base}/issues/comments`, data: [] },
+      { path: `${base}/pulls`, data: [] },
+      { path: `${base}/git/matching-refs/heads/ai-office/`, data: [] },
+      {
+        path: `${base}/git/ref/heads/main`,
+        data: { ref: 'refs/heads/main', object: { sha } },
+      },
+    ];
+    const f = setup([...inspection(), ...round, ...round]);
+    const first = await f.scm.poll(repo, null);
+    expect(first.events).toEqual([
+      expect.objectContaining({
+        type: 'branch.head_changed',
+        branch: 'main',
+        sha,
+        previousSha: null,
+      }),
+    ]);
+    expect((await f.scm.poll(repo, first.cursor)).events).toEqual([]);
+    f.done();
+  });
   it('does not consume the visibility window while a create waits in the transport queue', async () => {
     const f = setup([
       {
@@ -141,13 +165,9 @@ describe('GitHub T4 methods through the HTTP boundary (offline)', () => {
     });
     f.done();
   });
-  it('does not hide unfinished PR and poll integration behind successful no-ops', async () => {
+  it('does not hide unfinished PR integration behind successful no-ops', async () => {
     const f = setup([]);
     await expect(f.scm.getPR(target)).rejects.toMatchObject({
-      category: 'bug',
-      code: 'not_implemented',
-    });
-    await expect(f.scm.poll(repo, null)).rejects.toMatchObject({
       category: 'bug',
       code: 'not_implemented',
     });
