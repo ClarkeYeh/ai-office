@@ -3,8 +3,9 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, expect } from 'vitest';
-import { createRedactor } from '@ai-office/redaction';
+import { afterAll, afterEach, beforeEach, describe, expect } from 'vitest';
+import { TapeNormalizer, assertTapeSafe } from './tape-normalization.js';
+import { PersistenceFailures } from './persistence-failures.js';
 import type { ScmPort } from '../../ports/scm.js';
 import type { Clock } from '../../ports/services.js';
 export type GithubBindingFactory = (options: {
@@ -33,9 +34,6 @@ const directory = fileURLToPath(
   ),
 );
 const canonicalRun = '000000000001';
-const redactor = createRedactor({
-  preservedRepoUrls: ['https://github.com/ClarkeYeh/ai-office-spike'],
-});
 type Push = { branch: string; base: string; sha: string };
 type Tape = {
   format: 2;
@@ -57,6 +55,8 @@ export function githubContract(
   create: GithubBindingFactory,
 ): void {
   describe(`scm-github ${mode}`, () => {
+    const failures = new PersistenceFailures();
+    afterAll(() => failures.assertSuccess());
     let name = '';
     let scope: GithubCaseScope;
     let activeCleanup: () => Promise<void>;
@@ -71,7 +71,9 @@ export function githubContract(
     afterEach(async ({ task }) => {
       await scope.dispose(activeCleanup);
       if (task.result?.state !== 'skip' && !task.result?.errors?.length)
-        await persist?.();
+        await failures.capture(name, async () => {
+          await persist?.();
+        });
     }, hookTimeoutMs);
     scmPortContract(
       () =>
@@ -230,20 +232,16 @@ export function githubContract(
                   'Refusing to publish before successful cleanup',
                 );
               await mkdir(directory, { recursive: true });
-              const value: Tape = {
+              const value = new TapeNormalizer().value<Tape>({
                 format: 2,
                 clockReads: time.reads,
                 source: 'live',
                 startedAt,
                 pushes,
                 recordings: recorder.recordings,
-              };
+              });
               const serialized = JSON.stringify(value, null, 2) + '\n';
-              if (
-                JSON.stringify(redactor.sanitize(value)) !==
-                JSON.stringify(value)
-              )
-                throw new Error('Contract tape leak scan failed');
+              assertTapeSafe(value);
               await writeFile(path, serialized, { flag: 'wx', mode: 0o600 });
             };
           return fixture;

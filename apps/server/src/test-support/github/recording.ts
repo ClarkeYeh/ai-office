@@ -6,6 +6,7 @@ import {
   summarize,
 } from '@ai-office/redaction';
 import { API, ROOT, REPO } from './safety.js';
+import { TapeNormalizer, assertTapeSafe } from './tape-normalization.js';
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 const redactor = createRedactor({
@@ -24,6 +25,7 @@ export interface Recording {
 }
 export class GithubNormalizer {
   private readonly normalizer = new FixtureNormalizer(redactor);
+  private readonly tape = new TapeNormalizer();
   constructor(private readonly runId?: string) {}
   normalize(text: string): string {
     return this.runId ? text.replaceAll(this.runId, '000000000001') : text;
@@ -38,7 +40,7 @@ export class GithubNormalizer {
         );
       return v;
     };
-    return this.normalizer.value(walk(value));
+    return this.normalizer.value(this.tape.value(walk(value)));
   }
   headers(headers: Headers): Record<string, string> {
     return Object.fromEntries(
@@ -111,9 +113,8 @@ export class RecordingFetch {
   };
   async save(path: string): Promise<void> {
     // Request keys are structural metadata; sanitize them too before persistence.
-    const value = redactor.sanitize(this.recordings);
-    if (JSON.stringify(value) !== JSON.stringify(this.recordings))
-      throw new Error('Recording metadata failed leak scan');
+    const value = new TapeNormalizer().value(this.recordings);
+    assertTapeSafe(value);
     await writeFile(path, JSON.stringify(value, null, 2) + '\n', {
       flag: 'wx',
       mode: 0o600,

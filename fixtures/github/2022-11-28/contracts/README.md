@@ -79,5 +79,14 @@ The shared suite accepts explicit test/hook timeout options. Both its factory
 and disposal hooks receive the 300-second live bound. A per-case scope rejects
 new work after abort, drains already-started requests, pushes and sleeps, then
 cleans up and releases the lock exactly once, including factory failures. The
-live CLI stops after the first failed case (`--bail=1`) rather than cascading into
-more live work. No force-unlock or stale-lock takeover policy was loosened.
+live CLI runs the remaining cases after a failure. Persistence failures are
+collected after each successful cleanup and reported together at suite end,
+without logging raw errors or fixture contents. No force-unlock or stale-lock
+takeover policy was loosened.
+
+Before generic redaction, each distinct GitHub node ID maps to a stable
+`NODE_000001`-style identity for the whole tape. Spike API response URLs map to
+valid spike HTML-root URLs under `/__api__`; HTML URLs stay intact and avatars
+use a fixed valid URL under `/__fixtures__`. Request paths and hashes are not
+rewritten. Both persistence paths scan the normalized envelope for leaks before
+writing it, and strict replay still checks every request signature.
