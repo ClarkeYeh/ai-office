@@ -120,6 +120,7 @@ it('locks the M4 scenario DSL and factory/harness call signatures', () => {
         scenario?: RuntimeScenario;
         submitter?: Submitter;
         onPush?: PushHandler;
+        refreshHeadAfterPush?: boolean;
         localRepos?: Readonly<
           Record<string, Awaited<ReturnType<RuntimePort['inspectLocalRepo']>>>
         >;
