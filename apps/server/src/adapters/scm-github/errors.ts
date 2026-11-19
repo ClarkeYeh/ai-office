@@ -6,7 +6,7 @@ export type GithubError = PortError & {
   requestId?: string;
   alreadyExists?: boolean;
 };
-export const CREATE_RETRY_AFTER_MS = 15_000;
+import { CREATE_RETRY_AFTER_MS } from '../../ports/scm.js';
 export const errorBodySchema = z.looseObject({
   message: z.string().optional(),
   errors: z
