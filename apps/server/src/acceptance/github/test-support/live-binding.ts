@@ -9,7 +9,8 @@ import { GitPusher } from '../../../test-support/github/pusher.js';
 import { RecordingFetch } from '../../../test-support/github/recording.js';
 import { ContractFaults } from '../../../test-support/github/contract-faults.js';
 import { githubOwnerActions } from '../../../test-support/github/owner-actions.js';
-import { API } from '../../../test-support/github/safety.js';
+import { API, ROOT } from '../../../test-support/github/safety.js';
+import { assertTapeSafe } from '../../../test-support/github/tape-normalization.js';
 import type { MixedBinding } from './mixed-office.js';
 import type { StepResult } from './scenario.js';
 
@@ -39,7 +40,8 @@ export async function withLiveRun<T>(
   try {
     let outcome: { value: T; steps: StepResult[] } | undefined;
     report.rateLimitBefore = await coreRemaining(harness);
-    const recorder = new RecordingFetch(harness.fetch, runId);
+    const recorded = scopedRecording(harness.fetch, runId);
+    const recorder = recorded.recorder;
     try {
       await harness.ensureLabel();
       pusher = await GitPusher.create(harness.ledger, harness.gate, {
@@ -51,7 +53,7 @@ export async function withLiveRun<T>(
       let down = false;
       const fetch = faults.wrap(async (input, init) => {
         if (down) throw new TypeError('Injected network outage');
-        return recorder.fetch(input, init);
+        return recorded.fetch(input, init);
       });
       const startedAt = new Date().toISOString();
       const scm = assembleContractScm({
@@ -107,8 +109,12 @@ export async function withLiveRun<T>(
     if (
       process.env.AIO_GITHUB_RECORD === '1' &&
       outcome.steps.every((s) => s.ok)
-    )
+    ) {
+      const paths = leakPaths(recorder.recordings);
+      if (paths.length)
+        console.info(`[T15 ${name}] tape leak paths: ${paths.join(', ')}`);
       await save(recorder, outcome.value);
+    }
     return outcome.value;
   } finally {
     try {
@@ -117,4 +123,73 @@ export async function withLiveRun<T>(
       await harness.close();
     }
   }
+}
+
+/**
+ * The adapter sees GitHub's full responses; the tape keeps only this run's
+ * rows of collection responses (as the T8 contract transport does), so other
+ * spike history never enters a fixture.
+ */
+function scopedRecording(transport: typeof fetch, runId: string) {
+  const mine = (body: unknown) =>
+    typeof body === 'string' &&
+    (body.includes(`<!-- ai-office:cmd=t${runId}:`) ||
+      body.includes(`<!-- aio-test:owner=t${runId}:`));
+  let next: Response | undefined;
+  const recorder = new RecordingFetch(async () => next!, runId);
+  let tail: Promise<unknown> = Promise.resolve();
+  const record = async (request: Request): Promise<Response> => {
+    const full = await transport(request.clone());
+    const path = new URL(request.url).pathname;
+    next = full.clone();
+    if (![204, 205, 304].includes(full.status)) {
+      const data: unknown = await full
+        .clone()
+        .json()
+        .catch(() => undefined);
+      let scoped = data;
+      if (Array.isArray(data) && /\/(issues|pulls)(\/comments)?$/.test(path))
+        scoped = data.filter((row: { body?: unknown }) => mine(row.body));
+      else if (
+        Array.isArray(data) &&
+        path.startsWith(`${ROOT}/git/matching-refs/`)
+      )
+        scoped = data.filter((row: { ref?: string }) =>
+          row.ref?.startsWith(`refs/heads/ai-office/t${runId}`),
+        );
+      if (scoped !== data)
+        next = new Response(JSON.stringify(scoped), {
+          status: full.status,
+          headers: full.headers,
+        });
+    }
+    await recorder.fetch(request);
+    return full;
+  };
+  const fetch: typeof globalThis.fetch = (input, init) => {
+    const request = new Request(input, init);
+    const result = tail.then(() => record(request));
+    tail = result.catch(() => undefined);
+    return result;
+  };
+  return { recorder, fetch };
+}
+
+/** JSON paths (never values) whose leaf fails the tape leak scan. */
+function leakPaths(value: unknown, path = '$'): string[] {
+  if (typeof value === 'string') {
+    try {
+      assertTapeSafe(value);
+      return [];
+    } catch {
+      return [path];
+    }
+  }
+  if (Array.isArray(value))
+    return value.flatMap((v, i) => leakPaths(v, `${path}[${i}]`));
+  if (value && typeof value === 'object')
+    return Object.entries(value).flatMap(([k, v]) =>
+      leakPaths(v, `${path}.${k}`),
+    );
+  return [];
 }
