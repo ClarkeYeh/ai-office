@@ -8,17 +8,17 @@ from these files.
 
 Request-side facts that the envelope does not carry:
 
-| File | Request detail |
-| --- | --- |
-| `g2-etag.issue-304` | `If-None-Match` set to the weak ETag from `g2-etag.issue-200` |
-| `g2-etag.issue-200-identity` | no `Accept-Encoding`; every other request asked for gzip |
-| `g2-etag.list-issues-304` | `If-None-Match` set to the ETag from `g2-etag.list-issues-200` |
-| `g2-etag.list-issues-labeled` | same ETag as above, after a label was added |
-| `g2-etag.list-issues-commented` | ETag from the labeled response, after a comment was added |
+| File                                                  | Request detail                                                   |
+| ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `g2-etag.issue-304`                                   | `If-None-Match` set to the weak ETag from `g2-etag.issue-200`    |
+| `g2-etag.issue-200-identity`                          | no `Accept-Encoding`; every other request asked for gzip         |
+| `g2-etag.list-issues-304`                             | `If-None-Match` set to the ETag from `g2-etag.list-issues-200`   |
+| `g2-etag.list-issues-labeled`                         | same ETag as above, after a label was added                      |
+| `g2-etag.list-issues-commented`                       | ETag from the labeled response, after a comment was added        |
 | `g2-etag.list-pulls-304`, `g2-etag.matching-refs-304` | `If-None-Match` set to the ETag of the first read (not recorded) |
-| `g4-merge.stale-sha-409` | `sha` set to a commit that is not the head |
-| `g4-merge.already-merged-200` | the same merge request repeated after success |
-| `g11-merges.merges-again-204` | the same merges request repeated |
+| `g4-merge.stale-sha-409`                              | `sha` set to a commit that is not the head                       |
+| `g4-merge.already-merged-200`                         | the same merge request repeated after success                    |
+| `g11-merges.merges-again-204`                         | the same merges request repeated                                 |
 
 Observations behind these files are written up in the M3 verification notes
 (kept outside the repository). Short version for replay authors:
