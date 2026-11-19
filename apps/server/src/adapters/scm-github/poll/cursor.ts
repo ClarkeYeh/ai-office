@@ -130,15 +130,22 @@ export function encodeCursor(state: PollState): ScmCursor {
   };
   pruneKeys();
   let text = JSON.stringify(bounded);
-  // Last resort: shed the oldest Issues until the cursor fits.
+  // Last resort: shed the oldest Issues, then chain keys (an object without one
+  // only restarts its chain), until the cursor fits.
   while (text.length > CURSOR_LIMITS.bytes) {
     const keys = Object.keys(bounded.is)
       .map(Number)
       .sort((a, b) => a - b);
-    if (!keys.length) throw invalid();
-    for (const key of keys.slice(0, Math.ceil(keys.length / 4)))
-      delete bounded.is[key];
-    pruneKeys();
+    if (keys.length) {
+      for (const key of keys.slice(0, Math.ceil(keys.length / 4)))
+        delete bounded.is[key];
+      pruneKeys();
+    } else {
+      const chains = Object.keys(bounded.k ?? {}).sort();
+      if (!chains.length) throw invalid();
+      for (const key of chains.slice(0, Math.ceil(chains.length / 4)))
+        delete bounded.k![key];
+    }
     text = JSON.stringify(bounded);
   }
   return ScmCursorSchema.parse(text);

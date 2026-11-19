@@ -376,6 +376,39 @@ describe('scm-github poll transition keys survive a return to an earlier state (
       ofType(next.events, 'pr.state')[0]!.externalKey,
     );
   });
+  it('sheds chain keys rather than failing when a full cursor exceeds the byte limit', () => {
+    // Every map at capacity with long (valid) branch names: without the chain
+    // keys this fits, so the chains must never make the cursor unencodable.
+    const state = emptyState(repo, 'main');
+    const branch = (i: number) =>
+      `ai-office/${String(i).padStart(4, '0')}/`.padEnd(200, 'x');
+    const suffix = 'f'.repeat(16);
+    state.k = {};
+    for (let i = 0; i < CURSOR_LIMITS.refs; i++) {
+      state.refs[branch(i)] = sha(`r${i}`);
+      state.k[`ref:${branch(i)}`] =
+        `gh:ref:${branch(i)}:${sha(`r${i}`)}:${suffix}`;
+    }
+    for (let i = 1; i <= CURSOR_LIMITS.prs; i++) {
+      state.prs[i] = { s: 'open', h: sha(`h${i}`), b: branch(i), m: true };
+      state.ck[i] = 'pending';
+      state.k[`pr:${i}`] =
+        `gh:pr:${i}:open:${sha(`h${i}`)}:true:${branch(i)}:${suffix}`;
+      state.k[`ck:${i}`] = `gh:checks:${i}:${sha(`h${i}`)}:pending:${suffix}`;
+    }
+    for (let i = 1000; i < 1000 + CURSOR_LIMITS.issues; i++) {
+      state.is[i] = ['a'.repeat(16), 'b'.repeat(16)];
+      state.k[`issue:${i}`] = `gh:issue:${i}:${'c'.repeat(64)}:${suffix}`;
+    }
+    const cursor = encodeCursor(state);
+    expect(cursor.length).toBeLessThanOrEqual(CURSOR_LIMITS.bytes);
+    const decoded = JSON.parse(cursor);
+    expect(Object.keys(decoded.refs)).toHaveLength(CURSOR_LIMITS.refs);
+    expect(Object.keys(decoded.prs)).toHaveLength(CURSOR_LIMITS.prs);
+    expect(Object.keys(decoded.k).length).toBeLessThan(
+      Object.keys(state.k).length,
+    );
+  });
   it('keeps one chain key per tracked object', () => {
     const state = emptyState(repo, 'main');
     state.prs = { 7: { s: 'open', h: sha('h'), b: 'main', m: true } };
