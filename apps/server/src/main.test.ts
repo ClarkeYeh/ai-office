@@ -1130,3 +1130,69 @@ it('allows an SCM injection in fake development mode without exposing production
   expect(inspect).toHaveBeenCalledWith(FAKE_REPO.github);
   expect(() => checkStartOptions({ testOnly: { scm } })).toThrow('--dev');
 });
+
+it('creates fresh github-mainline worlds and wires the harness bridge and fixed shortId', async () => {
+  const fakeModule = await import('./adapters/runtime-fake/index.js');
+  const factory = vi.spyOn(fakeModule, 'createFakeRuntime');
+  createFakeWorld('github-mainline', { readSpec: () => null });
+  const firstScenario = factory.mock.calls.at(-1)![0].scenario;
+  const directory = home();
+  const github = { owner: 'fixture', name: 'mixed' };
+  const scm = createFakeScm();
+  scm.addRepo(github);
+  const snapshot = vi.spyOn(scm, 'snapshot');
+  const onPush = vi.fn();
+  const remoteHead = vi.fn(async () => 'a'.repeat(40));
+  const server = await boot(directory, {
+    fake: 'github-mainline',
+    testOnly: {
+      scm,
+      shortId: 'fixture1',
+      fakeRepo: {
+        localPath: '/fixture/mixed',
+        runtime: { orcaRepoId: 'fixture-repo', localPath: '/fixture/mixed' },
+        github,
+      },
+      fakeRuntime: { onPush, remoteHead, refreshHeadAfterPush: true },
+    },
+  });
+  const composed = factory.mock.calls.at(-1)![0];
+  expect(composed.scenario).not.toBe(firstScenario);
+  expect(composed).toMatchObject({
+    onPush,
+    remoteHead,
+    refreshHeadAfterPush: true,
+  });
+  const ui = await browser(server);
+  const repo = (await ui.call('GET', '/api/v1/repos')).body.repos[0];
+  expect(repo.github).toEqual(github);
+  const started = await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId: repo.repoId,
+    requirement: 'fixture',
+  });
+  expect(started.status).toBe(201);
+  expect(
+    server.runners.get(started.body.workflowId)!.state.workflow!.shortId,
+  ).toBe('fixture1');
+  await server.close();
+  expect(snapshot).not.toHaveBeenCalled();
+  expect(existsSync(join(directory, 'data/fake-world.json'))).toBe(false);
+});
+
+it('refuses configured shim homes containing cli-cwd before any process starts', async () => {
+  const directory = home();
+  writeFileSync(
+    join(directory, 'config.toml'),
+    '[orca]\nhomeDir = ' + JSON.stringify(directory) + '\n',
+  );
+  const exec = vi
+    .spyOn(SpawnExec.prototype, 'run')
+    .mockImplementation(async () => {
+      throw new Error('No process allowed');
+    });
+  await expect(
+    startServer({ env: { AI_OFFICE_HOME: directory } }),
+  ).rejects.toThrow('cli-cwd must not be inside orca.homeDir');
+  expect(exec).not.toHaveBeenCalled();
+});

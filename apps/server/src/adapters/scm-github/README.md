@@ -134,3 +134,35 @@ and a PR never flagged merged raises `guard pr_not_marked_merged`. There is no
 `PUT pulls/{n}/merge` endpoint, so no fallback that follows the PR's live base.
 Timeouts surface as retryable `github_unavailable`: a retried merge finds the PR
 merged or gets 204, and a retried create gets the 422 duplicate.
+
+## Mixed GitHub scenario assembly
+
+`main.ts` registers `github-mainline` and constructs a fresh scenario for each
+world. The T15 harness supplies these programmatic `startServer` options:
+
+```ts
+{
+  dev: true,
+  fake: 'github-mainline',
+  testOnly: {
+    scm: scopedScm,
+    shortId,
+    fakeRepo: { localPath, runtime: { localPath, orcaRepoId }, github: repo },
+    fakeRuntime: {
+      onPush: bridge.onPush,
+      remoteHead: bridge.remoteHead,
+      refreshHeadAfterPush: bridge.refreshHeadAfterPush,
+    },
+  },
+}
+```
+
+Use `scopeGithubScm(adapter, runId, shortId)` and
+`createGithubWorldBridge({scm: scopedScm, repo, runId, shortId, pusher})` from the
+GitHub test-support package; the adapter transport must be `harness.fetch`.
+The harness owns the live lock, pusher and cleanup. Main owns runtime/usage
+construction, spec reads and submission wiring. These hooks have no CLI or
+configuration equivalents and are rejected in production. Injected-SCM worlds
+are not checkpointed as fake worlds, expose no fake SCM mutation routes, and
+never receive the fake owner's automatic final merge. Recreate the same scoped
+SCM/bridge/shortId for an in-process restart and stop at the final PR gate.

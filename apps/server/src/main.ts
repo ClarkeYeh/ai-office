@@ -50,6 +50,8 @@ import type { FastifyInstance } from 'fastify';
 import { SUBMISSION_HEADER_NAMES } from '@ai-office/contracts/agent-submission';
 import { PROJECTION_VERSION } from '@ai-office/projection';
 import type { ReadModel } from '@ai-office/projection';
+import { githubMainlineScenario } from './adapters/runtime-fake/scenarios/github-mainline.js';
+import type { FakeRuntimeOptions } from './adapters/runtime-fake/index.js';
 import { mainlineScenario } from './adapters/runtime-fake/mainline.js';
 import { createFakeRuntime } from './adapters/runtime-fake/index.js';
 import type {
@@ -136,8 +138,11 @@ import type { UsagePort } from './ports/usage.js';
  * Nothing accepts requests before reconciliation finishes.
  */
 
-export const FAKE_SCENARIOS: Readonly<Record<string, RuntimeScenario>> = {
+export const FAKE_SCENARIOS: Readonly<
+  Record<string, RuntimeScenario | (() => RuntimeScenario)>
+> = {
   mainline: mainlineScenario,
+  'github-mainline': githubMainlineScenario,
   demo: demoScenario,
   parallel: parallelScenario,
   trouble: troubleScenario,
@@ -162,6 +167,17 @@ export interface StartOptions {
   /** Programmatic integration-test seam; never accepted from CLI or config. */
   testOnly?: {
     scm?: ScmPort;
+    /** Harness-owned push bridge; no live harness is opened here. */
+    fakeRuntime?: Pick<
+      FakeRuntimeOptions,
+      'onPush' | 'remoteHead' | 'refreshHeadAfterPush'
+    >;
+    fakeRepo?: {
+      localPath: string;
+      runtime: RepoRuntimeRef;
+      github: RepoScmRef;
+    };
+    shortId?: string;
     onShimCreated?: (handle: string) => void | Promise<void>;
   };
   /** Dev hybrid only: an existing, owner-approved Orca folder workspace. */
@@ -244,6 +260,20 @@ export function checkStartOptions(options: StartOptions): void {
     throw new StartupError(
       'testOnly hooks require --dev --runtime orca or --dev --fake',
     );
+  if (
+    options.testOnly?.shortId !== undefined &&
+    !/^[a-z0-9]{4,12}$/.test(options.testOnly.shortId)
+  )
+    throw new StartupError(
+      'testOnly.shortId must be 4–12 lowercase alphanumeric characters',
+    );
+  if (
+    (options.testOnly?.fakeRuntime ||
+      options.testOnly?.fakeRepo ||
+      options.testOnly?.shortId) &&
+    options.fake === undefined
+  )
+    throw new StartupError('Fake world hooks require --dev --fake');
   if (options.fake !== undefined && !(options.fake in FAKE_SCENARIOS))
     throw new StartupError(
       `Unknown fake scenario "${options.fake}" (available: ${Object.keys(FAKE_SCENARIOS).join(', ')})`,
@@ -273,6 +303,19 @@ export function createFakeWorld(
     finalMergeMs?: number;
   },
 ): FakeWorld {
+  return composeFakeWorld(scenario, options);
+}
+
+function composeFakeWorld(
+  scenario: string,
+  options: {
+    readSpec: (path: string, sha256: string) => string | null;
+    finalMergeMs?: number;
+    scm?: ScmPort;
+    fakeRuntime?: NonNullable<StartOptions['testOnly']>['fakeRuntime'];
+    fakeRepo?: NonNullable<StartOptions['testOnly']>['fakeRepo'];
+  },
+): FakeWorld {
   const clock = new SystemClock();
   const scm = createFakeScm({
     clock,
@@ -280,7 +323,10 @@ export function createFakeWorld(
       ? {}
       : { autoMergeIntoDefaultBranchAfterMs: options.finalMergeMs }),
   });
-  scm.addRepo(FAKE_REPO.github);
+  const repo = options.fakeRepo ?? FAKE_REPO;
+  scm.addRepo(repo.github);
+  const selected = FAKE_SCENARIOS[scenario]!;
+  const remote = options.scm ?? scm;
   const backendDown = (): never => {
     throw new PortError('transient', 'backend_down', 'Backend not listening');
   };
@@ -291,22 +337,27 @@ export function createFakeWorld(
     backend: undefined,
     runtime: createFakeRuntime({
       clock,
-      scenario: FAKE_SCENARIOS[scenario]!,
+      scenario: typeof selected === 'function' ? selected() : selected,
       localRepos: {
-        [FAKE_REPO.localPath]: {
+        [repo.localPath]: {
           isGitMainWorktree: true,
-          originUrl: `https://github.com/${FAKE_REPO.github.owner}/${FAKE_REPO.github.name}.git`,
-          runtimeRepoId: FAKE_REPO.runtime.orcaRepoId,
+          originUrl: `https://github.com/${repo.github.owner}/${repo.github.name}.git`,
+          runtimeRepoId: repo.runtime.orcaRepoId,
         },
       },
       readSpec: options.readSpec,
       remoteHead: async (ref) =>
-        (await scm.compareBranch(FAKE_REPO.github, ref, ref))?.headSha ?? null,
+        (await remote.compareBranch(repo.github, ref, ref))?.headSha ?? null,
       onPush: ({ branch, base }) => {
-        scm.pushBranch(FAKE_REPO.github, branch, base);
+        if (options.scm)
+          throw new StartupError(
+            'Injected SCM pushes require a testOnly.fakeRuntime push bridge',
+          );
+        scm.pushBranch(repo.github, branch, base);
       },
       submitter: (request) => (world.backend ?? backendDown()).submit(request),
       submitRetryMs: 250,
+      ...options.fakeRuntime,
     }),
   };
   return world;
@@ -541,6 +592,15 @@ async function composeOrca(
     upper[i] = Number.MAX_SAFE_INTEGER;
   }
   const policy = orcaSubprocessPolicy(dataDir, env);
+  const orcaHome = resolve(
+    options.orcaHome ?? (settings.orca.homeDir || `${dataDir}/orca-home`),
+  );
+  const homePrefix = orcaHome.endsWith(sep) ? orcaHome : orcaHome + sep;
+  if (
+    resolve(policy.cwd) === orcaHome ||
+    resolve(policy.cwd).startsWith(homePrefix)
+  )
+    throw new StartupError('cli-cwd must not be inside orca.homeDir');
   const state = stores.adapterState('runtime-orca');
   const groups = new ProcessGroups(state);
   const processExec = new SpawnExec(groups);
@@ -613,8 +673,7 @@ async function composeOrca(
     dataDir,
     shimLocation: settings.orca.shimLocation,
     closeOnExit: settings.orca.shim.closeOnExit,
-    orcaHome:
-      options.orcaHome ?? (settings.orca.homeDir || `${dataDir}/orca-home`),
+    orcaHome,
     ...(options.testOnly?.onShimCreated === undefined
       ? {}
       : { onCreated: options.testOnly.onShimCreated }),
@@ -1047,6 +1106,7 @@ async function compose(
 
   const clock = new SystemClock();
   const ids = new SystemIdGen(clock);
+  if (options.testOnly?.shortId) ids.shortId = () => options.testOnly!.shortId!;
   const masking = maskingOnly(createRedactor({ defaultBranch: 'main' }));
   const logger: Logger = createPinoLogger({
     dataDir,
@@ -1077,19 +1137,24 @@ async function compose(
   if (fake) {
     world =
       options.fakeWorld ??
-      createFakeWorld(options.fake!, {
+      composeFakeWorld(options.fake!, {
         readSpec: (path, sha256) => specStore.read(path, sha256),
-        ...(options.fakeFinalMergeMs === undefined
+        ...(options.testOnly?.scm ? { scm: options.testOnly.scm } : {}),
+        ...(options.testOnly?.fakeRuntime
+          ? { fakeRuntime: options.testOnly.fakeRuntime }
+          : {}),
+        ...(options.testOnly?.fakeRepo
+          ? { fakeRepo: options.testOnly.fakeRepo }
+          : {}),
+        ...(options.fakeFinalMergeMs === undefined || options.testOnly?.scm
           ? {}
           : { finalMergeMs: options.fakeFinalMergeMs }),
       });
     if (world.scenario !== options.fake)
       throw new StartupError('The surviving fake world runs another scenario');
-    const saveFakeWorld = persistFakeWorld(
-      world,
-      dataDir,
-      options.fakeWorld === undefined,
-    );
+    const saveFakeWorld = options.testOnly?.scm
+      ? () => {}
+      : persistFakeWorld(world, dataDir, options.fakeWorld === undefined);
     saveFakeWorld();
     // Sampling all three adapters also covers scenario/test mutations outside ports.
     // Compare before writing: changes are coalesced to at most one checkpoint/second.
@@ -1368,7 +1433,10 @@ async function compose(
       return start(input);
     };
   }
-  if (fake) await commands.registerRepo({ localPath: FAKE_REPO.localPath });
+  if (fake)
+    await commands.registerRepo({
+      localPath: options.testOnly?.fakeRepo?.localPath ?? FAKE_REPO.localPath,
+    });
 
   const healthPoll = setInterval(() => {
     void refreshRuntimeHealth().catch(failed('runtime health'));
@@ -1475,7 +1543,7 @@ async function compose(
   };
   await registerApi(app, apiDeps);
   const fakeWorld = world;
-  if (options.dev === true && fakeWorld)
+  if (options.dev === true && fakeWorld && !options.testOnly?.scm)
     await registerDevFakeRoutes(app, apiDeps, {
       editIssueBody: (number, body) =>
         fakeWorld.scm.editIssueBody({ repo: FAKE_REPO.github, number }, body),
