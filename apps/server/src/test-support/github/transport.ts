@@ -1,6 +1,13 @@
 import { GithubApi, type JsonObject } from './api.js';
 import { Ledger, type Resource } from './ledger.js';
-import { API, ROOT, assertBranch, assertCommand, marker } from './safety.js';
+import {
+  API,
+  ROOT,
+  assertBranch,
+  assertCommand,
+  harnessCommand,
+  hasHarnessMarker,
+} from './safety.js';
 
 /** Serial transport with intent-before-create, repository and object ownership guards. */
 export function guardedFetch(
@@ -28,7 +35,7 @@ export function guardedFetch(
     const { data } = await api.request('GET', `${path}/${number}`);
     if (
       typeof data.body !== 'string' ||
-      !data.body.includes(marker(resource.key)) ||
+      !hasHarnessMarker(data.body, resource.key) ||
       (data.user as { login?: string } | undefined)?.login !== 'ClarkeYeh'
     )
       throw new Error('Object ownership mismatch');
@@ -78,10 +85,7 @@ export function guardedFetch(
         path === '/pulls' ||
         /^\/issues\/\d+\/comments$/.test(path))
     ) {
-      const command =
-        typeof body.body === 'string'
-          ? /<!-- ai-office:cmd=([a-zA-Z0-9:_/-]+) -->/.exec(body.body)?.[1]
-          : undefined;
+      const command = harnessCommand(body.body);
       if (!command) throw new Error('Create requires run marker');
       assertCommand(command, ledger.data.runId, ledger.data.claims);
       const kind =

@@ -6,7 +6,7 @@ import {
   type Resource,
   type ResourceLedger,
 } from './ledger.js';
-import { LABEL, marker } from './safety.js';
+import { LABEL, hasHarnessMarker } from './safety.js';
 
 export async function scan(
   api: GithubApi,
@@ -18,7 +18,7 @@ export async function scan(
     .filter((o) => {
       const commands = [
         ...String(o.body).matchAll(
-          /<!-- ai-office:cmd=([a-zA-Z0-9:_/-]+) -->/g,
+          /<!-- (?:ai-office:cmd|aio-test:owner)=([a-zA-Z0-9:_/-]+) -->/g,
         ),
       ].map((m) => m[1]!);
       return commands.some(
@@ -56,7 +56,7 @@ export async function scan(
 }
 const owns = (r: Resource, o: JsonObject) =>
   typeof o.body === 'string' &&
-  o.body.includes(marker(r.key)) &&
+  hasHarnessMarker(o.body, r.key) &&
   (o.user as { login?: string } | undefined)?.login === 'ClarkeYeh' &&
   o.number !== 3;
 

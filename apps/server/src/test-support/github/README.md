@@ -29,6 +29,10 @@ calls, guards ownership, writes intent before each create, and fills in returned
 numbers. Use titles `[aio-test <runId>] …`, command IDs `t<runId>:<purpose>`, and
 branches `ai-office/t<runId>-<purpose>` or `ai-office/t<runId>/<purpose>`.
 Issue/comment/PR bodies must contain `<!-- ai-office:cmd=<commandId> -->`.
+Objects that stand in for the owner's own (T15: an unmarked Issue, a
+`/approve` comment) instead carry `<!-- aio-test:owner=<commandId> -->`: AI
+Office sees them as unmarked, while the ledger, ownership checks, janitor and
+scan treat both markers alike.
 The low-level gate transport is private plumbing for authentication and janitor;
 scenario code must use the guarded transport. Production T17 uses
 `registerEvents(ledger, events, workflowId, shortId)` to import matched

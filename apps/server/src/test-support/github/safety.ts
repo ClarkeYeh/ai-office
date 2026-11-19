@@ -32,6 +32,28 @@ export function marker(commandId: string): string {
     throw new Error('Invalid command identity');
   return `<!-- ai-office:cmd=${commandId} -->`;
 }
+/**
+ * T15: an object the harness creates as the owner would by hand. It carries no
+ * `ai-office:cmd` marker (so AI Office sees it as unmarked) but stays ledgered.
+ */
+export function ownerMarker(commandId: string): string {
+  marker(commandId);
+  return `<!-- aio-test:owner=${commandId} -->`;
+}
+/** The harness identity of a body: an AI Office marker or an owner marker. */
+export function harnessCommand(body: unknown): string | undefined {
+  if (typeof body !== 'string') return undefined;
+  return (
+    /<!-- ai-office:cmd=([a-zA-Z0-9:_/-]+) -->/.exec(body)?.[1] ??
+    /<!-- aio-test:owner=([a-zA-Z0-9:_/-]+) -->/.exec(body)?.[1]
+  );
+}
+export function hasHarnessMarker(body: unknown, commandId: string): boolean {
+  return (
+    typeof body === 'string' &&
+    (body.includes(marker(commandId)) || body.includes(ownerMarker(commandId)))
+  );
+}
 export function assertCommand(
   commandId: string,
   runId: string,
