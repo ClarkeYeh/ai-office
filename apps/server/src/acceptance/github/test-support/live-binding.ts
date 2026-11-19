@@ -13,6 +13,7 @@ import { API, ROOT } from '../../../test-support/github/safety.js';
 import { assertTapeSafe } from '../../../test-support/github/tape-normalization.js';
 import type { MixedBinding } from './mixed-office.js';
 import type { StepResult } from './scenario.js';
+import { liveHttpPath } from './tapes.js';
 
 type Harness = Awaited<ReturnType<typeof openHarness>>;
 const coreRemaining = async (harness: Harness): Promise<number> => {
@@ -122,9 +123,16 @@ export async function withLiveRun<T>(
       // Evidence only (never replayed): the leak scan rejects concrete spike
       // API paths (numbers, SHAs, refs), so keep the path template.
       for (const r of recorder.recordings) r.path = r.pathTemplate;
+      // A response the tape scan still rejects is withheld, never written.
+      for (const r of recorder.recordings)
+        if (leakPaths(r).length) {
+          r.response = { withheld: 'tape leak scan' };
+          r.headers = {};
+        }
       const paths = leakPaths(recorder.recordings);
       if (paths.length)
         console.info(`[T15 ${name}] tape leak paths: ${paths.join(', ')}`);
+      await mkdir(dirname(liveHttpPath), { recursive: true });
       await save(recorder, outcome.value);
     }
     return outcome.value;
