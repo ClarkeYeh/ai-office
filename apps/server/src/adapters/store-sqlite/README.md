@@ -17,7 +17,14 @@ The numbered SQL files are runtime assets. Source execution and the repository's
 `migrations/*.sql` beside the compiled migration module, or pass
 `migrationDirectory` explicitly. Do not ship only the JavaScript without SQL.
 
-Event and cursor writes commit together. Duplicate external keys are skipped;
+Event, cursor, and optional `append(..., { idempotency: { scope, key, record } })`
+writes commit together, before subscribers or runner effects execute. A live
+idempotency key with the same request hash skips the entire batch (including
+cursors); a different hash rejects it. Decision callers prepare their response
+record before append, so a lost response can be replayed after restart without
+issuing another decision or SCM command batch. No schema migration is needed.
+
+Duplicate external keys are skipped;
 other constraint failures roll back the entire batch. Subscribers are notified
 synchronously after commit, in sequence order even through reentrant appends.
 Notifications are local to this store instance; all application event writes

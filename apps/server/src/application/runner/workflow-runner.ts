@@ -31,6 +31,7 @@ import type { Effect } from '@ai-office/engine';
 import type { Clock, IdGen, Logger, Scheduler } from '../../ports/services.js';
 import type {
   CursorWrite,
+  IdempotencyWrite,
   EventStore,
   SeatTokenStore,
   SpecStore,
@@ -90,6 +91,7 @@ type Input =
       kind: 'append';
       drafts: DomainEventDraft[];
       cursors?: CursorWrite[];
+      idempotency?: IdempotencyWrite;
       settle: Settle<DomainEvent[]>;
     }
   | {
@@ -228,11 +230,13 @@ export class WorkflowRunner {
   append(
     drafts: DomainEventDraft[],
     cursors?: CursorWrite[],
+    idempotency?: IdempotencyWrite,
   ): Promise<DomainEvent[]> {
     return new Promise((resolve, reject) =>
       this.enqueue({
         kind: 'append',
         drafts,
+        ...(idempotency === undefined ? {} : { idempotency }),
         ...(cursors === undefined ? {} : { cursors }),
         settle: { resolve, reject },
       }),
@@ -332,7 +336,9 @@ export class WorkflowRunner {
           return;
         }
         case 'append':
-          input.settle.resolve(this.commit(input.drafts, input.cursors));
+          input.settle.resolve(
+            this.commit(input.drafts, input.cursors, input.idempotency),
+          );
           return;
         case 'spawn':
           this.spawn(input.effect, input.cause, input.cursor);
@@ -395,11 +401,12 @@ export class WorkflowRunner {
   private commit(
     drafts: DomainEventDraft[],
     cursors?: CursorWrite[],
+    idempotency?: IdempotencyWrite,
   ): DomainEvent[] {
-    const stored = this.deps.store.append(
-      drafts,
-      cursors === undefined ? undefined : { cursors },
-    );
+    const stored = this.deps.store.append(drafts, {
+      ...(cursors === undefined ? {} : { cursors }),
+      ...(idempotency === undefined ? {} : { idempotency }),
+    });
     const effects: [RunnerEffect, DomainEvent, CursorWrite][] = [];
     for (const event of stored) {
       // §11.4 / engine contract: react sees the state BEFORE the event.
