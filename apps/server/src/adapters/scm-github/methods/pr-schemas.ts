@@ -9,6 +9,7 @@ export const pullSchema = z.looseObject({
   merge_commit_sha: z.string().nullable().optional(),
   merged_by: z.looseObject({ login: z.string() }).nullable().optional(),
   html_url: z.string(),
+  title: z.string(),
   body: z.string().nullable().optional(),
   head: z.looseObject({ ref: z.string(), sha: z.string() }),
   base: z.looseObject({ ref: z.string() }),

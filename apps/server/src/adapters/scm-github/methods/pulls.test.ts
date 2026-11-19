@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { createRedactor } from '@ai-office/redaction';
 import { createGithubScm, RepoAllowlist } from '../index.js';
-import { MERGE_VERIFY_ATTEMPTS } from './merge.js';
+import { MERGE_VERIFY_DELAYS_MS } from './merge.js';
 import { createPrMethods } from './pulls.js';
 
 const repo = { owner: 'ClarkeYeh', name: 'ai-office-spike' };
@@ -115,6 +115,14 @@ function setup(routes: Record<string, (Reply | Error)[]>) {
 const opts = { method: 'merge' as const, expectedHeadSha: head };
 type Queue = (Reply | Error)[];
 const branchKey = 'GET /branches/ai-office%2Ft000000000001-int';
+const merges = 'POST /merges';
+/** G11 recording: the /merges commit, later reported as the PR's merge commit. */
+const g11Sha = '5a19b8eb3483a6850896f9a9471a11c857dbab06';
+const g11Merged = () =>
+  recorded('g11-merges.get-pr-merged', (pull: Pull) => {
+    pull.head.sha = head;
+    pull.base.ref = int;
+  });
 const preMerge = (): Record<string, Queue> & {
   'GET /pulls/8': Queue;
   'GET ': Queue;
@@ -128,35 +136,40 @@ const allConsumed = (routes: Record<string, unknown[]>) =>
   expect(Object.entries(routes).filter(([, queue]) => queue.length)).toEqual(
     [],
   );
+const total = (sleeps: number[]) => sleeps.reduce((a, b) => a + b, 0);
 
 describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
-  it('merges with merge_method merge at the expected head, then reads the base back', async () => {
+  it('merges via POST /merges naming the checked base, then waits for GitHub to mark the PR merged (G11)', async () => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [recorded('g4-merge.merge-200')];
-    routes['GET /pulls/8'].push(mergedPull());
+    routes[merges] = [recorded('g11-merges.merges-201')];
+    routes['GET /pulls/8'].push(g11Merged());
     const f = setup(routes);
     await expect(
       f.mergePR(pr8, { ...opts, expectedBaseSha: baseSha }),
-    ).resolves.toEqual({ mergeCommitSha: mergeSha });
+    ).resolves.toEqual({ mergeCommitSha: g11Sha });
     expect(f.keys()).toEqual([
       'GET /pulls/8',
       'GET ',
       branchKey,
-      'PUT /pulls/8/merge',
+      merges,
       'GET /pulls/8',
     ]);
-    expect(f.calls[3]!.body).toEqual({ merge_method: 'merge', sha: head });
+    expect(f.calls[3]!.body).toEqual({
+      base: int,
+      head,
+      commit_message:
+        '[aio-test 000000000001] g3-w1 (#8)\n\n<!-- ai-office:pr=8 -->',
+    });
     // Safety evidence is always fetched fresh, never answered from the cache.
     expect(f.calls.every((call) => call.ifNoneMatch === null)).toBe(true);
-    // G11: the read-back waits instead of reading immediately.
-    expect(f.sleeps).toEqual([1_000]);
+    expect(f.sleeps).toEqual([500]);
     allConsumed(routes);
   });
   it('bypasses an ETag cached by getPR for the safety reads', async () => {
     const routes = preMerge();
     routes['GET /pulls/8'].unshift(openPull());
-    routes['PUT /pulls/8/merge'] = [recorded('g4-merge.merge-200')];
-    routes['GET /pulls/8'].push(mergedPull());
+    routes[merges] = [recorded('g11-merges.merges-201')];
+    routes['GET /pulls/8'].push(g11Merged());
     const f = setup(routes);
     await f.getPR(pr8);
     await f.mergePR(pr8, opts);
@@ -178,7 +191,7 @@ describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
         category: 'guard',
         code,
       });
-      expect(f.keys()).not.toContain('PUT /pulls/8/merge');
+      expect(f.keys()).not.toContain(merges);
     },
   );
   it('refuses a protected base (branches/{b}.protected, rulesets included)', async () => {
@@ -189,7 +202,7 @@ describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
       category: 'guard',
       code: 'protected_branch_merge',
     });
-    expect(f.keys()).not.toContain('PUT /pulls/8/merge');
+    expect(f.keys()).not.toContain(merges);
   });
   it('refuses any merge method other than merge without calling GitHub', async () => {
     const f = setup({});
@@ -210,7 +223,7 @@ describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
       code: 'head_mismatch',
       retryable: false,
     });
-    expect(f.keys()).not.toContain('PUT /pulls/8/merge');
+    expect(f.keys()).not.toContain(merges);
   });
   it('reports a moved integration branch as base_moved before merging', async () => {
     const routes = preMerge();
@@ -218,7 +231,7 @@ describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
     await expect(
       f.mergePR(pr8, { ...opts, expectedBaseSha: 'b'.repeat(40) }),
     ).rejects.toMatchObject({ category: 'conflict', code: 'base_moved' });
-    expect(f.keys()).not.toContain('PUT /pulls/8/merge');
+    expect(f.keys()).not.toContain(merges);
     allConsumed(routes);
   });
   it('refuses a closed, unmerged PR', async () => {
@@ -231,48 +244,52 @@ describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
       code: 'not_mergeable',
     });
   });
-  it('raises merge_base_changed when the PR base was retargeted during the merge', async () => {
+  it('TOCTOU: a base retargeted after the read cannot redirect the merge; the read-back flags it', async () => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [recorded('g4-merge.merge-200')];
-    routes['GET /pulls/8'].push(
-      mergedPull((pull) => (pull.base.ref = 'ai-office/other')),
-    );
+    routes[merges] = [recorded('g11-merges.merges-201')];
+    // e.g. `gh pr edit --base main` between the read and the merge.
+    routes['GET /pulls/8'].push(openPull((pull) => (pull.base.ref = 'main')));
     const f = setup(routes);
     await expect(f.mergePR(pr8, opts)).rejects.toMatchObject({
       category: 'guard',
       code: 'merge_base_changed',
     });
+    expect(f.calls.find((call) => call.key === merges)!.body).toMatchObject({
+      base: int,
+    });
   });
-  it('short-polls until GitHub marks the PR merged (G11, ~3 s)', async () => {
+  it('short-polls with backoff until GitHub marks the PR merged', async () => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [recorded('g4-merge.merge-200')];
-    routes['GET /pulls/8'].push(openPull(), openPull(), mergedPull());
+    routes[merges] = [recorded('g11-merges.merges-201')];
+    routes['GET /pulls/8'].push(openPull(), openPull(), g11Merged());
     const f = setup(routes);
     await expect(f.mergePR(pr8, opts)).resolves.toEqual({
-      mergeCommitSha: mergeSha,
+      mergeCommitSha: g11Sha,
     });
-    expect(f.sleeps).toEqual([1_000, 1_000, 1_000]);
+    expect(f.sleeps).toEqual([500, 1_000, 1_500]);
     allConsumed(routes);
   });
-  it('still checks the base when GitHub has not marked the PR merged in time', async () => {
+  it('guards pr_not_marked_merged after 10 s without falling back to PUT pulls/{n}/merge', async () => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [recorded('g4-merge.merge-200')];
+    routes[merges] = [recorded('g11-merges.merges-201')];
     routes['GET /pulls/8'].push(
-      ...Array.from({ length: MERGE_VERIFY_ATTEMPTS - 1 }, () => openPull()),
-      openPull((pull) => (pull.base.ref = 'ai-office/other')),
+      ...MERGE_VERIFY_DELAYS_MS.map(() => openPull()),
     );
     const f = setup(routes);
     await expect(f.mergePR(pr8, opts)).rejects.toMatchObject({
-      code: 'merge_base_changed',
+      category: 'guard',
+      code: 'pr_not_marked_merged',
     });
-    expect(f.sleeps).toHaveLength(MERGE_VERIFY_ATTEMPTS);
+    expect(total(f.sleeps)).toBe(10_000);
+    expect(f.keys().filter((key) => !key.startsWith('GET'))).toEqual([merges]);
+    allConsumed(routes);
   });
   it('returns retryable github_unavailable when no read-back succeeds; the retry finds the merge', async () => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [recorded('g4-merge.merge-200')];
+    routes[merges] = [recorded('g11-merges.merges-201')];
     routes['GET /pulls/8'].push(
-      ...Array.from({ length: MERGE_VERIFY_ATTEMPTS }, () => timeout),
-      mergedPull(),
+      ...MERGE_VERIFY_DELAYS_MS.map(() => timeout),
+      g11Merged(),
     );
     routes['GET '].push(repoInfo());
     const f = setup(routes);
@@ -282,13 +299,13 @@ describe('mergePR guards (SPEC rev2.15 §11.2)', () => {
       retryable: true,
     });
     await expect(f.mergePR(pr8, opts)).resolves.toEqual({
-      mergeCommitSha: mergeSha,
+      mergeCommitSha: g11Sha,
     });
     allConsumed(routes);
   });
 });
 
-describe('mergePR idempotency and recorded errors', () => {
+describe('mergePR idempotency and recorded responses', () => {
   it('returns the original merge commit for an already merged PR without merging again', async () => {
     const f = setup({ 'GET /pulls/8': [mergedPull()], 'GET ': [repoInfo()] });
     await expect(f.mergePR(pr8, opts)).resolves.toEqual({
@@ -312,10 +329,20 @@ describe('mergePR idempotency and recorded errors', () => {
       code: 'default_branch_merge',
     });
   });
-  it('retries a timed-out merge safely: the PR is found merged (G4)', async () => {
+  it('treats the recorded 204 (head already in base) as idempotent and returns the PR merge commit', async () => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [timeout];
-    routes['GET /pulls/8'].push(mergedPull());
+    routes[merges] = [recorded('g11-merges.merges-again-204')];
+    routes['GET /pulls/8'].push(openPull(), g11Merged());
+    const f = setup(routes);
+    await expect(f.mergePR(pr8, opts)).resolves.toEqual({
+      mergeCommitSha: g11Sha,
+    });
+    allConsumed(routes);
+  });
+  it('retries a timed-out /merges safely: the PR is found merged', async () => {
+    const routes = preMerge();
+    routes[merges] = [timeout];
+    routes['GET /pulls/8'].push(g11Merged());
     routes['GET '].push(repoInfo());
     const f = setup(routes);
     await expect(f.mergePR(pr8, opts)).rejects.toMatchObject({
@@ -324,18 +351,15 @@ describe('mergePR idempotency and recorded errors', () => {
       retryable: true,
     });
     await expect(f.mergePR(pr8, opts)).resolves.toEqual({
-      mergeCommitSha: mergeSha,
+      mergeCommitSha: g11Sha,
     });
-    expect(f.keys().filter((key) => key.startsWith('PUT'))).toHaveLength(1);
+    expect(f.keys().filter((key) => key === merges)).toHaveLength(1);
     allConsumed(routes);
   });
-  it('retries a timed-out merge that GitHub had not applied: the second PUT is idempotent (G4)', async () => {
+  it('retries a timed-out /merges whose PR is not marked yet: the repeat answers 204', async () => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [
-      timeout,
-      recorded('g4-merge.already-merged-200'),
-    ];
-    routes['GET /pulls/8'].push(openPull(), mergedPull());
+    routes[merges] = [timeout, recorded('g11-merges.merges-again-204')];
+    routes['GET /pulls/8'].push(openPull(), g11Merged());
     routes['GET '].push(repoInfo());
     routes[branchKey].push(intBranch());
     const f = setup(routes);
@@ -343,50 +367,32 @@ describe('mergePR idempotency and recorded errors', () => {
       code: 'github_unavailable',
     });
     await expect(f.mergePR(pr8, opts)).resolves.toEqual({
-      mergeCommitSha: mergeSha,
+      mergeCommitSha: g11Sha,
     });
     allConsumed(routes);
   });
   it.each([
     [
-      'stale sha 409 (recorded)',
-      () => recorded('g4-merge.stale-sha-409'),
-      { category: 'conflict', code: 'head_mismatch', retryable: false },
-    ],
-    [
-      'merge conflicts 405 (recorded)',
-      () => recorded('g4-merge.conflict-405'),
+      '409 merge conflict',
+      synthetic({ message: 'Merge conflict' }, 409),
       { category: 'conflict', code: 'not_mergeable' },
     ],
     [
-      'rules 405',
-      () =>
-        synthetic(
-          {
-            message:
-              'Repository rule violations found. Required status check "ci" is expected.',
-          },
-          405,
-        ),
-      { category: 'permanent', code: 'merge_blocked_by_rules' },
+      '404',
+      synthetic({ message: 'Not Found' }, 404),
+      { category: 'permanent', code: 'not_found' },
     ],
     [
-      'base modified 405',
-      () =>
-        synthetic(
-          {
-            message:
-              'Base branch was modified. Review and try the merge again.',
-          },
-          405,
-        ),
-      { category: 'conflict', code: 'base_moved', retryable: true },
+      '422',
+      synthetic({ message: 'Validation Failed' }, 422),
+      { category: 'permanent', code: 'github_validation' },
     ],
-  ])('maps %s', async (_, reply, expected) => {
+  ])('maps a /merges %s without reading back', async (_, reply, expected) => {
     const routes = preMerge();
-    routes['PUT /pulls/8/merge'] = [reply()];
+    routes[merges] = [reply];
     const f = setup(routes);
     await expect(f.mergePR(pr8, opts)).rejects.toMatchObject(expected);
+    expect(f.sleeps).toEqual([]);
   });
 });
 

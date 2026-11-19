@@ -437,6 +437,43 @@ describe('integration seams', () => {
       { kind: 'issue', key: issued.commandId, number: 55, state: 'created' },
     ]);
   });
+  it.each([
+    ['main', false, false],
+    [`ai-office/t${runId}-int`, true, false],
+    [`ai-office/t${runId}-int`, false, true],
+  ])(
+    'POST /merges into %s (protected %s) is allowed: %s',
+    async (base, isProtected, allowed) => {
+      const method = (
+        input: Parameters<typeof fetch>[0],
+        init?: RequestInit,
+      ) => (input instanceof Request ? input.method : (init?.method ?? 'GET'));
+      const network = vi.fn<typeof fetch>(async (input, init) =>
+        method(input, init) === 'GET'
+          ? json({ protected: isProtected })
+          : json({ sha: 'b'.repeat(40) }, 201),
+      );
+      const request = guardedFetch(network, await ledger(), async () => {})(
+        `${API}${ROOT}/merges`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            base,
+            head: 'a'.repeat(40),
+            commit_message: 'w1 (#44)',
+          }),
+        },
+      );
+      if (allowed)
+        await expect(request).resolves.toMatchObject({ status: 201 });
+      else await expect(request).rejects.toThrow();
+      expect(
+        network.mock.calls.some(
+          ([input, init]) => method(input, init) === 'POST',
+        ),
+      ).toBe(allowed);
+    },
+  );
   it('refuses default-base merge before issuing PUT', async () => {
     const l = await ledger();
     await l.created(await l.intent('pr', command), 44);
