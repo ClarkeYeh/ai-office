@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { assertOptIn } from './safety.js';
 
 /** Deliberately no shell, arbitrary executable, or error/output logging. */
 export function git(
@@ -19,6 +20,12 @@ export function git(
   });
 }
 export function ghToken(active = false): Promise<string> {
+  // Fail closed: offline tests must never read the machine's real credential.
+  try {
+    assertOptIn(process.env);
+  } catch (error) {
+    return Promise.reject(error as Error);
+  }
   // Ignore ambient tokens: --user must select the stored ClarkeYeh credential.
   const env = { ...process.env };
   delete env.GH_TOKEN;
