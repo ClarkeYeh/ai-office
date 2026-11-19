@@ -195,6 +195,13 @@ class Poll {
           ref,
           author: item.user?.login ?? '',
           hasMarker: ids.length > 0,
+          // The body as first sighted: it may already carry an owner edit.
+          ...(pr
+            ? {}
+            : {
+                bodyHash: bodyHash(item.body ?? ''),
+                updatedAt: item.updated_at,
+              }),
         });
       if (item.user?.login === viewer)
         for (const id of ids)
