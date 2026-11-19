@@ -155,8 +155,7 @@ export async function runMixedMainline(
       });
       approvedBody = body;
       // A poll between the edit and the decision bumps the version instead.
-      if (stale.body?.error?.code === 'gate_version_conflict')
-        throw new Retry();
+      if (stale.body?.error?.code === 'version_conflict') throw new Retry();
       expect(stale.status).toBe(409);
       expect(stale.body.error.code).toBe('gate_content_changed');
     },
@@ -323,12 +322,12 @@ export async function runMixedMainline(
       expect(dependent.length).toBeGreaterThanOrEqual(1);
       for (const dispatched of dependent) {
         expect(dispatched.seq).toBeGreaterThan(merged.seq);
-        // The dispatched base contains the upstream merge commit (compare API).
-        const compare = await o.scm.compareBranch(
-          SPIKE,
-          dispatched.payload.baseSha as string,
-          merged.payload.mergeCommitSha as string,
-        );
+        // The dispatched base contains the upstream merge commit: it is that
+        // commit, or the compare API finds nothing in the merge it lacks.
+        const base = dispatched.payload.baseSha as string;
+        const mergeCommit = merged.payload.mergeCommitSha as string;
+        if (base === mergeCommit) continue;
+        const compare = await o.scm.compareBranch(SPIKE, base, mergeCommit);
         expect(compare?.ahead).toBe(0);
       }
     },
@@ -632,17 +631,23 @@ export async function runFaults(
         ),
       ).toHaveLength(1);
       expect(of(all, 'anomaly.detected')).toEqual([]);
-      const detail = await o.detail(meeting);
-      const approved = await o.decision(meeting, {
-        decision: 'approve',
-        expectedVersion: detail.version,
-        // The test namespace rewrites the marker, so the rendered hash never
-        // matches GitHub: approve the GitHub body the screen shows.
-        githubBodyHash:
-          detail.conclusion.githubBodyHash ??
-          bodyHash(detail.conclusion.githubBody as string),
-      });
-      expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+      // The test namespace rewrites the marker, so the rendered hash never
+      // matches GitHub: approve the GitHub body the screen shows. A first
+      // sighting after the gate opened updates the gate meanwhile (FX-B).
+      for (let attempt = 1; ; attempt++) {
+        const detail = await o.detail(meeting);
+        const approved = await o.decision(meeting, {
+          decision: 'approve',
+          expectedVersion: detail.version,
+          githubBodyHash:
+            detail.conclusion.githubBodyHash ??
+            bodyHash(detail.conclusion.githubBody as string),
+        });
+        if (approved.body?.error?.code === 'version_conflict' && attempt < 3)
+          continue;
+        expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+        break;
+      }
     },
   );
   await record(
