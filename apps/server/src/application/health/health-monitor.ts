@@ -3,6 +3,7 @@ import type {
   DomainEventDraft,
   ErrorCategory,
   EventPayload,
+  ExternalCommandKind,
 } from '@ai-office/contracts/events';
 import type { Clock, ScheduledTimer, Scheduler } from '../../ports/services.js';
 import type { EventStore } from '../../ports/stores.js';
@@ -20,6 +21,15 @@ export const HEALTH_TIMER_PREFIX = 'aio-health:';
 export const PROBE_TIMEOUT_MS = 5_000;
 export const HEALTH_COMPONENTS = ['runtime', 'scm', 'store', 'usage'] as const;
 export type HealthComponent = (typeof HEALTH_COMPONENTS)[number];
+/** The breakers a command kind waits for (SPEC §15 S21, M3_PLAN §4.7). */
+export const dispatchComponents = (
+  kind: ExternalCommandKind,
+): readonly HealthComponent[] =>
+  kind === 'runtime.stop' || kind === 'runtime.release'
+    ? ['runtime']
+    : kind.startsWith('scm.')
+      ? ['scm', 'store']
+      : ['runtime', 'store'];
 type Breaker = 'closed' | 'open' | 'half_open';
 type Sample = { at: number; duration: number; error?: ErrorCategory };
 type Status = 'healthy' | 'degraded' | 'unhealthy';
@@ -157,20 +167,32 @@ export class HealthMonitor {
     await this.sync();
   }
 
+  /** Any dispatch-relevant breaker is not closed (the overall health status). */
   get dispatchBlocked(): boolean {
     return HEALTH_COMPONENTS.some(
       (c) => c !== 'usage' && this.states[c].breaker !== 'closed',
     );
   }
 
+  /**
+   * Per-component dispatch blocking (SPEC §15, S21): a command waits only for
+   * the breakers it depends on, so a GitHub outage never holds a stop or a
+   * release.
+   */
+  dispatchBlockedFor(kind: ExternalCommandKind): boolean {
+    return dispatchComponents(kind).some(
+      (c) => this.states[c].breaker !== 'closed',
+    );
+  }
+
   /** Called before every executor attempt, including attempts queued during an outage. */
-  async waitUntilDispatchable(): Promise<void> {
+  async waitUntilDispatchable(kind: ExternalCommandKind): Promise<void> {
     await this.sync();
-    while (this.dispatchBlocked) {
+    while (this.dispatchBlockedFor(kind)) {
       // StartWorkflow registers its runner after its initial events drain.
       // Resync after yielding so a newly started workflow is paused as well.
       await this.sync();
-      if (this.dispatchBlocked)
+      if (this.dispatchBlockedFor(kind))
         await new Promise<void>((resolve) => this.waiters.add(resolve));
     }
   }
@@ -191,10 +213,16 @@ export class HealthMonitor {
     }
   }
 
+  /**
+   * `waitStated`: the adapter answered with a `retryAfterMs` (a rate limit, a
+   * create still pending). The sample counts, but it neither extends nor
+   * resets the transient streak: being told to wait is not an outage (§15).
+   */
   async record(
     component: HealthComponent,
     startedAt: number,
     error?: ErrorCategory,
+    waitStated = false,
   ): Promise<void> {
     const state = this.states[component];
     const now = this.deps.clock.now().getTime();
@@ -206,7 +234,7 @@ export class HealthMonitor {
     });
     this.prune(state, now);
     if (error !== undefined) state.lastErrorCategory = error;
-    if (state.breaker === 'closed') {
+    if (state.breaker === 'closed' && !waitStated) {
       state.failures =
         error === 'transient'
           ? [...state.failures.filter((at) => now - at <= 60_000), now]
@@ -289,7 +317,8 @@ export class HealthMonitor {
     }
     this.change(component, success ? 'closed' : 'open');
     await this.sync();
-    if (!this.dispatchBlocked) {
+    if (success) {
+      // Each waiter re-checks the breakers its own command kind needs.
       for (const resolve of this.waiters) resolve();
       this.waiters.clear();
     }

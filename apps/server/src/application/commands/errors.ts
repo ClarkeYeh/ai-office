@@ -28,8 +28,8 @@ export const RETRY_JITTER = 0.2;
  * How many retries a category earns and how long to wait before retry `n`
  * (0-based). `identity` retries once at once: the runtime adapter re-runs
  * `CoordinatorIdentity.ensure()` and the same request ID is reused (§15).
- * `rate_limited` backs off like `transient`; adapters needing `Retry-After`
- * precision report `degraded` themselves.
+ * `rate_limited` without a `retryAfterMs` backs off like `transient`; one
+ * with it waits as stated instead (the executor, PP4).
  */
 export const retryDelay = (
   category: ErrorInfo['category'],
