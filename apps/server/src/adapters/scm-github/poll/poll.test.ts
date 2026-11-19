@@ -276,6 +276,24 @@ const ofType = <T extends ScmEvent['type']>(events: ScmEvent[], type: T) =>
   events.filter((e): e is Extract<ScmEvent, { type: T }> => e.type === type);
 
 describe('scm-github poll', () => {
+  it('carries the body hash on first sighting, including an edit made before it (FX-B)', async () => {
+    const { github, poll } = setup();
+    const first = await poll(null);
+    const issue = github.issue(`Conclusion\n${marker('c1')}`);
+    const edited = `Conclusion, edited at once\n${marker('c1')}`;
+    github.touch(issue, { body: edited });
+    const pr = github.pull('ai-office/abc-int', 'main');
+    const seen = await poll(first.cursor);
+    const created = ofType(seen.events, 'repo.object_created');
+    expect(created.find((e) => e.ref.number === issue)).toMatchObject({
+      bodyHash: bodyHash(edited),
+      updatedAt: github.issues.get(issue)!.updated_at,
+    });
+    expect(created.find((e) => e.ref.number === pr)).not.toHaveProperty(
+      'bodyHash',
+    );
+    expect(ofType(seen.events, 'issue.edited')).toEqual([]);
+  });
   it("follows GitHub's canonical cursor links past 100 Issues (M3-T15 live finding)", async () => {
     const github = new FakeGithub();
     github.canonicalLinks = true;

@@ -14,8 +14,10 @@ Each poll reads, in order:
 
 1. `/issues?state=all&sort=updated&direction=desc&since=<watermark − 2 min>` (up to
    5 pages; the baseline reads one unfiltered page): `repo.object_created` for unseen
-   Issues/PRs, `issue.edited` when the body hash or sorted labels change (comments
-   alone never trigger it), and Issue/PR command markers of the viewer.
+   Issues/PRs (for an Issue also its `bodyHash` and `updatedAt` as sighted, so an edit
+   made before the first sighting is not lost: ingest compares it with an open
+   conclusion gate), `issue.edited` when the body hash or sorted labels change
+   (comments alone never trigger it), and Issue/PR command markers of the viewer.
 2. `/issues/comments?sort=updated&since=…` repo-wide: comment markers of the viewer.
    One list request replaces per-Issue comment reads (list lag ≈ 0.5 s, G6).
 3. `/pulls?state=all&sort=updated` (paging on only while every PR on a page changed),
