@@ -40,6 +40,19 @@ budget; the outcome's attempt count includes every actual call. Unrelated pause
 reasons are preserved. Usage outages show degraded health and a budget fallback
 message without blocking dispatch, per the coordinator's §10 decision.
 
+SCM detail (M3-T9): with `scmStatus` the monitor reads the adapter's report every
+60 s (login, `tokenSource`, warnings, rate limit) into `HealthView.scm`, and
+derives `scmPace()` for the ObservationLoop: `slow` below 1,000 remaining,
+`critical` below 200, each left only 100 above its threshold (hysteresis), and
+`critical` while a reported rate limit lasts. `critical` shows scm `degraded`
+with breaker closed. The executor reports `rate_limited` waits
+(`noteRateLimit` → `rate_limited`/`secondary_rate_limited` warnings) and a
+command rate limited for over five minutes holds its workflow in
+`paused{scm_unhealthy, detail: rate_limited}` until it settles. With
+`activeLoginProbe` (T12) the active gh login is checked every five minutes; a
+mismatch adds `active_account_mismatch`, shows scm `degraded` and pauses running
+workflows with `auth`; a match resumes only the `auth` pauses the monitor made.
+
 Health events that cannot be persisted during a store outage remain in memory
 and are retried on observations/probes. The in-memory breaker still blocks work.
 Circuit state and statistics are process-local; `restore()` reopens breakers for

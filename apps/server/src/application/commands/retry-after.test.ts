@@ -14,6 +14,7 @@ import {
 } from '../health/health-monitor.js';
 import {
   CommandExecutor,
+  RATE_LIMIT_TOTAL_MS,
   RETRY_AFTER_TOTAL_MS,
   RETRY_TIMER_PREFIX,
 } from './executor.js';
@@ -143,7 +144,9 @@ describe('CommandExecutor retryAfterMs (PP4, M3_PLAN §4.7)', () => {
   it('clamps a wait to what is left of the cap', async () => {
     const handler = vi
       .fn()
-      .mockRejectedValueOnce(rateLimited('primary_rate_limit', 40 * 60_000))
+      .mockRejectedValueOnce(
+        new PortError('transient', 'slow', 'wait', true, 40 * 60_000),
+      )
       .mockResolvedValue({ issue: 1, url: 'u' });
     const h = setup({ 'scm.createIssue': handler });
     const outcome = vi.fn();
@@ -195,10 +198,16 @@ describe('CommandExecutor retryAfterMs (PP4, M3_PLAN §4.7)', () => {
     );
   });
 
-  it.each(['primary_rate_limit', 'secondary_rate_limit'])(
+  it.each([
+    ['primary_rate_limit', 'rate_limited'],
+    ['secondary_rate_limit', 'secondary_rate_limited'],
+  ])(
     'never opens the scm breaker on a %s, and runtime commands still run',
-    async (code) => {
-      const label = vi.fn().mockRejectedValue(rateLimited(code, 15_000));
+    async (code, warning) => {
+      const label = vi.fn();
+      for (let i = 0; i < 40; i++)
+        label.mockRejectedValueOnce(rateLimited(code, 15_000));
+      label.mockResolvedValue({});
       const stopHandler = vi.fn(async () => ({}));
       const h = setup({
         'scm.ensureLabels': label,
@@ -214,17 +223,44 @@ describe('CommandExecutor retryAfterMs (PP4, M3_PLAN §4.7)', () => {
       await flush();
       await h.advance(150_000);
       expect(label.mock.calls.length).toBeGreaterThanOrEqual(10);
-      expect(h.health.snapshot().scm.breaker).toBe('closed');
+      expect(h.health.snapshot().scm).toMatchObject({
+        breaker: 'closed',
+        status: 'degraded',
+        warnings: [warning],
+      });
+      expect(h.health.scmPace()).toBe('critical');
       expect(h.health.dispatchBlockedFor('scm.ensureLabels')).toBe(false);
       expect(await h.executor.execute(stop)).toMatchObject({ ok: true });
-      await h.advance(RETRY_AFTER_TOTAL_MS - 150_000);
+      // Rate-limit waits are not charged to RETRY_AFTER_TOTAL_MS.
+      await h.advance(40 * 15_000 - 150_000);
       expect(outcome).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ok: false,
-          error: expect.objectContaining({ category: 'rate_limited', code }),
-        }),
+        expect.objectContaining({ ok: true, attempts: 41 }),
       );
-      expect(h.health.snapshot().scm.breaker).toBe('closed');
+      await h.advance(15_000);
+      expect(h.health.snapshot().scm).toMatchObject({
+        breaker: 'closed',
+        status: 'healthy',
+      });
+      expect(h.health.snapshot().scm.warnings).toBeUndefined();
     },
   );
+
+  it('fails a command still rate limited after RATE_LIMIT_TOTAL_MS', async () => {
+    const handler = vi
+      .fn()
+      .mockRejectedValue(rateLimited('primary_rate_limit', 50 * 60_000));
+    const h = setup({ 'scm.createIssue': handler });
+    const outcome = vi.fn();
+    void h.executor.execute(createIssue).then(outcome);
+    await flush();
+    await h.advance(RATE_LIMIT_TOTAL_MS - 1_000);
+    expect(outcome).not.toHaveBeenCalled();
+    await h.advance(1_000);
+    expect(outcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ok: false,
+        error: expect.objectContaining({ code: 'primary_rate_limit' }),
+      }),
+    );
+  });
 });

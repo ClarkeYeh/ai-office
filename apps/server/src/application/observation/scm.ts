@@ -4,20 +4,32 @@ import type { EventStore } from '../../ports/stores.js';
 import type { Redactor } from '../../ports/services.js';
 import { Batch } from './batch.js';
 
+/** `baseline`: the workflow's first poll; head moves it lists predate it. */
 export function ingestScm(
   batch: Batch,
   events: readonly ScmEvent[],
   store: EventStore,
   redactor: Redactor,
+  baseline = false,
 ): void {
   const workflow = batch.state.workflow!;
   const history = store.read({ workflowId: workflow.id });
   const matches = (repo: { owner: string; name: string }) =>
     repo.owner === workflow.repo.github.owner &&
     repo.name === workflow.repo.github.name;
+  // Head moves are judged after the rest of the poll: GitHub lists the final
+  // PR's merge in any order relative to the default branch moving to it.
+  const heads: Extract<ScmEvent, { type: 'branch.head_changed' }>[] = [];
   for (const event of events) {
     if (batch.observed(event.externalKey)) continue;
     switch (event.type) {
+      case 'branch.head_changed':
+        heads.push(event);
+        break;
+      // TODO([M3-T9 part 3], after T11): EvaluateAnomaly {kind:'duplicate'}
+      // for this workflow's own commandIds only (foreign ones are dropped).
+      case 'object.duplicate':
+        break;
       case 'pr.state': {
         if (!matches(event.pr.repo)) continue;
         const old = batch.state.prs[event.pr.number];
@@ -151,4 +163,19 @@ export function ingestScm(
         break;
     }
   }
+  // TODO([M3-T9 part 3], after T11): integration-branch moves with a
+  // previousSha → EvaluateAnomaly {kind:'integration-branch'} (S14).
+  for (const event of heads)
+    if (event.branch === workflow.repo.defaultBranch && !baseline)
+      batch.anomaly(
+        {
+          kind: 'default-branch',
+          sha: event.sha,
+          ...(event.previousSha === null
+            ? {}
+            : { previousSha: event.previousSha }),
+        },
+        event,
+        'scm',
+      );
 }
