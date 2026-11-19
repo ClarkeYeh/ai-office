@@ -557,7 +557,8 @@ describe('integration seams', () => {
     const pusher = await GitPusher.create(
       l,
       { email: identity.GIT_AUTHOR_EMAIL!, assertActive: authorize },
-      { run },
+      // Offline: never read the machine's real gh credential (absent in CI).
+      { run, token: async () => 'test-credential' },
     );
     try {
       await expect(pusher.push({ branch: 'main', base })).rejects.toThrow();
