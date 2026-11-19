@@ -23,7 +23,10 @@ test('signal events map to the endpoints they invalidate (§3.4)', () => {
     'questions',
     'workflows',
   ]);
-  expect(overviewPartsFor('workflow.paused')).toEqual(['workflows']);
+  // A hijack reclaim ends in a resume: re-read run ownership too.
+  for (const type of ['workflow.paused', 'workflow.resumed'] as const)
+    expect(overviewPartsFor(type)).toEqual(['workflows', 'health']);
+  expect(overviewPartsFor('workflow.started')).toEqual(['workflows']);
   expect(overviewPartsFor('stage.completed')).toEqual(['workflows']);
   expect(overviewPartsFor('usage.tokens')).toEqual(['workflows']);
   expect(overviewPartsFor('health.changed')).toEqual(['health']);

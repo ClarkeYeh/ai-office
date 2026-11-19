@@ -92,6 +92,20 @@ export function evolveGlobal(
       next.health.runtime.status = 'unhealthy';
       next.health.runtime.checkedAt = e.occurredAt;
       break;
+    case 'command.succeeded':
+      // The engine's reclaim success signal (it then resumes the `hijacked`
+      // pause): ownership is back unless another run is still taken over.
+      if (
+        e.payload.kind === 'runtime.reclaimSession' &&
+        e.payload.result.reclaimed &&
+        next.health.runtime.runOwned === false
+      )
+        next.health.runtime.runOwned = !Object.values(next.workflows).some(
+          (w) =>
+            w.workflowId !== e.workflowId &&
+            w.pausedReasons.includes('hijacked'),
+        );
+      break;
   }
   const statuses = [
     next.health.runtime,

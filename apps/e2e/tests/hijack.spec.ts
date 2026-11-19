@@ -65,7 +65,15 @@ test('a run takeover pauses the workflow and is reclaimed through the hijack gat
     (model) => model.pausedReasons.length === 0,
     'workflow resumed',
   );
-  // `runOwned` recovers on the next runtime health refresh, not on the reclaim
-  // itself, so only the pause is asserted to clear here.
   await expect(page.locator('[data-testid^="pause-"]')).toHaveCount(0);
+  // The successful reclaim restores run ownership: the takeover banner goes.
+  await expect(page.getByTestId('banner-hijacked')).toHaveCount(0);
+  expect(
+    (
+      await office().api<{ runtime: { runOwned?: boolean } }>(
+        'GET',
+        '/api/v1/health',
+      )
+    ).body.runtime.runOwned,
+  ).toBe(true);
 });
