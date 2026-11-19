@@ -87,3 +87,81 @@ it('keeps synthetic token and body secrets out of recorded fixtures and adapter 
     'mismatch',
   );
 });
+
+it('records GitHub-shaped IDs and URLs, normalizes, persists and replays through marker URL schemas', async () => {
+  const { TapeNormalizer, assertTapeSafe } =
+    await import('../../test-support/github/tape-normalization.js');
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const body = '<!-- ai-office:cmd=roundtrip -->';
+  const html = 'https://github.com/ClarkeYeh/ai-office-spike/issues/42';
+  const recorder = new RecordingFetch(async (input) => {
+    const request = new Request(input);
+    return Response.json(
+      new URL(request.url).pathname === '/user'
+        ? {
+            login: 'ClarkeYeh',
+            node_id: 'U_kwDOSynthetic123',
+            avatar_url: 'https://avatars.githubusercontent.com/u/123?v=4',
+          }
+        : [
+            {
+              number: 42,
+              body,
+              html_url: html,
+              url: contractUrl + '/issues/42',
+              node_id: 'I_kwDOSynthetic456',
+              user: { login: 'ClarkeYeh', node_id: 'U_kwDOSynthetic123' },
+            },
+          ],
+    );
+  });
+  const options = {
+    clock: { now: () => new Date('2026-01-01T00:00:00Z') },
+    sleep: async () => {},
+    registeredAt: () => '2026-01-01T00:00:00Z',
+  };
+  const live = assembleContractScm({ ...options, fetch: recorder.fetch });
+  const expected = await live.findByMarker(contractRepo, 'roundtrip', {
+    kind: 'issue',
+  });
+  const normalized = new TapeNormalizer().value(recorder.recordings);
+  assertTapeSafe(normalized);
+  expect(JSON.stringify(normalized)).not.toContain('kwDOSynthetic');
+  const dir = await mkdtemp(join(tmpdir(), 'github-tape-'));
+  try {
+    const path = join(dir, 'tape.json');
+    await recorder.save(path);
+    const replay = new ReplayFetch(
+      JSON.parse(await readFile(path, 'utf8')) as Recording[],
+      { bodies: [body] },
+    );
+    const scm = assembleContractScm({ ...options, fetch: replay.fetch });
+    expect(
+      await scm.findByMarker(contractRepo, 'roundtrip', { kind: 'issue' }),
+    ).toEqual(expected);
+    expect(expected?.url).toBe(html);
+    replay.assertConsumed();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it('keeps URL-shaped opaque bodies recoverable by their original hash', async () => {
+  const body = contractUrl + '/issues/42';
+  const recorder = new RecordingFetch(async () =>
+    Response.json({ body, updated_at: '2026-01-01T00:00:00Z', labels: [] }),
+  );
+  const issue = { repo: contractRepo, number: 42 };
+  await recorder.fetch(contractUrl + '/issues/42');
+  const replay = new ReplayFetch(recorder.recordings, { bodies: [body] });
+  const scm = assembleContractScm({
+    fetch: replay.fetch,
+    clock: { now: () => new Date('2026-01-01T00:00:00Z') },
+    sleep: async () => {},
+    registeredAt: () => '2026-01-01T00:00:00Z',
+  });
+  expect((await scm.getIssue(issue)).body).toBe(body);
+  replay.assertConsumed();
+});

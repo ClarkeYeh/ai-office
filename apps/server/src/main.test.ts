@@ -1196,3 +1196,31 @@ it('refuses configured shim homes containing cli-cwd before any process starts',
   ).rejects.toThrow('cli-cwd must not be inside orca.homeDir');
   expect(exec).not.toHaveBeenCalled();
 });
+
+it('polls an injected testOnly.scm at the SPEC §12.2 cadence, the fake SCM fast', async () => {
+  const loops: ObservationLoop[] = [];
+  const original = ObservationLoop.prototype.start;
+  vi.spyOn(ObservationLoop.prototype, 'start').mockImplementation(function (
+    this: ObservationLoop,
+  ) {
+    loops.push(this);
+    original.call(this);
+  });
+  const runner = (open: boolean) =>
+    ({
+      state: {
+        gates: open
+          ? { g: { status: 'open', content: { type: 'final-pr' } } }
+          : {},
+      },
+    }) as unknown as Parameters<ObservationLoop['scmInterval']>[0];
+  const fakeServer = await boot(home());
+  expect(loops.at(-1)!.scmInterval(runner(false))).toBe(250);
+  await fakeServer.close();
+  const scm = createFakeScm();
+  scm.addRepo(FAKE_REPO.github);
+  const injected = await boot(home(), { testOnly: { scm } });
+  expect(loops.at(-1)!.scmInterval(runner(false))).toBe(15_000);
+  expect(loops.at(-1)!.scmInterval(runner(true))).toBe(30_000);
+  await injected.close();
+});
