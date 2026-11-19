@@ -275,6 +275,130 @@ function setup(github = new FakeGithub()) {
 const ofType = <T extends ScmEvent['type']>(events: ScmEvent[], type: T) =>
   events.filter((e): e is Extract<ScmEvent, { type: T }> => e.type === type);
 
+describe('scm-github poll transition keys survive a return to an earlier state (FX-C)', () => {
+  const keys = (events: ScmEvent[]) => events.map((e) => e.externalKey);
+  it('reopened PR: open → closed → open get three distinct keys; a replayed cursor repeats them', async () => {
+    const { github, poll } = setup();
+    let cursor = (await poll(null)).cursor;
+    const pr = github.pull('ai-office/abc-int', 'main', true);
+    const seen: string[] = [];
+    const step = async () => {
+      const before = cursor;
+      const result = await poll(before);
+      cursor = result.cursor;
+      const states = ofType(result.events, 'pr.state').filter(
+        (e) => e.pr.number === pr,
+      );
+      seen.push(...keys(states));
+      // Replaying the uncommitted cursor yields the same keys.
+      expect(keys(ofType((await poll(before)).events, 'pr.state'))).toEqual(
+        keys(ofType(result.events, 'pr.state')),
+      );
+      return states;
+    };
+    expect((await step()).map((e) => e.state)).toEqual(['open']);
+    github.updatePull(pr, { state: 'closed' });
+    expect((await step()).map((e) => e.state)).toEqual(['closed']);
+    github.updatePull(pr, { state: 'open' });
+    expect((await step()).map((e) => e.state)).toEqual(['open']);
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('body edited, reverted and edited again: every edit has a fresh key', async () => {
+    const { github, poll } = setup();
+    let cursor = (await poll(null)).cursor;
+    const issue = github.issue(`Original\n${marker('c1')}`);
+    cursor = (await poll(cursor)).cursor;
+    const seen: string[] = [];
+    for (const body of ['Edited', 'Original', 'Edited']) {
+      github.touch(issue, { body: `${body}\n${marker('c1')}` });
+      const result = await poll(cursor);
+      cursor = result.cursor;
+      const edits = ofType(result.events, 'issue.edited');
+      expect(edits.map((e) => e.bodyHash)).toEqual([
+        bodyHash(`${body}\n${marker('c1')}`),
+      ]);
+      seen.push(...keys(edits));
+    }
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('branch moved A → B → A: every move has a fresh key', async () => {
+    const { github, poll } = setup();
+    github.refs.set('ai-office/abc-int', sha('A'));
+    let cursor = (await poll(null)).cursor;
+    const seen: string[] = [];
+    for (const seed of ['B', 'A', 'B']) {
+      github.refs.set('ai-office/abc-int', sha(seed));
+      const result = await poll(cursor);
+      cursor = result.cursor;
+      const moves = ofType(result.events, 'branch.head_changed').filter(
+        (e) => e.branch === 'ai-office/abc-int',
+      );
+      expect(moves.map((e) => e.sha)).toEqual([sha(seed)]);
+      seen.push(...keys(moves));
+    }
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('checks flapping none ↔ pending: every change has a fresh key', async () => {
+    const { github, poll } = setup();
+    const pr = github.pull('ai-office/abc-int', 'main', true);
+    const head = github.pulls.get(pr)!.head.sha;
+    let cursor = (await poll(null)).cursor;
+    cursor = (await poll(cursor)).cursor;
+    const seen: string[] = [];
+    for (const pending of [true, false, true]) {
+      github.runs.set(
+        head,
+        pending ? [{ status: 'in_progress', conclusion: null }] : [],
+      );
+      github.touch(pr, {});
+      const result = await poll(cursor);
+      cursor = result.cursor;
+      const checks = ofType(result.events, 'pr.checks');
+      expect(checks.map((e) => e.status)).toEqual([
+        pending ? 'pending' : 'none',
+      ]);
+      seen.push(...keys(checks));
+    }
+    expect(new Set(seen).size).toBe(3);
+  });
+  it('accepts a cursor written before FX-C and starts its chains', async () => {
+    const { github, poll } = setup();
+    const pr = github.pull('ai-office/abc-int', 'main', true);
+    const first = await poll(null);
+    const legacy = JSON.parse(first.cursor) as Record<string, unknown>;
+    delete legacy.k;
+    github.updatePull(pr, { state: 'closed' });
+    const next = await poll(ScmCursorSchema.parse(JSON.stringify(legacy)));
+    expect(ofType(next.events, 'pr.state').map((e) => e.state)).toEqual([
+      'closed',
+    ]);
+    expect(JSON.parse(next.cursor).k[`pr:${pr}`]).toBe(
+      ofType(next.events, 'pr.state')[0]!.externalKey,
+    );
+  });
+  it('keeps one chain key per tracked object', () => {
+    const state = emptyState(repo, 'main');
+    state.prs = { 7: { s: 'open', h: sha('h'), b: 'main', m: true } };
+    state.refs = { main: sha('m') };
+    state.is = { 9: ['a', 'b'] };
+    state.k = {
+      'pr:7': 'kept-pr',
+      'ck:7': 'kept-checks',
+      'ref:main': 'kept-ref',
+      'issue:9': 'kept-issue',
+      'pr:8': 'dropped',
+      'issue:10': 'dropped',
+      'ref:ai-office/gone': 'dropped',
+    };
+    expect(JSON.parse(encodeCursor(state)).k).toEqual({
+      'pr:7': 'kept-pr',
+      'ck:7': 'kept-checks',
+      'ref:main': 'kept-ref',
+      'issue:9': 'kept-issue',
+    });
+  });
+});
+
 describe('scm-github poll', () => {
   it('carries the body hash on first sighting, including an edit made before it (FX-B)', async () => {
     const { github, poll } = setup();

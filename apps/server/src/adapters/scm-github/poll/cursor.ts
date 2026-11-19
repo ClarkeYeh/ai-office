@@ -45,6 +45,11 @@ const PollStateSchema = z.strictObject({
   ),
   /** Duplicate sets already reported, by marker key. */
   dp: z.record(z.string(), z.string()),
+  /**
+   * FX-C: the last emitted transition key per object (`pr:<n>`, `ck:<n>`,
+   * `issue:<n>`, `ref:<branch>`). Absent in cursors written before FX-C.
+   */
+  k: z.record(z.string(), z.string()).optional(),
 });
 export type PollState = z.infer<typeof PollStateSchema>;
 export const repoKey = (repo: RepoScmRef) =>
@@ -63,6 +68,7 @@ export function emptyState(repo: RepoScmRef, defaultBranch: string): PollState {
     is: {},
     mk: {},
     dp: {},
+    k: {},
   };
 }
 const invalid = () =>
@@ -108,6 +114,21 @@ export function encodeCursor(state: PollState): ScmCursor {
   bounded.dp = Object.fromEntries(
     Object.entries(state.dp).filter(([key]) => key in bounded.mk),
   );
+  // One chain key per object the cursor still tracks (FX-C).
+  const pruneKeys = () => {
+    bounded.k = Object.fromEntries(
+      Object.entries(state.k ?? {}).filter(([key]) => {
+        const split = key.indexOf(':');
+        const [kind, id] = [key.slice(0, split), key.slice(split + 1)];
+        return kind === 'issue'
+          ? id in bounded.is
+          : kind === 'ref'
+            ? id in bounded.refs
+            : (kind === 'pr' || kind === 'ck') && id in bounded.prs;
+      }),
+    );
+  };
+  pruneKeys();
   let text = JSON.stringify(bounded);
   // Last resort: shed the oldest Issues until the cursor fits.
   while (text.length > CURSOR_LIMITS.bytes) {
@@ -117,6 +138,7 @@ export function encodeCursor(state: PollState): ScmCursor {
     if (!keys.length) throw invalid();
     for (const key of keys.slice(0, Math.ceil(keys.length / 4)))
       delete bounded.is[key];
+    pruneKeys();
     text = JSON.stringify(bounded);
   }
   return ScmCursorSchema.parse(text);
