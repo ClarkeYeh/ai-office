@@ -1,0 +1,18 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:21:47.959Z",
+  "method": "DELETE",
+  "pathTemplate": "/repos/{owner}/{repo}/git/refs/heads/{ref}",
+  "query": {},
+  "status": 204,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:21:48 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4934",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "66",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "C0E1:52FFA:74EEE7:BABBA2:6AFE876C"
+  },
+  "response": null
+}

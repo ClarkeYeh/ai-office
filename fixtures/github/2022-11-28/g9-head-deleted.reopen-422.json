@@ -1,0 +1,31 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:21:49.893Z",
+  "method": "PATCH",
+  "pathTemplate": "/repos/{owner}/{repo}/pulls/{pull_number}",
+  "query": {},
+  "status": 422,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:21:50 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4931",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "69",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "C0EC:3883EA:74F9BB:BA91F9:6AFE876D"
+  },
+  "response": {
+    "message": "Validation Failed",
+    "errors": [
+      {
+        "resource": "PullRequest",
+        "code": "custom",
+        "field": "state",
+        "message": "state cannot be changed. The ai-office/t000000000001-w4 branch has been deleted."
+      }
+    ],
+    "documentation_url": "<redacted>",
+    "status": "422"
+  },
+  "requestBodySha256": "0a871c408fb7afeb1b9fcd0b4e50809a7f9ddb34f72922cae3d8935bfd3a0cea"
+}

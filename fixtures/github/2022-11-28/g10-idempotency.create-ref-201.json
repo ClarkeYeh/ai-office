@@ -1,0 +1,29 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:55.401Z",
+  "method": "POST",
+  "pathTemplate": "/repos/{owner}/{repo}/git/refs",
+  "query": {},
+  "status": 201,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:56 GMT",
+    "etag": "\"39133a6a8fbd5cc6288693bd89bfed1c0fa6f0af58a5e6fae392a271af77cbe6\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4968",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "32",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FF85:0C0D:40BC37:653437:6AFE8737"
+  },
+  "response": {
+    "ref": "<redacted>",
+    "node_id": "<redacted>",
+    "url": "<redacted>",
+    "object": {
+      "sha": "afc56c9bd427d5dedbf1b6582a9df010f498ee0e",
+      "type": "commit",
+      "url": "<redacted>"
+    }
+  },
+  "requestBodySha256": "2e68caec56488462a48e74d18e720d993254dc2a552615a21b57d0ecca163002"
+}

@@ -1,0 +1,22 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:02.873Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/branches/{branch}/protection",
+  "query": {},
+  "status": 404,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:03 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4966",
+    "x-ratelimit-reset": "1795067705",
+    "x-ratelimit-used": "34",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FE78:3E4B82:73A652:B8E9F4:6AFE8702"
+  },
+  "response": {
+    "message": "Branch not protected",
+    "documentation_url": "<redacted>",
+    "status": "404"
+  }
+}

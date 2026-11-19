@@ -1,0 +1,19 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:03.394Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/rules/branches/{branch}",
+  "query": {},
+  "status": 200,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:03 GMT",
+    "etag": "\"5da79a4ef887a5a8b6e07728fcbf6d697b428caec9db133e90a3c5bbd3f49de5\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4965",
+    "x-ratelimit-reset": "1795067705",
+    "x-ratelimit-used": "35",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FE79:287807:746E69:B9DAD7:6AFE8703"
+  },
+  "response": []
+}

@@ -1,0 +1,52 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:22:05.733Z",
+  "method": "POST",
+  "pathTemplate": "/repos/{owner}/{repo}/statuses/{sha}",
+  "query": {},
+  "status": 201,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:22:06 GMT",
+    "etag": "\"438adc6af6956e2a627740bc5fca5bf71951d47e802396e3a112a5a959bc8499\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4944",
+    "x-ratelimit-reset": "1795067705",
+    "x-ratelimit-used": "56",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "C127:17E4C9:749D3E:BA3D6E:6AFE877D"
+  },
+  "response": {
+    "url": "<redacted>",
+    "avatar_url": "<redacted>",
+    "id": 59333824402,
+    "node_id": "<redacted>",
+    "state": "pending",
+    "description": "aio-test 000000000001",
+    "target_url": null,
+    "context": "aio-test/probe",
+    "created_at": "2026-11-19T05:22:06Z",
+    "updated_at": "2026-11-19T05:22:06Z",
+    "creator": {
+      "login": "ClarkeYeh",
+      "id": 229904565,
+      "node_id": "U_kgDODbQQtQ",
+      "avatar_url": "<redacted>",
+      "gravatar_id": "",
+      "url": "<redacted>",
+      "html_url": "<redacted>",
+      "followers_url": "<redacted>",
+      "following_url": "<redacted>",
+      "gists_url": "<redacted>",
+      "starred_url": "<redacted>",
+      "subscriptions_url": "<redacted>",
+      "organizations_url": "<redacted>",
+      "repos_url": "<redacted>",
+      "events_url": "<redacted>",
+      "received_events_url": "<redacted>",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    }
+  },
+  "requestBodySha256": "739a6c0e455e1b9983443a7d1111a406a86b7918aa8c26532308835f6b387848"
+}

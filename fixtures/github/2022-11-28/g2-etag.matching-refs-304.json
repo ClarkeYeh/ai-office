@@ -1,0 +1,19 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:32.120Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/git/matching-refs/heads/{ref}",
+  "query": {},
+  "status": 304,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:32 GMT",
+    "etag": "\"886bc2eb9d6b6d8c29df375e1f4c17896648d5e6e6a1af67dfab4d8936e441c4\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-reset": "1795067705",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-remaining": "4960",
+    "x-ratelimit-used": "40",
+    "x-github-request-id": "FED1:13EB1F:751D72:BA6ECC:6AFE8720"
+  },
+  "response": null
+}
