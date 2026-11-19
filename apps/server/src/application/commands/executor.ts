@@ -12,6 +12,7 @@ import type {
   WorkspaceRef,
 } from '../../ports/refs.js';
 import type { Correlation, RuntimePort } from '../../ports/runtime.js';
+import { CREATE_PENDING_WINDOW_MS } from '../../ports/scm.js';
 import type { ScmPort } from '../../ports/scm.js';
 import type { Logger, Scheduler } from '../../ports/services.js';
 import type { SpecStore } from '../../ports/stores.js';
@@ -212,6 +213,16 @@ export const portHandlers = (ports: {
 
 /** Scheduler timer ids the executor owns; the timer sink routes them back here. */
 export const RETRY_TIMER_PREFIX = 'aio-retry:';
+/** One `retryAfterMs` wait is capped at this (SPEC §15). */
+export const RETRY_AFTER_MAX_MS = 15 * 60_000;
+/**
+ * The total of one command's `retryAfterMs` waits (M3_PLAN §4.7); beyond it
+ * the command fails. Covers a whole create pending window plus one more scan.
+ */
+export const RETRY_AFTER_TOTAL_MS = Math.max(
+  3 * 60_000,
+  CREATE_PENDING_WINDOW_MS + 60_000,
+);
 
 export interface CommandExecutorDeps {
   handlers: CommandHandlers;
@@ -269,13 +280,13 @@ export class CommandExecutor {
           : { attemptId: issued.attemptId }),
       },
     };
-    const component = issued.command.kind.startsWith('scm.')
-      ? 'scm'
-      : 'runtime';
+    const kind = issued.command.kind;
+    const component = kind.startsWith('scm.') ? 'scm' : 'runtime';
     let retry = 0;
+    let waitedMs = 0;
     for (let attempt = 1; ; attempt++) {
       if (this.deps.health !== undefined)
-        await this.deps.health.waitUntilDispatchable();
+        await this.deps.health.waitUntilDispatchable(kind);
       const startedAt = this.deps.clock.now().getTime();
       try {
         const result = await handler(issued.command.args, ctx);
@@ -284,25 +295,50 @@ export class CommandExecutor {
         return {
           ok: true,
           attempts: attempt,
-          result: { kind: issued.command.kind, result } as CommandResult,
+          result: { kind, result } as CommandResult,
         };
       } catch (thrown) {
         const error = toErrorInfo(thrown);
+        const retryAfterMs =
+          thrown instanceof PortError ? thrown.retryAfterMs : undefined;
+        const waitStated = retryAfterMs !== undefined && retryAfterMs > 0;
         if (this.deps.health !== undefined)
-          await this.deps.health.record(component, startedAt, error.category);
+          await this.deps.health.record(
+            component,
+            startedAt,
+            error.category,
+            waitStated,
+          );
         // An outage leaves the outbox command pending, with its original args/ID.
         // Recovery starts a fresh retry budget; attempts still counts real calls.
         if (
           error.category === 'transient' &&
-          this.deps.health?.dispatchBlocked
+          this.deps.health?.dispatchBlockedFor(kind)
         ) {
-          await this.deps.health.waitUntilDispatchable();
+          await this.deps.health.waitUntilDispatchable(kind);
           retry = 0;
+          continue;
+        }
+        // PP4: an adapter-stated wait (any category) is honoured without
+        // spending the category's retries, up to a per-command total (§4.7).
+        if (waitStated) {
+          const delay = Math.min(
+            retryAfterMs,
+            RETRY_AFTER_MAX_MS,
+            RETRY_AFTER_TOTAL_MS - waitedMs,
+          );
+          log.warn(
+            { kind, attempt, error, retryInMs: delay > 0 ? delay : undefined },
+            'command attempt failed',
+          );
+          if (delay <= 0) return { ok: false, error, attempts: attempt };
+          waitedMs += delay;
+          await this.wait(issued, delay);
           continue;
         }
         const delay = retryDelay(error.category, retry++, this.random);
         log.warn(
-          { kind: issued.command.kind, attempt, error, retryInMs: delay },
+          { kind, attempt, error, retryInMs: delay },
           'command attempt failed',
         );
         if (delay === undefined) return { ok: false, error, attempts: attempt };

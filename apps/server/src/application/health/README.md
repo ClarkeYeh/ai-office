@@ -26,8 +26,14 @@ Every probe (startup's `publishInitial` included) is bounded by `probeTimeoutMs`
 serves and reports that component `degraded`.
 Successful ordinary calls already in flight do not close an open breaker.
 
-Runtime, SCM, and store outages block all new executor attempts and add their
-own workflow pause reasons. In-flight calls can settle. A transient failure that
+Runtime, SCM, and store outages add their own workflow pause reasons and block
+the executor attempts that depend on them (`dispatchBlockedFor(kind)`, SPEC §15
+S21): `scm.*` waits for the scm and store breakers, other `runtime.*` for the
+runtime and store breakers, and `runtime.stop`/`runtime.release` only for the
+runtime breaker, so a GitHub outage never holds a cancel, a hard budget stop or
+a release. `dispatchBlocked` (any of the three) remains the overall status.
+A failure carrying `retryAfterMs` is sampled but neither extends nor resets the
+transient streak, so rate limits and pending creates never open a breaker. In-flight calls can settle. A transient failure that
 opens the breaker keeps its command issued, without a failure event or gate.
 Recovery retries the same recorded arguments and command ID with a fresh retry
 budget; the outcome's attempt count includes every actual call. Unrelated pause

@@ -158,11 +158,11 @@ describe('HealthMonitor', () => {
           finish = resolve;
         }),
     );
-    h.probes.scm.mockRejectedValueOnce(transient());
+    h.probes.store.mockRejectedValueOnce(transient());
     await h.fail('runtime');
-    await h.fail('scm');
+    await h.fail('store');
     const admitted = vi.fn();
-    void h.health.waitUntilDispatchable().then(admitted);
+    void h.health.waitUntilDispatchable('runtime.send').then(admitted);
     await h.advance(10_000);
     expect(h.health.snapshot().runtime.breaker).toBe('half_open');
     await h.health.onTimer({
@@ -182,7 +182,7 @@ describe('HealthMonitor', () => {
     const h = setup();
     await h.runners.start(startWorkflow());
     await h.fail('usage');
-    await h.health.waitUntilDispatchable();
+    await h.health.waitUntilDispatchable('runtime.send');
     expect(h.health.snapshot().status).toBe('degraded');
     expect(h.health.snapshot().usage.detail).toContain('wall-clock');
     expect(h.store.read({}).some((e) => e.type === 'workflow.paused')).toBe(
@@ -273,14 +273,155 @@ describe('HealthMonitor', () => {
 
   it('holds new commands across systems without consuming retry budgets', async () => {
     const handler = vi.fn(async () => ({}));
-    const h = setup({ 'runtime.stop': handler });
-    await h.fail('scm');
-    const result = h.executor.execute(issued);
+    const h = setup({ 'runtime.send': handler });
+    await h.fail('store');
+    const send: IssuedCommand = {
+      ...issued,
+      command: {
+        kind: 'runtime.send',
+        args: { agent: 'agent-1', subject: 's', body: 'b' },
+      },
+    };
+    const result = h.executor.execute(send);
     await flush();
     expect(handler).not.toHaveBeenCalled();
     await h.advance(10_000);
     expect(await result).toMatchObject({ ok: true, attempts: 1 });
   });
+
+  describe('per-component dispatch blocking (S21)', () => {
+    const repo = { owner: 'o', name: 'r' };
+    const commands = {
+      stop: { kind: 'runtime.stop', args: { agent: 'a' } },
+      release: {
+        kind: 'runtime.release',
+        args: { agent: 'a', removeWorkspace: false },
+      },
+      send: {
+        kind: 'runtime.send',
+        args: { agent: 'a', subject: 's', body: 'b' },
+      },
+      label: { kind: 'scm.ensureLabels', args: { repo, labels: [] } },
+    } as const satisfies Record<string, IssuedCommand['command']>;
+    const blocked = (h: ReturnType<typeof setup>) =>
+      Object.fromEntries(
+        Object.entries(commands).map(([name, command]) => [
+          name,
+          h.health.dispatchBlockedFor(command.kind),
+        ]),
+      );
+
+    it('maps each command kind to the breakers it needs', async () => {
+      const scm = setup();
+      await scm.fail('scm');
+      expect(blocked(scm)).toEqual({
+        stop: false,
+        release: false,
+        send: false,
+        label: true,
+      });
+      const store = setup();
+      await store.fail('store');
+      expect(blocked(store)).toEqual({
+        stop: false,
+        release: false,
+        send: true,
+        label: true,
+      });
+      const runtime = setup();
+      await runtime.fail('runtime');
+      expect(blocked(runtime)).toEqual({
+        stop: true,
+        release: true,
+        send: true,
+        label: false,
+      });
+      const usage = setup();
+      await usage.fail('usage');
+      expect(Object.values(blocked(usage))).not.toContain(true);
+    });
+
+    it('sends runtime.stop and runtime.release while the scm breaker is open', async () => {
+      const stop = vi.fn(async () => ({}));
+      const release = vi.fn(async () => ({}));
+      const label = vi.fn(async () => ({}));
+      const h = setup({
+        'runtime.stop': stop,
+        'runtime.release': release,
+        'scm.ensureLabels': label,
+      });
+      await h.runners.start(startWorkflow());
+      await h.fail('scm');
+      expect(h.runners.get('wf-1')?.state.workflow?.pausedReasons).toEqual([
+        'scm_unhealthy',
+      ]);
+      const run = (command: IssuedCommand['command']) =>
+        h.executor.execute({ ...issued, command });
+      const scmOutcome = vi.fn();
+      void run(commands.label).then(scmOutcome);
+      expect(await run(commands.stop)).toMatchObject({ ok: true });
+      expect(await run(commands.release)).toMatchObject({ ok: true });
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(release).toHaveBeenCalledTimes(1);
+      expect(label).not.toHaveBeenCalled();
+      expect(scmOutcome).not.toHaveBeenCalled();
+      await h.advance(10_000);
+      expect(scmOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true }),
+      );
+    });
+
+    it('sends runtime.stop while the store breaker is open, but not runtime.send', async () => {
+      const stop = vi.fn(async () => ({}));
+      const send = vi.fn(async () => ({}));
+      const h = setup({ 'runtime.stop': stop, 'runtime.send': send });
+      await h.fail('store');
+      void h.executor.execute({ ...issued, command: commands.send });
+      expect(
+        await h.executor.execute({ ...issued, command: commands.stop }),
+      ).toMatchObject({ ok: true });
+      await flush();
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('keeps a transient scm failure pending on the scm outage only', async () => {
+      const label = vi
+        .fn()
+        .mockRejectedValueOnce(transient())
+        .mockResolvedValue({});
+      const h = setup({ 'scm.ensureLabels': label });
+      await h.fail('scm', 4);
+      const outcome = h.executor.execute({
+        ...issued,
+        command: commands.label,
+      });
+      await flush();
+      expect(h.health.dispatchBlockedFor('scm.ensureLabels')).toBe(true);
+      expect(h.health.dispatchBlockedFor('runtime.send')).toBe(false);
+      await h.advance(10_000);
+      expect(await outcome).toMatchObject({ ok: true, attempts: 2 });
+    });
+
+    it('wakes a waiter only once every breaker its kind needs is closed', async () => {
+      const send = vi.fn(async () => ({}));
+      const h = setup({ 'runtime.send': send });
+      h.probes.runtime.mockRejectedValueOnce(transient());
+      await h.fail('store');
+      await h.fail('runtime');
+      const outcome = vi.fn();
+      void h.executor
+        .execute({ ...issued, command: commands.send })
+        .then(outcome);
+      await h.advance(10_000);
+      expect(h.health.snapshot().store.breaker).toBe('closed');
+      expect(outcome).not.toHaveBeenCalled();
+      await h.advance(10_000);
+      expect(outcome).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true, attempts: 1 }),
+      );
+    });
+  });
+
   it('leaves runner outbox commands issued without failed events or exception gates through an outage', async () => {
     const handler = vi
       .fn()
@@ -322,13 +463,16 @@ describe('HealthMonitor', () => {
   });
   it('pauses a workflow created while a required breaker is already open', async () => {
     const handler = vi.fn(async () => ({}));
-    const h = setup({ 'runtime.stop': handler }, (_state, event) =>
+    const h = setup({ 'scm.ensureLabels': handler }, (_state, event) =>
       event.type === 'workflow.started'
         ? [
             {
               kind: 'external',
               commandId: issued.commandId,
-              command: issued.command,
+              command: {
+                kind: 'scm.ensureLabels',
+                args: { repo: { owner: 'o', name: 'r' }, labels: [] },
+              },
             },
           ]
         : [],
