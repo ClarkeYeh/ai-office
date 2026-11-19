@@ -1356,7 +1356,8 @@ async function compose(
     // The fake answers instantly; poll fast so a scenario runs in seconds.
     runtimeIntervalMs: fake ? 100 : 2000,
     usageIntervalMs: fake ? 250 : 15_000,
-    ...(fake ? { scmIntervalMs: 250 } : {}),
+    // An injected real SCM (testOnly.scm) keeps SPEC §12.2 cadence and scmPace.
+    ...(fake && !options.testOnly?.scm ? { scmIntervalMs: 250 } : {}),
     usageIdentity: (attempt) => ({
       dispatchId: attempt.agentRef!,
       startedAt: attempt.spawnedAt,
