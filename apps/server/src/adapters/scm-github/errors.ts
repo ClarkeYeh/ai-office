@@ -67,6 +67,17 @@ export function mapResponseError(
     );
   if (status === 404)
     return new PortError('permanent', 'not_found', 'GitHub object not found');
+  // A base that moved during the merge is a race: retry after re-reading the base.
+  if (
+    (status === 405 || status === 409) &&
+    /base branch was modified/i.test(body.message ?? '')
+  )
+    return new PortError(
+      'conflict',
+      'base_moved',
+      'GitHub base moved during the merge',
+      true,
+    );
   if (status === 409)
     return new PortError(
       'conflict',
@@ -74,8 +85,9 @@ export function mapResponseError(
       'GitHub head does not match',
     );
   if (status === 405) {
+    // GitHub appends "Review and try the merge again." to race messages.
     const rules = /rule|protect|required|check|review|restrict/i.test(
-      body.message ?? '',
+      (body.message ?? '').replace(/review and try the merge again/i, ''),
     );
     return new PortError(
       rules ? 'permanent' : 'conflict',

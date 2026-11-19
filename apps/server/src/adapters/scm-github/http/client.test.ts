@@ -264,6 +264,27 @@ describe('GitHub HTTP boundary', () => {
     [405, { message: 'Merge conflict' }, 'conflict', 'not_mergeable'],
     [
       405,
+      { message: 'Base branch was modified. Review and try the merge again.' },
+      'conflict',
+      'base_moved',
+    ],
+    [
+      409,
+      { message: 'Base branch was modified. Review and try the merge again.' },
+      'conflict',
+      'base_moved',
+    ],
+    [
+      405,
+      {
+        message:
+          'Pull Request is not mergeable. Review and try the merge again.',
+      },
+      'conflict',
+      'not_mergeable',
+    ],
+    [
+      405,
       { message: 'Required checks failed' },
       'permanent',
       'merge_blocked_by_rules',

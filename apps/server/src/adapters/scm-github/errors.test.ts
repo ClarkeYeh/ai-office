@@ -33,3 +33,25 @@ describe('GitHub recorded error mappings', () => {
     },
   );
 });
+
+describe('GitHub merge races', () => {
+  it('maps a base modified during the merge to a retryable conflict', () => {
+    const message = 'Base branch was modified. Review and try the merge again.';
+    for (const status of [405, 409])
+      // conflict, not transient: the application breaker never counts it.
+      expect(mapResponseError(status, { message }, false)).toMatchObject({
+        category: 'conflict',
+        code: 'base_moved',
+        retryable: true,
+      });
+    expect(
+      mapResponseError(
+        409,
+        {
+          message: 'Head branch was modified. Review and try the merge again.',
+        },
+        false,
+      ),
+    ).toMatchObject({ code: 'head_mismatch', retryable: false });
+  });
+});
