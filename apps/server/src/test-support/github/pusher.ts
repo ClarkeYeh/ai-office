@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { git } from './process.js';
+import { git, ghToken } from './process.js';
 import { Ledger } from './ledger.js';
 import { REPO, assertBranch, assertRemote } from './safety.js';
 
@@ -50,11 +50,16 @@ export class GitPusher {
     private readonly env: NodeJS.ProcessEnv,
     private readonly run: GitRunner,
     private readonly authorize: () => Promise<void>,
+    private readonly token: () => Promise<string>,
   ) {}
   static async create(
     ledger: Ledger,
     gate: { email: string; assertActive: () => Promise<void> },
-    options: { run?: GitRunner; sourcePath?: string } = {},
+    options: {
+      run?: GitRunner;
+      sourcePath?: string;
+      token?: () => Promise<string>;
+    } = {},
   ): Promise<GitPusher> {
     const run = options.run ?? git;
     await gate.assertActive();
@@ -68,7 +73,14 @@ export class GitPusher {
         tmpdir(),
         env,
       );
-      return new GitPusher(path, ledger, env, run, gate.assertActive);
+      return new GitPusher(
+        path,
+        ledger,
+        env,
+        run,
+        gate.assertActive,
+        options.token ?? (() => ghToken(false)),
+      );
     } catch (e) {
       await rm(path, { recursive: true, force: true });
       throw e;
@@ -150,14 +162,19 @@ export class GitPusher {
         'core.hooksPath=/dev/null',
         '-c',
         'credential.helper=',
-        '-c',
-        'credential.helper=!gh auth git-credential',
         'push',
         'origin',
         `HEAD:refs/heads/${branch}`,
       ],
       this.path,
-      this.env,
+      {
+        ...this.env,
+        // Keep the selected account's credential out of argv and disk. Never
+        // consult gh's active-account credential helper for this push.
+        GIT_CONFIG_COUNT: '1',
+        GIT_CONFIG_KEY_0: 'http.https://github.com/.extraHeader',
+        GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`x-access-token:${await this.token()}`).toString('base64')}`,
+      },
     );
     await this.ledger.created(remote);
     return this.run(['rev-parse', 'HEAD'], this.path, this.env);

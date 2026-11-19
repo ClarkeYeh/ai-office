@@ -24,7 +24,7 @@ test('record and janitor reject missing required arguments', () => {
 });
 
 test('live commands skip without opt-in or whenever CI is set', () => {
-  for (const command of ['test', 'e2e']) {
+  for (const command of ['test', 'e2e', 'record-contract']) {
     for (const flags of [
       { AIO_REAL_GITHUB: '' },
       { AIO_REAL_GITHUB: 'true' },
@@ -41,7 +41,7 @@ test('live commands skip without opt-in or whenever CI is set', () => {
 
 test('unknown commands and project overrides are refused', () => {
   assert.equal(run('unknown').status, 1);
-  for (const command of ['test', 'e2e']) {
+  for (const command of ['test', 'e2e', 'record-contract']) {
     const result = run(command, { AIO_REAL_GITHUB: '1' }, ['--project', '*']);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /do not accept additional arguments/);
@@ -64,12 +64,13 @@ test('opted-in commands route only to the serialized GitHub project', async () =
     // Replace Vitest with an argument reporter: this test cannot collect live files.
     await writeFile(
       join(root, 'node_modules/vitest/vitest.mjs'),
-      'console.log(JSON.stringify(process.argv.slice(2)));\n',
+      'console.log(JSON.stringify({args:process.argv.slice(2), record:process.env.AIO_GITHUB_RECORD}));\n',
     );
     /** @type {NodeJS.ProcessEnv} */
     const env = { ...process.env, AIO_REAL_GITHUB: '1' };
     delete env.CI;
-    for (const command of ['test', 'e2e']) {
+    delete env.AIO_GITHUB_RECORD;
+    for (const command of ['test', 'e2e', 'record-contract']) {
       const result = spawnSync(
         process.execPath,
         [join(root, 'scripts/github/run.mjs'), command],
@@ -77,15 +78,23 @@ test('opted-in commands route only to the serialized GitHub project', async () =
       );
       assert.ifError(result.error);
       assert.equal(result.status, 0);
-      assert.deepEqual(JSON.parse(result.stdout), [
+      const report = JSON.parse(result.stdout);
+      assert.equal(
+        report.record,
+        command === 'record-contract' ? '1' : undefined,
+      );
+      assert.deepEqual(report.args, [
         'run',
         '--project',
         '@ai-office/server-github',
         '--maxWorkers=2',
+        '--hookTimeout=120000',
         '--passWithNoTests',
-        ...(command === 'e2e'
-          ? ['apps/server/src/acceptance/github/']
-          : ['--exclude', '**/acceptance/github/**']),
+        ...(command === 'record-contract'
+          ? ['apps/server/src/adapters/scm-github/live.github.test.ts']
+          : command === 'e2e'
+            ? ['apps/server/src/acceptance/github/']
+            : ['--exclude', '**/acceptance/github/**']),
       ]);
     }
   } finally {

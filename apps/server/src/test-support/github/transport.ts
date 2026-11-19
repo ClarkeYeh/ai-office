@@ -72,7 +72,6 @@ export function guardedFetch(
     if ('force' in body) throw new Error('Force is forbidden');
     let resource: Resource | undefined;
     let allowed = false;
-    let mergeBase: string | undefined;
     if (
       method === 'POST' &&
       (path === '/issues' ||
@@ -158,23 +157,13 @@ export function guardedFetch(
       if (target.data.protected !== false)
         throw new Error('Branch is protected');
       allowed = true;
-    } else if (/^\/(issues|pulls)\/\d+(?:\/labels|\/merge)?$/.test(path)) {
+    } else if (/^\/(issues|pulls)\/\d+(?:\/labels)?$/.test(path)) {
       const [, group, number, action] = path.split('/');
       const object = await owned(
         group === 'pulls' ? 'pr' : 'issue',
         Number(number),
       );
-      if (action === 'merge' && method === 'PUT') {
-        const base = (object.base as { ref?: string })?.ref;
-        assertBranch(String(base), ledger.data.runId, ledger.data.claims);
-        mergeBase = String(base);
-        if (
-          !/^[a-f0-9]{40}$/.test(String(body.sha)) ||
-          body.merge_method !== 'merge'
-        )
-          throw new Error('Merge requires pinned head');
-        allowed = true;
-      } else if (action === 'labels' && ['POST', 'PUT'].includes(method)) {
+      if (action === 'labels' && ['POST', 'PUT'].includes(method)) {
         allowed =
           Array.isArray(body.labels) &&
           body.labels.every(
@@ -237,11 +226,6 @@ export function guardedFetch(
     }
     lastWrite = Date.now();
     const response = await transport(request);
-    if (mergeBase && response.ok) {
-      const verified = await api.request('GET', path.replace(/\/merge$/, ''));
-      if ((verified.data.base as { ref?: string })?.ref !== mergeBase)
-        throw new Error('Merge base changed after merge');
-    }
     if (resource && response.ok) {
       const data = (await response.clone().json()) as JsonObject;
       const number = resource.kind === 'comment' ? data.id : data.number;
