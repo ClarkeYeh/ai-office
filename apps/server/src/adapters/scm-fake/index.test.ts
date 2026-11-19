@@ -5,7 +5,8 @@ import { FakeScm } from './index.js';
 const repo = { owner: 'owner', name: 'repo' };
 const c = { workflowId: 'workflow', commandId: 'command' };
 scmPortContract(() => {
-  const scm = new FakeScm();
+  const clock = new FakeClock(),
+    scm = new FakeScm({ clock });
   scm.addRepo(repo);
   return {
     scm,
@@ -13,6 +14,19 @@ scmPortContract(() => {
     defaultBranch: 'main',
     pushBranch: async (branch) => scm.pushBranch(repo, branch),
     editBody: (issue, body) => scm.editIssueBody(issue, body),
+    settle: async (ms) => clock.advance(ms),
+    loseNextResponse: (operation) => scm.loseNextResponse(operation),
+    listLagMs: (ms) => scm.setListLag(ms),
+    mergeExternally: async (pr) => {
+      await scm.mergeExternally(pr, 'repo-owner');
+    },
+    closeExternally: (pr) => scm.updatePR(pr, { state: 'closed' }),
+    retargetExternally: (pr, base, when) =>
+      scm.retargetExternally(pr, base, when),
+    commentExternally: (target, body) => scm.addExternalComment(target, body),
+    createExternalIssue: (draft) =>
+      scm.createExternalIssue(repo, { ...draft, labels: [] }),
+    pushDefaultBranch: async () => scm.pushBranch(repo, 'main'),
   };
 });
 async function setup(scm = new FakeScm()) {
@@ -112,7 +126,9 @@ describe('FakeScm scenarios', () => {
       pushed,
     );
     await scm.addExternalComment(issue, 'Manual comment');
-    expect(scm.inspectObject(issue).comments).toEqual(['Manual comment']);
+    expect(scm.inspectObject(issue).comments.map((c) => c.body)).toEqual([
+      'Manual comment',
+    ]);
   });
   it('handles PR checks, conflicts, closing and review comments', async () => {
     const { scm, pr, sha } = await setup();
@@ -317,3 +333,67 @@ it.each(['comment', 'update', 'push'] as const)(
     expect((await scm.getPR(pr)).state).toBe('merged');
   },
 );
+describe('FakeScm M3 ports (PP1, PP2, PP7)', () => {
+  it('guards merges into a base outside ai-office/ and branch creation outside it', async () => {
+    const { scm, sha } = await setup();
+    scm.pushBranch(repo, 'feature', 'main');
+    const pr = await scm.openPR(
+      repo,
+      { title: 'Off', body: '', base: 'feature', head: 'ai-office/worker' },
+      { ...c, commandId: 'off' },
+    );
+    await expect(
+      scm.mergePR(pr, { method: 'merge', expectedHeadSha: sha }),
+    ).rejects.toMatchObject({ category: 'guard', code: 'base_not_ai_office' });
+    await expect(
+      scm.ensureBranch(repo, 'feature-2', 'main', c),
+    ).rejects.toMatchObject({ category: 'guard' });
+  });
+  it('refuses to delete comments without a marker or by another author', async () => {
+    const scm = new FakeScm();
+    scm.addRepo(repo);
+    const issue = await scm.createIssue(
+      repo,
+      { title: 'I', body: '', labels: [] },
+      c,
+    );
+    await scm.addExternalComment(issue, 'Plain');
+    await scm.addExternalComment(issue, '<!-- ai-office:cmd=x -->', 'someone');
+    const [plain, foreign] = scm.inspectObject(issue).comments;
+    for (const comment of [plain!, foreign!])
+      await expect(scm.deleteComment(issue, comment.id)).rejects.toMatchObject({
+        category: 'guard',
+      });
+    expect(scm.inspectObject(issue).comments).toHaveLength(2);
+  });
+  it('restores pre-M3 snapshots whose comments are plain text', async () => {
+    const scm = new FakeScm();
+    scm.addRepo(repo);
+    const issue = await scm.createIssue(
+      repo,
+      { title: 'I', body: '', labels: [] },
+      c,
+    );
+    await scm.comment(issue, 'Hi', { ...c, commandId: 'hi' });
+    const legacy = scm.snapshot() as unknown as {
+      repos: [string, { objects: [number, Record<string, unknown>][] }][];
+      commentSequence?: number;
+    };
+    delete legacy.commentSequence;
+    for (const [, state] of legacy.repos)
+      for (const [, obj] of state.objects) {
+        obj.comments = (obj.comments as { body: string }[]).map((x) => x.body);
+        delete obj.listedAt;
+      }
+    const restored = new FakeScm();
+    restored.restore(legacy as unknown as ReturnType<FakeScm['snapshot']>);
+    expect(await restored.findByMarker(repo, 'hi')).toMatchObject({
+      kind: 'comment',
+      number: issue.number,
+      commentId: '1',
+    });
+    expect(await restored.findByMarker(repo, c.commandId)).toMatchObject({
+      kind: 'issue',
+    });
+  });
+});

@@ -2,7 +2,9 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { IssueRef, PrRef } from '../../../ports/refs.js';
 import { scmPortContract } from '../../scm-port-contract.js';
+import { FakeClock } from '../../services.js';
 import { GitRemoteScm } from './index.js';
 import { git, TestGitRemote } from './git.js';
 
@@ -21,7 +23,8 @@ async function fixture() {
   await git(clone, ['add', '.']);
   await git(clone, ['commit', '-m', 'Initial']);
   await git(clone, ['push', 'origin', 'HEAD:refs/heads/main']);
-  const scm = await GitRemoteScm.create({ remote });
+  const clock = new FakeClock(new Date().toISOString());
+  const scm = await GitRemoteScm.create({ remote, clock });
   async function pushBranch(branch: string, content?: string) {
     await git(clone, ['fetch', 'origin']);
     await git(clone, ['checkout', '--detach', '--force', `origin/${branch}`]);
@@ -44,6 +47,23 @@ async function fixture() {
     pushBranch,
     editBody: (ref: Parameters<GitRemoteScm['updateIssue']>[0], body: string) =>
       scm.updateIssue(ref, { body }),
+    settle: async (ms: number) => clock.advance(ms),
+    loseNextResponse: (operation: 'createIssue' | 'comment') =>
+      scm.loseNextResponse(operation),
+    listLagMs: (ms: number) => scm.setListLag(ms),
+    // The owner's final-PR merge is simulated; main is never written by the SCM.
+    mergeExternally: async (pr: PrRef) => scm.simulateOwnerMerge(pr),
+    closeExternally: (pr: PrRef) => scm.updatePR(pr, { state: 'closed' }),
+    retargetExternally: (
+      pr: PrRef,
+      base: string,
+      when: 'now' | 'during-next-merge',
+    ) => scm.retargetExternally(pr, base, when),
+    commentExternally: async (target: IssueRef | PrRef, body: string) =>
+      scm.addExternalComment(target, body),
+    createExternalIssue: async (draft: { title: string; body: string }) =>
+      scm.createExternalIssue(draft),
+    pushDefaultBranch: () => pushBranch('main'),
     dispose: async () => {
       await scm.dispose();
       await rm(dir, { recursive: true, force: true });
@@ -128,7 +148,13 @@ describe('git remote SCM', { timeout: 30_000 }, () => {
         'refs/heads/ai-office-test/next:worker.txt',
       ]),
     ).toBe('worker');
-    expect(await f.scm.getPR(pr)).toEqual({ state: 'merged', ...merged });
+    expect(await f.scm.getPR(pr)).toEqual({
+      state: 'merged',
+      ...merged,
+      headSha: sha,
+      base: integration,
+      mergedBy: 'scm-test',
+    });
     expect((await f.scm.poll(repo, null)).events).toContainEqual(
       expect.objectContaining({ type: 'pr.state', state: 'merged', ...merged }),
     );
@@ -152,7 +178,11 @@ describe('git remote SCM', { timeout: 30_000 }, () => {
     expect(
       (await f.scm.compareBranch(repo, integration, integration))!.headSha,
     ).toBe(base);
-    expect(await f.scm.getPR(pr)).toEqual({ state: 'open' });
+    expect(await f.scm.getPR(pr)).toEqual({
+      state: 'open',
+      headSha: sha,
+      base: integration,
+    });
     await f.scm.ensureBranch(
       repo,
       'ai-office-test/next',
@@ -200,6 +230,12 @@ describe('git remote SCM', { timeout: 30_000 }, () => {
     const sha = await f.pushBranch(worker);
     const changed = await f.scm.poll(repo, initial.cursor);
     expect(changed.events).toEqual([
+      expect.objectContaining({
+        type: 'branch.head_changed',
+        branch: worker,
+        sha,
+        previousSha: expect.any(String),
+      }),
       expect.objectContaining({ type: 'pr.state', headSha: sha }),
     ]);
     expect(await f.scm.poll(repo, initial.cursor)).toEqual(changed);

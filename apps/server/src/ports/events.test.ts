@@ -109,11 +109,50 @@ describe('port event schemas', () => {
       labels: [],
     },
     { type: 'repo.object_created', ref, author: 'example', hasMarker: true },
+    {
+      type: 'branch.head_changed',
+      branch: 'ai-office/abc-x',
+      sha: 'a'.repeat(40),
+      previousSha: null,
+    },
+    {
+      type: 'object.duplicate',
+      commandId: 'cmd',
+      kind: 'comment',
+      target: ref,
+      commentIds: ['1', '2'],
+    },
   ])('validates $type SCM observations', (variant) => {
     expect(ScmEventSchema.safeParse({ ...envelope, ...variant }).success).toBe(
       true,
     );
     expect(ScmEventSchema.safeParse(variant).success).toBe(false);
+  });
+  it('rejects a branch head that is not a SHA and a single-object duplicate', () => {
+    const head = {
+      ...envelope,
+      type: 'branch.head_changed',
+      branch: 'main',
+      previousSha: null,
+    };
+    expect(ScmEventSchema.safeParse({ ...head, sha: 'main' }).success).toBe(
+      false,
+    );
+    expect(
+      ScmEventSchema.safeParse({
+        ...envelope,
+        type: 'object.duplicate',
+        commandId: 'cmd',
+        kind: 'issue',
+        numbers: [1],
+      }).success,
+    ).toBe(false);
+  });
+  it('carries retryAfterMs for any category (PP4)', () => {
+    expect(new PortError('guard', 'x', 'x').retryAfterMs).toBeUndefined();
+    expect(
+      new PortError('rate_limited', 'primary_rate_limit', 'x', true, 30_000),
+    ).toMatchObject({ retryable: true, retryAfterMs: 30_000 });
   });
   it('carries the error category and explicit retryability', () => {
     const error = new PortError(
