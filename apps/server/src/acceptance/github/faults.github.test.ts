@@ -15,11 +15,11 @@ realGithubSuite('M3-T15 step 12 fault injection (live spike)', () => {
   it('keeps one Issue and reaches the runtime during an SCM outage', async () => {
     const run = await withLiveRun(
       'faults',
-      async (binding) => {
+      async (binding, steps) => {
         let office: MixedOffice | undefined;
         try {
           office = await mixedOffice(binding);
-          const value = await runFaults(office);
+          const value = await runFaults(office, steps);
           return { value, steps: value.steps };
         } finally {
           await office?.close();

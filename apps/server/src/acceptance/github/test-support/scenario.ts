@@ -39,12 +39,15 @@ const OWNER_MARKER = /<!-- aio-test:owner=t[a-f0-9]{12}:owner-[a-z-]+ -->/;
  * script runs live (scm-github on the spike) and in CI (scm-fake): only the
  * binding differs. The suite never merges the final PR (§1.4 GD).
  */
-export async function runMixedMainline(o: MixedOffice): Promise<MixedRun> {
+export async function runMixedMainline(
+  o: MixedOffice,
+  // The caller's sink keeps finished steps when a later step throws.
+  steps: StepResult[] = [],
+): Promise<MixedRun> {
   const owner = o.binding.owner;
   const live = o.binding.mode === 'live';
   // > two SCM polls (SPEC §12.2: 15 s, also for an injected scm-fake).
   const pollMs = 35_000;
-  const steps: StepResult[] = [];
   const objects: MixedRun['objects'] = { workItems: [], workerPrs: [] };
   const step = async (
     number: number,
@@ -552,10 +555,10 @@ export function semantics(events: Json[]) {
  */
 export async function runFaults(
   o: MixedOffice,
+  steps: StepResult[] = [],
 ): Promise<{ workflowId: string; steps: StepResult[]; conclusion: number }> {
   const faults = o.binding.faults!;
   const live = o.binding.mode === 'live';
-  const steps: StepResult[] = [];
   const started = Date.now();
   const record = async (title: string, action: () => Promise<void>) => {
     const at = Date.now();

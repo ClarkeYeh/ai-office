@@ -25,11 +25,11 @@ realGithubSuite('M3-T15 mixed acceptance (live spike)', () => {
   it('runs steps 1–11 on GitHub and cleans up to zero', async () => {
     const run = await withLiveRun<MixedRun>(
       'mainline',
-      async (binding) => {
+      async (binding, steps) => {
         let office: MixedOffice | undefined;
         try {
           office = await mixedOffice(binding);
-          const value = await runMixedMainline(office);
+          const value = await runMixedMainline(office, steps);
           return { value, steps: value.steps };
         } finally {
           await office?.close();

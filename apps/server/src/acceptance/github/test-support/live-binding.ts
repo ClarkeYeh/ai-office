@@ -30,7 +30,10 @@ const coreRemaining = async (harness: Harness): Promise<number> => {
  */
 export async function withLiveRun<T>(
   name: string,
-  action: (binding: MixedBinding) => Promise<{ value: T; steps: StepResult[] }>,
+  action: (
+    binding: MixedBinding,
+    steps: StepResult[],
+  ) => Promise<{ value: T; steps: StepResult[] }>,
   save: (recorder: RecordingFetch, value: T) => Promise<void>,
 ): Promise<T> {
   const harness = await openHarness();
@@ -39,6 +42,8 @@ export async function withLiveRun<T>(
   const report: Record<string, unknown> = { name, runId };
   try {
     let outcome: { value: T; steps: StepResult[] } | undefined;
+    const steps: StepResult[] = [];
+    report.steps = steps;
     report.rateLimitBefore = await coreRemaining(harness);
     const recorded = scopedRecording(harness.fetch, runId);
     const recorder = recorded.recorder;
@@ -62,24 +67,26 @@ export async function withLiveRun<T>(
         sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         registeredAt: () => startedAt,
       });
-      outcome = await action({
-        mode: 'live',
-        scm,
-        runId,
-        pusher,
-        owner: githubOwnerActions(harness.api, runId),
-        stepTimeoutMs: 600_000,
-        faults: {
-          loseNextCreateIssue(listLagMs) {
-            faults.loseNextResponse('createIssue');
-            faults.listLagMs(listLagMs);
-          },
-          setScmDown(value) {
-            down = value;
+      outcome = await action(
+        {
+          mode: 'live',
+          scm,
+          runId,
+          pusher,
+          owner: githubOwnerActions(harness.api, runId),
+          stepTimeoutMs: 600_000,
+          faults: {
+            loseNextCreateIssue(listLagMs) {
+              faults.loseNextResponse('createIssue');
+              faults.listLagMs(listLagMs);
+            },
+            setScmDown(value) {
+              down = value;
+            },
           },
         },
-      });
-      report.steps = outcome.steps;
+        steps,
+      );
     } finally {
       // Step 13: close every ledger object, then the independent scan.
       const result = await harness.cleanup();
@@ -110,6 +117,9 @@ export async function withLiveRun<T>(
       process.env.AIO_GITHUB_RECORD === '1' &&
       outcome.steps.every((s) => s.ok)
     ) {
+      // Evidence only (never replayed): the leak scan rejects concrete spike
+      // API paths (numbers, SHAs, refs), so keep the path template.
+      for (const r of recorder.recordings) r.path = r.pathTemplate;
       const paths = leakPaths(recorder.recordings);
       if (paths.length)
         console.info(`[T15 ${name}] tape leak paths: ${paths.join(', ')}`);
