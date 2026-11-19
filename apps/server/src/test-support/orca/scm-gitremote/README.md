@@ -30,6 +30,14 @@ created. Checks report `none`, mergeability is `null`, and actual merge conflict
 are detected by git. `openPR` returns number, URL, head and base for artifact use.
 State is not durable across restarting this double; no final PR auto-merge occurs.
 
+M3-T2: `poll` also reports `branch.head_changed` for the default and test
+branches it sees move. The M3 ScmPort semantics match scm-fake: `findByMarker`
+hints, real-shaped URLs and comment IDs, `deleteComment`, `getPR` head/base/
+mergedBy, `expectedBaseSha`, read-back `merge_base_changed`, PRs closed when
+their head branch is deleted. Test controls: an injectable `clock`,
+`loseNextResponse`, `setListLag`, `retargetExternally`, `createExternalIssue` and
+`addExternalComment`.
+
 ## Verification
 
 Offline tests: `pnpm exec vitest run apps/server/src/test-support/orca/scm-gitremote/index.test.ts`.
