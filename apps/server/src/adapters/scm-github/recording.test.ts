@@ -165,3 +165,74 @@ it('keeps URL-shaped opaque bodies recoverable by their original hash', async ()
   expect((await scm.getIssue(issue)).body).toBe(body);
   replay.assertConsumed();
 });
+
+it('round-trips the encoded-ref scenario with public GitHub metadata without network access', async () => {
+  const runId = 'abcdef123456';
+  const sha = 'a'.repeat(40);
+  const branch = `ai-office/t${runId}-encoded/path`;
+  let exists = false;
+  const recorder = new RecordingFetch(async (input, init) => {
+    const request = new Request(input, init);
+    const path = decodeURIComponent(new URL(request.url).pathname);
+    if (path === '/user') return Response.json({ login: 'ClarkeYeh' });
+    if (path.includes('/rules/')) return Response.json([]);
+    if (request.method === 'POST') {
+      exists = true;
+      return Response.json({ ref: `refs/heads/${branch}`, object: { sha } });
+    }
+    if (request.method === 'DELETE') {
+      exists = false;
+      return new Response(null, { status: 204 });
+    }
+    if (path.endsWith('/ai-office-spike'))
+      return Response.json({
+        default_branch: 'main',
+        visibility: 'public',
+        archived: false,
+        allow_merge_commit: true,
+        permissions: { push: true },
+        ssh_url: 'git@github.com:ClarkeYeh/ai-office-spike.git',
+        git_url: 'git://github.com/ClarkeYeh/ai-office-spike.git',
+        clone_url: 'https://github.com/ClarkeYeh/ai-office-spike.git',
+        owner: { url: 'https://api.github.com/users/ClarkeYeh/followers' },
+        committer: { email: 'noreply@github.com' },
+        author: { email: '123+ClarkeYeh@users.noreply.github.com' },
+      });
+    if (path.includes('/branches/')) return Response.json({ protected: false });
+    if (path.endsWith('/heads/main'))
+      return Response.json({ ref: 'refs/heads/main', object: { sha } });
+    return exists
+      ? Response.json({ ref: `refs/heads/${branch}`, object: { sha } })
+      : Response.json({ message: 'Not Found' }, { status: 404 });
+  }, runId);
+  const time = scenarioTime('live');
+  const startedAt = '2026-01-01T00:00:00Z';
+  await encodedRefScenario(
+    recorder.fetch,
+    runId,
+    startedAt,
+    assembleContractScm,
+    time,
+  );
+  const { assertTapeSafe } =
+    await import('../../test-support/github/tape-normalization.js');
+  assertTapeSafe(recorder.recordings);
+  expect(
+    recorder.recordings.some((row) =>
+      JSON.stringify(row.response).includes(
+        'refs/heads/ai-office/t000000000001-encoded/path',
+      ),
+    ),
+  ).toBe(true);
+  const replay = new ReplayFetch(recorder.recordings);
+  const replayTime = scenarioTime('replay', time.reads);
+  await encodedRefScenario(
+    replay.fetch,
+    '000000000001',
+    startedAt,
+    assembleContractScm,
+    replayTime,
+  );
+  replay.assertConsumed();
+  replayTime.assertConsumed();
+});

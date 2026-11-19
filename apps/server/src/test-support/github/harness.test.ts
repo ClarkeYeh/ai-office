@@ -291,7 +291,6 @@ describe('record/replay', () => {
             body,
             title: `[aio-test ${runId}] ok`,
             email: 'secret@example.invalid',
-            token: 'ghp_secret123',
           }),
           {
             status: 201,
