@@ -33,7 +33,7 @@ jobs:
         run: pnpm test
       - name: Test build and validation scripts
         run: pnpm test:scripts
-      - name: Check pure-package coverage
+      - name: Check pure-package and web pure-layer coverage
         run: pnpm test:coverage
       - name: Smoke-test native SQLite on Node 24
         run: pnpm vitest run --project @ai-office/server native.test.ts
@@ -47,3 +47,50 @@ jobs:
         run: pnpm check:bundle
       - name: Scan fixtures for leaks
         run: pnpm fixtures:scan
+      - name: Check sprite assets
+        run: pnpm sprites:check
+  web-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --dir apps/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium with system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --dir apps/e2e exec playwright install --with-deps chromium
+      - name: Install Chromium system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --dir apps/e2e exec playwright install-deps chromium
+      - name: Build packages
+        run: pnpm -r build
+      - name: End-to-end tests
+        run: pnpm test:e2e
+      - name: Visual regression
+        run: pnpm test:visual
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/e2e/dist/playwright-report/
+            apps/e2e/dist/test-results/
+          retention-days: 14

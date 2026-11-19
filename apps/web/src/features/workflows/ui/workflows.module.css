@@ -1,0 +1,101 @@
+.page {
+  display: grid;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.intro {
+  color: var(--slate);
+  margin: 0;
+  line-height: 1.7;
+}
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.stack {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.field {
+  display: grid;
+  gap: 8px;
+}
+.input {
+  width: 100%;
+  min-height: 44px;
+  border: 2px solid var(--slate);
+  background: var(--ui-paper);
+  color: var(--ink);
+  padding: 10px;
+}
+textarea.input {
+  min-height: 180px;
+  resize: vertical;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.roles {
+  width: 100%;
+  border-collapse: collapse;
+}
+.roles th,
+.roles td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--mist);
+}
+.roles th {
+  color: var(--slate);
+  font-size: 13px;
+}
+.roles select {
+  max-width: 100%;
+}
+.toggle {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--mist);
+}
+.toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--ink);
+}
+.toggle small {
+  color: var(--slate);
+  margin-left: auto;
+}
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+}
+.item {
+  display: grid;
+  gap: 16px;
+}
+.item h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .roles th,
+  .roles td {
+    padding: 8px 3px;
+  }
+}

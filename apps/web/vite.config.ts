@@ -8,11 +8,13 @@ export default defineConfig({
   // `ai-office start --dev` admits this origin; the backend checks the raw Host,
   // so the proxy rewrites it to the backend's (§13, §17).
   server: {
+    strictPort: true,
+    host: 'localhost',
     proxy: Object.fromEntries(
-      ['/api', '/auth'].map((path) => [
+      ['/api', '/auth', '/dev'].map((path) => [
         path,
         {
-          target: `http://127.0.0.1:${process.env.AI_OFFICE_PORT ?? '4319'}`,
+          target: `http://127.0.0.1:${process.env.AI_OFFICE_PORT ?? '0'}`,
           changeOrigin: true,
         },
       ]),

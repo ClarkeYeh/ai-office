@@ -1,0 +1,156 @@
+.viewport {
+  width: 100%;
+  overflow-x: auto;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend i {
+  width: 14px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  background: #8b9bb4;
+}
+.legend [data-signal='claude-code'],
+.legend [data-signal='edit'] {
+  background: #0099db;
+}
+.legend [data-signal='codex'],
+.legend [data-signal='git'] {
+  background: #63c74d;
+}
+.legend [data-signal='read'] {
+  background: #2ce8f5;
+}
+.legend [data-signal='shell'] {
+  background: #f77622;
+}
+.legend [data-signal='network'] {
+  background: #b55088;
+}
+.legend [data-signal='need'] {
+  background: #feae34;
+}
+.legend [data-signal='error'] {
+  background: #e43b44;
+}
+.usage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.usage strong {
+  font: 24px var(--font-pixel);
+}
+.paperStack {
+  position: relative;
+  width: 40px;
+  height: 52px;
+}
+.paperStack i {
+  position: absolute;
+  left: 2px;
+  width: 32px;
+  height: 5px;
+  border: 1px solid var(--slate);
+  background: white;
+  box-shadow: 2px 1px 0 var(--mist);
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+}
+.columns h2 {
+  font-size: 14px;
+  border-bottom: 2px solid var(--mist);
+  padding-bottom: 8px;
+}
+.card {
+  border: 1px solid var(--mist);
+  background: var(--ui-paper);
+  padding: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.card p {
+  margin: 5px 0;
+}
+.card[data-tone='need'] {
+  border-left: 4px solid var(--amber);
+}
+.card[data-tone='error'] {
+  border-left: 4px solid #e43b44;
+}
+.card[data-tone='muted'] {
+  color: var(--slate);
+}
+.card button,
+.lane button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  padding: 4px;
+}
+.card button {
+  font-weight: bold;
+  text-decoration: underline;
+}
+.card button:focus-visible,
+.lane button:focus-visible {
+  outline: 3px solid var(--amber);
+}
+.lanes {
+  display: grid;
+  gap: 5px;
+}
+.lane {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.lane [aria-pressed='true'] {
+  background: var(--ink);
+  color: white;
+}
+.track {
+  position: relative;
+  height: 24px;
+  background: var(--mist);
+  overflow: hidden;
+}
+.segment {
+  position: absolute;
+  top: 4px;
+  height: 16px;
+  background: #0099db;
+  border: 1px solid var(--ink);
+}
+.segment[data-pose='needs-you'] {
+  background: #feae34;
+}
+.segment[data-pose='error'] {
+  background: #e43b44;
+}
+.segment[data-pose='away'],
+.segment[data-pose='idle'] {
+  background: #8b9bb4;
+}

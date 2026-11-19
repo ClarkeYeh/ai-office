@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/domain"
+    "test": "pnpm --workspace-root exec vitest run --config vitest.config.ts --project @ai-office/domain"
   },
   "dependencies": {
     "@ai-office/contracts": "workspace:*"

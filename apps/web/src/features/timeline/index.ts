@@ -1,2 +1,1 @@
-// Frontend module placeholder.
-export {};
+export { TimelinePage } from './connect/TimelinePage.js';

@@ -229,3 +229,10 @@ it('reports invalid configuration without echoing credentials', () => {
     expect(result.stderr).not.toContain('private');
   }
 });
+
+it('accepts only the repository web template YAML directory', () => {
+  expect(cli('scan', ['fixtures/web/templates']).status).toBe(0);
+  const root = directory();
+  writeFileSync(join(root, 'template.yaml'), 'id: demo\n');
+  expect(cli('scan', [root]).status).toBe(1);
+});

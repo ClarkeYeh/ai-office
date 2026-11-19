@@ -21,6 +21,13 @@
     "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json",
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
     "test:coverage": "vitest run --coverage --project '!@ai-office/server-orca'",
+    "sprites": "node scripts/dev-office/run-task.mjs sprites",
+    "sprites:check": "node scripts/dev-office/run-task.mjs sprites:check",
+    "fixtures:web": "node scripts/dev-office/run-task.mjs fixtures:web",
+    "test:e2e": "node scripts/dev-office/run-task.mjs test:e2e",
+    "test:visual": "node scripts/dev-office/run-task.mjs test:visual",
+    "e2e:fps": "node scripts/dev-office/run-task.mjs e2e:fps",
+    "dev:office": "node scripts/dev-office/index.mjs",
     "test:orca": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=0 vitest run --project @ai-office/server-orca --passWithNoTests",
     "test:orca:agents": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=1 vitest run --project @ai-office/server-orca --passWithNoTests",
     "test:orca:disruptive": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs p2 prepare",
@@ -30,16 +37,21 @@
     "orca:p2": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs p2"
   },
   "devDependencies": {
+    "@ai-office/redaction": "workspace:*",
     "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.12",
     "@types/node": "^24.10.0",
     "@vitest/coverage-v8": "4.1.12",
     "dependency-cruiser": "^18.8.0",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "fast-check": "^4.10.2",
+    "happy-dom": "^21.0.4",
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0",
-    "vitest": "^4.1.12",
-    "@ai-office/redaction": "workspace:*"
+    "vitest": "^4.1.12"
   }
 }

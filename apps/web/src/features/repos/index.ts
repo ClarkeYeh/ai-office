@@ -1,2 +1,1 @@
-// Frontend module placeholder.
-export {};
+export { ReposPage } from './connect/ReposPage.js';

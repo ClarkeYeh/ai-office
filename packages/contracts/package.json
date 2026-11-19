@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run --config ../../vitest.config.ts --project @ai-office/contracts"
+    "test": "pnpm --workspace-root exec vitest run --config vitest.config.ts --project @ai-office/contracts"
   },
   "dependencies": {
     "zod": "^4.1.12"
