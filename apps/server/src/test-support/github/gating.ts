@@ -1,6 +1,6 @@
 import { describe } from 'vitest';
 
-/** Collection gate only; T7 must verify identity, repo, quota and live lock. */
+/** Collection gate only; openHarness verifies identity, repo, quota and live lock. */
 export function realGithubSkipReason(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {

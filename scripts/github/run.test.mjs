@@ -15,11 +15,11 @@ function run(command, flags = {}, args = []) {
   return result;
 }
 
-test('record and janitor fail closed until T7, regardless of opt-in', () => {
+test('record and janitor reject missing required arguments', () => {
   for (const command of ['record', 'janitor']) {
     const result = run(command, { AIO_REAL_GITHUB: '1' });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /not available until M3-T7/);
+    assert.match(result.stderr, /harness refused or failed/);
   }
 });
 
