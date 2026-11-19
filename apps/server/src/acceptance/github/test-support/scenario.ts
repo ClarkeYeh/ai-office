@@ -116,18 +116,19 @@ export async function runMixedMainline(
   let approvedBody = '';
   await step(
     2,
-    'GitHub edit → gate.content_updated{github}, version +1',
+    'GitHub edit → gate.content_updated{github}, version bumped',
     async () => {
       const before = await o.detail(meeting);
       const body = `${(await owner.issue(conclusion)).body}\n\nOwner edit on GitHub (T15 step 2).`;
       await owner.editIssueBody(conclusion, body);
+      // The test namespace rewrites the marker, so the Issue's first sighting
+      // may itself update the gate (FX-B) in the same poll as this edit.
       const after = await until(
         () => o.detail(meeting),
-        (d) => d.version === before.version + 1,
+        (d) =>
+          d.version > before.version &&
+          d.conclusion.githubBodyHash === bodyHash(body),
         'the GitHub edit to reach the gate',
-      );
-      expect(after.conclusion.githubBodyHash).not.toBe(
-        before.conclusion.githubBodyHash ?? before.conclusion.renderedHash,
       );
       const updated = of(await events(), 'gate.content_updated').filter(
         (e) => e.payload.gateId === meeting.gateId,
@@ -135,6 +136,7 @@ export async function runMixedMainline(
       expect(updated.at(-1)!.payload).toMatchObject({
         source: 'github',
         version: after.version,
+        bodyHash: bodyHash(body),
       });
       approvedBody = body;
     },
