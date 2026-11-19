@@ -90,3 +90,16 @@ valid spike HTML-root URLs under `/__api__`; HTML URLs stay intact and avatars
 use a fixed valid URL under `/__fixtures__`. Request paths and hashes are not
 rewritten. Both persistence paths scan the normalized envelope for leaks before
 writing it, and strict replay still checks every request signature.
+
+Public GitHub fields are normalized before the leak scan: exact spike SSH, Git,
+and HTTPS clone remotes share a valid clone placeholder; user API URLs use the
+permitted HTML root; public GitHub noreply authors use `<github-noreply>`.
+Private email addresses, tokens and home paths are rejected before generic
+redaction or body hashing can hide them.
+
+A fixture-only exception preserves `ref` fields in the test branch namespace
+with a twelve-hex run identifier and a dash or slash suffix. Every slash-delimited
+segment still passes secret detection; empty segments, traversal and home paths
+are excluded. The exception is shared in behavior by the recorder and the
+GitHub fixture scanner, with a parity regression test. Production redaction and
+other fixture trees retain their existing rules.

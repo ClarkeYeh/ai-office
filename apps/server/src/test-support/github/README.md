@@ -90,3 +90,10 @@ Git pushes obtain the selected `--user ClarkeYeh` credential and pass it only in
 process-local HTTP configuration, never via the active-account credential helper.
 The independent scan includes exact imported production command IDs and claim
 namespaces as well as all test namespaces; it still never mutates by prefix alone.
+
+Public GitHub clone remotes, user API URLs and noreply author addresses use
+stable fixture placeholders before scanning. Planted tokens, private emails
+(including bodies), and home paths are rejected before generic redaction.
+The recorder preserves only validated test namespace `ref` fields; each segment
+is still checked. The offline fixture scanner applies the same narrow exception
+only under the GitHub fixture tree, without changing production redaction.

@@ -1,4 +1,5 @@
 import type { EventPayload } from '@ai-office/contracts/events';
+import type { Gate } from '@ai-office/domain';
 import type { ScmEvent } from '../../ports/scm-events.js';
 import type { EventStore } from '../../ports/stores.js';
 import type { Redactor } from '../../ports/services.js';
@@ -34,6 +35,58 @@ export function ingestScm(
   // Head moves are judged after the rest of the poll: GitHub lists the final
   // PR's merge in any order relative to the default branch moving to it.
   const heads: Extract<ScmEvent, { type: 'branch.head_changed' }>[] = [];
+  /** The Issue artifact and, for a conclusion, its stage's latest gate. */
+  const issueArtifact = (number: number) => {
+    const artifactEvent = history.findLast(
+      (e) =>
+        e.type === 'artifact.created' &&
+        e.payload.kind === 'issue' &&
+        e.payload.number === number,
+    );
+    if (
+      artifactEvent?.type !== 'artifact.created' ||
+      artifactEvent.payload.kind !== 'issue'
+    )
+      return undefined;
+    const artifact = artifactEvent.payload;
+    const gate =
+      artifact.purpose === 'conclusion'
+        ? Object.values(batch.state.gates).findLast(
+            (g) =>
+              g.content.type === 'conclusion' &&
+              g.stageId === artifactEvent.stageId,
+          )
+        : undefined;
+    return { artifact, gate };
+  };
+  /** §8.2: a GitHub body other than the gate's known one updates the gate. */
+  const updateConclusion = (
+    gate: Gate,
+    bodyHash: string,
+    githubUpdatedAt: string,
+    event: ScmEvent,
+  ) => {
+    if (gate.content.type !== 'conclusion') return;
+    if ((gate.github?.bodyHash ?? gate.content.renderedHash) === bodyHash)
+      return;
+    batch.command(
+      {
+        type: 'UpdateGateContent',
+        meta: {
+          occurredAt: event.occurredAt,
+          source: 'scm',
+          provenance: 'observed',
+        },
+        update: {
+          gateId: gate.gateId,
+          source: 'github',
+          bodyHash,
+          githubUpdatedAt,
+        },
+      },
+      event,
+    );
+  };
   for (const event of events) {
     if (batch.observed(event.externalKey)) continue;
     switch (event.type) {
@@ -116,46 +169,11 @@ export function ingestScm(
       }
       case 'issue.edited': {
         if (!matches(event.issue.repo)) continue;
-        const artifactEvent = history.findLast(
-          (e) =>
-            e.type === 'artifact.created' &&
-            e.payload.kind === 'issue' &&
-            e.payload.number === event.issue.number,
-        );
-        const artifact =
-          artifactEvent?.type === 'artifact.created' &&
-          artifactEvent.payload.kind === 'issue'
-            ? artifactEvent.payload
-            : undefined;
-        if (!artifact) continue;
-        const gate =
-          artifact.purpose === 'conclusion'
-            ? Object.values(batch.state.gates).findLast(
-                (g) =>
-                  g.content.type === 'conclusion' &&
-                  g.stageId === artifactEvent?.stageId,
-              )
-            : undefined;
+        const found = issueArtifact(event.issue.number);
+        if (!found) continue;
+        const { artifact, gate } = found;
         if (gate?.status === 'open' && gate.content.type === 'conclusion') {
-          const hash = gate.github?.bodyHash ?? gate.content.renderedHash;
-          if (hash !== event.bodyHash)
-            batch.command(
-              {
-                type: 'UpdateGateContent',
-                meta: {
-                  occurredAt: event.occurredAt,
-                  source: 'scm',
-                  provenance: 'observed',
-                },
-                update: {
-                  gateId: gate.gateId,
-                  source: 'github',
-                  bodyHash: event.bodyHash,
-                  githubUpdatedAt: event.updatedAt,
-                },
-              },
-              event,
-            );
+          updateConclusion(gate, event.bodyHash, event.updatedAt, event);
         } else {
           // §8.2: only body edits drift; label and comment changes (including
           // the backend's own decision labels) keep the last known body hash.
@@ -183,20 +201,32 @@ export function ingestScm(
         }
         break;
       }
-      case 'repo.object_created':
-        if (matches(event.ref.repo))
-          batch.anomaly(
-            {
-              kind: 'issue',
-              number: event.ref.number,
-              author: event.author,
-              managed: event.hasMarker,
-              createdAt: event.occurredAt,
-            },
+      case 'repo.object_created': {
+        if (!matches(event.ref.repo)) break;
+        batch.anomaly(
+          {
+            kind: 'issue',
+            number: event.ref.number,
+            author: event.author,
+            managed: event.hasMarker,
+            createdAt: event.occurredAt,
+          },
+          event,
+          'scm',
+        );
+        // A body edited before this first sighting has no `issue.edited`:
+        // compare the sighted body with the open conclusion gate's (FX-B).
+        if (event.bodyHash === undefined) break;
+        const gate = issueArtifact(event.ref.number)?.gate;
+        if (gate?.status === 'open' && gate.content.type === 'conclusion')
+          updateConclusion(
+            gate,
+            event.bodyHash,
+            event.updatedAt ?? event.occurredAt,
             event,
-            'scm',
           );
         break;
+      }
     }
   }
   const moves: IntegrationMove[] = [...deferred];

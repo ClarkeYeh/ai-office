@@ -19,6 +19,7 @@ import {
   SessionRefSchema,
 } from '../../ports/refs.js';
 import type { RuntimePort } from '../../ports/runtime.js';
+import { PortError } from '../../ports/errors.js';
 import type { EventStore } from '../../ports/stores.js';
 import type { ScheduledTimer } from '../../ports/services.js';
 import { FakeClock, SeqIdGen } from '../../test-support/services.js';
@@ -874,6 +875,44 @@ describe('SCM ingestion', () => {
     await h.loop.pollScm(h.runner);
     expect(h.runner.state.anomalies).toEqual([]);
   });
+  it('updates an open conclusion gate from the body hash of its first sighting (FX-B)', async () => {
+    const h = await setup();
+    const { issue, initial } = await conclusion(h);
+    const sighting = (bodyHash: string, number = issue.number) => ({
+      type: 'repo.object_created' as const,
+      externalKey: `gh:created:${number}:${bodyHash.slice(0, 8)}`,
+      occurredAt: initial.updatedAt,
+      ref: { repo: h.repo, number },
+      author: 'owner',
+      hasMarker: true,
+      bodyHash,
+      updatedAt: initial.updatedAt,
+    });
+    const cursor = (await h.scm.poll(h.repo, null)).cursor;
+    const poll = vi.spyOn(h.scm, 'poll');
+    // The body the backend wrote: nothing to update.
+    poll.mockResolvedValueOnce({
+      events: [sighting(initial.bodyHash)],
+      cursor,
+    });
+    await h.loop.pollScm(h.runner);
+    expect(h.runner.state.gates['conclusion-gate']?.version).toBe(1);
+    // An owner edit made before the first sighting: the gate learns it.
+    const edited = 'e'.repeat(64);
+    poll.mockResolvedValueOnce({ events: [sighting(edited)], cursor });
+    await h.loop.pollScm(h.runner);
+    const gate = h.runner.state.gates['conclusion-gate']!;
+    expect(gate.version).toBe(2);
+    expect(gate.github?.bodyHash).toBe(edited);
+    // Another Issue's first sighting never touches the gate.
+    poll.mockResolvedValueOnce({
+      events: [sighting('f'.repeat(64), issue.number + 50)],
+      cursor,
+    });
+    await h.loop.pollScm(h.runner);
+    expect(h.runner.state.gates['conclusion-gate']?.version).toBe(2);
+    expect(h.events().filter((e) => e.type === 'scm.issue_drift')).toEqual([]);
+  });
   it('bumps conclusion version on body change only, and reports drift after approval', async () => {
     const h = await setup();
     const { issue } = await conclusion(h);
@@ -1054,6 +1093,41 @@ describe('transactions and lifecycle', () => {
     expect(h.store.readCursor('observation.scm', WORKFLOW_ID)).not.toBeNull();
     resolve({ events: [], cursor: RuntimeCursorSchema.parse('next') });
     await pending;
+  });
+  it('reports non-transient SCM poll failures for health, clearing them on success (M3-T15 live finding)', async () => {
+    const h = await setup();
+    const reports: (string | undefined)[] = [];
+    const loop = new ObservationLoop({
+      ...h.deps,
+      onScmPoll: async (code) => {
+        reports.push(code);
+      },
+    });
+    cleanups.push(() => loop.stop());
+    loop.start();
+    const scmTimer = () =>
+      [...h.timers.values()].find((t) => t.id.includes('scm'))!;
+    const poll = vi.spyOn(h.scm, 'poll');
+    const run = async () => {
+      const timer = scmTimer();
+      h.timers.delete(timer.id);
+      await loop.onTimer(timer);
+    };
+    poll.mockRejectedValueOnce(
+      new PortError('guard', 'invalid_pagination', 'invalid_pagination'),
+    );
+    await run();
+    poll.mockRejectedValueOnce(
+      new PortError('transient', 'github_unavailable', 'down', true),
+    );
+    await run();
+    poll.mockRejectedValueOnce(
+      new PortError('transient', 'rate_limited', 'limited', true, 1000),
+    );
+    await run();
+    await run();
+    // Transient failures belong to the breaker and leave the outcome as is.
+    expect(reports).toEqual(['invalid_pagination', undefined]);
   });
   it('schedules one runtime loop per session, continues paused, slows final-PR polls, and stops on completion', async () => {
     const h = await setup();

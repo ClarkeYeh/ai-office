@@ -784,6 +784,22 @@ describe('HealthMonitor', () => {
       ).toEqual([{ reason: 'auth', detail: 'active_account_mismatch' }]);
     });
 
+    it('shows a failing SCM poll as poll_failing until a poll succeeds, without touching the breaker', async () => {
+      const h = setup();
+      await h.runners.start(startWorkflow());
+      await h.health.noteScmPoll('invalid_pagination');
+      expect(h.health.snapshot().scm).toMatchObject({
+        status: 'degraded',
+        breaker: 'closed',
+        warnings: ['poll_failing:invalid_pagination'],
+      });
+      expect(h.health.dispatchBlockedFor('scm.createIssue')).toBe(false);
+      await h.health.noteScmPoll(undefined);
+      expect(h.health.snapshot().scm.status).toBe('healthy');
+      expect(h.health.snapshot().scm).not.toHaveProperty('warnings');
+      expect(paused(h)).toEqual([]);
+    });
+
     it('never resumes an auth pause it did not make', async () => {
       const activeLoginProbe = vi.fn(async () => true);
       const h = setup({}, () => [], undefined, undefined, { activeLoginProbe });

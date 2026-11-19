@@ -34,6 +34,12 @@ export const ScmEventSchema = z.discriminatedUnion('type', [
     ref: z.union([IssueRefSchema, PrRefSchema]),
     author: z.string(),
     hasMarker: z.boolean(),
+    /**
+     * Issues only (FX-B, additive): the body as first sighted. An edit made
+     * before the first poll that lists the Issue has no `issue.edited`.
+     */
+    bodyHash: z.string().optional(),
+    updatedAt: z.iso.datetime({ offset: true }).optional(),
   }),
   // PP3: the default branch and ai-office/ branches (§11.2).
   envelope.extend({

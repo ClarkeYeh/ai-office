@@ -1,3 +1,4 @@
+import { githubRefRedactor } from './ref-redaction.js';
 import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import {
@@ -9,9 +10,11 @@ import { API, ROOT, REPO } from './safety.js';
 import { TapeNormalizer, assertTapeSafe } from './tape-normalization.js';
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
-const redactor = createRedactor({
-  preservedRepoUrls: [`https://github.com/${REPO}`],
-});
+const redactor = githubRefRedactor(
+  createRedactor({
+    preservedRepoUrls: [`https://github.com/${REPO}`],
+  }),
+);
 export interface Recording {
   apiVersion: '2022-11-28';
   method: string;
