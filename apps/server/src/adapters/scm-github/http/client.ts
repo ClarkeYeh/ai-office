@@ -225,6 +225,7 @@ export class GithubHttpClient implements GithubHttp {
             ...(next ? { nextPage: next } : {}),
           };
         } finally {
+          if (!failed) this.governor.success();
           if (write && failed) this.cache.clear();
           this.metrics.record(
             id,

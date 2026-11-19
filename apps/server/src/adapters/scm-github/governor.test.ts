@@ -286,3 +286,84 @@ describe('GitHub quota and concurrent cooldowns', () => {
     });
   });
 });
+
+describe('GitHub interleaved counters and recovery', () => {
+  it('uses a monotonic minimum until the active reset window expires', async () => {
+    const f = setup();
+    const start = f.clock.now().getTime() / 1000;
+    const headers = (remaining: number, reset: number) =>
+      new Headers({
+        'x-ratelimit-remaining': String(remaining),
+        'x-ratelimit-reset': String(start + reset),
+      });
+    f.governor.observe(headers(190, 60));
+    f.governor.observe(headers(4000, 60));
+    f.governor.observe(headers(4900, 65));
+    expect(f.governor.snapshot()).toMatchObject({
+      remaining: 190,
+      criticalReadsOnly: true,
+      resetAt: (start + 65) * 1000,
+    });
+    await f.advance(65000);
+    f.governor.observe(headers(4999, 3600));
+    expect(f.governor.snapshot()).toMatchObject({
+      remaining: 4999,
+      criticalReadsOnly: false,
+      status: 'healthy',
+    });
+    f.governor.observe(headers(0, 60));
+    expect(f.governor.snapshot()).toMatchObject({
+      remaining: 4999,
+      retryAfterMs: 0,
+    });
+  });
+  it('resets secondary fallback after a clean response, without cancelling active cooldown', async () => {
+    const f = setup();
+    expect(f.governor.failure(429, new Headers(), '', 'read')).toMatchObject({
+      retryAfterMs: 60000,
+    });
+    await f.advance(60000);
+    expect(f.governor.failure(429, new Headers(), '', 'read')).toMatchObject({
+      retryAfterMs: 120000,
+    });
+    f.governor.success();
+    expect(f.governor.snapshot().retryAfterMs).toBe(120000);
+    await f.advance(120000);
+    expect(f.governor.failure(429, new Headers(), '', 'read')).toMatchObject({
+      retryAfterMs: 60000,
+    });
+  });
+  it('corrects HTTP-date Retry-After and health reset timestamps for clock offset', () => {
+    const f = setup();
+    f.governor.observe(
+      new Headers({
+        date: 'Thu, 01 Jan 2026 00:00:10 GMT',
+        'x-ratelimit-reset': String(f.clock.now().getTime() / 1000 + 70),
+      }),
+    );
+    expect(
+      f.governor.failure(
+        429,
+        new Headers({ 'retry-after': 'Thu, 01 Jan 2026 00:00:30 GMT' }),
+        '',
+        'read',
+      ),
+    ).toMatchObject({ retryAfterMs: 20000 });
+    expect(f.governor.snapshot().resetAt).toBe(f.clock.now().getTime() + 60000);
+  });
+});
+
+it('honors the longer deadline when primary reset and Retry-After are both present', () => {
+  const f = setup();
+  const headers = new Headers({
+    'x-ratelimit-remaining': '0',
+    'x-ratelimit-reset': String(f.clock.now().getTime() / 1000 + 10),
+    'retry-after': '60',
+  });
+  f.governor.observe(headers);
+  expect(f.governor.failure(403, headers, '', 'read')).toMatchObject({
+    code: 'primary_rate_limit',
+    retryAfterMs: 60000,
+  });
+  expect(f.governor.snapshot().retryAfterMs).toBe(60000);
+});
