@@ -1458,6 +1458,10 @@
           "commandId": {
             "type": "string",
             "minLength": 1
+          },
+          "commentId": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -1521,6 +1525,10 @@
             "minLength": 1
           },
           "commandId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commentId": {
             "type": "string",
             "minLength": 1
           },

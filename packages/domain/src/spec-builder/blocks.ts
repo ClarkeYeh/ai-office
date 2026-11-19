@@ -15,6 +15,8 @@ export const FORBIDDEN_COMMANDS = [
   'orca terminal create',
   'gh pr merge',
   'gh pr create',
+  // S20: e.g. `gh pr edit --base` would retarget a worker PR.
+  'gh pr edit',
   'gh issue create',
   'gh issue comment',
   'gh label',

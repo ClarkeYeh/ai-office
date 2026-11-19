@@ -1,5 +1,6 @@
 export * from './commands.js';
 export { bodyHash } from './body-hash.js';
+export { ownerReviewFeedback } from './review-feedback.js';
 export { decide } from './decide/index.js';
 export { EXCEPTION_OPTIONS } from './decide/gate.js';
 export { integrationBranchName, slugify } from './decide/workflow.js';

@@ -62,6 +62,44 @@ const put = <T>(
   value: T,
 ): Record<string, T> => ({ ...record, [key]: value });
 
+/**
+ * S9: while the final PR is closed without merging, its open gate shows
+ * `prClosedAt` and offers only keep-open and abort; a reopen clears the mark,
+ * and the options stay narrowed.
+ */
+const finalPrClosure = (
+  gates: WorkflowState['gates'],
+  pr: number,
+  closedAt: string | undefined,
+): WorkflowState['gates'] => {
+  let next = gates;
+  for (const gate of Object.values(gates)) {
+    const content = gate.content;
+    if (
+      gate.status !== 'open' ||
+      gate.kind !== 'stage' ||
+      content.type !== 'final-pr' ||
+      content.pr !== pr ||
+      content.prClosedAt === closedAt
+    )
+      continue;
+    const reopened = { ...content };
+    delete reopened.prClosedAt;
+    next = put(next, gate.gateId, {
+      ...gate,
+      ...(closedAt === undefined
+        ? { content: reopened }
+        : {
+            content: { ...content, prClosedAt: closedAt },
+            options: gate.options.filter(
+              (o) => o.optionId !== 'request-changes',
+            ),
+          }),
+    });
+  }
+  return next;
+};
+
 const putOndemand = (
   state: WorkflowState,
   stageId: string,
@@ -1061,10 +1099,20 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       }),
     };
   },
-  'pr.status': (state, { payload }) => ({
-    ...state,
-    prs: put(state.prs, payload.pr, payload),
-  }),
+  'pr.status': (state, { payload, occurredAt }) => {
+    const key = String(payload.pr);
+    const { [key]: since, ...others } = state.prsClosedAt ?? {};
+    const closedAt =
+      payload.state === 'closed' ? (since ?? occurredAt) : undefined;
+    const prsClosedAt =
+      closedAt === undefined ? others : { ...others, [key]: closedAt };
+    return {
+      ...state,
+      prs: put(state.prs, payload.pr, payload),
+      ...(state.prsClosedAt || closedAt ? { prsClosedAt } : {}),
+      gates: finalPrClosure(state.gates, payload.pr, closedAt),
+    };
+  },
   'scm.issue_drift': (state, { payload }) => ({
     ...state,
     issueDrift: put(state.issueDrift, payload.issue, payload),

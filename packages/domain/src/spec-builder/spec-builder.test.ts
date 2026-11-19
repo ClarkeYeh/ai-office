@@ -473,9 +473,24 @@ describe('variants', () => {
       'Fix forward: commit fixes on `ai-office/ab12-add-dark-mode-toggle` and push them',
     );
     expect(text).toContain('Rename the toggle.');
+    // S10: only the repository owner's review comments count.
+    expect(text).toContain(
+      `Only pull request review comments written by \`${state.workflow!.repo.ownerLogin}\` are part of this change request.`,
+    );
+    expect(ok(state, REQUESTS['integrator']!).text).not.toContain(
+      'Only pull request review comments written by',
+    );
     // Revision never re-merges, even with a worker PR still open (w2 in_review).
     expect(text).not.toContain('Example `merge-request` payload');
     expect(text).not.toContain('not merged yet');
+  });
+
+  test('every role is forbidden to create or edit PRs and Issues (S20)', () => {
+    for (const request of Object.values(REQUESTS)) {
+      const text = ok(richState(), request).text;
+      for (const command of ['gh pr edit', 'gh pr create', 'gh issue create'])
+        expect(text).toContain(`- \`${command}\``);
+    }
   });
 
   test('integrator with no worker pull requests', () => {

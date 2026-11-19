@@ -775,6 +775,266 @@ describe('anomaly classification', () => {
       ),
     ).toEqual([]);
   });
+  const repo = { owner: 'octo', name: 'demo' };
+  const issued = (
+    h: Harness,
+    payload: EventPayload<'command.issued'>,
+    result?: EventPayload<'command.succeeded'>,
+  ) => {
+    h.given(eventDraft('command.issued', payload));
+    if (result) h.given(eventDraft('command.succeeded', result));
+    return h;
+  };
+  const createIssue = (h: Harness, result?: number) =>
+    issued(
+      h,
+      {
+        commandId: 'wf/issue',
+        kind: 'scm.createIssue',
+        args: { repo, title: 'T', body: 'B', labels: ['ai-office:item'] },
+      },
+      result === undefined
+        ? undefined
+        : {
+            commandId: 'wf/issue',
+            kind: 'scm.createIssue',
+            result: { issue: result, url: `https://github.com/o/r/${result}` },
+          },
+    );
+  const openPr = (h: Harness, number?: number, commandId = 'wf/pr') =>
+    issued(
+      h,
+      {
+        commandId,
+        kind: 'scm.openPR',
+        args: { repo, title: 'T', body: 'B', head: 'worker', base: 'ib' },
+      },
+      number === undefined
+        ? undefined
+        : {
+            commandId,
+            kind: 'scm.openPR',
+            result: {
+              pr: number,
+              url: `https://github.com/o/r/pull/${number}`,
+            },
+          },
+    );
+  const payloads = (events: DomainEventDraft[]) =>
+    events.map((e) =>
+      e.type === 'anomaly.detected'
+        ? {
+            kind: e.payload.kind,
+            severity: e.payload.severity,
+            number: e.payload.number,
+            commentId: e.payload.commentId,
+          }
+        : e.type,
+    );
+
+  test("duplicates of another run's command are ignored (rule b)", () => {
+    const h = createIssue(meeting());
+    expect(
+      emitted(
+        h,
+        anomaly({
+          kind: 'duplicate',
+          commandId: 'other-run/issue',
+          objectKind: 'issue',
+          numbers: [5, 7],
+        }),
+      ),
+    ).toEqual([]);
+  });
+  test('duplicate issues: lowest kept without a result, one warning per extra, no pause, reported once', () => {
+    const h = createIssue(meeting());
+    const observation = {
+      kind: 'duplicate' as const,
+      commandId: 'wf/issue',
+      objectKind: 'issue' as const,
+      numbers: [9, 5, 7],
+    };
+    const first = emitted(h, anomaly(observation));
+    expect(payloads(first)).toEqual([
+      { kind: 'duplicate-object', severity: 'warning', number: 9 },
+      { kind: 'duplicate-object', severity: 'warning', number: 7 },
+    ]);
+    expect(first.every((e) => e.type === 'anomaly.detected')).toBe(true);
+    expect(first[0]!.payload).toMatchObject({ commandId: 'wf/issue' });
+    expect(h.state.workflow!.pausedReasons).toEqual([]);
+    expect(emitted(h, anomaly(observation))).toEqual([]);
+    // A later poll that finds one more copy reports only the new one.
+    expect(
+      payloads(emitted(h, anomaly({ ...observation, numbers: [5, 7, 11] }))),
+    ).toEqual([{ kind: 'duplicate-object', severity: 'warning', number: 11 }]);
+  });
+  test('duplicate issues keep the copy command.succeeded recorded', () => {
+    const h = createIssue(meeting(), 7);
+    expect(
+      payloads(
+        emitted(
+          h,
+          anomaly({
+            kind: 'duplicate',
+            commandId: 'wf/issue',
+            objectKind: 'issue',
+            numbers: [5, 7],
+          }),
+        ),
+      ),
+    ).toEqual([{ kind: 'duplicate-object', severity: 'warning', number: 5 }]);
+  });
+  test('duplicate PRs keep the recorded PR; a kind mismatch is ignored', () => {
+    const h = openPr(meeting(), 8);
+    expect(
+      payloads(
+        emitted(
+          h,
+          anomaly({
+            kind: 'duplicate',
+            commandId: 'wf/pr',
+            objectKind: 'pr',
+            numbers: [8, 3],
+          }),
+        ),
+      ),
+    ).toEqual([{ kind: 'duplicate-object', severity: 'warning', number: 3 }]);
+    expect(
+      emitted(
+        h,
+        anomaly({
+          kind: 'duplicate',
+          commandId: 'wf/pr',
+          objectKind: 'issue',
+          numbers: [8, 3],
+        }),
+      ),
+    ).toEqual([]);
+  });
+  test('duplicate comments keep the lowest numeric id (scm.comment records no id)', () => {
+    const target = { type: 'issue' as const, repo, number: 4 };
+    const h = issued(meeting(), {
+      commandId: 'wf/comment',
+      kind: 'scm.comment',
+      args: { target, body: 'hi' },
+    });
+    const observation = {
+      kind: 'duplicate' as const,
+      commandId: 'wf/comment',
+      objectKind: 'comment' as const,
+      commentIds: ['900', '1000', '85'],
+    };
+    expect(payloads(emitted(h, anomaly(observation)))).toEqual([
+      { kind: 'duplicate-object', severity: 'warning', commentId: '900' },
+      { kind: 'duplicate-object', severity: 'warning', commentId: '1000' },
+    ]);
+    expect(
+      emitted(h, anomaly({ ...observation, target: { repo, number: 5 } })),
+    ).toEqual([]);
+    expect(emitted(h, anomaly({ ...observation, commentIds: ['85'] }))).toEqual(
+      [],
+    );
+  });
+  test('merge-base-changed is a high anomaly that pauses, once per command', () => {
+    const h = issued(meeting(), {
+      commandId: 'wf/merge',
+      kind: 'scm.mergePR',
+      args: {
+        pr: { repo, number: 12 },
+        method: 'merge',
+        expectedHeadSha: 'abcdef1',
+      },
+    });
+    const observation = {
+      kind: 'merge-base-changed' as const,
+      commandId: 'wf/merge',
+      pr: 12,
+    };
+    expect(emitted(h, anomaly({ ...observation, commandId: 'nope' }))).toEqual(
+      [],
+    );
+    const events = emitted(h, anomaly(observation));
+    expect(payloads(events)).toEqual([
+      { kind: 'merge-base-changed', severity: 'high', number: 12 },
+      'workflow.paused',
+    ]);
+    expect(emitted(h, anomaly(observation))).toEqual([]);
+  });
+  test('integration branch moves warn only during implement, outside backend merges and baselines', () => {
+    const moved = {
+      kind: 'integration-branch' as const,
+      sha: 'abcdef2',
+      previousSha: 'abcdef1',
+    };
+    expect(emitted(meeting(), anomaly(moved))).toEqual([]);
+    const h = implementation();
+    expect(emitted(h, anomaly({ ...moved, previousSha: null }))).toEqual([]);
+    expect(emitted(h, anomaly({ ...moved, previousSha: 'abcdef2' }))).toEqual(
+      [],
+    );
+    issued(
+      h,
+      {
+        commandId: 'wf/merge',
+        kind: 'scm.mergePR',
+        args: {
+          pr: { repo, number: 12 },
+          method: 'merge',
+          expectedHeadSha: 'abcdef1',
+        },
+      },
+      {
+        commandId: 'wf/merge',
+        kind: 'scm.mergePR',
+        result: { mergeCommitSha: 'abcdef2' },
+      },
+    );
+    expect(emitted(h, anomaly(moved))).toEqual([]);
+    const events = emitted(h, anomaly({ ...moved, sha: 'abcdef3' }));
+    expect(payloads(events)).toEqual([
+      {
+        kind: 'integration-branch-moved',
+        severity: 'warning',
+        number: undefined,
+        commentId: undefined,
+      },
+    ]);
+    expect(h.state.workflow!.pausedReasons).toEqual([]);
+    expect(emitted(h, anomaly({ ...moved, sha: 'abcdef3' }))).toEqual([]);
+  });
+  test('a first default-branch observation (previousSha null) is a baseline', () => {
+    expect(
+      emitted(
+        meeting(),
+        anomaly({ kind: 'default-branch', sha: 'abcdef2', previousSha: null }),
+      ),
+    ).toEqual([]);
+  });
+  test('worker PRs closed outside the backend raise unmanaged-close once; backend and final closes do not', () => {
+    const closed = {
+      kind: 'pr' as const,
+      pr: pr({ state: 'closed' }),
+      managed: true,
+    };
+    expect(emitted(meeting(), anomaly(closed))).toEqual([]);
+    const h = openPr(meeting(), 12);
+    const events = emitted(h, anomaly(closed));
+    expect(payloads(events)).toEqual([
+      { kind: 'unmanaged-close', severity: 'warning', number: 12 },
+    ]);
+    expect(h.state.workflow!.pausedReasons).toEqual([]);
+    expect(emitted(h, anomaly(closed))).toEqual([]);
+    const backend = openPr(meeting(), 12);
+    issued(backend, {
+      commandId: 'wf/close',
+      kind: 'scm.updatePR',
+      args: { pr: { repo, number: 12 }, patch: { state: 'closed' } },
+    });
+    expect(emitted(backend, anomaly(closed))).toEqual([]);
+    const final = openPr(meeting(), 12);
+    final.state.workflow!.finalPr = 12;
+    expect(emitted(final, anomaly(closed))).toEqual([]);
+  });
   test('policy hits and unmanaged agents; no hits and repeated unmanaged observations are no-ops', () => {
     const h = meeting();
     expect(

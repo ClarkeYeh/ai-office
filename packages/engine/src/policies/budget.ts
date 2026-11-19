@@ -292,7 +292,8 @@ export const filterPolicyEffects = (
     workflow.pausedReasons.length > 0 ||
     hijacked ||
     ctx.event.type === 'runtime.identity_hijacked' ||
-    ctx.event.type === 'anomaly.detected' ||
+    (ctx.event.type === 'anomaly.detected' &&
+      ctx.event.payload.severity !== 'warning') ||
     (ctx.event.type === 'seat.exited' &&
       !ctx.event.payload.expected &&
       ctx.event.payload.reason === 'stopped') ||
