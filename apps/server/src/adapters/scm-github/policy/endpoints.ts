@@ -121,7 +121,8 @@ export function prepareRequest(
     if (
       !string ||
       string.split('/').some((part) => part === '.' || part === '..') ||
-      /[\\%?#\u0000-\u001f]/.test(string)
+      /[\\%?#]/.test(string) ||
+      [...string].some((character) => character.charCodeAt(0) < 32)
     )
       guard('invalid_path_parameter');
     if (

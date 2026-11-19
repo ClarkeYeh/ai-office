@@ -407,7 +407,7 @@ describe('GitHub HTTP boundary', () => {
       f.advance(retryAfterMs);
     }
   });
-  it('enforces safety evidence and rejects unapproved write fields', async () => {
+  it('checks safety evidence and rejects unapproved write fields', async () => {
     const f = setup([]);
     for (const [id, p] of [
       ['refs.delete', { ...params, ref: 'main' }],
