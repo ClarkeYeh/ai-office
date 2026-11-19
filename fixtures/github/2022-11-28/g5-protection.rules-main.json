@@ -1,0 +1,48 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:02.498Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/rules/branches/{branch}",
+  "query": {},
+  "status": 200,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:02 GMT",
+    "etag": "W/\"bd2eede1942f43feb121582289bf88fc17fc7b35951d3ca271958e99c02f5d4d\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4967",
+    "x-ratelimit-reset": "1795067705",
+    "x-ratelimit-used": "33",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FE77:1AA7FC:7536C1:BAA196:6AFE8702"
+  },
+  "response": [
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "require_extra_approval_for_unattributed_changes": true,
+        "allowed_merge_methods": ["merge", "squash", "rebase"]
+      },
+      "ruleset_source_type": "Repository",
+      "ruleset_source": "ClarkeYeh/ai-office-spike",
+      "ruleset_id": 27439305
+    },
+    {
+      "type": "non_fast_forward",
+      "ruleset_source_type": "Repository",
+      "ruleset_source": "ClarkeYeh/ai-office-spike",
+      "ruleset_id": 27439305
+    },
+    {
+      "type": "deletion",
+      "ruleset_source_type": "Repository",
+      "ruleset_source": "ClarkeYeh/ai-office-spike",
+      "ruleset_id": 27439305
+    }
+  ]
+}

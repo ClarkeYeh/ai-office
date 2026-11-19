@@ -1,0 +1,30 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:21:35.308Z",
+  "method": "POST",
+  "pathTemplate": "/repos/{owner}/{repo}/pulls",
+  "query": {},
+  "status": 422,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:21:35 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4941",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "59",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "C099:23304C:75FC1E:BBACCC:6AFE875F"
+  },
+  "response": {
+    "message": "Validation Failed",
+    "errors": [
+      {
+        "resource": "PullRequest",
+        "code": "custom",
+        "message": "A pull request already exists for ClarkeYeh:ai-office/t000000000001-w3."
+      }
+    ],
+    "documentation_url": "<redacted>",
+    "status": "422"
+  },
+  "requestBodySha256": "6f62efa415555329919b5d76716045b802e203452953b84242cffe9a8f1d1508"
+}

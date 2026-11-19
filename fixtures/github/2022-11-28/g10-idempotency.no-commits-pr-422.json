@@ -1,0 +1,30 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:21:38.519Z",
+  "method": "POST",
+  "pathTemplate": "/repos/{owner}/{repo}/pulls",
+  "query": {},
+  "status": 422,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:21:39 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4939",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "61",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "C0AE:3F760B:74E8E8:BA7F25:6AFE8762"
+  },
+  "response": {
+    "message": "Validation Failed",
+    "errors": [
+      {
+        "resource": "PullRequest",
+        "code": "custom",
+        "message": "No commits between ai-office/t000000000001-int and ai-office/t000000000001-int"
+      }
+    ],
+    "documentation_url": "<redacted>",
+    "status": "422"
+  },
+  "requestBodySha256": "7c21f327e13cf36dbe6461519c6bdc8676bc0ed0a1fb5063ad7a5295d56358b6"
+}

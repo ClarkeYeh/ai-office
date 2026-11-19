@@ -1,0 +1,111 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:02.097Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/branches/{branch}",
+  "query": {},
+  "status": 200,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:02 GMT",
+    "etag": "W/\"114a91106ab89b90e957711b6a7ef0035c5901db63156bd161bc239d80135507\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4968",
+    "x-ratelimit-reset": "1795067705",
+    "x-ratelimit-used": "32",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FE76:3E7C93:73CA8F:B919FB:6AFE8702"
+  },
+  "response": {
+    "name": "main",
+    "commit": {
+      "sha": "1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d",
+      "node_id": "<redacted>",
+      "commit": {
+        "author": {
+          "name": "clarke",
+          "email": "<redacted>",
+          "date": "2026-11-17T07:07:35Z"
+        },
+        "committer": {
+          "name": "clarke",
+          "email": "<redacted>",
+          "date": "2026-11-17T07:07:35Z"
+        },
+        "message": "init spike repo",
+        "tree": {
+          "sha": "8f3b0924a34b19f85e5016768d071077096333ed",
+          "url": "<redacted>"
+        },
+        "url": "<redacted>",
+        "comment_count": 0,
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      },
+      "url": "<redacted>",
+      "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d",
+      "comments_url": "<redacted>",
+      "author": {
+        "login": "clarkeforwork-coder",
+        "id": 288033539,
+        "node_id": "U_kgDOESsLAw",
+        "avatar_url": "<redacted>",
+        "gravatar_id": "",
+        "url": "<redacted>",
+        "html_url": "<redacted>",
+        "followers_url": "<redacted>",
+        "following_url": "<redacted>",
+        "gists_url": "<redacted>",
+        "starred_url": "<redacted>",
+        "subscriptions_url": "<redacted>",
+        "organizations_url": "<redacted>",
+        "repos_url": "<redacted>",
+        "events_url": "<redacted>",
+        "received_events_url": "<redacted>",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "committer": {
+        "login": "clarkeforwork-coder",
+        "id": 288033539,
+        "node_id": "U_kgDOESsLAw",
+        "avatar_url": "<redacted>",
+        "gravatar_id": "",
+        "url": "<redacted>",
+        "html_url": "<redacted>",
+        "followers_url": "<redacted>",
+        "following_url": "<redacted>",
+        "gists_url": "<redacted>",
+        "starred_url": "<redacted>",
+        "subscriptions_url": "<redacted>",
+        "organizations_url": "<redacted>",
+        "repos_url": "<redacted>",
+        "events_url": "<redacted>",
+        "received_events_url": "<redacted>",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "parents": []
+    },
+    "_links": {
+      "self": "<redacted>",
+      "html": "https://github.com/ClarkeYeh/ai-office-spike/tree/main"
+    },
+    "protected": true,
+    "protection": {
+      "enabled": false,
+      "required_status_checks": {
+        "enforcement_level": "off",
+        "contexts": [],
+        "checks": []
+      }
+    },
+    "protection_url": "<redacted>"
+  }
+}

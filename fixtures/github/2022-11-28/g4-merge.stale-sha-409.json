@@ -1,0 +1,23 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:21:01.086Z",
+  "method": "PUT",
+  "pathTemplate": "/repos/{owner}/{repo}/pulls/{pull_number}/merge",
+  "query": {},
+  "status": 409,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:21:02 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4963",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "37",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FFB8:680B7:748739:BA1D57:6AFE873D"
+  },
+  "response": {
+    "message": "Head branch was modified. Review and try the merge again.",
+    "documentation_url": "<redacted>",
+    "status": "409"
+  },
+  "requestBodySha256": "44ae0d53dad9be467823a5a32fea31151a5de064d872006d795a82d017cf7e1f"
+}

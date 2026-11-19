@@ -1,0 +1,58 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:21:07.133Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/git/commits/{commit_sha}",
+  "query": {},
+  "status": 200,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:21:07 GMT",
+    "etag": "W/\"4444f6317414df01b6cfa88205d724bd2823a5d7e60e9f4687cd9024ed810be5\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4958",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "42",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FFE7:57005:747326:BA130A:6AFE8743"
+  },
+  "response": {
+    "sha": "110c57cf717783ed4d0b66638187956fce2f1f30",
+    "node_id": "<redacted>",
+    "url": "<redacted>",
+    "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/110c57cf717783ed4d0b66638187956fce2f1f30",
+    "author": {
+      "name": "ClarkeYeh",
+      "email": "<redacted>",
+      "date": "2026-11-19T05:21:04Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "<redacted>",
+      "date": "2026-11-19T05:21:04Z"
+    },
+    "tree": {
+      "sha": "e913762764d8e234222322f559919b3b18262efa",
+      "url": "<redacted>"
+    },
+    "message": "Merge pull request #8 from <redacted>\n\n[aio-test 000000000001] g3-w1",
+    "parents": [
+      {
+        "sha": "1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d",
+        "url": "<redacted>",
+        "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d"
+      },
+      {
+        "sha": "afc56c9bd427d5dedbf1b6582a9df010f498ee0e",
+        "url": "<redacted>",
+        "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/afc56c9bd427d5dedbf1b6582a9df010f498ee0e"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n=16+w\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree e913762764d8e234222322f559919b3b18262efa\nparent 1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d\nparent afc56c9bd427d5dedbf1b6582a9df010f498ee0e\nauthor ClarkeYeh <<redacted>> 1795065664 +0800\ncommitter GitHub <<redacted>> 1795065664 +0800\n\nMerge pull request #8 from <redacted>\n\n[aio-test 000000000001] g3-w1",
+      "verified_at": "2026-11-19T05:21:04Z"
+    }
+  }
+}
