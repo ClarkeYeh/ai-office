@@ -104,6 +104,7 @@ export async function withLiveRun<T>(
       report.rateLimitAfter = await coreRemaining(harness);
       report.httpCalls = recorder.recordings.length;
       report.withheldResponses = recorded.withheld();
+      report.withheldFieldPaths = recorded.withheldPaths();
       report.gateCalls = harness.gate.calls.length;
       const path = `${process.env.HOME}/.ai-office/test-state/t15-${name}-${runId}.json`;
       await mkdir(dirname(path), { recursive: true, mode: 0o700 });
@@ -150,6 +151,8 @@ function scopedRecording(transport: typeof fetch, runId: string) {
   const recorder = new RecordingFetch(async () => next!, runId);
   let tail: Promise<unknown> = Promise.resolve();
   let withheld = 0;
+  // Field paths only (never values), for the private report.
+  const withheldPaths: string[] = [];
   const record = async (request: Request): Promise<Response> => {
     const full = await transport(request.clone());
     const path = new URL(request.url).pathname;
@@ -182,6 +185,13 @@ function scopedRecording(transport: typeof fetch, runId: string) {
       // must never enter a fixture (e.g. the spike main commit's author) is
       // recorded withheld. The adapter always gets the real response.
       withheld++;
+      const data: unknown = await full
+        .clone()
+        .json()
+        .catch(() => undefined);
+      const where = `${request.method} ${new URL(request.url).pathname.replace(ROOT, '').replace(/[a-f0-9]{40}/g, '{sha}')}`;
+      for (const leak of leakPaths(data))
+        withheldPaths.push(`${where} ${leak}`);
       next = new Response(
         [204, 205, 304].includes(full.status)
           ? null
@@ -198,7 +208,12 @@ function scopedRecording(transport: typeof fetch, runId: string) {
     tail = result.catch(() => undefined);
     return result;
   };
-  return { recorder, fetch, withheld: () => withheld };
+  return {
+    recorder,
+    fetch,
+    withheld: () => withheld,
+    withheldPaths: () => [...new Set(withheldPaths)],
+  };
 }
 
 /** JSON paths (never values) whose leaf fails the tape leak scan. */
