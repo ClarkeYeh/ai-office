@@ -97,3 +97,35 @@ it('only maps exact namespace boundaries, keeping SHA and main references intact
   expect(branches.logical(branches.remote(retry))).toBe(retry);
   expect(() => githubBranches(runId, `t${runId}`)).toThrow('shortId');
 });
+
+it('maps a recorded logical expectedBase to the test-namespace base when merging', async () => {
+  const underlying = new FakeScm();
+  underlying.addRepo(repo);
+  const scm = scopeGithubScm(underlying, runId, shortId);
+  const integration = `ai-office/${shortId}-integration`;
+  const worker = `ai-office/${shortId}/merge`;
+  await scm.ensureBranch(repo, integration, 'main', c('01WORKFLOW/int'));
+  const head = underlying.pushBranch(
+    repo,
+    githubBranches(runId, shortId).remote(worker),
+    githubBranches(runId, shortId).remote(integration),
+  );
+  const commandId = '01WORKFLOW/merge-pr';
+  const pr = await scm.openPR(
+    repo,
+    {
+      title: 'Merge me',
+      body: `Refs #4\n${marker(commandId)}`,
+      head: worker,
+      base: integration,
+    },
+    c(commandId),
+  );
+  await expect(
+    scm.mergePR(pr, {
+      method: 'merge',
+      expectedHeadSha: head,
+      expectedBase: integration,
+    }),
+  ).resolves.toMatchObject({ mergeCommitSha: expect.any(String) });
+});

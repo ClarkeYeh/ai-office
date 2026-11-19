@@ -29,6 +29,14 @@ export function scopeGithubScm(
     deleteBranch: (repo, name) => scm.deleteBranch(repo, branches.remote(name)),
     compareBranch: (repo, base, head) =>
       scm.compareBranch(repo, branches.remote(base), branches.remote(head)),
+    // The recorded base is a logical branch; GitHub holds the test-namespace one.
+    mergePR: (ref, opts) =>
+      scm.mergePR(ref, {
+        ...opts,
+        ...(opts.expectedBase === undefined
+          ? {}
+          : { expectedBase: branches.remote(opts.expectedBase) }),
+      }),
     getPR: async (ref) => {
       const result = await scm.getPR(ref);
       return { ...result, base: branches.logical(result.base) };

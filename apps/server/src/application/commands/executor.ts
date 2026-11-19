@@ -216,6 +216,9 @@ export const portHandlers = (ports: {
         ...(args.expectedBaseSha === undefined
           ? {}
           : { expectedBaseSha: args.expectedBaseSha }),
+        ...(args.expectedBase === undefined
+          ? {}
+          : { expectedBase: args.expectedBase }),
       }),
   };
 };
