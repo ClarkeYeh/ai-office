@@ -25,6 +25,20 @@ export class GithubGovernor {
     if (block && block.until > this.now())
       throw rateLimited(block.code, block.until - this.now());
   }
+  private block(kind: RequestClass, code: string, delay: number): void {
+    const until = this.now() + delay;
+    // Concurrent responses must never shorten a cooldown already in effect.
+    if (until > (this.blocks[kind]?.until ?? 0))
+      this.blocks[kind] = { code, until };
+  }
+  private resetDelay(): number {
+    return Math.max(
+      1000,
+      this.resetAt === undefined
+        ? 60_000
+        : this.resetAt - (this.now() + this.clockOffsetMs),
+    );
+  }
   async run<T>(
     kind: RequestClass,
     content: boolean,
@@ -76,12 +90,25 @@ export class GithubGovernor {
   observe(headers: Headers): void {
     const remaining = headers.get('x-ratelimit-remaining');
     const reset = headers.get('x-ratelimit-reset');
-    if (remaining !== null && /^\d+$/.test(remaining))
+    if (
+      remaining !== null &&
+      /^\d+$/.test(remaining) &&
+      Number.isSafeInteger(Number(remaining))
+    )
       this.remaining = Number(remaining);
-    if (reset !== null && /^\d+$/.test(reset))
+    if (
+      reset !== null &&
+      /^\d+$/.test(reset) &&
+      Number.isSafeInteger(Number(reset) * 1000)
+    )
       this.resetAt = Number(reset) * 1000;
     const date = Date.parse(headers.get('date') ?? '');
     if (Number.isFinite(date)) this.clockOffsetMs = date - this.now();
+    // A successful last-budget response can exhaust quota without a 403/429.
+    if (remaining === '0') {
+      this.block('read', 'primary_rate_limit', this.resetDelay());
+      this.block('write', 'primary_rate_limit', this.resetDelay());
+    }
   }
   failure(
     status: number,
@@ -93,10 +120,7 @@ export class GithubGovernor {
     let code: string, delay: number;
     if (headers.get('x-ratelimit-remaining') === '0') {
       code = 'primary_rate_limit';
-      delay = Math.max(
-        1000,
-        (this.resetAt ?? this.now() + 60_000) - this.now(),
-      );
+      delay = this.resetDelay();
     } else if (
       status === 429 ||
       headers.has('retry-after') ||
@@ -113,13 +137,16 @@ export class GithubGovernor {
           ? parsed
           : Math.min(900_000, 60_000 * 2 ** Math.min(this.secondaryCount++, 4));
     } else return;
-    const block = { code, until: this.now() + delay };
-    this.blocks[kind] = block;
+    this.block(kind, code, delay);
     if (code === 'primary_rate_limit') {
-      this.blocks.read = block;
-      this.blocks.write = block;
+      this.block('read', code, delay);
+      this.block('write', code, delay);
     }
-    return rateLimited(code, delay);
+    const blocked = this.blocks[kind];
+    return rateLimited(
+      blocked?.code ?? code,
+      Math.max(delay, (blocked?.until ?? 0) - this.now()),
+    );
   }
   snapshot() {
     const now = this.now();
