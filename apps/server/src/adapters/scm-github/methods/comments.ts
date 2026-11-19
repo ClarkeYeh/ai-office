@@ -4,7 +4,7 @@ import type { ScmPort } from '../../../ports/scm.js';
 import { guard } from '../policy/endpoints.js';
 import { emptySchema } from '../schemas/common.js';
 import { repoParams, type ScmGithubDeps } from './deps.js';
-import { commandMarker, createPendingOperation } from './marker.js';
+import { createPendingOperation, markedBody } from './marker.js';
 const commentSchema = z.looseObject({
   id: z.number().int().positive().safe(),
   html_url: z.string().url(),
@@ -26,7 +26,7 @@ export function createCommentMethods(
           {
             ...repoParams(ref.repo),
             number: ref.number,
-            body: { body: `${body}\n\n${commandMarker(c.commandId)}` },
+            body: { body: markedBody(body, c.commandId) },
           },
           { schema: commentSchema },
         );

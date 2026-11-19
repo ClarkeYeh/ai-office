@@ -9,6 +9,7 @@ export {
   evolve,
   evolveWithWarning,
   HANDLED_EVENT_TYPES,
+  REQUEST_CHANGES_OPTION,
   replay,
 } from './evolve.js';
 export type { EvolveResult, EvolveWarning } from './evolve.js';

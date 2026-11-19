@@ -190,6 +190,32 @@ describe('GitHub T4 methods through the HTTP boundary (offline)', () => {
     await f.scm.comment(target, 'decision', correlation);
     f.done();
   });
+  it('never adds a second marker to engine bodies that already carry it', async () => {
+    const issueStep = recorded(
+      `${base}/issues`,
+      'g1-body.create-issue',
+      'POST',
+    );
+    issueStep.check = (_u, init) =>
+      expect(JSON.parse(String(init.body)).body).toBe(`decision\n\n${marker}`);
+    const commentStep = recorded(
+      `${base}/issues/4/comments`,
+      'g1-body.create-comment',
+      'POST',
+    );
+    commentStep.check = (_u, init) =>
+      expect(JSON.parse(String(init.body))).toEqual({
+        body: `note\n\n${marker}`,
+      });
+    const f = setup([issueStep, commentStep]);
+    await f.scm.createIssue(
+      repo,
+      { title: 'Decision', body: `decision\n\n${marker}`, labels: [] },
+      correlation,
+    );
+    await f.scm.comment(target, `note\n\n${marker}`, correlation);
+    f.done();
+  });
   it.each([true, false])(
     'only accepts a delete 422 when a fresh read proves absence (%s)',
     async (absent) => {

@@ -124,5 +124,10 @@ test('a final PR closed unmerged marks its open gate (prClosedAt) and narrows th
   expect(replay(s.events)).toEqual(s.model);
   status('open');
   expect(gate().content).not.toHaveProperty('prClosedAt');
+  expect(gate().options.map((o) => o.optionId)).toEqual([
+    'request-changes',
+    'keep-open',
+    'abort',
+  ]);
   expect(replay(s.events)).toEqual(s.model);
 });

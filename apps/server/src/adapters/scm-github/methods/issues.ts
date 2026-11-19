@@ -3,7 +3,7 @@ import { bodyHash } from '@ai-office/domain';
 import type { ScmPort } from '../../../ports/scm.js';
 import { emptySchema } from '../schemas/common.js';
 import { repoParams, type ScmGithubDeps } from './deps.js';
-import { commandMarker, createPendingOperation } from './marker.js';
+import { createPendingOperation, markedBody } from './marker.js';
 
 const createdIssue = z.looseObject({
   number: z.number().int().positive(),
@@ -27,7 +27,7 @@ export function createIssueMethods(
             ...repoParams(repo),
             body: {
               ...draft,
-              body: `${draft.body}\n\n${commandMarker(c.commandId)}`,
+              body: markedBody(draft.body, c.commandId),
             },
           },
           { schema: createdIssue },

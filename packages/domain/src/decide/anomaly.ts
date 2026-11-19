@@ -38,6 +38,20 @@ const lowerId = (a: string, b: string): string =>
       ? a
       : b;
 
+/**
+ * A merge commit we know of: a recorded `scm.mergePR` result (any command,
+ * including a human-chosen merge), a merged work item, or an observed merged
+ * PR. Such a head never counts as an outside move of the integration branch.
+ */
+const knownMergeResult = (state: WorkflowState, sha: string): boolean =>
+  Object.values(state.commands).some(
+    (record) => resultOf(record, 'scm.mergePR')?.mergeCommitSha === sha,
+  ) ||
+  Object.values(state.workItems).some((item) => item.mergeCommitSha === sha) ||
+  Object.values(state.prs).some(
+    (pr) => pr.state === 'merged' && pr.mergeCommitSha === sha,
+  );
+
 /** Worker PRs: opened by one of this workflow's commands, other than the final PR. */
 const isWorkerPr = (state: WorkflowState, pr: number): boolean =>
   pr !== state.workflow?.finalPr &&
@@ -241,10 +255,7 @@ export const decideAnomaly = (
         Object.values(state.stages).some(
           (s) => s.kind === 'implement' && s.status === 'running',
         ) &&
-        !Object.values(state.commands).some(
-          (record) =>
-            resultOf(record, 'scm.mergePR')?.mergeCommitSha === observation.sha,
-        ) &&
+        !knownMergeResult(state, observation.sha) &&
         !state.anomalies.some(
           (a) =>
             a.kind === 'integration-branch-moved' && a.sha === observation.sha,

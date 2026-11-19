@@ -1,11 +1,10 @@
-import { replay } from '@ai-office/domain';
+import { bodyHash, replay } from '@ai-office/domain';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { pausingWorld, Simulator } from '../test-support/simulator.js';
 import { runMeeting, scenario } from '../test-support/meeting.js';
 import { createReact, DEFAULT_MODULES } from '../react.js';
 import { startWorkflow } from '../test-support/fixtures.js';
-import { conclusionHash } from './meeting.js';
 
 const checked = (sim: Simulator) => {
   expect(sim.rejections).toEqual([]);
@@ -166,14 +165,24 @@ describe('meeting stage protocol', () => {
         .every((e) => e.seq > sim.eventsOf('workitem.approved')[0]!.seq),
     ).toBe(true);
   });
-  it.each(['', 'abc', '語言🦀', '\ud800', 'é', 'x'.repeat(200)])(
-    'hashes the exact UTF-8 rendered body (%s)',
-    (text) => {
-      expect(conclusionHash(text)).toBe(
-        createHash('sha256').update(text).digest('hex'),
-      );
-    },
-  );
+  it('renders the conclusion gate hash as bodyHash of the marked issue body GitHub stores', () => {
+    const sim = runMeeting();
+    const issue = sim.issued.find((c) => c.command.kind === 'scm.createIssue')!;
+    if (issue.command.kind !== 'scm.createIssue') throw new Error('no issue');
+    const body = issue.command.args.body;
+    // Adapters append the marker only when missing, so this is the GitHub body.
+    expect(body.endsWith(`\n\n<!-- ai-office:cmd=${issue.commandId} -->`)).toBe(
+      true,
+    );
+    const gate = sim.eventsOf('gate.opened').at(-1)!.payload;
+    expect(gate.content).toMatchObject({
+      type: 'conclusion',
+      renderedHash: bodyHash(body),
+    });
+    expect(bodyHash(body)).toBe(
+      createHash('sha256').update(body).digest('hex'),
+    );
+  });
 });
 
 it('continues another round with surviving participants after an absence', () => {

@@ -2,6 +2,21 @@ import type { GateView } from '@ai-office/contracts/api';
 import type { DomainEvent } from '@ai-office/contracts/events';
 import { findAttempt, lookup, type ReadModel } from './model.js';
 
+/** Same option as the engine's final-PR gate builder (domain REQUEST_CHANGES_OPTION). */
+const REQUEST_CHANGES = {
+  optionId: 'request-changes',
+  label: 'Request changes',
+} as const;
+
+/** Domain counts started revision runs of the integrate stage. */
+function revisable(m: ReadModel): boolean {
+  const config = m.template.stages.find((s) => s.kind === 'final-pr');
+  const integrate = m.stages.find((s) => s.kind === 'integrate');
+  const revisions =
+    integrate?.runs.filter((r) => r.mode === 'revision').length ?? 0;
+  return config?.kind === 'final-pr' && revisions < config.maxRevisions;
+}
+
 function resolveContent(m: ReadModel, gate: GateView): void {
   const content = gate.content;
   if (content.type === 'exception') {
@@ -170,7 +185,8 @@ export function applyGates(m: ReadModel, e: DomainEvent): void {
     }
     case 'pr.status': {
       // Mirrors domain evolve (S9): an open final-PR gate shows when its PR
-      // was closed without merging and then offers only keep-open and abort.
+      // was closed without merging and then offers only keep-open and abort;
+      // a reopen restores request-changes while revisions remain.
       const p = e.payload;
       for (const gate of m.gates) {
         const content = gate.content;
@@ -181,18 +197,22 @@ export function applyGates(m: ReadModel, e: DomainEvent): void {
           content.pr !== p.pr
         )
           continue;
+        const narrowed = gate.options.filter(
+          (o) => o.optionId !== REQUEST_CHANGES.optionId,
+        );
         if (p.state === 'closed') {
           gate.content = {
             ...content,
             prClosedAt: content.prClosedAt ?? e.occurredAt,
           };
-          gate.options = gate.options.filter(
-            (o) => o.optionId !== 'request-changes',
-          );
+          gate.options = narrowed;
         } else if (content.prClosedAt !== undefined) {
           const reopened = { ...content };
           delete reopened.prClosedAt;
           gate.content = reopened;
+          gate.options = revisable(m)
+            ? [{ ...REQUEST_CHANGES }, ...narrowed]
+            : narrowed;
         }
       }
       return;
