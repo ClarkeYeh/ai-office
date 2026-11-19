@@ -70,3 +70,15 @@ is validated but never modified. `AIO_TEST_GIT_EMAIL`, when supplied, must equal
 the authenticated owner's API-derived noreply identity. Child processes in
 this harness execute only explicit `git` and `gh auth token` argument arrays;
 git's credential helper uses the already-verified active GitHub account.
+
+## Shared contract recording (T8)
+
+After review, the integrator uses `AIO_REAL_GITHUB=1 pnpm test:github:record`.
+This runs only the shared ScmPort live binding and its encoded-ref probe, serially.
+See [the contract recording instructions](../../../../../../fixtures/github/2022-11-28/contracts/README.md)
+for pending evidence, replay commands and deliberate live exclusions. Cleanup
+hooks have a 120-second bound; the shared suite retains its existing case bounds.
+Git pushes obtain the selected `--user ClarkeYeh` credential and pass it only in
+process-local HTTP configuration, never via the active-account credential helper.
+The independent scan includes exact imported production command IDs and claim
+namespaces as well as all test namespaces; it still never mutates by prefix alone.

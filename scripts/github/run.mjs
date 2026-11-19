@@ -2,8 +2,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const [command, ...args] = process.argv.slice(2);
-if (!['test', 'e2e', 'record', 'janitor'].includes(command ?? '')) {
-  console.error('Expected test, e2e, record, or janitor');
+if (
+  !['test', 'e2e', 'record', 'record-contract', 'janitor'].includes(
+    command ?? '',
+  )
+) {
+  console.error('Expected test, e2e, record, record-contract, or janitor');
   process.exitCode = 1;
 } else if (
   process.env.CI !== undefined ||
@@ -39,12 +43,22 @@ if (!['test', 'e2e', 'record', 'janitor'].includes(command ?? '')) {
       '--project',
       '@ai-office/server-github',
       '--maxWorkers=2',
+      '--hookTimeout=120000',
       '--passWithNoTests',
-      ...(command === 'e2e'
-        ? ['apps/server/src/acceptance/github/']
-        : ['--exclude', '**/acceptance/github/**']),
+      ...(command === 'record-contract'
+        ? ['apps/server/src/adapters/scm-github/live.github.test.ts']
+        : command === 'e2e'
+          ? ['apps/server/src/acceptance/github/']
+          : ['--exclude', '**/acceptance/github/**']),
     ],
-    { cwd: root, stdio: 'inherit' },
+    {
+      cwd: root,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        ...(command === 'record-contract' ? { AIO_GITHUB_RECORD: '1' } : {}),
+      },
+    },
   );
   process.exitCode = result.status ?? 1;
 }
