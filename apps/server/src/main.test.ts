@@ -1186,7 +1186,7 @@ it('refuses configured shim homes containing cli-cwd before any process starts',
     join(directory, 'config.toml'),
     '[orca]\nbin = "/replay/orca"\nhomeDir = ' +
       JSON.stringify(directory) +
-      '\n',
+      '\n[github]\nghBin = "/replay/gh"\n',
   );
   const exec = vi
     .spyOn(SpawnExec.prototype, 'run')
