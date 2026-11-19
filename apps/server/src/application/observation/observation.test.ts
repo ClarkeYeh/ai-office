@@ -19,6 +19,7 @@ import {
   SessionRefSchema,
 } from '../../ports/refs.js';
 import type { RuntimePort } from '../../ports/runtime.js';
+import { PortError } from '../../ports/errors.js';
 import type { EventStore } from '../../ports/stores.js';
 import type { ScheduledTimer } from '../../ports/services.js';
 import { FakeClock, SeqIdGen } from '../../test-support/services.js';
@@ -1054,6 +1055,41 @@ describe('transactions and lifecycle', () => {
     expect(h.store.readCursor('observation.scm', WORKFLOW_ID)).not.toBeNull();
     resolve({ events: [], cursor: RuntimeCursorSchema.parse('next') });
     await pending;
+  });
+  it('reports non-transient SCM poll failures for health, clearing them on success (M3-T15 live finding)', async () => {
+    const h = await setup();
+    const reports: (string | undefined)[] = [];
+    const loop = new ObservationLoop({
+      ...h.deps,
+      onScmPoll: async (code) => {
+        reports.push(code);
+      },
+    });
+    cleanups.push(() => loop.stop());
+    loop.start();
+    const scmTimer = () =>
+      [...h.timers.values()].find((t) => t.id.includes('scm'))!;
+    const poll = vi.spyOn(h.scm, 'poll');
+    const run = async () => {
+      const timer = scmTimer();
+      h.timers.delete(timer.id);
+      await loop.onTimer(timer);
+    };
+    poll.mockRejectedValueOnce(
+      new PortError('guard', 'invalid_pagination', 'invalid_pagination'),
+    );
+    await run();
+    poll.mockRejectedValueOnce(
+      new PortError('transient', 'github_unavailable', 'down', true),
+    );
+    await run();
+    poll.mockRejectedValueOnce(
+      new PortError('transient', 'rate_limited', 'limited', true, 1000),
+    );
+    await run();
+    await run();
+    // Transient failures belong to the breaker and leave the outcome as is.
+    expect(reports).toEqual(['invalid_pagination', undefined]);
   });
   it('schedules one runtime loop per session, continues paused, slows final-PR polls, and stops on completion', async () => {
     const h = await setup();

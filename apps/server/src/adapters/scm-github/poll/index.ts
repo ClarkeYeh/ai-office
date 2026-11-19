@@ -5,6 +5,7 @@ import { CREATE_PENDING_WINDOW_MS } from '../../../ports/scm.js';
 import type { RepoScmRef, ScmCursor } from '../../../ports/refs.js';
 import type { ScmEvent } from '../../../ports/scm-events.js';
 import type { EndpointId } from '../policy/endpoints.js';
+import { nextQuery } from '../http/pagination.js';
 import type { RequestParams } from '../http/types.js';
 import { rollupChecks } from './checks.js';
 import {
@@ -134,8 +135,8 @@ class Poll {
     more: (page: T[]) => boolean = () => true,
   ): Promise<T[]> {
     const items: T[] = [];
+    let q: Record<string, string | number> = { ...query };
     for (let page = 1; page <= pages; page++) {
-      const q = { ...query, ...(page > 1 ? { page } : {}) };
       const key = `${id}?${new URLSearchParams(
         Object.entries(q)
           .map(([k, v]): [string, string] => [k, String(v)])
@@ -143,7 +144,11 @@ class Poll {
       )}`;
       const response = await this.read(id, key, { query: q }, schema);
       items.push(...response.data);
-      if (response.nextPage === undefined || !more(response.data)) break;
+      if (response.next === undefined || !more(response.data)) break;
+      // GitHub's validated next link: page number and, for cursor lists, `after`.
+      q = { ...query };
+      for (const [key, value] of Object.entries(nextQuery(response.next)))
+        if (value !== undefined) q[key] = value;
     }
     return items;
   }
