@@ -2,7 +2,12 @@ import { expect, it } from 'vitest';
 import { createReact, DEFAULT_MODULES } from '../react.js';
 import { startWorkflow } from '../test-support/fixtures.js';
 import { runMeeting, scenario } from '../test-support/meeting.js';
-import { pausingWorld, Simulator } from '../test-support/simulator.js';
+import {
+  laggingReleases,
+  pausingWorld,
+  Simulator,
+  unreleasedAtStageGates,
+} from '../test-support/simulator.js';
 
 it('keeps proposed work items private until approval and applies revisions', () => {
   const sim = runMeeting({ planning: true });
@@ -208,5 +213,55 @@ it('holds a stage timeout through a hijack pause and resumes its remaining time 
     kind: 'exception',
     stageId: 'breakdown',
   });
+  expect(sim.rejections).toEqual([]);
+});
+
+it('opens the conclusion and task-split gates only after every release succeeded (M2-FX12)', () => {
+  const lag = laggingReleases(scenario({ planning: true }));
+  const sim = new Simulator({
+    world: lag.world,
+    react: createReact({
+      ...DEFAULT_MODULES,
+      stages: { ...DEFAULT_MODULES.stages, implement: { react: () => [] } },
+    }),
+  });
+  const gates = () =>
+    sim.eventsOf('gate.opened').filter((g) => g.payload.kind === 'stage');
+  /** Releases land ~2 s after the exits; each held batch is answered at once. */
+  const settle = () => {
+    while (lag.held()) {
+      // The agents have exited (or never ran), yet the release is pending.
+      const opened = gates().length;
+      sim.advance(2_000);
+      expect(gates()).toHaveLength(opened);
+      lag.flush(sim);
+    }
+  };
+  sim.dispatch(startWorkflow());
+  settle();
+  const conclusion = gates().at(-1)!.payload;
+  expect(conclusion.stageId).toBe('meeting');
+  sim.dispatch({
+    type: 'DecideGate',
+    gateId: conclusion.gateId,
+    decision: 'approve',
+    by: 'user',
+    expectedVersion: 1,
+    requestedGithubBodyHash: 'a'.repeat(64),
+    currentGithubBodyHash: 'a'.repeat(64),
+    approvedSnapshot: {
+      source: 'github',
+      body: 'Approved',
+      bodyHash: 'a'.repeat(64),
+      structured: null,
+    },
+  });
+  settle();
+  expect(gates().map((g) => g.payload.stageId)).toEqual([
+    'meeting',
+    'breakdown',
+  ]);
+  expect(unreleasedAtStageGates(sim)).toEqual([]);
+  expect(sim.liveAgents()).toBe(0);
   expect(sim.rejections).toEqual([]);
 });

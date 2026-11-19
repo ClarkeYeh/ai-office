@@ -227,10 +227,16 @@ export function sendsPerAttempt(events: Json[]): Record<string, number> {
  */
 export function repeatedSends(events: Json[]): string[] {
   const seen = new Map<string, number>();
-  for (const e of events)
+  // A merge-queue re-review after rework is a new round, not a repeat (FX12).
+  const reworks = new Map<string, number>();
+  for (const e of events) {
+    if (e.type === 'workitem.rework_requested')
+      reworks.set(e.payload.itemKey, (reworks.get(e.payload.itemKey) ?? 0) + 1);
     if (e.type === 'command.issued' && e.payload.kind === 'runtime.send') {
-      const key = `${e.attemptId ?? '?'}|${e.payload.args?.subject ?? ''}`;
+      const subject = e.payload.args?.subject ?? '';
+      const key = `${e.attemptId ?? '?'}|${subject}${reworks.has(subject) ? `|rework ${reworks.get(subject)}` : ''}`;
       seen.set(key, (seen.get(key) ?? 0) + 1);
     }
+  }
   return [...seen].filter(([, n]) => n > 1).map(([k]) => k);
 }

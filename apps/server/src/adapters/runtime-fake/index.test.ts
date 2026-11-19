@@ -276,6 +276,36 @@ describe('FakeRuntime scenarios and faults', () => {
     await f.runtime.release(a, { removeWorkspace: false });
     expect(f.runtime.activeAgents()).toEqual([]);
   });
+  it('can lag a release behind the observed stop (M2-FX12, off by default)', async () => {
+    const f = await fixture({
+      scenario: { roles: { worker: { releaseLagMs: 2000 } } },
+    });
+    const a = await f.runtime.spawnAgent(f.spawnRequest);
+    await f.runtime.stop(a);
+    const stopped = await f.runtime.observe(f.session, null);
+    expect(stopped.events.map((e) => e.type)).toContain('agent.stopped');
+    let released = false;
+    const release = f.runtime
+      .release(a, { removeWorkspace: false })
+      .then(() => (released = true));
+    f.clock.advance(1999);
+    await f.runtime.runDue();
+    await Promise.resolve();
+    expect(released).toBe(false);
+    f.clock.advance(1);
+    await f.runtime.runDue();
+    await release;
+    expect(released).toBe(true);
+    expect(
+      (await f.runtime.observe(f.session, stopped.cursor)).events,
+    ).toMatchObject([{ type: 'agent.exited', reason: 'released' }]);
+    // Off by default: a release without the option completes at once.
+    const g = await fixture();
+    const b = await g.runtime.spawnAgent(g.spawnRequest);
+    await g.runtime.stop(b);
+    await g.runtime.release(b, { removeWorkspace: false });
+    expect(g.runtime.activeAgents()).toEqual([]);
+  });
   it('configures repo and workspace inspection and preserves identity after release', async () => {
     const facts = {
       isGitMainWorktree: true,

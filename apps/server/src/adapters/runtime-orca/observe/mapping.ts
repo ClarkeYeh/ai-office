@@ -81,7 +81,11 @@ export function currentDispatch(workers: readonly Worker[]): Worker {
     workers[0]!
   );
 }
-export function workerState(worker: Worker, waiting: boolean): AgentState {
+export function workerState(
+  worker: Worker,
+  waiting: boolean,
+  stoppedByBackend = false,
+): AgentState {
   const stage = worker.projection.stage;
   if (
     worker.terminalState === 'released' ||
@@ -89,6 +93,13 @@ export function workerState(worker: Worker, waiting: boolean): AgentState {
   )
     return 'exited';
   if ([worker.workerState, stage?.worker].includes('stopped')) return 'stopped';
+  // M2-FX12: `worker-stop` on a settled dispatch answers `alreadySettled`
+  // and leaves it `succeeded`/`failed`; our stop still has to be observed.
+  if (
+    stoppedByBackend &&
+    ['succeeded', 'failed'].includes(worker.workerState ?? '')
+  )
+    return 'stopped';
   if (waiting || /wait/i.test(stage?.activity ?? '')) return 'waiting_input';
   if (stage?.activity === 'working') return 'working';
   // A failed worker is not `error`: death is `exited` from liveness (SPEC §6.4).

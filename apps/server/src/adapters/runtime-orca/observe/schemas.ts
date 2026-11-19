@@ -27,12 +27,23 @@ export const InboxResultSchema = z.looseObject({
     MailMessageSchema.extend({ sequence: z.number().int().nonnegative() }),
   ),
 });
+/**
+ * Each field degrades on its own (M2-FX12 D11): one unexpected optional field
+ * must never discard the routing fields. `orchestration send --files-modified`
+ * records a path list; the port carries only its count.
+ */
 export const PayloadSchema = z.looseObject({
-  dispatchId: z.string().optional(),
-  taskId: z.string().optional(),
-  outcome: z.string().optional(),
-  question: z.string().optional(),
-  filesModified: z.number().int().nonnegative().optional(),
+  dispatchId: z.string().optional().catch(undefined),
+  taskId: z.string().optional().catch(undefined),
+  outcome: z.string().optional().catch(undefined),
+  question: z.string().optional().catch(undefined),
+  filesModified: z
+    .union([
+      z.number().int().nonnegative(),
+      z.array(z.string()).transform((paths) => paths.length),
+    ])
+    .optional()
+    .catch(undefined),
 });
 export const RequestShowSchema = z.looseObject({
   state: z.string(),

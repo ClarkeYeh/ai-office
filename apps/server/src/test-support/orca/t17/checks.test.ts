@@ -124,6 +124,19 @@ describe('T17 event-log checks', () => {
     expect(duplicatedFacts(twice)).toEqual(['submission.accepted:s1']);
     expect(repeatedSends(twice)).toEqual(['a2|aio:round 2']);
   });
+  it('does not count a merge-queue re-review after rework as a repeated send', () => {
+    const review: Json = {
+      type: 'command.issued',
+      attemptId: 'merge',
+      payload: { kind: 'runtime.send', args: { subject: 'farewell' } },
+    };
+    const rework: Json = {
+      type: 'workitem.rework_requested',
+      payload: { itemKey: 'farewell' },
+    };
+    expect(repeatedSends([review, rework, review])).toEqual([]);
+    expect(repeatedSends([review, review])).toEqual(['merge|farewell']);
+  });
   it('counts only spawn-stall nudges and gates as stall false positives', () => {
     expect(
       spawnStallFalsePositives([

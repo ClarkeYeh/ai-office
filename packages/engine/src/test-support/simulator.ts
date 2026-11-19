@@ -84,6 +84,52 @@ export const pausingWorld = (
   };
 };
 
+/**
+ * Real Orca (M2-FX12): an agent reports `exited` about 2 s before its
+ * `runtime.release` succeeds. Holds every release reply of `world` until
+ * `flush`, so `seat.exited` lands first and `seat.released` later.
+ */
+export const laggingReleases = (world: World) => {
+  const held: IssuedCommand[] = [];
+  return {
+    world: ((issued, sim) => {
+      if (issued.command.kind !== 'runtime.release') return world(issued, sim);
+      held.push(issued);
+      return undefined;
+    }) satisfies World,
+    held: () => held.length,
+    /** Answers the held releases as `world` would, in issue order. */
+    flush(sim: Simulator): void {
+      for (let next = held.shift(); next; next = held.shift()) {
+        const reply = world(next, sim);
+        if (reply) sim.respond(next.commandId, reply);
+      }
+    },
+  };
+};
+
+/**
+ * §8.1 strictly: when a stage gate opens, every attempt spawned before it has
+ * been released (not merely exited). Returns the offending gate/attempt pairs.
+ */
+export const unreleasedAtStageGates = (sim: Simulator): string[] =>
+  sim
+    .eventsOf('gate.opened')
+    .filter((gate) => gate.payload.kind === 'stage')
+    .flatMap((gate) => {
+      const before = sim.events.filter((e) => e.seq < gate.seq);
+      const released = new Set(
+        before.flatMap((e) =>
+          e.type === 'seat.released' ? [e.payload.attemptId] : [],
+        ),
+      );
+      return before.flatMap((e) =>
+        e.type === 'seat.spawned' && !released.has(e.payload.attemptId)
+          ? [`${gate.payload.gateId}: ${e.payload.attemptId}`]
+          : [],
+      );
+    });
+
 type Input =
   | { kind: 'spawn'; effect: SpawnEffect }
   | { kind: 'command'; command: DomainCommand }
@@ -211,6 +257,21 @@ export class Simulator {
     scope: Pick<DomainEventDraft, 'stageId' | 'attemptId' | 'seatId'> = {},
   ): this {
     this.append(this.draft(type, payload, scope));
+    return this.drain();
+  }
+
+  /**
+   * Answers a command the world left unanswered, now (a late reply, e.g. a
+   * release that lags the agent's exit). Defaults to the cooperative reply.
+   */
+  respond(commandId: string, reply?: WorldReply): this {
+    const issued = this.issued.find((c) => c.commandId === commandId);
+    if (!issued) throw new Error(`No issued command ${commandId}`);
+    this.queue.push({
+      kind: 'reply',
+      issued,
+      reply: reply ?? cooperativeWorld(issued, this)!,
+    });
     return this.drain();
   }
 
