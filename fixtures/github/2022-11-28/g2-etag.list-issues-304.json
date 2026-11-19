@@ -1,0 +1,25 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:20.841Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/issues",
+  "query": {
+    "state": "all",
+    "sort": "updated",
+    "direction": "desc",
+    "since": "2026-11-19T04:20:20Z",
+    "per_page": "100"
+  },
+  "status": 304,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:21 GMT",
+    "etag": "\"774c3212288a2b1f024e4bf7fd9721a18482a64f07a865f2bd011be9a7b8536d\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-reset": "1795067705",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-remaining": "4962",
+    "x-ratelimit-used": "38",
+    "x-github-request-id": "FEB2:17E4C9:74255A:B98341:6AFE8714"
+  },
+  "response": null
+}

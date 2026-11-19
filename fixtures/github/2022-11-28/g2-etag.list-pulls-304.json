@@ -1,0 +1,24 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:31.585Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/pulls",
+  "query": {
+    "state": "all",
+    "sort": "updated",
+    "direction": "desc",
+    "per_page": "50"
+  },
+  "status": 304,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:32 GMT",
+    "etag": "\"e2acde5830f1f8f95737ea0820e42ac614844ff748de0e3ab83906c077449f7d\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-remaining": "4972",
+    "x-ratelimit-used": "28",
+    "x-github-request-id": "FED0:B41D2:743A91:B9843F:6AFE871F"
+  },
+  "response": null
+}

@@ -1,0 +1,112 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:32.965Z",
+  "method": "GET",
+  "pathTemplate": "/rate_limit",
+  "query": {},
+  "status": 200,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:33 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4959",
+    "x-ratelimit-reset": "1795067706",
+    "x-ratelimit-used": "41",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "FED3:5A269:74651E:B9D083:6AFE8721"
+  },
+  "response": {
+    "resources": {
+      "core": {
+        "limit": 5000,
+        "used": 41,
+        "remaining": 4959,
+        "reset": 1795067706
+      },
+      "search": {
+        "limit": 30,
+        "used": 0,
+        "remaining": 30,
+        "reset": 1795065693
+      },
+      "graphql": {
+        "limit": 5000,
+        "used": 10,
+        "remaining": 4990,
+        "reset": 1795066471
+      },
+      "integration_manifest": {
+        "limit": 5000,
+        "used": 0,
+        "remaining": 5000,
+        "reset": 1795069233
+      },
+      "source_import": {
+        "limit": 100,
+        "used": 0,
+        "remaining": 100,
+        "reset": 1795065693
+      },
+      "code_scanning_autofix": {
+        "limit": 10,
+        "used": 0,
+        "remaining": 10,
+        "reset": 1795065693
+      },
+      "actions_runner_registration": {
+        "limit": 10000,
+        "used": 0,
+        "remaining": 10000,
+        "reset": 1795069233
+      },
+      "scim": {
+        "limit": 15000,
+        "used": 0,
+        "remaining": 15000,
+        "reset": 1795069233
+      },
+      "dependency_snapshots": {
+        "limit": 100,
+        "used": 0,
+        "remaining": 100,
+        "reset": 1795065693
+      },
+      "dependency_sbom": {
+        "limit": 100,
+        "used": 0,
+        "remaining": 100,
+        "reset": 1795065693
+      },
+      "audit_log": {
+        "limit": 1750,
+        "used": 0,
+        "remaining": 1750,
+        "reset": 1795069233
+      },
+      "audit_log_streaming": {
+        "limit": 15,
+        "used": 0,
+        "remaining": 15,
+        "reset": 1795069233
+      },
+      "code_search": {
+        "limit": 10,
+        "used": 0,
+        "remaining": 10,
+        "reset": 1795065693
+      },
+      "copilot_usage_records": {
+        "limit": 1750,
+        "used": 0,
+        "remaining": 1750,
+        "reset": 1795069233
+      },
+      "enterprise_token_inventory": "<redacted>"
+    },
+    "rate": {
+      "limit": 5000,
+      "used": 41,
+      "remaining": 4959,
+      "reset": 1795067706
+    }
+  }
+}

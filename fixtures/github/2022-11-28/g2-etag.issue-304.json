@@ -1,0 +1,19 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:20:19.344Z",
+  "method": "GET",
+  "pathTemplate": "/repos/{owner}/{repo}/issues/{issue_number}",
+  "query": {},
+  "status": 304,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:20:19 GMT",
+    "etag": "\"e0a7cb0b3e785d75e59ef06db4d11933b69810fc88894c9b6267fab5d652db33\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-remaining": "4983",
+    "x-ratelimit-used": "17",
+    "x-github-request-id": "FEA8:F25B6:761936:BB6D4B:6AFE8713"
+  },
+  "response": null
+}
