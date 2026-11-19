@@ -1,3 +1,4 @@
+import type { InMemoryEventStore } from '../../test-support/stores.js';
 import Fastify from 'fastify';
 import { vi } from 'vitest';
 import {
@@ -16,7 +17,6 @@ import { StreamService } from '../../application/stream/index.js';
 import { draft } from '../../application/use-cases/support.js';
 import {
   InMemorySessionStore,
-  InMemoryIdempotencyStore,
   InMemoryProjectionStore,
 } from '../../test-support/stores.js';
 import {
@@ -69,7 +69,7 @@ export async function setup(
     templates: repository,
     runtime: h.world.runtime,
     scm: h.world.scm,
-    idempotency: new InMemoryIdempotencyStore(h.clock),
+    idempotency: (h.store as InMemoryEventStore).idempotency,
     redactor: new PassthroughRedactor(),
     limits: { globalAgents: 7 },
   });

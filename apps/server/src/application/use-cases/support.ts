@@ -10,7 +10,7 @@ import type {
 } from '@ai-office/contracts/events';
 import type { DomainError } from '@ai-office/domain';
 import type { Clock, IdGen } from '../../ports/services.js';
-import type { IdempotencyStore } from '../../ports/stores.js';
+import type { IdempotencyStore, IdempotencyWrite } from '../../ports/stores.js';
 import type {
   WorkflowRunner,
   DispatchResult,
@@ -97,7 +97,7 @@ export class Idempotency {
     scope: string,
     key: string,
     request: unknown,
-    work: () => Promise<T>,
+    work: (record: (body: T) => IdempotencyWrite) => Promise<T>,
   ): Promise<T> {
     if (!key.trim()) fail(422, 'idempotency_key_required');
     return this.serial.run(scope, async () => {
@@ -108,15 +108,17 @@ export class Idempotency {
           fail(409, 'idempotency_mismatch');
         return prior.response.body as T;
       }
-      const body = await work();
-      this.store.put(scope, key, {
-        requestHash,
-        response: { status: 200, body },
-        expiresAt: new Date(
-          this.clock.now().getTime() + 86_400_000,
-        ).toISOString(),
-      });
-      return body;
+      return work((body) => ({
+        scope,
+        key,
+        record: {
+          requestHash,
+          response: { status: 200, body },
+          expiresAt: new Date(
+            this.clock.now().getTime() + 86_400_000,
+          ).toISOString(),
+        },
+      }));
     });
   }
 }
@@ -138,6 +140,7 @@ export const issueBatch = async (
   ids: IdGen,
   commands: ExternalCommand[],
   events: DomainEventDraft[] = [],
+  idempotency?: IdempotencyWrite,
 ): Promise<string[]> => {
   const pending = commands.map((command) => {
     const commandId = ids.ulid();
@@ -152,7 +155,11 @@ export const issueBatch = async (
       }),
     };
   });
-  await runner.append([...events, ...pending.map((p) => p.event)]);
+  await runner.append(
+    [...events, ...pending.map((p) => p.event)],
+    undefined,
+    idempotency,
+  );
   for (const { commandId } of pending) runner.redo(commandId);
   return pending.map((p) => p.commandId);
 };

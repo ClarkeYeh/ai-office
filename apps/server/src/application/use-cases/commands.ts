@@ -184,7 +184,7 @@ export class CommandUseCases {
     input: GateDecisionInput,
     key: string,
   ): Promise<{ gateId: string }> {
-    return this.idem.run(`gate:${gateId}`, key, input, async () => {
+    return this.idem.run(`gate:${gateId}`, key, input, async (record) => {
       const runner = this.locate('gates', gateId);
       return this.serial.run(runner.workflowId, async () => {
         const gate = runner.state.gates[gateId]!;
@@ -278,6 +278,7 @@ export class CommandUseCases {
           this.deps.ids,
           sync,
           result.events,
+          record({ gateId }),
         );
         return { gateId };
       });
@@ -288,39 +289,48 @@ export class CommandUseCases {
     input: AnswerInput,
     key: string,
   ): Promise<{ questionId: string }> {
-    return this.idem.run(`question:${questionId}`, key, input, async () => {
-      const runner = this.locate('questions', questionId);
-      return this.serial.run(runner.workflowId, async () => {
-        if (!input.body.trim()) fail(422, 'empty_answer');
-        const gateId = runner.state.questions[questionId]?.escalation?.gateId;
-        const gate = gateId ? runner.state.gates[gateId] : undefined;
-        if (!gate || gate.status !== 'open')
-          fail(409, 'question_gate_not_open');
-        const result = decide(runner.state, {
-          ...input,
-          type: 'AnswerQuestion',
-          questionId,
-          by: 'user',
-          gateId: gate.gateId,
-          meta: this.meta(),
-        });
-        if (!result.ok) throw domainFailure(result.error);
-        await runner.append([
-          ...result.events,
-          draft(this.deps.clock, runner.workflowId, 'gate.decided', {
-            gateId: gate.gateId,
-            version: gate.version,
-            decision: 'answer',
+    return this.idem.run(
+      `question:${questionId}`,
+      key,
+      input,
+      async (record) => {
+        const runner = this.locate('questions', questionId);
+        return this.serial.run(runner.workflowId, async () => {
+          if (!input.body.trim()) fail(422, 'empty_answer');
+          const gateId = runner.state.questions[questionId]?.escalation?.gateId;
+          const gate = gateId ? runner.state.gates[gateId] : undefined;
+          if (!gate || gate.status !== 'open')
+            fail(409, 'question_gate_not_open');
+          const result = decide(runner.state, {
+            ...input,
+            type: 'AnswerQuestion',
+            questionId,
             by: 'user',
-            comment: input.body,
-            ...(input.optionId === undefined
-              ? {}
-              : { optionId: input.optionId }),
-          }),
-        ]);
-        return { questionId };
-      });
-    });
+            gateId: gate.gateId,
+            meta: this.meta(),
+          });
+          if (!result.ok) throw domainFailure(result.error);
+          await runner.append(
+            [
+              ...result.events,
+              draft(this.deps.clock, runner.workflowId, 'gate.decided', {
+                gateId: gate.gateId,
+                version: gate.version,
+                decision: 'answer',
+                by: 'user',
+                comment: input.body,
+                ...(input.optionId === undefined
+                  ? {}
+                  : { optionId: input.optionId }),
+              }),
+            ],
+            undefined,
+            record({ questionId }),
+          );
+          return { questionId };
+        });
+      },
+    );
   }
   async cancelWorkflow(workflowId: string): Promise<{ workflowId: string }> {
     check(

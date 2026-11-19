@@ -19,11 +19,13 @@ export type EventQuery = {
 };
 export interface EventStore {
   /** Atomic batch; duplicate external keys are skipped, including within this batch.
+   * Events, cursors and the optional idempotency record commit together. A live
+   * matching key skips the whole batch; a different request hash throws conflict.
    * Notify after commit in seq order. A listener failure must not undo committed data.
    */
   append(
     drafts: DomainEventDraft[],
-    opts?: { cursors?: CursorWrite[] },
+    opts?: { cursors?: CursorWrite[]; idempotency?: IdempotencyWrite },
   ): DomainEvent[];
   read(q: EventQuery): DomainEvent[];
   readCursor(source: string, scope: string): unknown | null;
@@ -60,6 +62,11 @@ export type IdempotencyRecord = {
   requestHash: string;
   response: { status: number; body: unknown };
   expiresAt: string;
+};
+export type IdempotencyWrite = {
+  scope: string;
+  key: string;
+  record: IdempotencyRecord;
 };
 export interface IdempotencyStore {
   get(scope: string, key: string): IdempotencyRecord | null;

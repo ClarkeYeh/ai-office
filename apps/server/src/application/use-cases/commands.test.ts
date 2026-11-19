@@ -1,3 +1,4 @@
+import type { InMemoryEventStore } from '../../test-support/stores.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
   DomainEventSchema,
@@ -10,7 +11,6 @@ import {
   startWorkflow,
   repo,
 } from '../runner/test-support/harness.js';
-import { InMemoryIdempotencyStore } from '../../test-support/stores.js';
 import { draft, hash } from './support.js';
 import { renderConclusion, parseConclusion } from './commands.js';
 
@@ -40,7 +40,7 @@ const setup = () => {
     defaultBranchProtected: true,
   }));
   h.store.append([draft(h.clock, null, 'repo.registered', repo())]);
-  const idempotency = new InMemoryIdempotencyStore(h.clock);
+  const idempotency = (h.store as InMemoryEventStore).idempotency;
   const deps = {
     ...h,
     templates,
@@ -227,6 +227,77 @@ describe('StartWorkflow and registration', () => {
 });
 
 describe('gate decisions', () => {
+  it('replays the committed response after interruption before runner delivery without a second decision or SCM batch', async () => {
+    const h = setup();
+    const { body } = await openConclusion(h);
+    const input = {
+      decision: 'approve' as const,
+      expectedVersion: 1,
+      githubBodyHash: await hash(body),
+    };
+    const append = h.store.append.bind(h.store);
+    const spy = vi
+      .spyOn(h.store, 'append')
+      .mockImplementation((drafts, opts) => {
+        const events = append(drafts, opts);
+        if (opts?.idempotency) throw new Error('response lost after commit');
+        return events;
+      });
+    await expect(h.api.decideGate('g', input, 'lost')).rejects.toThrow(
+      'response lost',
+    );
+    spy.mockRestore();
+    const before = h.events();
+    expect(before.filter((e) => e.type === 'gate.decided')).toHaveLength(1);
+    const commands = before.filter((e) => e.type === 'command.issued');
+    expect(commands.map((e) => e.payload.kind)).toEqual([
+      'scm.comment',
+      'scm.setLabels',
+    ]);
+    // A new runner rebuilds its state from committed events; the HTTP replay bypasses SCM preflight.
+    const restart = harness({ store: h.store, react: () => [] });
+    restart.runners.recover();
+    const api = createCommandFacade({ ...h.deps, runners: restart.runners });
+    expect(await api.decideGate('g', input, 'lost')).toEqual({ gateId: 'g' });
+    expect(restart.runners.get('wf-1')!.state.gates.g?.status).toBe('approved');
+    expect(h.events().filter((e) => e.type === 'gate.decided')).toHaveLength(1);
+    expect(h.events().filter((e) => e.type === 'command.issued')).toEqual(
+      commands,
+    );
+    expect(h.world.scm.getIssue).toHaveBeenCalledTimes(1);
+  });
+  it('does not apply a decision or execute SCM commands when its idempotency write fails', async () => {
+    const h = setup();
+    const { r, body } = await openConclusion(h);
+    const input = {
+      decision: 'approve' as const,
+      expectedVersion: 1,
+      githubBodyHash: await hash(body),
+    };
+    const spy = vi
+      .spyOn(h.deps.idempotency, 'put')
+      .mockImplementationOnce(() => {
+        throw new Error('record failure');
+      });
+    await expect(h.api.decideGate('g', input, 'retry')).rejects.toThrow(
+      'record failure',
+    );
+    expect(r.state.gates.g?.status).toBe('open');
+    expect(
+      h
+        .events()
+        .filter(
+          (e) => e.type === 'gate.decided' || e.type === 'command.issued',
+        ),
+    ).toEqual([]);
+    expect(h.deps.idempotency.get('gate:g', 'retry')).toBeNull();
+    spy.mockRestore();
+    expect(await h.api.decideGate('g', input, 'retry')).toEqual({
+      gateId: 'g',
+    });
+    expect(h.events().filter((e) => e.type === 'gate.decided')).toHaveLength(1);
+  });
+
   it('fresh body hash controls approval; updatedAt/labels do not, and same key replays across facade recreation', async () => {
     const h = setup();
     const { r, body } = await openConclusion(h);
@@ -370,8 +441,25 @@ it('atomically answers an escalated question and decides its gate, with replay',
       content: { type: 'exception', summary: 'Choose?', questionId: 'q' },
     }),
   ]);
-  await h.api.answerQuestion('q', { body: 'Yes' }, 'key');
-  await h.api.answerQuestion('q', { body: 'Yes' }, 'key');
+  const append = r.append.bind(r);
+  const interrupted = vi
+    .spyOn(r, 'append')
+    .mockImplementationOnce(async (...args) => {
+      await append(...args);
+      throw new Error('answer response lost');
+    });
+  await expect(
+    h.api.answerQuestion('q', { body: 'Yes' }, 'key'),
+  ).rejects.toThrow('answer response lost');
+  interrupted.mockRestore();
+  expect(
+    await createCommandFacade(h.deps).answerQuestion(
+      'q',
+      { body: 'Yes' },
+      'key',
+    ),
+  ).toEqual({ questionId: 'q' });
+  expect(h.events().filter((e) => e.type === 'gate.decided')).toHaveLength(1);
   expect(r.state.questions.q?.status).toBe('answered');
   expect(r.state.gates.g?.status).toBe('approved');
   expect(h.events().filter((e) => e.type === 'message.answered')).toHaveLength(
