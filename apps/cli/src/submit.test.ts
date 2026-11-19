@@ -275,3 +275,37 @@ test('uses HOME fallback and rejects invalid timeout without exposing identity',
   delete env.AI_OFFICE_SUBMIT_TIMEOUT_MS;
   expect((await run()).exitCode).toBe(4);
 });
+
+test('--home overrides the inherited data directory for agents spawned by Orca', async () => {
+  // Agents inherit Orca's environment: AI_OFFICE_HOME and HOME point elsewhere.
+  const elsewhere = mkdtempSync(join(tmpdir(), 'aio-cli-other-'));
+  try {
+    env = { ...env, AI_OFFICE_HOME: elsewhere, HOME: elsewhere };
+    expect((await run()).exitCode).toBe(4);
+    const withHome = [...args.slice(0, -1), '--home', home, '-'];
+    expect(
+      await runCli(withHome, {
+        env,
+        readStdin: async () => JSON.stringify(payload),
+      }),
+    ).toEqual({ exitCode: 0, message: JSON.stringify(body) });
+    expect(received).toHaveLength(1);
+  } finally {
+    rmSync(elsewhere, { recursive: true, force: true });
+  }
+});
+test.each([
+  [['--home', 'relative/dir']],
+  [['--home', '/a', '--home', '/b']],
+  [['--home']],
+])(
+  'rejects an invalid --home without contacting the backend: %o',
+  async (extra) => {
+    const result = await runCli([...args.slice(0, -1), ...extra, '-'], {
+      env,
+      readStdin: async () => JSON.stringify(payload),
+    });
+    expect(result.exitCode).toBe(2);
+    expect(received).toHaveLength(0);
+  },
+);

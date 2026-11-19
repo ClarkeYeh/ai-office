@@ -416,3 +416,48 @@ test('missing entities are total across all reference-bearing events', () => {
   }
   expect(s.model.lastSeq).toBe(Object.keys(payloads).length);
 });
+
+test('S26: attempt rate limit keeps the first since, lifts to null and clears on exit', () => {
+  const s = scenario();
+  s.push('seat.spawned');
+  const view = () => s.model.seats[0]!.attempts[0]!;
+  s.push('seat.status', { attemptId: 'a1', state: 'starting' });
+  expect(view()).not.toHaveProperty('rateLimited');
+  s.push('seat.status', {
+    attemptId: 'a1',
+    state: 'starting',
+    rateLimited: { since: '2026-11-17T00:01:00Z', evidence: 'worker-show' },
+  });
+  s.push('seat.status', {
+    attemptId: 'a1',
+    state: 'working',
+    rateLimited: {
+      since: '2026-11-17T00:02:00Z',
+      evidence: 'transcript',
+      resetsAt: '2026-11-17T05:00:00Z',
+    },
+  });
+  expect(view()).toMatchObject({
+    state: 'working',
+    rateLimited: {
+      since: '2026-11-17T00:01:00Z',
+      resetsAt: '2026-11-17T05:00:00Z',
+    },
+  });
+  s.push('seat.status', { attemptId: 'a1', state: 'working' });
+  expect(view().rateLimited).toBeDefined();
+  s.push('seat.status', {
+    attemptId: 'a1',
+    state: 'working',
+    rateLimited: null,
+  });
+  expect(view().rateLimited).toBeNull();
+  s.push('seat.status', {
+    attemptId: 'a1',
+    state: 'working',
+    rateLimited: { since: '2026-11-17T06:00:00Z', evidence: 'worker-show' },
+  });
+  expect(view().rateLimited).toEqual({ since: '2026-11-17T06:00:00Z' });
+  s.push('seat.exited');
+  expect(view().rateLimited).toBeNull();
+});

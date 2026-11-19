@@ -195,7 +195,9 @@
         "hardLimitMultiplier": 2
       },
       "limits": {
-        "globalAgents": 10
+        "globalAgents": 10,
+        "spawnStallMs": 600000,
+        "budgetEnforcement": "on"
       },
       "acknowledgedUnverifiedRuntime": false
     },

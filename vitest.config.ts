@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 // Vitest 4 calls workspace configurations "projects".
 export default defineConfig({
@@ -39,6 +39,8 @@ export default defineConfig({
           name: '@ai-office/' + name,
           root: 'apps/' + name,
           include: ['src/**/*.test.ts'],
+          // Live Orca files run only in @ai-office/server-orca (opt-in).
+          exclude: [...configDefaults.exclude, '**/*.orca.test.ts'],
         },
       })),
       {
@@ -56,6 +58,15 @@ export default defineConfig({
           root: 'apps/web',
           environment: 'happy-dom',
           include: ['src/**/*.test.tsx'],
+        },
+      },
+      {
+        test: {
+          name: '@ai-office/server-orca',
+          include: ['apps/server/src/**/*.orca.test.ts'],
+          // Live files share one Orca and a global post-cleanup leak scan,
+          // so a concurrent file's resources would false-fail another file.
+          fileParallelism: false,
         },
       },
       {

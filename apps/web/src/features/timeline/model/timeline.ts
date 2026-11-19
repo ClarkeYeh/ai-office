@@ -1,5 +1,5 @@
 import type { DomainEvent } from '@ai-office/contracts/events';
-import type { Translator } from '../../../shared/lib/i18n/index.js';
+import { hasMessage, type Translator } from '../../../shared/lib/i18n/index.js';
 
 export interface TimelinePoint {
   index: number;
@@ -95,8 +95,15 @@ function coordinationLabel(event: DomainEvent, t: Translator): string | null {
       });
     case 'message.escalated':
       return t('timeline.message.escalated');
-    case 'message.nudge':
-      return t('timeline.message.nudge', { who: event.payload.attemptId });
+    case 'message.nudge': {
+      const reason = `nudge.${event.payload.reason}`;
+      return hasMessage(reason)
+        ? t('timeline.message.nudgeReason', {
+            who: event.payload.attemptId,
+            reason: t(reason),
+          })
+        : t('timeline.message.nudge', { who: event.payload.attemptId });
+    }
     case 'message.instruction':
       return t('timeline.message.instruction', {
         who: event.payload.attemptId,

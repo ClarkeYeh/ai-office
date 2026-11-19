@@ -17,10 +17,24 @@ export type ScenarioContext = {
 export type ScenarioAction =
   | { type: 'submit'; submission: AgentSubmission }
   | { type: 'ask'; body: string }
-  | { type: 'done'; outcome?: 'success' | 'failure'; filesModified?: number }
+  | {
+      type: 'done';
+      outcome?: 'success' | 'failure';
+      filesModified?: number;
+      /**
+       * Real Orca (M2-T17 D5): a keep-open worker's next worker-list poll
+       * reports it `idle` this many ms after worker_done. Off when absent.
+       */
+      idleAfterMs?: number;
+    }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
   | { type: 'lost' }
+  | {
+      type: 'rate-limited';
+      evidence: 'worker-show' | 'transcript';
+      resetsAt?: string;
+    }
   | {
       type: 'degraded';
       reason: 'source_changed' | 'no_transcript_source' | 'transcript_clipped';
@@ -40,6 +54,23 @@ export type RoleBehavior = {
   send?: ScenarioScript;
   answer?: ScenarioScript;
   ignoreStop?: boolean;
+  /**
+   * Spawned but never acts on any trigger: no output, submission, push or done
+   * (the §7.1 spawn-stall case). Stop and release still end it.
+   */
+  silent?: boolean;
+  /**
+   * Real Orca (M2-T17 D8): a stop settles this many ms later; a release
+   * arriving before then fails transiently (the adapter's
+   * `release_pending_stop`) and is retried. Off when absent.
+   */
+  stopSettleMs?: number;
+  /**
+   * Real Orca (M2-FX12): `release` completes this many ms after it is called,
+   * while the stopped agent's exit has already been observed (`seat.exited`
+   * lands about 2 s before `seat.released`). Off when absent.
+   */
+  releaseLagMs?: number;
 };
 export type RuntimeScenario = {
   /** Defaults to request.title; a selector can read the prompt or the spec the agent read. */

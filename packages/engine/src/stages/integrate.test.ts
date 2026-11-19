@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { createReact, DEFAULT_MODULES } from '../react.js';
-import { Simulator, cooperativeWorld } from '../test-support/simulator.js';
+import {
+  Simulator,
+  cooperativeWorld,
+  laggingReleases,
+  unreleasedAtStageGates,
+} from '../test-support/simulator.js';
 import type { World } from '../test-support/simulator.js';
 import { startWorkflow } from '../test-support/fixtures.js';
 
-const setup = (world: World = cooperativeWorld, start = true) => {
+const setup = (
+  world: World = cooperativeWorld,
+  start = true,
+  policies = [] as typeof DEFAULT_MODULES.policies,
+  spawnStallMs?: number,
+) => {
   const empty = { react: () => [] };
   const sim = new Simulator({
     world,
@@ -17,10 +27,12 @@ const setup = (world: World = cooperativeWorld, start = true) => {
         implement: empty,
         ondemand: empty,
       },
-      policies: [],
+      policies,
     }),
   });
-  sim.dispatch(startWorkflow());
+  const command = startWorkflow();
+  if (spawnStallMs) command.limits.spawnStallMs = spawnStallMs;
+  sim.dispatch(command);
   for (const id of ['meeting', 'breakdown', 'implement'])
     sim.state.stages[id] = {
       ...sim.state.stages[id]!,
@@ -30,6 +42,7 @@ const setup = (world: World = cooperativeWorld, start = true) => {
   if (start) sim.dispatch({ type: 'StartStage', stageId: 'integrate' });
   return sim;
 };
+const DAY = 24 * 60 * 60_000;
 const report = (sim: Simulator) => {
   const attempt = Object.values(sim.state.attempts).at(-1)!;
   sim.dispatch({
@@ -64,6 +77,22 @@ const finalGate = (sim: Simulator) =>
     .at(-1)!;
 
 describe('wrap-up and final PR', () => {
+  it('opens the final-PR gate only after the integrator release succeeded (M2-FX12)', () => {
+    const lag = laggingReleases(cooperativeWorld);
+    const sim = report(setup(lag.world));
+    const finalGates = () =>
+      sim.eventsOf('gate.opened').filter((g) => g.payload.kind === 'stage');
+    while (lag.held()) {
+      const opened = finalGates().length;
+      sim.advance(2_000);
+      expect(finalGates()).toHaveLength(opened);
+      lag.flush(sim);
+    }
+    expect(finalGate(sim).status).toBe('open');
+    expect(unreleasedAtStageGates(sim)).toEqual([]);
+    expect(sim.liveAgents()).toBe(0);
+    expect(sim.rejections).toEqual([]);
+  });
   it('prepares the remote integration branch, publishes after stop, and completes only on observed merge', () => {
     const sim = report(setup());
     expect(
@@ -204,6 +233,82 @@ describe('wrap-up and final PR', () => {
     expect(sim.eventsOf('message.nudge')).toHaveLength(1);
     expect(sim.eventsOf('gate.opened')[0]?.payload).toMatchObject({
       exceptionKind: 'stage-violation',
+    });
+  });
+  it('removes the kept wrap-up worktree before a rerun checks the integration branch out again (W1)', () => {
+    // Silent simulated agents would otherwise hit the spawn-stall rule first.
+    const sim = setup(
+      cooperativeWorld,
+      true,
+      DEFAULT_MODULES.policies,
+      DAY,
+    ).advance(65 * 60_000);
+    const gate = sim.eventsOf('gate.opened')[0]!.payload;
+    expect(gate).toMatchObject({ exceptionKind: 'stage-violation' });
+    expect(
+      sim.issued.find((c) => c.command.kind === 'runtime.release')?.command,
+    ).toMatchObject({ args: { removeWorkspace: false } });
+    sim.dispatch({
+      type: 'DecideGate',
+      gateId: gate.gateId,
+      expectedVersion: 1,
+      decision: 'option',
+      optionId: 'rerun',
+      by: 'user',
+    });
+    const steps = sim.issued
+      .filter((c) =>
+        ['runtime.prepareWorkspace', 'runtime.disposeWorkspace'].includes(
+          c.command.kind,
+        ),
+      )
+      .map((c) =>
+        c.command.kind === 'runtime.prepareWorkspace'
+          ? `prepare ${c.command.args.name}`
+          : c.command.kind === 'runtime.disposeWorkspace'
+            ? `dispose ${c.command.args.workspace}`
+            : '',
+      );
+    expect(steps).toEqual([
+      'prepare aio-ab12-wrap-up-r1',
+      'dispose ws:aio-ab12-wrap-up-r1',
+      'prepare aio-ab12-wrap-up-r2',
+    ]);
+    expect(sim.state.stages.integrate?.attempt).toBe(2);
+    expect(sim.rejections).toEqual([]);
+  });
+  it('escalates when an earlier wrap-up worktree cannot be removed', () => {
+    const sim = setup(
+      (issued, current) =>
+        issued.command.kind === 'runtime.disposeWorkspace'
+          ? {
+              ok: false,
+              error: {
+                category: 'guard',
+                code: 'worktree_dirty',
+                message: 'dirty',
+                retryable: false,
+              },
+            }
+          : cooperativeWorld(issued, current),
+      true,
+      DEFAULT_MODULES.policies,
+      DAY,
+    ).advance(65 * 60_000);
+    sim.dispatch({
+      type: 'DecideGate',
+      gateId: sim.eventsOf('gate.opened')[0]!.payload.gateId,
+      expectedVersion: 1,
+      decision: 'option',
+      optionId: 'rerun',
+      by: 'user',
+    });
+    expect(
+      sim.issued.filter((c) => c.command.kind === 'runtime.prepareWorkspace'),
+    ).toHaveLength(1);
+    expect(sim.eventsOf('gate.opened').at(-1)?.payload).toMatchObject({
+      exceptionKind: 'stage-violation',
+      content: { summary: 'An earlier wrap-up worktree could not be removed' },
     });
   });
   it('does not publish while a stopped agent remains possibly live', () => {

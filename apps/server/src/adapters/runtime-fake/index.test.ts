@@ -36,7 +36,7 @@ runtimePortContract(async () => {
   const f = await fixture();
   const baseSha = 'a'.repeat(40);
   f.runtime.setRemoteBranch(f.repo, 'ai-office/integration', baseSha);
-  f.runtime.setRemoteBranch(f.repo, 'ai-office/worker', 'b'.repeat(40));
+  f.runtime.setRemoteBranch(f.repo, 'ai-office/rework', 'b'.repeat(40));
   return {
     ...f,
     prepareRequest: {
@@ -53,15 +53,28 @@ runtimePortContract(async () => {
       session: f.session,
       repo: f.repo,
       baseBranch: 'b'.repeat(40),
-      fetchBranch: 'ai-office/worker',
-      branch: 'ai-office/worker',
-      name: 'worker-r1',
+      fetchBranch: 'ai-office/rework',
+      branch: 'ai-office/rework',
+      name: 'rework-r1',
       checkoutExisting: true,
       correlation: { workflowId: 'wf', commandId: 'prepare-rework' },
     },
-    advance: (ms) => f.clock.advance(ms),
+    advance: (ms) => {
+      f.clock.advance(ms);
+      f.runtime.finishPendingSpawns();
+    },
     identity: (a) => f.runtime.identity(a),
     stimulus: async (a, action) => {
+      if (action === 'identity-lost') f.runtime.loseIdentity();
+      if (action === 'hijack') f.runtime.hijack(f.session);
+      if (action === 'check-timeout') f.runtime.timeoutCheck();
+      if (action === 'response-lost')
+        f.runtime.injectFault('spawnAgent', 'response-lost');
+      if (action === 'receipt-absent-after-consume')
+        f.runtime.loseConsumedCheckReceipt();
+      if (action === 'spawn-in-flight') f.runtime.holdSpawn();
+      if (action === 'rate-limited')
+        f.runtime.enqueue(a, { type: 'rate-limited', evidence: 'worker-show' });
       if (action === 'done') f.runtime.enqueue(a, { type: 'done' });
       if (action === 'ask-with-false-escalation')
         f.runtime.enqueue(
@@ -80,6 +93,38 @@ runtimePortContract(async () => {
   };
 });
 describe('FakeRuntime scenarios and faults', () => {
+  it('hijackAll fences every open run once and reports how many it took', async () => {
+    const f = await fixture();
+    expect(f.runtime.hijackAll()).toBe(1);
+    expect(f.runtime.hijackAll()).toBe(0);
+    const batch = await f.runtime.observe(f.session, null);
+    expect(
+      batch.events.filter((e) => e.type === 'runtime.identity_hijacked'),
+    ).toHaveLength(1);
+    await expect(f.runtime.spawnAgent(f.spawnRequest)).rejects.toMatchObject({
+      category: 'hijacked',
+    });
+  });
+  it('holds concurrent retries until spawn settles and preserves deferred event time', async () => {
+    const f = await fixture();
+    f.runtime.holdSpawn();
+    const startedAt = f.clock.now().toISOString();
+    const first = f.runtime.spawnAgent(f.spawnRequest);
+    const retry = f.runtime.spawnAgent(f.spawnRequest);
+    let settled = false;
+    void retry.then(() => {
+      settled = true;
+    });
+    const during = await f.runtime.observe(f.session, null);
+    expect(settled).toBe(false);
+    expect(during.events).toEqual([]);
+    f.clock.advance(1000);
+    f.runtime.finishPendingSpawns();
+    expect(await retry).toBe(await first);
+    const after = await f.runtime.observe(f.session, during.cursor);
+    expect(after.events).toHaveLength(1);
+    expect(after.events[0]?.occurredAt).toBe(startedAt);
+  });
   it('uses injected submitter, prompt token and caller identity; delays and pushes are deterministic', async () => {
     const submissions: unknown[] = [],
       pushes: unknown[] = [];
@@ -243,6 +288,36 @@ describe('FakeRuntime scenarios and faults', () => {
     await f.runtime.release(a, { removeWorkspace: false });
     expect(f.runtime.activeAgents()).toEqual([]);
   });
+  it('can lag a release behind the observed stop (M2-FX12, off by default)', async () => {
+    const f = await fixture({
+      scenario: { roles: { worker: { releaseLagMs: 2000 } } },
+    });
+    const a = await f.runtime.spawnAgent(f.spawnRequest);
+    await f.runtime.stop(a);
+    const stopped = await f.runtime.observe(f.session, null);
+    expect(stopped.events.map((e) => e.type)).toContain('agent.stopped');
+    let released = false;
+    const release = f.runtime
+      .release(a, { removeWorkspace: false })
+      .then(() => (released = true));
+    f.clock.advance(1999);
+    await f.runtime.runDue();
+    await Promise.resolve();
+    expect(released).toBe(false);
+    f.clock.advance(1);
+    await f.runtime.runDue();
+    await release;
+    expect(released).toBe(true);
+    expect(
+      (await f.runtime.observe(f.session, stopped.cursor)).events,
+    ).toMatchObject([{ type: 'agent.exited', reason: 'released' }]);
+    // Off by default: a release without the option completes at once.
+    const g = await fixture();
+    const b = await g.runtime.spawnAgent(g.spawnRequest);
+    await g.runtime.stop(b);
+    await g.runtime.release(b, { removeWorkspace: false });
+    expect(g.runtime.activeAgents()).toEqual([]);
+  });
   it('configures repo and workspace inspection and preserves identity after release', async () => {
     const facts = {
       isGitMainWorktree: true,
@@ -286,8 +361,9 @@ describe('FakeRuntime scenarios and faults', () => {
         paneKey: 'wrong',
       }),
     ).toBeNull();
-    await expect(f.runtime.inspectWorkspace(ws)).rejects.toMatchObject({
-      code: 'unknown_workspace',
+    expect(await f.runtime.inspectWorkspace(ws)).toEqual({
+      clean: false,
+      changedFiles: [],
     });
     await f.runtime.disposeWorkspace(ws);
     await f.runtime.closeSession(f.session);
@@ -691,5 +767,67 @@ describe('injected agent and Git behavior', () => {
     });
     g.clock.advance(5000);
     await expect(g.runtime.runDue()).resolves.toBeUndefined();
+  });
+
+  it('a silent role never acts after spawn or send, yet stops normally', async () => {
+    const { withSilentRoles, mainlineScenario } = await import('./mainline.js');
+    const scenario = withSilentRoles(['worker']);
+    expect(scenario.roles.planner).toBe(mainlineScenario.roles.planner);
+    const f = await fixture({ scenario });
+    const a = await f.runtime.spawnAgent(f.spawnRequest);
+    f.clock.advance(60 * 60_000);
+    await f.runtime.send(a, {
+      subject: 'Start working',
+      body: 'nudge',
+      correlation: { workflowId: 'wf', commandId: 'nudge' },
+    });
+    f.clock.advance(60 * 60_000);
+    const first = await f.runtime.observe(f.session, null);
+    expect(first.events.map((e) => e.type)).toEqual([
+      'agent.status',
+      'agent.status',
+    ]);
+    await f.runtime.stop(a);
+    const next = await f.runtime.observe(f.session, first.cursor);
+    expect(next.events.map((e) => e.type)).toEqual(['agent.stopped']);
+  });
+
+  it('holds only the turn script behind a retried submit, not external stimuli', async () => {
+    const { PortError } = await import('../../ports/errors.js');
+    const f = await fixture({
+      submitRetryMs: 1000,
+      submitter: () => {
+        throw new PortError('transient', 'backend_down', 'restarting');
+      },
+      scenario: {
+        roles: {
+          worker: {
+            spawn: [submitStep, { type: 'output', afterMs: 10, blocks: [] }],
+          },
+        },
+      },
+    });
+    const a = await f.runtime.spawnAgent(f.spawnRequest);
+    // Queued before the submit fails, so a turn-wide hold would catch them.
+    f.runtime.enqueue(
+      a,
+      { type: 'degraded', reason: 'transcript_clipped', afterMs: 10 },
+      { type: 'unmanaged', dispatch: 'child', afterMs: 20 },
+      { type: 'lost', afterMs: 30 },
+    );
+    await f.runtime.runDue();
+    f.clock.advance(30);
+    const batch = await f.runtime.observe(f.session, null);
+    const types = batch.events.map((e) => e.type);
+    expect(types).toEqual(
+      expect.arrayContaining([
+        'agent.degraded',
+        'agent.unmanaged',
+        'agent.status',
+      ]),
+    );
+    expect(batch.events.at(-1)).toMatchObject({ state: 'lost' });
+    // The script's own later step is still held behind the retry.
+    expect(types).not.toContain('agent.output');
   });
 });

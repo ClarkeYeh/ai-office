@@ -17,6 +17,7 @@ import {
   initialState,
   isTimerHeld,
   possiblyLiveAttempts,
+  TIMER_PAUSE_REASON,
 } from '@ai-office/domain';
 import type {
   CommandMeta,
@@ -82,6 +83,52 @@ export const pausingWorld = (
     };
   };
 };
+
+/**
+ * Real Orca (M2-FX12): an agent reports `exited` about 2 s before its
+ * `runtime.release` succeeds. Holds every release reply of `world` until
+ * `flush`, so `seat.exited` lands first and `seat.released` later.
+ */
+export const laggingReleases = (world: World) => {
+  const held: IssuedCommand[] = [];
+  return {
+    world: ((issued, sim) => {
+      if (issued.command.kind !== 'runtime.release') return world(issued, sim);
+      held.push(issued);
+      return undefined;
+    }) satisfies World,
+    held: () => held.length,
+    /** Answers the held releases as `world` would, in issue order. */
+    flush(sim: Simulator): void {
+      for (let next = held.shift(); next; next = held.shift()) {
+        const reply = world(next, sim);
+        if (reply) sim.respond(next.commandId, reply);
+      }
+    },
+  };
+};
+
+/**
+ * §8.1 strictly: when a stage gate opens, every attempt spawned before it has
+ * been released (not merely exited). Returns the offending gate/attempt pairs.
+ */
+export const unreleasedAtStageGates = (sim: Simulator): string[] =>
+  sim
+    .eventsOf('gate.opened')
+    .filter((gate) => gate.payload.kind === 'stage')
+    .flatMap((gate) => {
+      const before = sim.events.filter((e) => e.seq < gate.seq);
+      const released = new Set(
+        before.flatMap((e) =>
+          e.type === 'seat.released' ? [e.payload.attemptId] : [],
+        ),
+      );
+      return before.flatMap((e) =>
+        e.type === 'seat.spawned' && !released.has(e.payload.attemptId)
+          ? [`${gate.payload.gateId}: ${e.payload.attemptId}`]
+          : [],
+      );
+    });
 
 type Input =
   | { kind: 'spawn'; effect: SpawnEffect }
@@ -213,13 +260,29 @@ export class Simulator {
     return this.drain();
   }
 
+  /**
+   * Answers a command the world left unanswered, now (a late reply, e.g. a
+   * release that lags the agent's exit). Defaults to the cooperative reply.
+   */
+  respond(commandId: string, reply?: WorldReply): this {
+    const issued = this.issued.find((c) => c.commandId === commandId);
+    if (!issued) throw new Error(`No issued command ${commandId}`);
+    this.queue.push({
+      kind: 'reply',
+      issued,
+      reply: reply ?? cooperativeWorld(issued, this)!,
+    });
+    return this.drain();
+  }
+
   /** Moves the clock forward, firing due timers in `fireAt` order (held while paused). */
   advance(ms: number): this {
     const target = this.now + ms;
-    while (!this.paused) {
+    for (;;) {
       const due = Object.values(this.state.timers)
         .filter(
           (timer) =>
+            timer.pausedAt === undefined &&
             Date.parse(timer.fireAt) <= target &&
             !isTimerHeld(this.state, timer),
         )
@@ -267,14 +330,11 @@ export class Simulator {
     return this;
   }
 
-  private get paused(): boolean {
-    return (this.state.workflow?.pausedReasons.length ?? 0) > 0;
-  }
-
   /** The runner's timer delivery: fires only a pending timer a pause does not hold. */
   private fire(timerId: string): void {
     if (
       Object.hasOwn(this.state.timers, timerId) &&
+      this.state.timers[timerId]!.pausedAt === undefined &&
       !isTimerHeld(this.state, this.state.timers[timerId]!)
     )
       this.append(this.draft('timer.fired', { timerId }));
@@ -282,7 +342,10 @@ export class Simulator {
 
   /** The runner's FX8b shift: held timers get their remaining time back. */
   private shift(): void {
-    for (const { timer, fireAt } of heldTimerShifts(this.state, this.clock))
+    for (const { timer, fireAt, repause } of heldTimerShifts(
+      this.state,
+      this.clock,
+    )) {
       this.append(
         this.draft('timer.scheduled', {
           timerId: timer.id,
@@ -290,6 +353,14 @@ export class Simulator {
           payload: timer.payload,
         }),
       );
+      if (repause)
+        this.append(
+          this.draft('timer.cancelled', {
+            timerId: timer.id,
+            reason: TIMER_PAUSE_REASON,
+          }),
+        );
+    }
   }
 
   private run(command: DomainCommand): void {

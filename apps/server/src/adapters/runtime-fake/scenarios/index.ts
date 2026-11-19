@@ -164,8 +164,9 @@ export function webScenario(
         ],
       },
       worker: {
+        // M2-T14: a silent role is spawned but never acts (§7.1 spawn stall).
+        ...(name === 'stall' ? { silent: true } : {}),
         spawn: (context) => {
-          if (name === 'stall') return [];
           if (name === 'load-10')
             return /Work item `load-1`/.test(context.spec ?? '')
               ? [

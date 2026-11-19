@@ -39,7 +39,8 @@ test('…', async ({ page }) => {
 - `office().login(page, path)` installs the session cookie and opens `path`.
   The one-time bootstrap URL is used only by `login.spec.ts`.
 - `office().fake`: `mergeFinalPr(number)`, `editIssueBody(number, body)`,
-  `prStatus(number, { mergeable?, checks? })`, `setConnected(connected)`.
+  `prStatus(number, { mergeable?, checks? })`, `setConnected(connected)`,
+  `hijack()` (another coordinator takes over every open run).
 - **The final PR is always merged explicitly** with `fake.mergeFinalPr`. The
   fake never merges it on a timer. Do not use fake timers.
 - Feature tasks add their own `tests/<feature>.spec.ts` and add their routes to

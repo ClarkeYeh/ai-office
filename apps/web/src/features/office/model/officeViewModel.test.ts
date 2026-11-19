@@ -338,18 +338,24 @@ describe('nameplates and aria labels', () => {
     );
   });
 
-  test('G9: a future rateLimitedUntil tags the nameplate; absent or past does not', () => {
+  test('G9: AttemptView.rateLimited tags the nameplate until it is lifted (null or absent)', () => {
     const log = implementLog();
     const rm = structuredClone(log.model) as ReadModel;
-    const attempt = rm.seats[0]!.attempts[0]! as { rateLimitedUntil?: string };
-    attempt.rateLimitedUntil = iso(log.now + 60_000);
+    const attempt = rm.seats[0]!.attempts[0]!;
+    attempt.rateLimited = {
+      since: iso(log.now - 1000),
+      resetsAt: iso(log.now - 1),
+    };
     const tagged = officeViewModel(rm, { now: log.now, t: zhT }).seats[0]!;
     expect(tagged.nameplate.subtitle).toBe('等額度　實作中 0 秒');
-    attempt.rateLimitedUntil = iso(log.now - 1);
-    expect(
-      officeViewModel(rm, { now: log.now, t: zhT }).seats[0]!.nameplate
-        .subtitle,
-    ).toBe('實作中 0 秒');
+    for (const lifted of [null, undefined]) {
+      if (lifted === null) attempt.rateLimited = null;
+      else delete attempt.rateLimited;
+      expect(
+        officeViewModel(rm, { now: log.now, t: zhT }).seats[0]!.nameplate
+          .subtitle,
+      ).toBe('實作中 0 秒');
+    }
   });
 
   test('a seat with an unknown vendor and the lounge fallback', () => {

@@ -1,0 +1,1606 @@
+{
+  "default": [
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "list",
+        "--repo",
+        "id:repo_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktrees": [
+            {
+              "id": "wt_existing",
+              "path": "/synthetic/existing",
+              "branch": "refs/heads/ai-office/existing",
+              "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "repoId": "repo_contract",
+              "comment": "aio:existing base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "displayName": "existing"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "fetch",
+        "origin",
+        "ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "merge-base",
+        "--is-ancestor",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "refs/remotes/origin/ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "refs/heads/ai-office/rework"
+      ],
+      "exitCode": 1,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "branch",
+        "--no-track",
+        "ai-office/rework",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "terminal",
+        "list",
+        "--worktree",
+        "path:/synthetic/repo",
+        "--limit",
+        "500",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "terminals": [
+            {
+              "handle": "term_shim"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "create",
+        "--repo",
+        "id:repo_contract",
+        "--name",
+        "rework-r1",
+        "--branch",
+        "ai-office/rework",
+        "--base-branch",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "--no-parent",
+        "--setup",
+        "skip",
+        "--comment",
+        "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000053",
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "rev-parse", "--verify", "HEAD"],
+      "exitCode": 0,
+      "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000worktree /fixture/w1\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/rework\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "run-show",
+        "--id",
+        "run_contract",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "run": {
+            "id": "run_contract",
+            "coordinator_handle": "term_shim",
+            "consumer_generation": 1
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-start",
+        "--agent",
+        "codex",
+        "--worktree",
+        "path:/fixture/w1",
+        "--task-title",
+        "aio:a7937b64b8caa58f Contract",
+        "--spec-file",
+        "<redacted:test-input>",
+        "--keep-open",
+        "--from",
+        "term_shim",
+        "--run",
+        "run_contract",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000001"
+      ],
+      "exitCode": 1,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000004d",
+        "ok": true,
+        "result": {
+          "state": "ready",
+          "dispatchId": "ctx_2"
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_2",
+              "status": "dispatched",
+              "title": "aio:a7937b64b8caa58f Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-stop",
+        "--dispatch",
+        "ctx_2",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000002"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000004e",
+        "ok": true,
+        "result": {},
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "stopped",
+              "terminalState": "retained",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "stopped",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_2",
+              "status": "dispatched",
+              "title": "aio:a7937b64b8caa58f Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-release",
+        "--dispatch",
+        "ctx_2",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000003"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000045",
+        "ok": true,
+        "result": {},
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "status", "--porcelain", "-z"],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-start",
+        "--agent",
+        "codex",
+        "--worktree",
+        "path:/fixture/w1",
+        "--task-title",
+        "aio:16367aacb67a4a01 Contract",
+        "--spec-file",
+        "<redacted:test-input>",
+        "--keep-open",
+        "--from",
+        "term_shim",
+        "--run",
+        "run_contract",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000004"
+      ],
+      "exitCode": 1,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000004d",
+        "ok": true,
+        "result": {
+          "state": "ready",
+          "dispatchId": "ctx_3"
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "list",
+        "--repo",
+        "id:repo_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktrees": [
+            {
+              "id": "wt_existing",
+              "path": "/synthetic/existing",
+              "branch": "refs/heads/ai-office/existing",
+              "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "repoId": "repo_contract",
+              "comment": "aio:existing base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "displayName": "existing"
+            },
+            {
+              "id": "wt_1",
+              "path": "/fixture/w1",
+              "branch": "refs/heads/ai-office/rework",
+              "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "repoId": "repo_contract",
+              "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "displayName": "rework-r1"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "fetch",
+        "origin",
+        "ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "merge-base",
+        "--is-ancestor",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "refs/remotes/origin/ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000worktree /fixture/w1\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/rework\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "stopped",
+              "terminalState": "released",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "stopped",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "exited"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            },
+            {
+              "dispatchId": "ctx_3",
+              "taskId": "task_3",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_3",
+              "resource": {
+                "ownerDispatchId": "ctx_3",
+                "originDispatchId": "ctx_3",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_2",
+              "status": "dispatched",
+              "title": "aio:a7937b64b8caa58f Contract"
+            },
+            {
+              "id": "task_3",
+              "status": "dispatched",
+              "title": "aio:16367aacb67a4a01 Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-stop",
+        "--dispatch",
+        "ctx_3",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000005"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000004e",
+        "ok": true,
+        "result": {},
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "stopped",
+              "terminalState": "released",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "stopped",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "exited"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            },
+            {
+              "dispatchId": "ctx_3",
+              "taskId": "task_3",
+              "runId": "run_contract",
+              "workerState": "stopped",
+              "terminalState": "retained",
+              "terminal": "term_ctx_3",
+              "resource": {
+                "ownerDispatchId": "ctx_3",
+                "originDispatchId": "ctx_3",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "stopped",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_2",
+              "status": "dispatched",
+              "title": "aio:a7937b64b8caa58f Contract"
+            },
+            {
+              "id": "task_3",
+              "status": "dispatched",
+              "title": "aio:16367aacb67a4a01 Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-release",
+        "--dispatch",
+        "ctx_3",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000006"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000045",
+        "ok": true,
+        "result": {},
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "stopped",
+              "terminalState": "released",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "stopped",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "exited"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            },
+            {
+              "dispatchId": "ctx_3",
+              "taskId": "task_3",
+              "runId": "run_contract",
+              "workerState": "stopped",
+              "terminalState": "released",
+              "terminal": "term_ctx_3",
+              "resource": {
+                "ownerDispatchId": "ctx_3",
+                "originDispatchId": "ctx_3",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "stopped",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "exited"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_2",
+              "status": "dispatched",
+              "title": "aio:a7937b64b8caa58f Contract"
+            },
+            {
+              "id": "task_3",
+              "status": "dispatched",
+              "title": "aio:16367aacb67a4a01 Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r1"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "status", "--porcelain", "-z"],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/fixture/w1",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000worktree /fixture/w1\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/rework\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "rev-parse", "--verify", "HEAD"],
+      "exitCode": 0,
+      "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "rm",
+        "--worktree",
+        "id:wt_1",
+        "--delete-branch",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {}
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "refs/heads/ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "branch",
+        "-D",
+        "ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 1,
+      "response": {
+        "ok": false,
+        "error": {
+          "code": "worktree_not_found"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "list",
+        "--repo",
+        "id:repo_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktrees": [
+            {
+              "id": "wt_existing",
+              "path": "/synthetic/existing",
+              "branch": "refs/heads/ai-office/existing",
+              "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "repoId": "repo_contract",
+              "comment": "aio:existing base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "displayName": "existing"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "fetch",
+        "origin",
+        "ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "merge-base",
+        "--is-ancestor",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "refs/remotes/origin/ai-office/rework"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "refs/heads/ai-office/rework"
+      ],
+      "exitCode": 1,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "branch",
+        "--no-track",
+        "ai-office/rework",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "create",
+        "--repo",
+        "id:repo_contract",
+        "--name",
+        "rework-r2",
+        "--branch",
+        "ai-office/rework",
+        "--base-branch",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "--no-parent",
+        "--setup",
+        "skip",
+        "--comment",
+        "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000053",
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_4",
+            "path": "/fixture/w4",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r2"
+          }
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_4", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_4",
+            "path": "/fixture/w4",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r2"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w4", "rev-parse", "--verify", "HEAD"],
+      "exitCode": 0,
+      "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000worktree /fixture/w4\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/rework\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_4", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_4",
+            "path": "/fixture/w4",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r2"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_4", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_4",
+            "path": "/fixture/w4",
+            "branch": "refs/heads/ai-office/rework",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "rework-r2"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-start",
+        "--agent",
+        "codex",
+        "--worktree",
+        "path:/fixture/w4",
+        "--task-title",
+        "aio:b1e99324505bd32d Contract",
+        "--spec-file",
+        "<redacted:test-input>",
+        "--keep-open",
+        "--from",
+        "term_shim",
+        "--run",
+        "run_contract",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000007"
+      ],
+      "exitCode": 1,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000004d",
+        "ok": true,
+        "result": {
+          "state": "ready",
+          "dispatchId": "ctx_5"
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    }
+  ]
+}

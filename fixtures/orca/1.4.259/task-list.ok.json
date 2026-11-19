@@ -1,0 +1,28 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T10:05:00Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "task-list",
+    "--run",
+    "run_3ce3a5f9ce4f",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "ok": true,
+    "result": {
+      "tasks": [
+        {
+          "id": "task_c91029198d5a",
+          "status": "blocked",
+          "title": "aio:<redacted> aio:<redacted>..."
+        }
+      ],
+      "runId": "run_3ce3a5f9ce4f"
+    }
+  },
+  "stderrLines": [],
+  "note": "M2-T17 D3: --full rows use task_title/run_id; the concise view uses title (adapter reads the concise view)."
+}

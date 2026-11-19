@@ -356,7 +356,9 @@ const reactMeeting: StageModule['react'] = (ctx) => {
               orcaRepoId: workflow.repo.orcaRepoId,
               localPath: workflow.repo.localPath,
             },
-            baseBranch: workflow.repo.defaultBranch,
+            // §7.2: the local default branch may be stale; read the fetched remote head.
+            baseBranch: `origin/${workflow.repo.defaultBranch}`,
+            fetchBranch: workflow.repo.defaultBranch,
             name: `aio-${workflow.shortId}-meeting${suffix}`,
             branch: `ai-office/${workflow.shortId}/meeting${suffix}`,
           },

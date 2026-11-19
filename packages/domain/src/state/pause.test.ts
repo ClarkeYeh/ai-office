@@ -59,7 +59,7 @@ describe('workflow pause windows (FX8b)', () => {
     expect(isTimerHeld(h.state, timer())).toBe(true);
     // 20 s were left at the pause: fireAt 60 + 60 s paused.
     expect(heldTimerShifts(h.state, at(100))).toEqual([
-      { timer: timer(), fireAt: at(120) },
+      { timer: timer(), fireAt: at(120), repause: false },
     ]);
     h.given(schedule(100, 120));
     expect(timer()).toMatchObject({ fireAt: at(120), scheduledAt: at(100) });

@@ -26,6 +26,9 @@ export function overviewPartsFor(type: EventType): OverviewPart[] {
   if (type.startsWith('gate.')) return ['gates', 'workflows'];
   if (type === 'message.escalated' || type === 'message.answered')
     return ['questions', 'workflows'];
+  // A successful hijack reclaim restores run ownership and ends in a resume.
+  if (type === 'workflow.paused' || type === 'workflow.resumed')
+    return ['workflows', 'health'];
   if (
     type.startsWith('workflow.') ||
     type.startsWith('stage.') ||

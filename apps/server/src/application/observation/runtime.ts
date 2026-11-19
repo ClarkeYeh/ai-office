@@ -111,6 +111,11 @@ export function ingestRuntime(
     const attemptId = attempt.attemptId;
     switch (event.type) {
       case 'agent.status':
+        // M2-T17 D5: real Orca reports a finished keep-open worker `idle`
+        // right after worker_done. Idle never downgrades done; only a new turn
+        // (working / waiting_input) or exit/lost does, so the engine's `done`
+        // checks (meeting rounds, conclusion, planning, items) stay true.
+        if (event.state === 'idle' && attempt.state === 'done') break;
         batch.add(
           'seat.status',
           {
@@ -181,6 +186,34 @@ export function ingestRuntime(
           event,
           'runtime',
           attempt,
+        );
+        break;
+      case 'agent.rate_limited':
+        // S26 (provisional): never a failure; engine pauses the attempt's
+        // timers. Through decide, which ignores evidence for ended attempts.
+        batch.record(
+          {
+            type: 'ObserveAttemptStatus',
+            meta: {
+              occurredAt: event.occurredAt,
+              source: 'runtime',
+              provenance: 'observed',
+            },
+            attemptId,
+            state: attempt.state,
+            ...(attempt.waitingSince === undefined
+              ? {}
+              : { waitingSince: attempt.waitingSince }),
+            rateLimited: {
+              since: attempt.rateLimited?.since ?? event.occurredAt,
+              evidence: event.evidence,
+              ...(event.resetsAt === undefined
+                ? {}
+                : { resetsAt: event.resetsAt }),
+            },
+          },
+          event,
+          'seat.status',
         );
         break;
       case 'agent.degraded':

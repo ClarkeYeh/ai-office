@@ -1,0 +1,116 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:46:57Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "worker-start",
+    "--run",
+    "run_3d70ed17e5de",
+    "--from",
+    "term_00000000-0000-4000-8000-000000000001",
+    "--agent",
+    "claude",
+    "--worktree",
+    "path:<home>/<redacted>",
+    "--task-title",
+    "aio:p1 echo",
+    "--spec-file",
+    "<redacted:test-input>",
+    "--retry-request",
+    "00000000-0000-4000-8000-00000000004a",
+    "--json",
+    "--full"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-00000000004b",
+    "ok": true,
+    "result": {
+      "state": "ready",
+      "runId": "run_3d70ed17e5de",
+      "taskId": "task_f3f9b2d65501",
+      "dispatchId": "ctx_f91f0c1b897a",
+      "stage": "input_accepted",
+      "turnStart": "observed",
+      "setup": {
+        "requested": "not_applicable",
+        "effective": "not_applicable",
+        "source": "existing_worktree",
+        "hookFound": false,
+        "startupPolicy": "start-immediately",
+        "state": "not_applicable"
+      },
+      "launch": {
+        "requested": {
+          "agent": "claude",
+          "model": null,
+          "effort": null
+        },
+        "effective": {
+          "agent": "claude",
+          "model": null,
+          "effort": null
+        }
+      },
+      "mode": {
+        "mode": "terminal",
+        "preferred": "terminal",
+        "reason": "user_default",
+        "detail": "Started a terminal agent worker, the default for new agent tabs in your settings."
+      },
+      "timeoutMs": 60000,
+      "effects": [
+        {
+          "kind": "worktree",
+          "action": "reused",
+          "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>"
+        },
+        {
+          "kind": "setup",
+          "action": "not_applicable",
+          "state": "not_applicable"
+        },
+        {
+          "kind": "terminal",
+          "role": "agent",
+          "action": "created",
+          "id": "term_00000000-0000-4000-8000-000000000011",
+          "surface": "visible"
+        },
+        {
+          "kind": "dispatch_input",
+          "role": "agent",
+          "id": "term_00000000-0000-4000-8000-000000000011",
+          "state": "accepted"
+        }
+      ],
+      "prompt": {
+        "requestId": "00000000-0000-4000-8000-00000000004a",
+        "stages": ["input_accepted", "turn_started"],
+        "provider": "claude",
+        "observation": "supported",
+        "processIncarnation": "00000000-0000-4000-8000-000000000020",
+        "generation": 159,
+        "baselineWorkingSequence": 0,
+        "baselineExplicitWorkingStartedAt": null,
+        "baselinePermissionSequence": 0
+      },
+      "residualResources": [],
+      "next": "Orca wakes you when workers report; end your turn when you're done.",
+      "run": {
+        "id": "run_3d70ed17e5de",
+        "objective": "aio-test p1 aio:p1",
+        "created": false
+      },
+      "mutation": {
+        "requestId": "00000000-0000-4000-8000-00000000004a",
+        "replayed": false
+      }
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

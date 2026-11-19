@@ -1,0 +1,343 @@
+import { z } from 'zod';
+import type { AdapterState } from './state.js';
+import { contractMismatch, guard } from './errors.js';
+import { agentRef } from './refs.js';
+import { markerToken, sameCommand } from './marker.js';
+const EntrySchema = z.object({
+  commandId: z.string().min(1),
+  state: z.enum(['pending', 'started']),
+  run: z.string().min(1),
+  dispatch: z.string().optional(),
+  agent: z.string().optional(),
+  attemptId: z.string().optional(),
+  keepOpen: z.boolean(),
+  stoppedByBackend: z.boolean(),
+  /** Last terminal Orca reported for this dispatch (M2-FX12 D10 follow-up). */
+  terminal: z.string().optional(),
+});
+export type LedgerEntry = z.infer<typeof EntrySchema>;
+const WorkerSchema = z.object({
+  dispatchId: z.string(),
+  taskId: z.string(),
+  runId: z.string(),
+  followUpOf: z.string().nullish(),
+  agentTerminalHandle: z.string().nullish(),
+  terminal: z.string().nullish(),
+  resource: z
+    .object({
+      originDispatchId: z.string().nullish(),
+      retainedReason: z.string().nullish(),
+    })
+    .nullish(),
+});
+const TaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  runId: z.string().optional(),
+});
+export const LedgerWorkersSchema = z.object({ workers: z.array(WorkerSchema) });
+const WorkerPageSchema = z.looseObject({
+  nextCursor: z.string().nullish(),
+  hasMore: z.boolean().nullish(),
+  page: z
+    .looseObject({
+      nextCursor: z.string().nullish(),
+      hasMore: z.boolean().nullish(),
+    })
+    .nullish(),
+});
+/** `worker-list` returns at most 100 rows per call (Orca 1.4.259 help). */
+export const workerPageArgs = (cursor: string | undefined): string[] => [
+  '--limit',
+  '100',
+  ...(cursor ? ['--cursor', cursor] : []),
+];
+/**
+ * The next worker-list cursor, or undefined after the last page (M2-FX13).
+ * Orca 1.4.259 reports it as `page.nextCursor`. A page that says more rows
+ * follow without a cursor cannot be continued and is a contract mismatch.
+ */
+export function workerListCursor(
+  result: unknown,
+  seen: Set<string>,
+): string | undefined {
+  const parsed = WorkerPageSchema.safeParse(result);
+  if (!parsed.success) throw contractMismatch();
+  const { page, nextCursor, hasMore } = parsed.data;
+  const cursor = page?.nextCursor || nextCursor || undefined;
+  if (!cursor && (page?.hasMore === true || hasMore === true))
+    throw contractMismatch();
+  if (cursor && seen.has(cursor)) throw guard('worker_cursor_repeated');
+  if (cursor) seen.add(cursor);
+  return cursor;
+}
+/** Every worker-list row; `fetchPage` receives the page arguments. */
+export async function pageWorkerList<W>(
+  fetchPage: (pageArgs: string[]) => Promise<{ workers: W[] }>,
+): Promise<W[]> {
+  const workers: W[] = [],
+    seen = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = await fetchPage(workerPageArgs(cursor));
+    workers.push(...page.workers);
+    cursor = workerListCursor(page, seen);
+  } while (cursor);
+  return workers;
+}
+/**
+ * Orca 1.4.259 `task-list` documents no row cap or cursor (M2-FX13), unlike
+ * worker-list. A result that signals more rows than it carries would rebuild a
+ * partial ledger, so it is refused as a contract mismatch instead.
+ */
+export function completeTaskList(result: {
+  tasks: readonly unknown[];
+  [key: string]: unknown;
+}): boolean {
+  const { count, nextCursor, hasMore, truncated } = result;
+  return !(
+    (typeof count === 'number' && count > result.tasks.length) ||
+    (nextCursor !== undefined && nextCursor !== null) ||
+    hasMore === true ||
+    truncated === true
+  );
+}
+export const LedgerTasksSchema = z
+  .looseObject({ tasks: z.array(TaskSchema) })
+  .refine(completeTaskList);
+/** Cache only: lost stoppedByBackend is reconstructed by application command history. */
+/**
+ * A follow-up may only inherit from a dispatch AI Office started itself (not
+ * from another adopted follow-up: no chains of untrusted links), in the run.
+ */
+const trustedOrigin = (
+  parent: LedgerEntry | undefined,
+  run: string,
+): parent is LedgerEntry =>
+  parent !== undefined &&
+  parent.state === 'started' &&
+  parent.run === run &&
+  !parent.commandId.startsWith('orca:');
+/** Ledger entry for an Orca-native follow-up of a managed dispatch (D10). */
+const native = (dispatch: string, parent: LedgerEntry): LedgerEntry => ({
+  commandId: `orca:${dispatch}`,
+  run: parent.run,
+  state: 'started',
+  dispatch,
+  agent: parent.agent ?? parent.dispatch ?? dispatch,
+  keepOpen: parent.keepOpen,
+  stoppedByBackend: false,
+  ...(parent.attemptId ? { attemptId: parent.attemptId } : {}),
+});
+export class DispatchLedger {
+  private entries: LedgerEntry[];
+  constructor(private readonly store: AdapterState) {
+    this.entries =
+      z.array(EntrySchema).safeParse(store.read('orca:dispatch-ledger')).data ??
+      [];
+  }
+  all(): LedgerEntry[] {
+    return structuredClone(this.entries);
+  }
+  byCommand(commandId: string): LedgerEntry | undefined {
+    // Full id, its Orca marker digest, or an entry recovered from a digest (D7).
+    return this.all().find((entry) => sameCommand(entry.commandId, commandId));
+  }
+  byDispatch(dispatch: string): LedgerEntry | undefined {
+    return this.all().find((entry) => entry.dispatch === dispatch);
+  }
+  agentFor(dispatch: string) {
+    const entry = this.byDispatch(dispatch);
+    return entry?.state === 'started'
+      ? agentRef(entry.agent ?? dispatch)
+      : undefined;
+  }
+  isPendingTitle(title: string): boolean {
+    const commandId = markerToken(title);
+    return (
+      commandId !== undefined && this.byCommand(commandId)?.state === 'pending'
+    );
+  }
+  pending(input: {
+    commandId: string;
+    run: string;
+    keepOpen: boolean;
+    attemptId?: string;
+  }): void {
+    const existing = this.byCommand(input.commandId);
+    if (existing) {
+      if (
+        existing.run !== input.run ||
+        existing.attemptId !== input.attemptId ||
+        existing.keepOpen !== input.keepOpen
+      )
+        throw guard('ledger_command_mismatch');
+      return;
+    }
+    this.commit([
+      ...this.entries,
+      { ...input, state: 'pending', stoppedByBackend: false },
+    ]);
+  }
+  started(
+    commandId: string,
+    dispatch: string,
+    followUpOf?: string,
+  ): LedgerEntry {
+    const entry = this.byCommand(commandId);
+    if (!entry) throw guard('ledger_pending_required');
+    if (entry.dispatch && entry.dispatch !== dispatch)
+      throw guard('ledger_dispatch_mismatch');
+    const parent = followUpOf ? this.byDispatch(followUpOf) : undefined;
+    if (followUpOf && (!parent || parent.run !== entry.run))
+      throw guard('ledger_followup_unknown');
+    const started: LedgerEntry = {
+      ...entry,
+      state: 'started',
+      dispatch,
+      agent: parent?.agent ?? parent?.dispatch ?? dispatch,
+      ...(parent?.attemptId ? { attemptId: parent.attemptId } : {}),
+    };
+    this.commit(
+      this.entries.map((e) => (e.commandId === commandId ? started : e)),
+    );
+    return structuredClone(started);
+  }
+  /**
+   * M2-FX12 (b): a send delivered into a working dispatch starts no dispatch,
+   * so its pending entry would hold matching mail forever. Only a pending,
+   * dispatchless entry is removed; a later marker-titled follow-up is still
+   * recovered by `rebuild`.
+   */
+  discard(commandId: string): void {
+    const entry = this.byCommand(commandId);
+    if (entry?.state !== 'pending' || entry.dispatch) return;
+    this.commit(this.entries.filter((e) => e.commandId !== entry.commandId));
+  }
+  /**
+   * M2-T17 D10: when mail reaches a kept-open worker, Orca wakes it with its
+   * own follow-up turn (task "New messages", no aio: title), linked to our
+   * dispatch by followUpOf / resource.originDispatchId. It is the same agent.
+   */
+  adopt(
+    dispatch: string,
+    parentDispatch: string,
+    seen: {
+      run: string;
+      terminal: string | null | undefined;
+      originTerminal: string | null | undefined;
+    },
+  ) {
+    const parent = this.byDispatch(parentDispatch);
+    // Once Orca's turn owns the resource, the origin row reports no
+    // terminal: fall back to the one it reported while it owned it.
+    if (
+      !trustedOrigin(parent, seen.run) ||
+      dispatch === parentDispatch ||
+      !seen.terminal ||
+      seen.terminal !== (seen.originTerminal ?? parent.terminal)
+    )
+      return undefined;
+    if (!this.byDispatch(dispatch))
+      this.commit([...this.entries, native(dispatch, parent)]);
+    return this.agentFor(dispatch);
+  }
+  /** Remember the terminal Orca reports for one of our dispatches. */
+  noteTerminal(dispatch: string, terminal: string | null | undefined): void {
+    const entry = this.byDispatch(dispatch);
+    if (!terminal || !entry || entry.terminal === terminal) return;
+    this.commit(
+      this.entries.map((e) =>
+        e.dispatch === dispatch ? { ...e, terminal } : e,
+      ),
+    );
+  }
+  stopped(dispatch: string): void {
+    if (!this.byDispatch(dispatch)) throw guard('ledger_dispatch_unknown');
+    this.commit(
+      this.entries.map((e) =>
+        e.dispatch === dispatch ? { ...e, stoppedByBackend: true } : e,
+      ),
+    );
+  }
+  /** Supply complete, paginated worker-list and task-list result arrays for one run. */
+  rebuild(run: string, workerResult: unknown, taskResult: unknown): void {
+    const workers = LedgerWorkersSchema.safeParse(workerResult);
+    const tasks = LedgerTasksSchema.safeParse(taskResult);
+    if (!workers.success || !tasks.success) throw contractMismatch();
+    const next = this.all();
+    const candidates = workers.data.workers
+      .filter((w) => w.runId === run)
+      .map((worker) => {
+        const task = tasks.data.tasks.find(
+          (t) => t.id === worker.taskId && (!t.runId || t.runId === run),
+        );
+        return {
+          worker,
+          commandId: task && markerToken(task.title),
+        };
+      });
+    // First recover every command, then resolve links (worker-list is newest first).
+    for (const { worker, commandId } of candidates) {
+      if (!commandId) continue;
+      const previous = next.find((e) => sameCommand(e.commandId, commandId));
+      if (previous && previous.run !== run)
+        throw guard('ledger_command_mismatch');
+      const recovered: LedgerEntry = {
+        // Keep the full id when known; a digest-only entry still matches it.
+        commandId: previous?.commandId ?? commandId,
+        run,
+        state: 'started',
+        dispatch: worker.dispatchId,
+        agent: previous?.agent ?? worker.dispatchId,
+        keepOpen:
+          previous?.keepOpen ??
+          worker.resource?.retainedReason === 'user_requested',
+        stoppedByBackend: previous?.stoppedByBackend ?? false,
+        ...(previous?.attemptId ? { attemptId: previous.attemptId } : {}),
+        ...(previous?.terminal ? { terminal: previous.terminal } : {}),
+      };
+      const index = next.findIndex((e) => sameCommand(e.commandId, commandId));
+      if (index < 0) next.push(recovered);
+      else next[index] = recovered;
+    }
+    for (let i = 0; i < candidates.length; i++) {
+      for (const { worker } of candidates) {
+        const entry = next.find(
+          (e) => e.dispatch === worker.dispatchId && e.run === run,
+        );
+        const parentId = worker.followUpOf ?? worker.resource?.originDispatchId;
+        // M2-FX12 (a): no parent id must not match a dispatchless pending
+        // entry (undefined === undefined) and inherit its attempt.
+        const parent = parentId
+          ? next.find((e) => e.dispatch === parentId && e.run === run)
+          : undefined;
+        // An Orca-native follow-up has no aio: title; inherit its origin
+        // only from our own dispatch, same run and same terminal (D10).
+        const terminal = worker.agentTerminalHandle ?? worker.terminal;
+        const origin = candidates.find(
+          (c) => c.worker.dispatchId === parentId,
+        )?.worker;
+        if (
+          !entry &&
+          trustedOrigin(parent, run) &&
+          terminal &&
+          terminal ===
+            (origin?.agentTerminalHandle ??
+              origin?.terminal ??
+              parent!.terminal)
+        )
+          next.push(native(worker.dispatchId, parent!));
+        if (entry && parent && entry !== parent) {
+          entry.agent = parent.agent ?? parent.dispatch!;
+          if (parent.attemptId) entry.attemptId = parent.attemptId;
+        }
+      }
+    }
+    this.commit(next);
+  }
+  private commit(entries: LedgerEntry[]): void {
+    this.store.write('orca:dispatch-ledger', entries);
+    this.entries = structuredClone(entries);
+  }
+}

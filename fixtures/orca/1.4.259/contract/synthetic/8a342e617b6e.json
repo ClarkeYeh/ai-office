@@ -1,0 +1,933 @@
+{
+  "default": [
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "show",
+        "--worktree",
+        "id:wt_existing",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_existing",
+            "path": "/synthetic/existing",
+            "branch": "refs/heads/ai-office/existing",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:existing base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "existing"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "terminal",
+        "list",
+        "--worktree",
+        "path:/synthetic/repo",
+        "--limit",
+        "500",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "terminals": [
+            {
+              "handle": "term_shim"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "run-show",
+        "--id",
+        "run_contract",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "run": {
+            "id": "run_contract",
+            "coordinator_handle": "term_shim",
+            "consumer_generation": 1
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-start",
+        "--agent",
+        "codex",
+        "--worktree",
+        "path:/synthetic/existing",
+        "--task-title",
+        "aio:a04afb368a4946b0 Contract",
+        "--spec-file",
+        "<redacted:test-input>",
+        "--keep-open",
+        "--from",
+        "term_shim",
+        "--run",
+        "run_contract",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000001"
+      ],
+      "exitCode": 1,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000004d",
+        "ok": true,
+        "result": {
+          "state": "ready",
+          "dispatchId": "ctx_1"
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    }
+  ],
+  "1:response-lost": [
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "show",
+        "--worktree",
+        "id:wt_existing",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_existing",
+            "path": "/synthetic/existing",
+            "branch": "refs/heads/ai-office/existing",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:existing base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "existing"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-start",
+        "--agent",
+        "codex",
+        "--worktree",
+        "path:/synthetic/existing",
+        "--task-title",
+        "aio:6c042c2ce45bcf0c Contract",
+        "--spec-file",
+        "<redacted:test-input>",
+        "--keep-open",
+        "--from",
+        "term_shim",
+        "--run",
+        "run_contract",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000002"
+      ],
+      "exitCode": 1,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000004d",
+        "ok": false,
+        "result": {
+          "state": "ready",
+          "runId": "run_3d70ed17e5de",
+          "taskId": "task_63d73bb2a51d",
+          "dispatchId": "ctx_fbb183823fc4",
+          "stage": "input_accepted",
+          "turnStart": "observed",
+          "setup": {
+            "requested": "not_applicable",
+            "effective": "not_applicable",
+            "source": "existing_worktree",
+            "hookFound": false,
+            "startupPolicy": "start-immediately",
+            "state": "not_applicable"
+          },
+          "launch": {
+            "requested": {
+              "agent": "codex",
+              "model": null,
+              "effort": null
+            },
+            "effective": {
+              "agent": "codex",
+              "model": null,
+              "effort": null
+            }
+          },
+          "mode": {
+            "mode": "terminal",
+            "preferred": "terminal",
+            "reason": "user_default",
+            "detail": "Started a terminal agent worker, the default for new agent tabs in your settings."
+          },
+          "timeoutMs": 60000,
+          "effects": [
+            {
+              "kind": "worktree",
+              "action": "reused",
+              "id": "00000000-0000-4000-8000-000000000017::<home>/<redacted>"
+            },
+            {
+              "kind": "setup",
+              "action": "not_applicable",
+              "state": "not_applicable"
+            },
+            {
+              "kind": "terminal",
+              "role": "agent",
+              "action": "created",
+              "id": "term_00000000-0000-4000-8000-00000000000e",
+              "surface": "visible"
+            },
+            {
+              "kind": "dispatch_input",
+              "role": "agent",
+              "id": "term_00000000-0000-4000-8000-00000000000e",
+              "state": "accepted"
+            }
+          ],
+          "prompt": {
+            "requestId": "00000000-0000-4000-8000-00000000004c",
+            "stages": ["input_accepted", "turn_started"],
+            "provider": "codex",
+            "observation": "supported",
+            "processIncarnation": "00000000-0000-4000-8000-000000000018",
+            "generation": 163,
+            "baselineWorkingSequence": 1,
+            "baselineExplicitWorkingStartedAt": null,
+            "baselinePermissionSequence": 0
+          },
+          "residualResources": [],
+          "next": "Orca wakes you when workers report; end your turn when you're done.",
+          "run": {
+            "id": "run_3d70ed17e5de",
+            "objective": "<redacted length=18 sha256=fc4fdf47e37ed61f34d60a743b740e9902996fd492d4ec3214c8abf43ed813b3>",
+            "created": false
+          },
+          "mutation": {
+            "requestId": "00000000-0000-4000-8000-00000000004c",
+            "replayed": false
+          },
+          "keptOpen": true
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        },
+        "error": {
+          "code": "ECONNRESET"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "request-show",
+        "--request",
+        "00000000-0000-4000-8000-000000000002",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "state": "absent"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_1",
+              "taskId": "task_1",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_1",
+              "resource": {
+                "ownerDispatchId": "ctx_1",
+                "originDispatchId": "ctx_1",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_1",
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "orchestration", "run-list", "--full", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runs": [
+            {
+              "id": "run_contract",
+              "objective": "<redacted length=8 sha256=5f40a14521397f6b8b10226cc6fc2c81ce204afb9dc8853a48b76155fb50d83a>"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_1",
+              "taskId": "task_1",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_1",
+              "resource": {
+                "ownerDispatchId": "ctx_1",
+                "originDispatchId": "ctx_1",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            },
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_1",
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
+            },
+            {
+              "id": "task_2",
+              "status": "dispatched",
+              "title": "aio:6c042c2ce45bcf0c Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "request-show",
+        "--request",
+        "00000000-0000-4000-8000-000000000002",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "state": "absent"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_1",
+              "taskId": "task_1",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_1",
+              "resource": {
+                "ownerDispatchId": "ctx_1",
+                "originDispatchId": "ctx_1",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            },
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "task-list",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "runId": "run_contract",
+          "tasks": [
+            {
+              "id": "task_1",
+              "status": "dispatched",
+              "title": "aio:a04afb368a4946b0 Contract"
+            },
+            {
+              "id": "task_2",
+              "status": "dispatched",
+              "title": "aio:6c042c2ce45bcf0c Contract"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "request-show",
+        "--request",
+        "00000000-0000-4000-8000-000000000003",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "state": "absent"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "check",
+        "--wait",
+        "--timeout-ms",
+        "30000",
+        "--terminal",
+        "term_shim",
+        "--run",
+        "run_contract",
+        "--json",
+        "--full",
+        "--retry-request",
+        "00000000-0000-4000-8000-000000000004"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000029",
+        "ok": true,
+        "result": {
+          "messages": [],
+          "timedOut": true
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "inbox",
+        "--full",
+        "--limit",
+        "50",
+        "--terminal",
+        "run:run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-00000000002b",
+        "ok": true,
+        "result": {
+          "messages": []
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-list",
+        "--full",
+        "--limit",
+        "100",
+        "--run",
+        "run_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000042",
+        "ok": true,
+        "result": {
+          "workers": [
+            {
+              "dispatchId": "ctx_1",
+              "taskId": "task_1",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_1",
+              "resource": {
+                "ownerDispatchId": "ctx_1",
+                "originDispatchId": "ctx_1",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            },
+            {
+              "dispatchId": "ctx_2",
+              "taskId": "task_2",
+              "runId": "run_contract",
+              "workerState": "ready",
+              "terminalState": "retained",
+              "terminal": "term_ctx_2",
+              "resource": {
+                "ownerDispatchId": "ctx_2",
+                "originDispatchId": "ctx_2",
+                "retainedReason": "user_requested"
+              },
+              "projection": {
+                "parent": null,
+                "provider": {
+                  "id": "codex"
+                },
+                "stage": {
+                  "worker": "ready",
+                  "activity": "working"
+                },
+                "liveness": {
+                  "verdict": "live"
+                },
+                "evidence": {
+                  "lastObservedAt": 119665440
+                }
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-show",
+        "--dispatch",
+        "ctx_1",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "dispatch": {
+            "runId": "run_contract",
+            "assigneePaneKey": "pane_contract"
+          },
+          "worker": {
+            "state": "ready"
+          },
+          "observation": {
+            "agentWait": null
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-show",
+        "--dispatch",
+        "ctx_2",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "dispatch": {
+            "runId": "run_contract",
+            "assigneePaneKey": "pane_contract"
+          },
+          "worker": {
+            "state": "ready"
+          },
+          "observation": {
+            "agentWait": null
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-read",
+        "--dispatch",
+        "ctx_1",
+        "--source",
+        "transcript",
+        "--limit",
+        "200",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "source": "transcript",
+          "cursor": "0",
+          "contentComplete": true
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
+        "worker-read",
+        "--dispatch",
+        "ctx_2",
+        "--source",
+        "transcript",
+        "--limit",
+        "200",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "source": "transcript",
+          "cursor": "0",
+          "contentComplete": true
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    }
+  ]
+}

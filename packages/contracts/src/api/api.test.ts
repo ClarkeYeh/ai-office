@@ -13,6 +13,7 @@ import {
   ErrorResponseSchema,
   GateDecisionRequestSchema,
   GateStatusSchema,
+  HealthViewSchema,
   QuestionViewSchema,
   SEAT_RECENT_ACTIVITY_LIMIT,
   SeatViewSchema,
@@ -643,4 +644,86 @@ test('budget gate IDs survive snapshot round trips and remain optional', () => {
   ).toEqual([linkedBar]);
   expect(BudgetBarSchema.parse(JSON.parse(JSON.stringify(bar)))).toEqual(bar);
   expect(BudgetBarSchema.safeParse({ ...bar, gateId: '' }).success).toBe(false);
+});
+
+describe('M2-CP1 optional read-model fields', () => {
+  const health = responses.getHealth as z.input<typeof HealthViewSchema>;
+  const withHealth = (patch: {
+    runtime?: object;
+    scm?: object;
+    source?: object;
+  }) => ({
+    ...health,
+    runtime: { ...health.runtime, ...patch.runtime },
+    scm: { ...health.scm, ...patch.scm },
+    usage: {
+      ...health.usage,
+      sources: [{ ...health.usage.sources[0], ...patch.source }],
+    },
+  });
+
+  test('health accepts runtime, usage and SCM details and still parses without them', () => {
+    const full = withHealth({
+      runtime: {
+        binPath: '/usr/local/bin/orca',
+        supportedRange: '>=1.4.259 <1.5',
+        warnings: ['codex_env_filtered', 'host_slept'],
+        cpuSecondsPerMinute: 0.5,
+      },
+      scm: { ghBinPath: '/opt/homebrew/bin/gh' },
+      source: { formatVerified: true },
+    });
+    expect(HealthViewSchema.parse(JSON.parse(JSON.stringify(full)))).toEqual(
+      full,
+    );
+    expect(HealthViewSchema.safeParse(health).success).toBe(true);
+  });
+  test.each([
+    { runtime: { binPath: 1 } },
+    { runtime: { supportedRange: false } },
+    { runtime: { warnings: 'host_slept' } },
+    { runtime: { warnings: [1] } },
+    { runtime: { cpuSecondsPerMinute: -1 } },
+    { scm: { ghBinPath: null } },
+    { source: { formatVerified: 'yes' } },
+  ])('health rejects malformed details: %o', (patch) =>
+    expect(HealthViewSchema.safeParse(withHealth(patch)).success).toBe(false),
+  );
+
+  test('attempts carry an optional rate limit that can be cleared with null', () => {
+    const withLimit = (rateLimited: unknown) => ({
+      ...seat,
+      attempts: [{ ...attempt, rateLimited }],
+    });
+    for (const rateLimited of [
+      { since: at },
+      { since: at, resetsAt: '2026-11-17T05:00:00Z' },
+      null,
+    ])
+      expect(SeatViewSchema.safeParse(withLimit(rateLimited)).success).toBe(
+        true,
+      );
+    for (const rateLimited of [
+      {},
+      { since: 'now' },
+      { since: at, resetsAt: 'later' },
+      true,
+    ])
+      expect(SeatViewSchema.safeParse(withLimit(rateLimited)).success).toBe(
+        false,
+      );
+  });
+
+  test('budget bars carry an optional enforcement switch', () => {
+    const bar = readModel.budgetBars[0]!;
+    for (const enforcement of ['on', 'off'])
+      expect(BudgetBarSchema.parse({ ...bar, enforcement })).toMatchObject({
+        enforcement,
+      });
+    expect(BudgetBarSchema.safeParse(bar).success).toBe(true);
+    for (const enforcement of ['disabled', true, null])
+      expect(BudgetBarSchema.safeParse({ ...bar, enforcement }).success).toBe(
+        false,
+      );
+  });
 });

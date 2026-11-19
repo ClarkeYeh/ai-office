@@ -7,6 +7,11 @@ import { reactLifecycle } from './lifecycle.js';
 import { budgetPolicy, filterPolicyEffects } from './policies/budget.js';
 import { cancelPolicy } from './policies/cancel.js';
 import { exceptionsPolicy } from './policies/exceptions.js';
+import {
+  pauseRateLimitedTimers,
+  rateLimitPolicy,
+} from './policies/rate-limit.js';
+import { spawnStallPolicy } from './policies/spawn-stall.js';
 import { reactStage } from './protocols/resume.js';
 import { reactStageClose } from './protocols/stage-close.js';
 import type { StageGateBuilder } from './protocols/stage-close.js';
@@ -39,7 +44,13 @@ export const DEFAULT_MODULES: EngineModules = {
     integrate: integrateStage,
     'final-pr': finalPrStage,
   },
-  policies: [budgetPolicy, exceptionsPolicy, cancelPolicy],
+  policies: [
+    budgetPolicy,
+    exceptionsPolicy,
+    spawnStallPolicy,
+    rateLimitPolicy,
+    cancelPolicy,
+  ],
 };
 
 export type React = (state: WorkflowState, event: DomainEvent) => Effect[];
@@ -53,6 +64,7 @@ export type React = (state: WorkflowState, event: DomainEvent) => Effect[];
  * Effects come out in a fixed order: lifecycle, pre-gate clearing, stages in
  * pipeline order, then policies; the runner handles them in that order.
  * On resume each stage also replays what it missed while paused.
+ * Timers armed for a rate-limited attempt are paused right after (S26).
  */
 export const createReact =
   (modules: EngineModules): React =>
@@ -77,14 +89,17 @@ export const createReact =
         ? undefined
         : modules.stages[kind].stageGate?.(current, stageId);
     };
-    return filterPolicyEffects(ctx, [
-      ...reactLifecycle(ctx),
-      ...reactStageClose(ctx, stageGate),
-      ...Object.values(modules.stages).flatMap((stage) =>
-        reactStage(stage, ctx),
-      ),
-      ...modules.policies.flatMap((policy) => policy(ctx)),
-    ]);
+    return pauseRateLimitedTimers(
+      ctx,
+      filterPolicyEffects(ctx, [
+        ...reactLifecycle(ctx),
+        ...reactStageClose(ctx, stageGate),
+        ...Object.values(modules.stages).flatMap((stage) =>
+          reactStage(stage, ctx),
+        ),
+        ...modules.policies.flatMap((policy) => policy(ctx)),
+      ]),
+    );
   };
 
 /** `react(state, event) → Effect[]` (§11.4), pure and deterministic. */

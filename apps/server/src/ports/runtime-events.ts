@@ -60,6 +60,11 @@ export const RuntimeEventSchema = z.discriminatedUnion('type', [
   agent.extend({ type: z.literal('agent.exited'), reason: z.string() }),
   agent.extend({ type: z.literal('agent.stopped') }),
   agent.extend({
+    type: z.literal('agent.rate_limited'),
+    evidence: z.enum(['worker-show', 'transcript']),
+    resetsAt: z.iso.datetime({ offset: true }).optional(),
+  }),
+  agent.extend({
     type: z.literal('agent.degraded'),
     reason: z.enum([
       'no_transcript_source',

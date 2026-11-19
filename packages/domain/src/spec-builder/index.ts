@@ -21,6 +21,13 @@ const invalidParams = (params: SpecParams): DomainError | undefined => {
       'cliPath must be an absolute single-line path',
       { cliPath: params.cliPath },
     );
+  if (!params.dataDir.startsWith('/') || /[\r\n]/.test(params.dataDir))
+    return domainError(
+      'bug',
+      'invalid_spec_params',
+      'dataDir must be an absolute single-line path',
+      { dataDir: params.dataDir },
+    );
   if (!SEAT_TOKEN.test(params.seatToken))
     return domainError(
       'bug',

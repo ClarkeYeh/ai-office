@@ -35,6 +35,7 @@ export const seatsMessagesZhTW = {
   'seats.disabled.meeting': '會議中的 agent 不收傳話。',
   'seats.disabled.workflow': '流程已結束，無法傳話。',
   'seats.rateLimited': '等待額度恢復',
+  'seats.rateLimitedUntil': '等待額度恢復（約 {n} 分後）',
   'seats.oncall': '值班',
   'seats.merge': '整合台',
   'seats.noWork': '尚未指派工作',

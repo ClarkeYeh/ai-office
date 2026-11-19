@@ -105,3 +105,38 @@ test('unusual ids are own dictionary keys, never prototype properties', () => {
   m = evolveGlobal(m, event('workflow.started', 3, start, 'constructor'));
   expect(m.workflowList).toHaveLength(2);
 });
+
+test('a successful reclaim restores runOwned only once no other run is still taken over', () => {
+  let m = initialGlobalReadModel();
+  let seq = 0;
+  const push = (
+    type: Parameters<typeof event>[0],
+    payload?: unknown,
+    wf: string | null = 'wf1',
+  ) => (m = evolveGlobal(m, event(type, ++seq, payload, wf)));
+  const reclaimed = (reclaimed: boolean, wf: string) =>
+    push(
+      'command.succeeded',
+      {
+        commandId: `${wf}/reclaim`,
+        kind: 'runtime.reclaimSession',
+        result: { reclaimed },
+      },
+      wf,
+    );
+  for (const wf of ['wf1', 'wf2']) {
+    push('workflow.started', undefined, wf);
+    push('runtime.identity_hijacked', undefined, wf);
+    push('workflow.paused', { reason: 'hijacked' }, wf);
+  }
+  expect(m.health.runtime.runOwned).toBe(false);
+  reclaimed(true, 'wf1');
+  // wf2's run is still held by another coordinator.
+  expect(m.health.runtime.runOwned).toBe(false);
+  push('workflow.resumed', { reason: 'hijacked' }, 'wf1');
+  reclaimed(false, 'wf2');
+  expect(m.health.runtime.runOwned).toBe(false);
+  reclaimed(true, 'wf2');
+  expect(m.health.runtime.runOwned).toBe(true);
+  HealthViewSchema.parse(m.health);
+});

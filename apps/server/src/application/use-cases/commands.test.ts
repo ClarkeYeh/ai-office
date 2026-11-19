@@ -549,6 +549,74 @@ it('cleanup uses persisted workspace refs and worker branches, protecting integr
   for (const event of h.events()) DomainEventSchema.parse(event);
 });
 
+it('cleanup also disposes worktrees created inside spawnAgent and deletes their branches (M2-T17 D9)', async () => {
+  const h = setup();
+  const r = await h.seed();
+  const started = r.state.workflow!;
+  const branch = `ai-office/${started.shortId}/planning`;
+  await r.append([
+    draft(h.clock, r.workflowId, 'command.issued', {
+      commandId: 'spawn-planner',
+      kind: 'runtime.spawnAgent',
+      orcaRequestId: '00000000-0000-4000-8000-000000000009',
+      args: {
+        session: 'session',
+        agent: 'claude-code',
+        title: 'planner',
+        specPath: '/spec.md',
+        specSha256: 'a'.repeat(64),
+        workspace: {
+          kind: 'new-worktree',
+          baseBranch: 'main',
+          name: `aio-${started.shortId}-planning`,
+          branch,
+        },
+        keepOpen: false,
+      },
+    }),
+    draft(h.clock, r.workflowId, 'command.succeeded', {
+      commandId: 'spawn-planner',
+      kind: 'runtime.spawnAgent',
+      result: { agent: 'agent-planner' },
+    }),
+  ]);
+  const find = vi.fn(async () => ({
+    workspace: 'ws-planning' as never,
+    path: '/work/p',
+  }));
+  Object.assign(h.world.runtime, { findWorkspace: find });
+  await h.api.cancelWorkflow(r.workflowId);
+  await r.dispatch({
+    type: 'MarkCancelled',
+    meta: { source: 'user', occurredAt: h.clock.now().toISOString() },
+  });
+  await h.api.cleanupWorkflow(r.workflowId);
+  expect(find).toHaveBeenCalledWith({
+    repo: {
+      orcaRepoId: started.repo.orcaRepoId,
+      localPath: started.repo.localPath,
+    },
+    name: `aio-${started.shortId}-planning`,
+    commandId: 'spawn-planner/workspace',
+  });
+  const issued = h
+    .events()
+    .filter((e) => e.type === 'command.issued')
+    .map((e) => e.payload);
+  expect(issued).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'runtime.disposeWorkspace',
+        args: { workspace: 'ws-planning' },
+      }),
+      expect.objectContaining({
+        kind: 'scm.deleteBranch',
+        args: expect.objectContaining({ name: branch }),
+      }),
+    ]),
+  );
+});
+
 it('checks missing resources, unavailability, invalid answers and option choices', async () => {
   const h = setup();
   await expect(h.api.cancelWorkflow('missing')).rejects.toMatchObject({

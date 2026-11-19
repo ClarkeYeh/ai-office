@@ -3,13 +3,23 @@ import { parse } from 'smol-toml';
 import { z } from 'zod';
 
 const positive = z.number().int().positive();
+const binaryPath = (name: string) =>
+  z
+    .string()
+    .refine(
+      (value) =>
+        value === '' ||
+        value === name ||
+        (value.startsWith('/') && !value.includes('\0')),
+      'Expected an absolute binary path',
+    );
 export const SettingsSchema = z.strictObject({
   server: z
     .strictObject({ port: positive.max(65535).default(4319) })
     .prefault({}),
   orca: z
     .strictObject({
-      bin: z.string().default('orca'),
+      bin: binaryPath('orca').default('orca'),
       supportedRange: z.string().min(1).default('>=1.4.259 <1.5'),
       shimLocation: z
         .enum(['folder-workspace', 'repo-main-worktree'])
@@ -19,10 +29,19 @@ export const SettingsSchema = z.strictObject({
         .prefault({}),
       cliConcurrency: positive.default(4),
       maxCallsPerMinute: positive.default(120),
+      preventSleep: z.boolean().default(true),
     })
+    .prefault({}),
+  engine: z
+    .strictObject({ spawnStallMs: positive.default(600000) })
+    .prefault({}),
+  budget: z
+    .strictObject({ enforcement: z.enum(['on', 'off']).default('on') })
     .prefault({}),
   usage: z
     .strictObject({
+      claudeConfigDirs: z.array(z.string().min(1)).default([]),
+      codexHomes: z.array(z.string().min(1)).default([]),
       budgetFormula: z
         .string()
         .min(1)
@@ -32,7 +51,7 @@ export const SettingsSchema = z.strictObject({
   github: z
     .strictObject({
       tokenSource: z.enum(['auto', 'env', 'gh']).default('auto'),
-      ghBin: z.string().default(''),
+      ghBin: binaryPath('gh').default(''),
     })
     .prefault({}),
   env: z

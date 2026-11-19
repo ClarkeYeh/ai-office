@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "test": "vitest run",
+    "test": "vitest run --project '!@ai-office/server-orca'",
     "lint": "eslint . && prettier --check .",
     "typecheck": "tsc -b",
     "format": "prettier --write .",
@@ -20,14 +20,21 @@
     "fixtures:scan": "pnpm --filter @ai-office/redaction build && node scripts/fixtures/scan.ts",
     "typecheck:tests": "pnpm -r exec tsc -p tsconfig.test.json && tsc -p scripts/tsconfig.json",
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --project '!@ai-office/server-orca'",
     "sprites": "node scripts/dev-office/run-task.mjs sprites",
     "sprites:check": "node scripts/dev-office/run-task.mjs sprites:check",
     "fixtures:web": "node scripts/dev-office/run-task.mjs fixtures:web",
     "test:e2e": "node scripts/dev-office/run-task.mjs test:e2e",
     "test:visual": "node scripts/dev-office/run-task.mjs test:visual",
     "e2e:fps": "node scripts/dev-office/run-task.mjs e2e:fps",
-    "dev:office": "node scripts/dev-office/index.mjs"
+    "dev:office": "node scripts/dev-office/index.mjs",
+    "test:orca": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=0 vitest run --project @ai-office/server-orca --passWithNoTests",
+    "test:orca:agents": "AIO_REAL_ORCA=1 AIO_REAL_AGENTS=1 vitest run --project @ai-office/server-orca --passWithNoTests",
+    "test:orca:disruptive": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs p2 prepare",
+    "orca:record": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs record",
+    "orca:recheck": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs recheck",
+    "orca:janitor": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs janitor",
+    "orca:p2": "pnpm --filter @ai-office/server build && node scripts/orca/run.mjs p2"
   },
   "devDependencies": {
     "@ai-office/redaction": "workspace:*",

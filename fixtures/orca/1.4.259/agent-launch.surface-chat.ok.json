@@ -1,0 +1,48 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:54:41Z",
+  "argv": [
+    "orca",
+    "agent",
+    "launch",
+    "--agent",
+    "claude",
+    "--worktree",
+    "path:<home>/<redacted>",
+    "--surface",
+    "chat",
+    "--prompt",
+    "<redacted:test-input>",
+    "--json"
+  ],
+  "exitCode": 0,
+  "response": {
+    "id": "00000000-0000-4000-8000-000000000021",
+    "ok": true,
+    "result": {
+      "outcome": {
+        "kind": "structured",
+        "sessionId": "<redacted>",
+        "handle": "<redacted>",
+        "tabId": "<redacted>"
+      },
+      "worktreeId": "00000000-0000-4000-8000-000000000017::<home>/<redacted>",
+      "receipt": {
+        "mode": "structured",
+        "preferred": "structured",
+        "reason": "requested",
+        "detail": "Started a structured chat session, as requested."
+      },
+      "prompt": {
+        "delivery": "submit",
+        "outcome": "journaled",
+        "messageId": "<redacted>"
+      },
+      "operationId": "<redacted>"
+    },
+    "_meta": {
+      "runtimeId": "00000000-0000-4000-8000-00000000001b"
+    }
+  },
+  "stderrLines": []
+}

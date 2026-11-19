@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdirSync, copyFileSync } from 'node:fs';
+import { mkdirSync, copyFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import {
   office,
@@ -67,6 +67,43 @@ it.each(['trouble', 'stall', 'load-10'] as const)(
     expect(
       (await o.events(id)).some((e) => e.type === 'workitem.dispatched'),
     ).toBe(true);
+  },
+);
+
+it(
+  'stall opens the spawn-stall gate after one nudge once M2-T14 is in (convergence)',
+  { timeout: 30_000 },
+  async () => {
+    const directory = home('stall');
+    writeFileSync(
+      join(directory, 'config.toml'),
+      '[engine]\nspawnStallMs = 300\n',
+    );
+    const o = await office({
+      scenario: webScenario('stall', 30),
+      home: directory,
+    });
+    const id = await o.start({ templateId: 'stall' });
+    await o.drive(
+      id,
+      async () =>
+        (await o.gates(id)).some(
+          (g) => g.kind === 'exception' && g.exceptionKind === 'spawn-stall',
+        ),
+      { timeoutMs: 25_000, onException: () => true },
+    );
+    const events = await o.events(id);
+    const nudge = events.findIndex(
+      (e) => e.type === 'message.nudge' && e.payload.reason === 'spawn-stall',
+    );
+    const gate = events.findIndex(
+      (e) =>
+        e.type === 'gate.opened' &&
+        (e.payload as { exceptionKind?: string }).exceptionKind ===
+          'spawn-stall',
+    );
+    expect(nudge).toBeGreaterThanOrEqual(0);
+    expect(gate).toBeGreaterThan(nudge);
   },
 );
 

@@ -115,6 +115,7 @@ async function fixture() {
       seatTokens: stores.seatTokens,
       specStore,
       cliPath: '/opt/ai-office/apps/cli/dist/main.js',
+      dataDir: '/opt/ai-office-home',
       react,
     });
     return { runners, scheduler, executor };
@@ -433,6 +434,49 @@ test('mismatching workspace marker gives up and atomically opens one anomaly gat
     f.stores.events.read({}).filter((e) => e.type === 'gate.opened'),
   ).toHaveLength(1);
 });
+
+test.each(['ai-office/integration', 'main'])(
+  'unpinned origin/%s workspace recovers by marker and keeps the fetched sha (W1)',
+  async (branch) => {
+    const f = await fixture();
+    const head = '1'.repeat(40);
+    f.runtime.setRemoteBranch(runtimeRepo, branch, head);
+    const command: ExternalCommand = {
+      kind: 'runtime.prepareWorkspace',
+      args: {
+        repo: runtimeRepo,
+        session: f.session,
+        name: 'aio-ab12-merge-1',
+        branch: 'ai-office/ab12/merge-1',
+        fetchBranch: branch,
+        baseBranch: `origin/${branch}`,
+      },
+    };
+    const react = onStart(command);
+    const store = crashStore(
+      f.stores.events,
+      (events) => events.some((e) => e.type === 'command.succeeded'),
+      false,
+    );
+    await f
+      .build(react, {}, store)
+      .runners.start(startWorkflow())
+      .catch(() => undefined);
+    await flush();
+    const prepare = vi.spyOn(f.runtime, 'prepareWorkspace');
+    const recovered = f.restart(react);
+    await f.reconciler().reconcile(recovered.runners);
+    await recovered.runners.idle();
+    expect(prepare).not.toHaveBeenCalled();
+    expect(
+      recovered.runners.get(WORKFLOW_ID)!.state.commands.recover,
+    ).toMatchObject({
+      status: 'succeeded',
+      reconciled: 'found',
+      result: { result: { baseSha: head } },
+    });
+  },
+);
 
 test('missing or tampered issued spec never rotates or spawns', async () => {
   const f = await fixture();

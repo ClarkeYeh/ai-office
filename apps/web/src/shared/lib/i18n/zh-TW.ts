@@ -61,6 +61,16 @@ export const zhTW = {
   'banner.paused': '流程已暫停：{reason}',
   'banner.unknownPause': '未知原因，請檢查流程狀態。',
   'banner.replay': '正在回放歷史狀態。',
+  'banner.runtimeWarning': 'Orca 提醒：{warning}',
+  // M2 RuntimeWarning strings (HealthView.runtime.warnings); unknown ones show as-is.
+  'runtimeWarning.codex_env_filtered':
+    'Codex 的環境變數被過濾，worker 可能拿不到 Orca 身分。',
+  'runtimeWarning.shim_folder_fallback': '協調者改用備用資料夾。',
+  'runtimeWarning.version_changed': 'Orca 版本已變更，正在重新驗證。',
+  'runtimeWarning.host_slept': '電腦曾進入睡眠，正在重新確認狀態。',
+  'runtimeWarning.orphan_resources': '發現遺留的 Orca 資源。',
+  'runtimeWarning.chat_worker_identity_degraded':
+    'chat 模式的 worker 身分訊號不完整。',
   'health.runtime': 'Orca',
   'health.scm': 'GitHub',
   'health.store': '資料庫',
@@ -89,6 +99,7 @@ export const zhTW = {
   'exception.merge-blocked': '合併受阻',
   'exception.rework-limit': '達到 rework 次數上限',
   'exception.merge-review-failed': '合併審查失敗',
+  'exception.spawn-stall': '啟動停滯',
   'stage.meeting': '會議',
   'stage.planning': '拆分',
   'stage.implement': '實作',

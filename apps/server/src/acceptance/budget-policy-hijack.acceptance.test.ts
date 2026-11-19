@@ -217,6 +217,91 @@ describe(
       );
     });
 
+    it('stops a worker that run-uses another run once, then reclaims through the hijack gate', async () => {
+      let flagged = false;
+      let hijack = false;
+      const runUse = {
+        type: 'policy' as const,
+        afterMs: 5,
+        command: 'orca orchestration run-use run-1',
+      };
+      const o = await office({
+        roles: {
+          worker: {
+            spawn: () =>
+              flagged
+                ? implementation
+                : ((flagged = true), [runUse, { ...runUse, afterMs: 10 }]),
+          },
+        },
+        // Ownership observation reports the takeover the worker caused (P4).
+        intercept: async (operation, args, call) => {
+          const delivery = (await call()) as { events: RuntimeEvent[] };
+          if (
+            operation === 'observe' &&
+            !hijack &&
+            delivery.events.some((e) => e.type === 'agent.output')
+          ) {
+            hijack = true;
+            delivery.events.push({
+              type: 'runtime.identity_hijacked',
+              externalKey: 'hijack-run-use',
+              occurredAt: new Date().toISOString(),
+              run: 'run-1',
+              coordinatorHandle: 'term_worker',
+              consumerGeneration: 2,
+            });
+          }
+          return delivery;
+        },
+      });
+      const workflowId = await o.start();
+      const seen: string[] = [];
+      const final = await o.drive(workflowId, isEnded, {
+        onException: async (gate) => {
+          seen.push(gate.exceptionKind as string);
+          const optionId =
+            gate.exceptionKind === 'hijacked'
+              ? 'reclaim'
+              : gate.exceptionKind === 'anomaly'
+                ? 'continue'
+                : // The stopped worker's item fails; retry it.
+                  'retry';
+          const decided = await o.decide(gate, {
+            decision: 'option',
+            optionId,
+          });
+          expect(decided.status, JSON.stringify(decided.body)).toBe(200);
+          return true;
+        },
+      });
+      expect(final.status).toBe('completed');
+      expect(seen).toContain('hijacked');
+      const events = await o.events(workflowId);
+      const stops = events.filter(
+        (e) =>
+          e.type === 'command.issued' &&
+          e.payload.kind === 'runtime.stop' &&
+          e.payload.commandId.endsWith('/run-use'),
+      );
+      expect(stops).toHaveLength(1);
+      const violations = events.filter(
+        (e) => e.type === 'seat.policy_violation',
+      );
+      expect(violations.length).toBeGreaterThan(0);
+      expect(stops[0]!.payload.commandId).toContain(
+        `/stop/${violations[0]!.payload.attemptId}/`,
+      );
+      expect(
+        events.find(
+          (e) =>
+            e.type === 'command.succeeded' &&
+            e.payload.kind === 'runtime.reclaimSession',
+        )?.payload.result,
+      ).toEqual({ reclaimed: true });
+      expect(JSON.stringify(events)).not.toContain('run-use run-1');
+    });
+
     // The hijack pauses the run in one of two wrap-up windows, each of which
     // once stranded the workflow after the owner reclaimed it: the
     // integrator's report racing the pause, or the final PR merging while

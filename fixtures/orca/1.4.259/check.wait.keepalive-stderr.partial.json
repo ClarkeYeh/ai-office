@@ -1,0 +1,75 @@
+{
+  "orcaVersion": "1.4.259",
+  "recordedAt": "2026-11-18T05:51:00Z",
+  "argv": [
+    "orca",
+    "orchestration",
+    "check",
+    "--terminal",
+    "term_00000000-0000-4000-8000-000000000001",
+    "--run",
+    "run_3d70ed17e5de",
+    "--wait",
+    "--types",
+    "question",
+    "--timeout-ms",
+    "240000",
+    "--retry-request",
+    "<uuid>",
+    "--json",
+    "--full"
+  ],
+  "exitCode": null,
+  "response": null,
+  "stderrLines": [
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 15001,
+      "deadlineMs": 240000
+    },
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 30001,
+      "deadlineMs": 240000
+    },
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 45002,
+      "deadlineMs": 240000
+    },
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 60003,
+      "deadlineMs": 240000
+    },
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 75005,
+      "deadlineMs": 240000
+    },
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 90006,
+      "deadlineMs": 240000
+    },
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 105006,
+      "deadlineMs": 240000
+    },
+    {
+      "_keepalive": true,
+      "_heartbeat": true,
+      "elapsedMs": 120008,
+      "deadlineMs": 240000
+    }
+  ],
+  "note": "consuming check --wait stopped by the recorder after ~120s; only the stderr keepalive lines exist"
+}

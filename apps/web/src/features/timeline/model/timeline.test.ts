@@ -87,6 +87,19 @@ test('coordination summaries cover messages, dispatch/rework/merge without expos
   const model = timelineModel(events, t);
   expect(model.messages).toHaveLength(8);
   expect(JSON.stringify(model)).not.toContain('private body');
+  expect(model.messages.map((m) => m.label)).toContain(
+    t('timeline.message.nudgeReason', {
+      who: 'a',
+      reason: t('nudge.item-timeout'),
+    }),
+  );
+  const future = structuredClone(
+    events.find((e) => e.type === 'message.nudge')!,
+  );
+  (future.payload as { reason: string }).reason = 'future-reason';
+  expect(timelineModel([future], t).messages[0]?.label).toBe(
+    t('timeline.message.nudge', { who: 'a' }),
+  );
   const main = timelineModel(mainline().events, t);
   expect(main.messages.some((m) => m.label.includes('rework'))).toBe(true);
   expect(

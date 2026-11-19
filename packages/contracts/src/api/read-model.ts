@@ -73,6 +73,8 @@ export const BudgetBarSchema = z.object({
   budget: positiveInt,
   hardLimit: positiveInt,
   level: z.enum(['ok', 'exceeded', 'hard_limit']),
+  /** S25 snapshot from `limits.budgetEnforcement`; `'off'` shows usage only ("disabled"). */
+  enforcement: z.enum(['on', 'off']).optional(),
 });
 export const ErrorViewSchema = z.object({
   seq: positiveInt,
@@ -133,6 +135,11 @@ export const AttemptViewSchema = z.object({
   exitReason: z.string().optional(),
   released: z.boolean(),
   usage: TokenUsageSchema,
+  /** S26 (provisional): "waiting for quota"; `null` once lifted. */
+  rateLimited: z
+    .object({ since: isoDateTime, resetsAt: isoDateTime.optional() })
+    .nullable()
+    .optional(),
 });
 export const ActivityViewSchema = ActivityMetaSchema.extend({
   attemptId: id,
@@ -473,9 +480,15 @@ export const HealthViewSchema = z.object({
       .optional(),
     runOwned: z.boolean().optional(),
     cliCallsPerMinute: nonNegativeInt.optional(),
+    binPath: z.string().optional(),
+    supportedRange: z.string().optional(),
+    /** `RuntimeWarning` strings (M2 §8.4), usable as i18n keys. */
+    warnings: z.array(z.string()).optional(),
+    cpuSecondsPerMinute: z.number().nonnegative().optional(),
   }),
   scm: healthComponent.extend({
     login: id.optional(),
+    ghBinPath: z.string().optional(),
     rateLimit: z
       .object({
         limit: nonNegativeInt,
@@ -491,6 +504,7 @@ export const HealthViewSchema = z.object({
         agent: AgentKindSchema,
         source: z.string(),
         available: z.boolean(),
+        formatVerified: z.boolean().optional(),
       }),
     ),
   }),

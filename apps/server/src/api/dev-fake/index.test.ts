@@ -145,3 +145,43 @@ it('validates added controls before mutation and retains REST security', async (
     await app.close();
   }
 });
+
+it('hijacks the fake runtime only with a session and an object body', async () => {
+  const app = Fastify();
+  const hijackRuntime = vi.fn(() => 2);
+  await registerDevFakeRoutes(
+    app,
+    {
+      port: 1234,
+      sessions: {
+        verify: (t) => t === 'valid',
+        exchangeBootstrapCode: () => null,
+      },
+    },
+    { mergeOwner: vi.fn(), hijackRuntime },
+  );
+  const headers = {
+    host: 'localhost:1234',
+    origin: 'http://localhost:1234',
+    cookie: 'aio_session=valid',
+  };
+  const hijack = (payload: unknown, override = {}) =>
+    app.inject({
+      method: 'POST',
+      url: '/dev/fake/runtime/hijack',
+      headers: { ...headers, ...override },
+      payload: payload as object,
+    });
+  try {
+    expect((await hijack({}, { cookie: '' })).statusCode).toBe(401);
+    expect(
+      (await hijack({}, { origin: 'http://evil.invalid' })).statusCode,
+    ).toBe(403);
+    expect((await hijack([1])).statusCode).toBe(400);
+    expect(hijackRuntime).not.toHaveBeenCalled();
+    expect((await hijack({})).json()).toEqual({ hijacked: 2 });
+    expect(hijackRuntime).toHaveBeenCalledTimes(1);
+  } finally {
+    await app.close();
+  }
+});
