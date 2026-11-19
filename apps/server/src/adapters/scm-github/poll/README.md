@@ -37,3 +37,14 @@ timestamps, except for refs and checks, which have none and use the clock.
 
 The cursor is versioned JSON bounded by `CURSOR_LIMITS`; malformed cursors and
 cursors of another repository fail with `validation invalid_cursor`.
+
+Transition keys are chained (FX-C): `pr.state`, `issue.edited`,
+`branch.head_changed` and `pr.checks` use `<readable state>:<H(previous key,
+state)>`, with the object's previous key (`pr:<n>`, `issue:<n>`, `ref:<branch>`,
+`ck:<n>`) kept in the cursor's `k` map. A return to an earlier state (a reopened
+PR, a reverted body, a branch moved back, flapping checks) therefore gets a fresh
+key instead of being dropped by ingestion as already observed, while replaying a
+cursor repeats its keys. `k` holds one key per object the cursor still tracks and
+is pruned with it. A cursor written before FX-C has no `k`: its chains start
+empty, so no transition is re-emitted (events still come only from the state diff)
+and later keys simply carry the suffix.
