@@ -41,3 +41,65 @@ it.each([
     }),
   ).toThrow();
 });
+
+it('normalizes public GitHub remotes, user URLs and noreply authors into scan-safe values', () => {
+  const value = new TapeNormalizer().value({
+    ssh_url: `git@github.com:${REPO}.git`,
+    git_url: `git://github.com/${REPO}.git`,
+    clone_url: `https://github.com/${REPO}.git`,
+    user: {
+      url: `${API}/users/ClarkeYeh`,
+      followers_url: `${API}/users/ClarkeYeh/followers`,
+    },
+    committer: { email: 'noreply@github.com' },
+    author: { email: '123+ClarkeYeh@users.noreply.github.com' },
+  });
+  expect(value.ssh_url).toBe(value.clone_url);
+  expect(value.git_url).toBe(value.clone_url);
+  expect(value.committer.email).toBe('<github-noreply>');
+  expect(value.author.email).toBe('<github-noreply>');
+  for (const url of [
+    value.ssh_url,
+    value.git_url,
+    value.clone_url,
+    value.user.url,
+    value.user.followers_url,
+  ])
+    expect(new URL(url).protocol).toBe('https:');
+  expect(value.user.followers_url).toBe(
+    `https://github.com/${REPO}/__users__/ClarkeYeh/followers`,
+  );
+  expect(() => assertTapeSafe(value)).not.toThrow();
+  expect(new TapeNormalizer().value(value)).toEqual(value);
+});
+
+// Rebuilt from the integrator's eight planted samples; all values are synthetic.
+const planted = [
+  { token: 'ghp_' + 'SyntheticSecret123456789' },
+  { token: 'github_pat_' + 'SyntheticSecret123456789' },
+  { commit: { author: { email: 'user@example.org' } } },
+  { body: 'Contact user@example.org' },
+  { path: '/Users/synthetic/private' },
+  { path: '/home/synthetic/private' },
+  { node_id: 'ghp_' + 'SyntheticSecret123456789' },
+  { url: `${API}${ROOT}/issues?token=ghp_SyntheticSecret123456789` },
+];
+it.each(planted)(
+  'rejects a planted leak before normalization can conceal it (%#)',
+  (value) => {
+    expect(() => assertTapeSafe(new TapeNormalizer().value(value))).toThrow(
+      'Tape leak scan failed',
+    );
+    expect(() => assertTapeSafe(value)).toThrow('Tape leak scan failed');
+  },
+);
+
+it.each([
+  `git@github.com:${REPO}.git?token=ghp_SyntheticSecret123456789`,
+  `${API}/users/ClarkeYeh/ghp_SyntheticSecret123456789`,
+  'not-noreply@github.com',
+  'noreply@github.com.evil.org',
+  '123+name@users.noreply.github.com.evil.org',
+])('does not broaden public-field exceptions (%#)', (value) => {
+  expect(() => assertTapeSafe(new TapeNormalizer().value({ value }))).toThrow();
+});

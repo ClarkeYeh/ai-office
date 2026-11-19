@@ -1,8 +1,11 @@
+import { githubRefRedactor } from './ref-redaction.js';
 import { createRedactor } from '@ai-office/redaction';
 import { API, ROOT, REPO } from './safety.js';
 
 const htmlRoot = `https://github.com/${REPO}`;
-const redactor = createRedactor({ preservedRepoUrls: [htmlRoot] });
+const redactor = githubRefRedactor(
+  createRedactor({ preservedRepoUrls: [htmlRoot] }),
+);
 
 /** Per-tape identities; normalization is idempotent and never changes request hashes. */
 export class TapeNormalizer {
@@ -10,6 +13,13 @@ export class TapeNormalizer {
   value<T>(value: T): T {
     const walk = (v: unknown, key = ''): unknown => {
       if (typeof v === 'string') {
+        const publicRemote = [
+          `git@github.com:${REPO}.git`,
+          `git://github.com/${REPO}.git`,
+          `https://github.com/${REPO}.git`,
+        ].includes(v);
+        // Exact public remotes only; do not exempt arbitrary SSH/email strings.
+        if (!publicRemote) assertNoSensitiveText(v);
         // Opaque text must be hashed unchanged so known request bodies rehydrate.
         if (
           /^(?:body|content|text|input|output|preview|spec|prompt|question|objective|stderrLines)$/i.test(
@@ -17,6 +27,13 @@ export class TapeNormalizer {
           )
         )
           return v;
+        if (publicRemote) return htmlRoot + '/__fixtures__/clone';
+        if (
+          /^(?:noreply@github\.com|[A-Za-z0-9+_-]+@users\.noreply\.github\.com)$/.test(
+            v,
+          )
+        )
+          return '<github-noreply>';
         if (key === 'node_id' && !/^NODE_\d{6}$/.test(v)) {
           // Do not turn a secret masquerading as an ID into an innocent placeholder.
           assertNoSensitiveText(v);
@@ -45,6 +62,20 @@ export class TapeNormalizer {
               url.hash
             );
           }
+          if (
+            url.origin === API &&
+            /^\/users\/[A-Za-z0-9-]+(?:\/|$)/.test(url.pathname)
+          ) {
+            if (url.username || url.password)
+              throw new Error('Unsafe tape URL');
+            return (
+              htmlRoot +
+              '/__users__' +
+              url.pathname.slice('/users'.length) +
+              url.search +
+              url.hash
+            );
+          }
           if (url.hostname === 'avatars.githubusercontent.com') {
             assertNoSensitiveText(v);
             if (url.username || url.password)
@@ -66,9 +97,11 @@ export class TapeNormalizer {
 }
 
 function assertNoSensitiveText(value: string): void {
-  const text = decodeURIComponent(value);
+  const text = value.replace(/%([a-f0-9]{2})/gi, (_, byte: string) =>
+    String.fromCharCode(parseInt(byte, 16)),
+  );
   if (
-    /\b(?:gh[a-z]_+[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|aio_seat_[A-Za-z0-9_-]+)|\/(?:Users|home)\/|[A-Z]:\\Users\\|PRIVATE KEY/i.test(
+    /\b(?:gh[a-z]_+[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|aio_seat_[A-Za-z0-9_-]+)|\/(?:Users|home)\/|[A-Z]:\\Users\\|PRIVATE KEY/.test(
       text,
     )
   )
@@ -76,7 +109,11 @@ function assertNoSensitiveText(value: string): void {
   for (const email of text.match(
     /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
   ) ?? []) {
-    if (!/@(?:example\.invalid|(?:users\.)?noreply\.github\.com)$/i.test(email))
+    if (
+      !/^(?:noreply@github\.com|[A-Za-z0-9+_-]+@users\.noreply\.github\.com|[^@]+@example\.invalid)$/i.test(
+        email,
+      )
+    )
       throw new Error('Tape leak scan failed');
   }
 }
