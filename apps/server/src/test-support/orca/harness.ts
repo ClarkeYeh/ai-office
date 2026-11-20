@@ -585,7 +585,10 @@ export class OrcaHarness {
       if (typeof w.id !== 'string') throw new Error('Worktree missing ID');
       // Fail closed: a claimed name must also carry a claimed branch and marker.
       testWorktree(name, comment, namespaces);
-      if (!claimedBranch(branch, namespaces))
+      // M3-T17: an agent may leave its worktree on a detached HEAD (Orca
+      // reports branch null); the claimed name and aio: marker still prove
+      // ownership, and a branch it does name must be claimed.
+      if (branch !== '' && !claimedBranch(branch, namespaces))
         throw new Error('Claimed worktree on an unclaimed branch');
       if (!this.ledger.worktrees.some((x) => x.id === w.id))
         this.ledger.worktrees.push({

@@ -197,8 +197,10 @@ describe('T17 preparation', () => {
   it('states a small explicit requirement with two items and one dependency', () => {
     const text = smokeRequirement('20261119');
     expect(text).toContain('smoke/20261119/greeting.txt');
-    expect(text).toContain('Work item 2 depends on work item 1');
-    expect(text.length).toBeLessThan(800);
+    expect(text).toContain('work item 2 depends on it');
+    // The final PR title is the requirement: one line within GitHub's limit.
+    expect(text).not.toContain('\n');
+    expect(text.length).toBeLessThanOrEqual(256);
     expect(() => smokeRequirement('../x')).toThrow();
     const items = smokeItems('20261119');
     for (const item of items) WorkItemDraftSchema.parse(item);
@@ -208,6 +210,9 @@ describe('T17 preparation', () => {
       splitMatchesSmoke(items.map((i) => ({ ...i, deps: [] as string[] }))),
     ).toBe(false);
     expect(splitMatchesSmoke([...items, items[0]])).toBe(false);
+    expect(
+      splitMatchesSmoke(items.map((i) => ({ ...i, agent: 'codex' }))),
+    ).toBe(false);
   });
   it('only plans the repo-local noreply identity', () => {
     const plan = noreplyPlan(
