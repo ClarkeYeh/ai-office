@@ -29,6 +29,17 @@ const isSignature = (v: unknown): v is Record<string, unknown> =>
   typeof v.date === 'string' &&
   Object.keys(v).every((k) => ['name', 'email', 'date'].includes(k));
 
+// Public service senders of commit-message trailers (Co-Authored-By), exact
+// literals only; the users.noreply form is GitHub's per-user noreply.
+const serviceNoreply = (email: string): string | undefined =>
+  email === 'noreply@anthropic.com'
+    ? '<anthropic-noreply>'
+    : email === 'noreply@github.com' ||
+        /^[A-Za-z0-9+_-]+@users\.noreply\.github\.com$/.test(email)
+      ? GITHUB_NOREPLY
+      : undefined;
+const EMAIL = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+
 /** Per-tape identities; normalization is idempotent and never changes request hashes. */
 export class TapeNormalizer {
   private readonly nodes = new Map<string, string>();
@@ -118,7 +129,9 @@ export class TapeNormalizer {
             walk(
               commit && (k === 'author' || k === 'committer') && isSignature(x)
                 ? { ...x, email: GITHUB_NOREPLY }
-                : x,
+                : commit && k === 'message' && typeof x === 'string'
+                  ? x.replace(EMAIL, (m) => serviceNoreply(m) ?? m)
+                  : x,
               k,
             ),
           ]),
@@ -140,9 +153,7 @@ function assertNoSensitiveText(value: string): void {
     )
   )
     throw new TapeLeakError();
-  for (const email of text.match(
-    /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
-  ) ?? []) {
+  for (const email of text.match(EMAIL) ?? []) {
     if (
       !/^(?:noreply@github\.com|[A-Za-z0-9+_-]+@users\.noreply\.github\.com|[^@]+@example\.invalid)$/i.test(
         email,
@@ -154,6 +165,7 @@ function assertNoSensitiveText(value: string): void {
 
 /** Check the complete normalized envelope, including structural request metadata. */
 export function assertTapeSafe(value: unknown): void {
+  // Token and email checks always see concrete request paths too.
   assertNoSensitiveText(JSON.stringify(value));
   if (redactor.hasLeaks(value)) throw new TapeLeakError();
 }

@@ -182,3 +182,92 @@ it.each([
 ])('still rejects an email in %s', (_, value) => {
   expect(() => new TapeNormalizer().value(value)).toThrow(TapeLeakError);
 });
+
+const recorded = (path: string, pathTemplate: string) => [
+  { method: 'GET', pathTemplate, path, query: [], status: 200, response: {} },
+];
+it.each([
+  ['/pulls/144', '/pulls/{number}'],
+  ['/issues/57', '/issues/{number}'],
+  ['/issues/57/comments', '/issues/{number}/comments'],
+  ['/issues/comments/3456789012', '/issues/comments/{id}'],
+  [`/commits/${'a1'.repeat(20)}/check-runs`, '/commits/{ref}'],
+  [
+    `/compare/${'a1'.repeat(20)}...ai-office%2Ft000000000001-worker`,
+    '/compare/{ref}',
+  ],
+])(
+  'exempts the structural request path %s from the entropy rule',
+  (path, t) => {
+    expect(() =>
+      assertTapeSafe(recorded(ROOT + path, '/repos/{owner}/{repo}' + t)),
+    ).not.toThrow();
+  },
+);
+
+it.each([
+  [
+    'a token-like segment',
+    '/pulls/ghp_SyntheticSecret123456789',
+    '/pulls/{number}',
+  ],
+  ['an email-like segment', `/issues/${privateEmail}`, '/issues/{number}'],
+  ['an unlisted template', '/hooks/144x9Kq2Zr7Lm3Vb8', '/hooks/{id}'],
+  ['a mismatched template', '/pulls/144x9Kq2Zr7Lm3Vb8Wq', '/pulls/{number}'],
+  [
+    'a high-entropy ref',
+    '/git/ref/heads/x9Kq2Zr7Lm3Vb8Wq5Tn1',
+    '/git/ref/heads/{ref}',
+  ],
+])('still scans a request path with %s', (_, path, t) => {
+  expect(() =>
+    assertTapeSafe(recorded(ROOT + path, '/repos/{owner}/{repo}' + t)),
+  ).toThrow(TapeLeakError);
+});
+
+it('does not exempt a concrete path that appears outside a request signature', () => {
+  expect(() =>
+    assertTapeSafe({ note: `${ROOT}/pulls/144x9Kq2Zr7Lm3Vb8Wq` }),
+  ).toThrow(TapeLeakError);
+});
+
+it('normalizes exact public service noreply trailers in commit messages', () => {
+  const message = [
+    'Add greeting',
+    '',
+    'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>',
+    'Co-authored-by: GitHub <noreply@github.com>',
+    'Co-authored-by: Owner <123+Owner@users.noreply.github.com>',
+  ].join('\n');
+  const value = new TapeNormalizer().value({
+    commit: { ...gitCommit(), message },
+  });
+  expect(value.commit.message).toBe(
+    [
+      'Add greeting',
+      '',
+      'Co-Authored-By: Claude Opus 5.5 <<anthropic-noreply>>',
+      'Co-authored-by: GitHub <<github-noreply>>',
+      'Co-authored-by: Owner <<github-noreply>>',
+    ].join('\n'),
+  );
+  expect(() => assertTapeSafe(value)).not.toThrow();
+  expect(new TapeNormalizer().value(value)).toEqual(value);
+});
+
+it.each([
+  'Co-Authored-By: Someone <someone@example.org>',
+  'Co-Authored-By: Claude <xnoreply@anthropic.com>',
+  'Co-Authored-By: Claude <noreply@anthropic.com.evil.org>',
+  'Co-Authored-By: Claude <NoReply@Anthropic.com>',
+])('still rejects any other email in a commit message (%#)', (message) => {
+  expect(() =>
+    new TapeNormalizer().value({ commit: { ...gitCommit(), message } }),
+  ).toThrow(TapeLeakError);
+});
+
+it('keeps service noreply literals scanned outside commit messages', () => {
+  expect(() =>
+    new TapeNormalizer().value({ title: 'Ping noreply@anthropic.com' }),
+  ).toThrow(TapeLeakError);
+});

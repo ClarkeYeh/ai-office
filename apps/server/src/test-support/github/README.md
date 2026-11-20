@@ -61,7 +61,14 @@ stable per-tape placeholders; response API URLs and avatars become valid URLs
 under the permitted spike HTML root before generic redaction and the final leak
 scan. Git commit `author`/`committer` signature emails (commit, branch, compare
 and pull commit rows) become `<github-noreply>` before the leak scan; the adapter
-never reads them. Every other email still fails. A leak scan failure while
+never reads them. In commit messages, only the exact public service senders
+`noreply@anthropic.com` and `noreply@github.com` (and the users.noreply form)
+become placeholders; every other email still fails. The entropy rule skips a
+recorded request `path` only when it is the exact concrete form of its
+allowlisted `pathTemplate` (spike root, numeric ids, refs, SHAs); token-prefix
+and email checks still run on it. A product branch `ai-office/<shortId>-<slug>`
+is kept as an exact `ref` value. Both rules live in `ref-redaction.ts` and its
+fixture-scan twin. A leak scan failure while
 recording is a `TapeLeakError`: the adapter sees it as `github_unavailable`, so
 the recorder keeps it and `assertNoLeak()`/`save()` raise it as a harness error.
 Persistence errors are aggregated at suite end so later cases still run. `ReplayFetch`
@@ -118,3 +125,9 @@ objects and `ai-office/` branches must be identical before and after. Shims are
 ledgered by marker scan because production has no `testOnly` seam. T17 helpers
 (`smokeRequirement`, `smokeItems`, `driveSmokeToFinalGate`, `noreplyPlan`) only
 prepare; nothing here sets the clone's git identity.
+
+`external-merge.ts` replays the owner's hand-merge of spike PR #144 (GA level,
+GET only): `getPR`, then a poll from a cursor that last saw the PR open reports
+`pr.state` merged with `mergedBy`/`mergeCommitSha` and `main` moving. Collection
+rows are scoped to PR #144 before the adapter sees them. The live test writes
+`observations/external-merge-pr-144.json` only with `AIO_GITHUB_RECORD=1`.
