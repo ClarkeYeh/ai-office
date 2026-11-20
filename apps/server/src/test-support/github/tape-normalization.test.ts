@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { TapeNormalizer, assertTapeSafe } from './tape-normalization.js';
+import {
+  TapeLeakError,
+  TapeNormalizer,
+  assertTapeSafe,
+} from './tape-normalization.js';
 import { API, ROOT, REPO } from './safety.js';
 
 it('maps each distinct node consistently and keeps normalized URLs valid and scan-safe', () => {
@@ -102,4 +106,173 @@ it.each([
   '123+name@users.noreply.github.com.evil.org',
 ])('does not broaden public-field exceptions (%#)', (value) => {
   expect(() => assertTapeSafe(new TapeNormalizer().value({ value }))).toThrow();
+});
+
+// Synthetic stand-in for the private address in old spike history.
+const privateEmail = 'private.person@private.invalid';
+const signature = (name: string) => ({
+  name,
+  email: privateEmail,
+  date: '2026-11-17T07:07:35Z',
+});
+const gitCommit = () => ({
+  author: signature('Owner'),
+  committer: signature('Owner'),
+  message: 'Old spike history',
+  tree: { sha: 'b'.repeat(40) },
+  verification: { verified: false, payload: null },
+});
+
+it('replaces only git commit author/committer emails with the noreply placeholder before the leak scan', () => {
+  const row = { sha: 'a'.repeat(40), commit: gitCommit() };
+  const shapes = {
+    'commits.get': row,
+    'branches.get': { name: 'main', protected: true, commit: row },
+    compare: {
+      ahead_by: 1,
+      base_commit: row,
+      merge_base_commit: row,
+      commits: [row],
+    },
+    'pulls.commits': [row],
+  };
+  const value = new TapeNormalizer().value(shapes);
+  const serialized = JSON.stringify(value);
+  expect(serialized).not.toContain(privateEmail);
+  expect(value['branches.get'].commit.commit.author).toEqual({
+    name: 'Owner',
+    email: '<github-noreply>',
+    date: '2026-11-17T07:07:35Z',
+  });
+  expect(value.compare.commits[0]!.commit.committer.email).toBe(
+    '<github-noreply>',
+  );
+  expect(value['branches.get'].protected).toBe(true);
+  expect(() => assertTapeSafe(value)).not.toThrow();
+  expect(new TapeNormalizer().value(value)).toEqual(value);
+});
+
+it.each([
+  ['a GitHub user object', { user: { login: 'x', email: privateEmail } }],
+  ['a signature outside a git commit', { author: signature('Owner') }],
+  [
+    'a signature with extra fields',
+    {
+      commit: {
+        ...gitCommit(),
+        author: { ...signature('Owner'), login: 'x' },
+      },
+    },
+  ],
+  ['a commit message', { commit: { ...gitCommit(), message: privateEmail } }],
+  [
+    'a signed commit payload',
+    {
+      commit: {
+        ...gitCommit(),
+        verification: { payload: `author Owner <${privateEmail}> 0 +0000` },
+      },
+    },
+  ],
+  [
+    'a signature name',
+    { commit: { ...gitCommit(), author: signature(privateEmail) } },
+  ],
+  ['an issue body', { body: `Contact ${privateEmail}` }],
+])('still rejects an email in %s', (_, value) => {
+  expect(() => new TapeNormalizer().value(value)).toThrow(TapeLeakError);
+});
+
+const recorded = (path: string, pathTemplate: string) => [
+  { method: 'GET', pathTemplate, path, query: [], status: 200, response: {} },
+];
+it.each([
+  ['/pulls/144', '/pulls/{number}'],
+  ['/issues/57', '/issues/{number}'],
+  ['/issues/57/comments', '/issues/{number}/comments'],
+  ['/issues/comments/3456789012', '/issues/comments/{id}'],
+  [`/commits/${'a1'.repeat(20)}/check-runs`, '/commits/{ref}'],
+  [
+    `/compare/${'a1'.repeat(20)}...ai-office%2Ft000000000001-worker`,
+    '/compare/{ref}',
+  ],
+])(
+  'exempts the structural request path %s from the entropy rule',
+  (path, t) => {
+    expect(() =>
+      assertTapeSafe(recorded(ROOT + path, '/repos/{owner}/{repo}' + t)),
+    ).not.toThrow();
+  },
+);
+
+it.each([
+  [
+    'a token-like segment',
+    '/pulls/ghp_SyntheticSecret123456789',
+    '/pulls/{number}',
+  ],
+  ['an email-like segment', `/issues/${privateEmail}`, '/issues/{number}'],
+  ['an unlisted template', '/hooks/144x9Kq2Zr7Lm3Vb8', '/hooks/{id}'],
+  ['a mismatched template', '/pulls/144x9Kq2Zr7Lm3Vb8Wq', '/pulls/{number}'],
+  [
+    'a high-entropy ref',
+    '/git/ref/heads/x9Kq2Zr7Lm3Vb8Wq5Tn1',
+    '/git/ref/heads/{ref}',
+  ],
+  [
+    'a high-entropy segment under ai-office/',
+    '/branches/ai-office/q7x9m2k4p8w3z6r1t5y0u2i8o4p6a3s9d1f7g5h2',
+    '/branches/{ref}',
+  ],
+])('still scans a request path with %s', (_, path, t) => {
+  expect(() =>
+    assertTapeSafe(recorded(ROOT + path, '/repos/{owner}/{repo}' + t)),
+  ).toThrow(TapeLeakError);
+});
+
+it('does not exempt a concrete path that appears outside a request signature', () => {
+  expect(() =>
+    assertTapeSafe({ note: `${ROOT}/pulls/144x9Kq2Zr7Lm3Vb8Wq` }),
+  ).toThrow(TapeLeakError);
+});
+
+it('normalizes exact public service noreply trailers in commit messages', () => {
+  const message = [
+    'Add greeting',
+    '',
+    'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>',
+    'Co-authored-by: GitHub <noreply@github.com>',
+    'Co-authored-by: Owner <123+Owner@users.noreply.github.com>',
+  ].join('\n');
+  const value = new TapeNormalizer().value({
+    commit: { ...gitCommit(), message },
+  });
+  expect(value.commit.message).toBe(
+    [
+      'Add greeting',
+      '',
+      'Co-Authored-By: Claude Opus 5.5 <<anthropic-noreply>>',
+      'Co-authored-by: GitHub <<github-noreply>>',
+      'Co-authored-by: Owner <<github-noreply>>',
+    ].join('\n'),
+  );
+  expect(() => assertTapeSafe(value)).not.toThrow();
+  expect(new TapeNormalizer().value(value)).toEqual(value);
+});
+
+it.each([
+  'Co-Authored-By: Someone <someone@example.org>',
+  'Co-Authored-By: Claude <xnoreply@anthropic.com>',
+  'Co-Authored-By: Claude <noreply@anthropic.com.evil.org>',
+  'Co-Authored-By: Claude <NoReply@Anthropic.com>',
+])('still rejects any other email in a commit message (%#)', (message) => {
+  expect(() =>
+    new TapeNormalizer().value({ commit: { ...gitCommit(), message } }),
+  ).toThrow(TapeLeakError);
+});
+
+it('keeps service noreply literals scanned outside commit messages', () => {
+  expect(() =>
+    new TapeNormalizer().value({ title: 'Ping noreply@anthropic.com' }),
+  ).toThrow(TapeLeakError);
 });

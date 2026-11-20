@@ -7,7 +7,11 @@ import {
   summarize,
 } from '@ai-office/redaction';
 import { API, ROOT, REPO } from './safety.js';
-import { TapeNormalizer, assertTapeSafe } from './tape-normalization.js';
+import {
+  TapeLeakError,
+  TapeNormalizer,
+  assertTapeSafe,
+} from './tape-normalization.js';
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 const redactor = githubRefRedactor(
@@ -86,6 +90,9 @@ async function signature(request: Request, normalizer: GithubNormalizer) {
 export class RecordingFetch {
   readonly recordings: Recording[] = [];
   private readonly normalizer: GithubNormalizer;
+  // The adapter maps any transport throw to github_unavailable, so the first
+  // leak is kept and raised again by save()/assertNoLeak() as a harness error.
+  private leak: TapeLeakError | undefined;
   constructor(
     private readonly transport: typeof fetch,
     runId?: string,
@@ -105,16 +112,33 @@ export class RecordingFetch {
         data = summarize(text);
       }
     }
+    let headers: Record<string, string>, normalized: unknown;
+    try {
+      headers = this.normalizer.headers(response.headers);
+      normalized = this.normalizer.value(data);
+    } catch (error) {
+      const leak = error instanceof TapeLeakError ? error : new TapeLeakError();
+      this.leak ??= leak;
+      throw leak;
+    }
     this.recordings.push({
       apiVersion: '2022-11-28',
       ...sig,
       status: response.status,
-      headers: this.normalizer.headers(response.headers),
-      response: this.normalizer.value(data),
+      headers,
+      response: normalized,
     });
     return response;
   };
+  /** For recorders that deliberately withhold a response after a leak. */
+  acknowledge(error: unknown): void {
+    if (error === this.leak) this.leak = undefined;
+  }
+  assertNoLeak(): void {
+    if (this.leak) throw this.leak;
+  }
   async save(path: string): Promise<void> {
+    this.assertNoLeak();
     // Request keys are structural metadata; sanitize them too before persistence.
     const value = new TapeNormalizer().value(this.recordings);
     assertTapeSafe(value);

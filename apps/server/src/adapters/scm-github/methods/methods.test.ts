@@ -751,6 +751,86 @@ describe('GitHub T4 methods through the HTTP boundary (offline)', () => {
   });
 });
 
+// FX-TAPE: the tape normalizer replaces commit emails, so the adapter must never read them.
+describe('GitHub commit signatures', () => {
+  const sentinel = 'private.person@private.invalid';
+  const withEmail = (value: unknown, email: string | undefined): unknown => {
+    if (Array.isArray(value)) return value.map((v) => withEmail(v, email));
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([k, v]) =>
+        k === 'email'
+          ? email === undefined
+            ? []
+            : [[k, email]]
+          : [[k, withEmail(v, email)]],
+      ),
+    );
+  };
+  const row = {
+    sha,
+    commit: {
+      author: {
+        name: 'Owner',
+        email: 'x@private.invalid',
+        date: '2026-01-01T00:00:00Z',
+      },
+      committer: {
+        name: 'Owner',
+        email: 'x@private.invalid',
+        date: '2026-01-01T00:00:00Z',
+      },
+      message: 'Old spike history',
+      tree: { sha },
+    },
+  };
+  async function observe(email: string | undefined) {
+    const steps = inspection();
+    steps[2]!.data = withEmail(steps[2]!.data, email);
+    steps.push({
+      path: `${base}/compare/${sha}...ai-office%2Fx`,
+      data: withEmail(
+        {
+          ahead_by: 1,
+          base_commit: row,
+          merge_base_commit: row,
+          commits: [row],
+        },
+        email,
+      ),
+    });
+    steps.push({
+      path: `${base}/git/ref/heads/ai-office%2Fx`,
+      data: { object: { sha } },
+    });
+    const f = setup(steps);
+    const result = {
+      inspect: await f.scm.inspectRepo(repo),
+      compare: await f.scm.compareBranch(repo, sha, 'ai-office/x'),
+    };
+    f.done();
+    return result;
+  }
+  it('inspects and compares identically whether commit emails are private, placeholders or absent', async () => {
+    const leaked = await observe(sentinel);
+    expect(JSON.stringify(leaked)).not.toContain(sentinel);
+    expect(await observe('<github-noreply>')).toEqual(leaked);
+    expect(await observe(undefined)).toEqual(leaked);
+  });
+  it('has no adapter source that reads an email field', async () => {
+    const { readdir, readFile } = await import('node:fs/promises');
+    const root = new URL('../', import.meta.url);
+    const files = (await readdir(root, { recursive: true })).filter(
+      (f) => f.endsWith('.ts') && !f.endsWith('.test.ts'),
+    );
+    expect(files.length).toBeGreaterThan(10);
+    for (const file of files)
+      expect(await readFile(new URL(file, root), 'utf8'), file).not.toMatch(
+        /\bemail\b/i,
+      );
+  });
+});
+
 it.each([
   ['a'.repeat(256), 'a'.repeat(256)],
   ['字'.repeat(300), '字'.repeat(255) + '…'],

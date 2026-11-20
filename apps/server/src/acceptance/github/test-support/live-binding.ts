@@ -10,7 +10,10 @@ import { RecordingFetch } from '../../../test-support/github/recording.js';
 import { ContractFaults } from '../../../test-support/github/contract-faults.js';
 import { githubOwnerActions } from '../../../test-support/github/owner-actions.js';
 import { API, ROOT } from '../../../test-support/github/safety.js';
-import { assertTapeSafe } from '../../../test-support/github/tape-normalization.js';
+import {
+  TapeLeakError,
+  assertTapeSafe,
+} from '../../../test-support/github/tape-normalization.js';
 import type { MixedBinding } from './mixed-office.js';
 import type { StepResult } from './scenario.js';
 import { liveHttpPath } from './tapes.js';
@@ -188,10 +191,12 @@ function scopedRecording(transport: typeof fetch, runId: string) {
     }
     try {
       await recorder.fetch(request);
-    } catch {
+    } catch (error) {
+      if (!(error instanceof TapeLeakError)) throw error;
+      recorder.acknowledge(error);
       // The leak scan runs while recording (T8): a response carrying data that
-      // must never enter a fixture (e.g. the spike main commit's author) is
-      // recorded withheld. The adapter always gets the real response.
+      // must never enter a fixture is recorded withheld. The adapter always
+      // gets the real response.
       withheld++;
       const data: unknown = await full
         .clone()

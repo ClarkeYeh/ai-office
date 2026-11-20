@@ -66,3 +66,51 @@ it('scans preserved refs on disk and rejects a planted token in a ref segment', 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+it('keeps a structural request path only in GitHub fixtures and only for its exact template', () => {
+  const root = '/repos/ClarkeYeh/ai-office-spike';
+  const signature = (path: string, template = '/pulls/{number}') => ({
+    method: 'GET',
+    pathTemplate: '/repos/{owner}/{repo}' + template,
+    path: root + path,
+  });
+  const scan = fixtureRedactor('fixtures/github/example.json');
+  expect(scan.hasLeaks([signature('/pulls/144')])).toBe(false);
+  expect(
+    scan.hasLeaks([
+      signature('/issues/57/comments', '/issues/{number}/comments'),
+    ]),
+  ).toBe(false);
+  expect(fixtureRedactor().hasLeaks([signature('/pulls/144')])).toBe(true);
+  for (const value of [
+    signature('/pulls/144x9Kq2Zr7Lm3Vb8Wq'),
+    signature('/pulls/144', '/issues/{number}'),
+    signature(
+      '/git/ref/heads/ai-office/ghp_SyntheticSecret123456789',
+      '/git/ref/heads/{ref}',
+    ),
+    { path: root + '/pulls/144' },
+  ])
+    expect(scan.hasLeaks([value])).toBe(true);
+});
+
+it('keeps a product branch only as a ref value and only in its exact form', () => {
+  const scan = fixtureRedactor('fixtures/github/example.json');
+  const branch = 'ai-office/1cd773791d59-smoke-test-work-item-1-adds-smok';
+  expect(scan.hasLeaks({ head: { ref: branch } })).toBe(false);
+  expect(scan.maskText(branch)).toBe(branch);
+  expect(fixtureRedactor().hasLeaks({ ref: branch })).toBe(true);
+  for (const value of [
+    { label: `ClarkeYeh:${branch}` },
+    { ref: 'ai-office/1cd773791d59-Smoke_x9Kq2Zr7Lm3Vb8Wq' },
+    { ref: 'ai-office/1cd773791d59-ghp_SyntheticSecret123456789' },
+    { ref: 'ai-office/1cd773791d59-sk-x9kq2zr7lm3vb8wq5tn1' },
+    // Lowercase high-entropy words are not a slug either.
+    { ref: 'ai-office/1cd773791d59-q7x9m2k4p8w3z6r1t5y0u2i8o4p6a3s9d1f7g5h2' },
+    {
+      ref: 'ai-office/1cd773791d59-fix-q7x9m2k4p8w3z6r1t5y0u2i8o4p6a3s9d1f7g5h2',
+    },
+    { ref: 'other/1cd773791d59-smoke-test-work-item-1-adds-smok' },
+  ])
+    expect(scan.hasLeaks(value)).toBe(true);
+});
