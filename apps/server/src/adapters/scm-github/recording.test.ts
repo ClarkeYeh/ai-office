@@ -236,3 +236,89 @@ it('round-trips the encoded-ref scenario with public GitHub metadata without net
   replay.assertConsumed();
   replayTime.assertConsumed();
 });
+
+// Synthetic stand-in for the private address in old spike history (FX-TAPE).
+const privateEmail = 'private.person@private.invalid';
+const signature = {
+  name: 'Owner',
+  email: privateEmail,
+  date: '2026-01-01T00:00:00Z',
+};
+function spikeMain(leak?: unknown): typeof fetch {
+  return async (input, init) => {
+    const path = decodeURIComponent(
+      new URL(new Request(input, init).url).pathname,
+    );
+    if (path === '/user')
+      return Response.json({ login: 'ClarkeYeh', ...(leak ?? {}) });
+    if (path.includes('/rules/')) return Response.json([]);
+    if (path.endsWith('/protection')) return Response.json({});
+    if (path.endsWith('/branches/main'))
+      return Response.json({
+        name: 'main',
+        protected: true,
+        commit: {
+          sha: 'a'.repeat(40),
+          commit: {
+            author: signature,
+            committer: signature,
+            message: 'Old spike history',
+            tree: { sha: 'b'.repeat(40) },
+          },
+        },
+      });
+    return Response.json({
+      default_branch: 'main',
+      visibility: 'public',
+      archived: false,
+      allow_merge_commit: true,
+      permissions: { push: true },
+    });
+  };
+}
+const offline = {
+  clock: { now: () => new Date('2026-01-01T00:00:00Z') },
+  sleep: async () => {},
+  registeredAt: () => '2026-01-01T00:00:00Z',
+};
+
+it('records branches.get on a main whose commit carries a private email, then strictly replays inspectRepo', async () => {
+  const recorder = new RecordingFetch(spikeMain());
+  const live = await assembleContractScm({
+    ...offline,
+    fetch: recorder.fetch,
+  }).inspectRepo(contractRepo);
+  expect(live.defaultBranchProtected).toBe(true);
+  recorder.assertNoLeak();
+  expect(JSON.stringify(recorder.recordings)).not.toContain(privateEmail);
+  const replay = new ReplayFetch(recorder.recordings);
+  expect(
+    await assembleContractScm({ ...offline, fetch: replay.fetch }).inspectRepo(
+      contractRepo,
+    ),
+  ).toEqual(live);
+  replay.assertConsumed();
+});
+
+it('raises a leak the adapter maps to github_unavailable as a harness TapeLeakError and saves nothing', async () => {
+  const { TapeLeakError } =
+    await import('../../test-support/github/tape-normalization.js');
+  const recorder = new RecordingFetch(spikeMain({ email: privateEmail }));
+  await expect(
+    assembleContractScm({ ...offline, fetch: recorder.fetch }).inspectRepo(
+      contractRepo,
+    ),
+  ).rejects.toMatchObject({ code: 'github_unavailable' });
+  expect(() => recorder.assertNoLeak()).toThrow(TapeLeakError);
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = await mkdtemp(join(tmpdir(), 'aio-tape-leak-'));
+  try {
+    const path = join(dir, 'tape.json');
+    await expect(recorder.save(path)).rejects.toBeInstanceOf(TapeLeakError);
+    expect(existsSync(path)).toBe(false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

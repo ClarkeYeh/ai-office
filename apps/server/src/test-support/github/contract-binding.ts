@@ -218,6 +218,8 @@ export function githubContract(
             },
             dispose: async () => {
               await scope.dispose(activeCleanup);
+              // The adapter reports a leak as github_unavailable; fail as the harness.
+              recorder?.assertNoLeak();
               if (!harness) {
                 replay!.assertConsumed();
                 time.assertConsumed();
@@ -231,6 +233,7 @@ export function githubContract(
                 throw new Error(
                   'Refusing to publish before successful cleanup',
                 );
+              recorder.assertNoLeak();
               await mkdir(directory, { recursive: true });
               const value = new TapeNormalizer().value<Tape>({
                 format: 2,

@@ -7,6 +7,28 @@ const redactor = githubRefRedactor(
   createRedactor({ preservedRepoUrls: [htmlRoot] }),
 );
 
+/** A tape leak scan failure: a harness error, never a GitHub outcome. */
+export class TapeLeakError extends Error {
+  override readonly name = 'TapeLeakError';
+  constructor(message = 'Tape leak scan failed') {
+    super(message);
+  }
+}
+
+const GITHUB_NOREPLY = '<github-noreply>';
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+// A git commit object (commit, branch.commit, compare and pulls/commits rows):
+// its author/committer are git signatures, never GitHub user objects.
+const isGitCommit = (v: Record<string, unknown>) =>
+  typeof v.message === 'string' && isRecord(v.tree);
+const isSignature = (v: unknown): v is Record<string, unknown> =>
+  isRecord(v) &&
+  typeof v.name === 'string' &&
+  typeof v.email === 'string' &&
+  typeof v.date === 'string' &&
+  Object.keys(v).every((k) => ['name', 'email', 'date'].includes(k));
+
 /** Per-tape identities; normalization is idempotent and never changes request hashes. */
 export class TapeNormalizer {
   private readonly nodes = new Map<string, string>();
@@ -33,7 +55,7 @@ export class TapeNormalizer {
             v,
           )
         )
-          return '<github-noreply>';
+          return GITHUB_NOREPLY;
         if (key === 'node_id' && !/^NODE_\d{6}$/.test(v)) {
           // Do not turn a secret masquerading as an ID into an innocent placeholder.
           assertNoSensitiveText(v);
@@ -52,7 +74,7 @@ export class TapeNormalizer {
           ) {
             assertNoSensitiveText(v);
             if (url.username || url.password)
-              throw new Error('Unsafe tape URL');
+              throw new TapeLeakError('Unsafe tape URL');
             // Valid, fixture-safe URLs; adapter requests retain their original API paths.
             return (
               htmlRoot +
@@ -67,7 +89,7 @@ export class TapeNormalizer {
             /^\/users\/[A-Za-z0-9-]+(?:\/|$)/.test(url.pathname)
           ) {
             if (url.username || url.password)
-              throw new Error('Unsafe tape URL');
+              throw new TapeLeakError('Unsafe tape URL');
             return (
               htmlRoot +
               '/__users__' +
@@ -79,17 +101,29 @@ export class TapeNormalizer {
           if (url.hostname === 'avatars.githubusercontent.com') {
             assertNoSensitiveText(v);
             if (url.username || url.password)
-              throw new Error('Unsafe tape URL');
+              throw new TapeLeakError('Unsafe tape URL');
             return htmlRoot + '/__fixtures__/avatar.png';
           }
         }
         return v;
       }
       if (Array.isArray(v)) return v.map((x) => walk(x));
-      if (v && typeof v === 'object')
+      if (isRecord(v)) {
+        const commit = isGitCommit(v);
         return Object.fromEntries(
-          Object.entries(v).map(([k, x]) => [k, walk(x, k)]),
+          Object.entries(v).map(([k, x]) => [
+            k,
+            // The adapter never reads commit emails; old spike history carries a
+            // private one, so it is replaced before the leak scan sees it.
+            walk(
+              commit && (k === 'author' || k === 'committer') && isSignature(x)
+                ? { ...x, email: GITHUB_NOREPLY }
+                : x,
+              k,
+            ),
+          ]),
         );
+      }
       return v;
     };
     return walk(value) as T;
@@ -105,7 +139,7 @@ function assertNoSensitiveText(value: string): void {
       text,
     )
   )
-    throw new Error('Tape leak scan failed');
+    throw new TapeLeakError();
   for (const email of text.match(
     /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
   ) ?? []) {
@@ -114,12 +148,12 @@ function assertNoSensitiveText(value: string): void {
         email,
       )
     )
-      throw new Error('Tape leak scan failed');
+      throw new TapeLeakError();
   }
 }
 
 /** Check the complete normalized envelope, including structural request metadata. */
 export function assertTapeSafe(value: unknown): void {
   assertNoSensitiveText(JSON.stringify(value));
-  if (redactor.hasLeaks(value)) throw new Error('Tape leak scan failed');
+  if (redactor.hasLeaks(value)) throw new TapeLeakError();
 }

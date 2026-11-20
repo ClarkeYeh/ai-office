@@ -59,7 +59,12 @@ are recorded. Run IDs normalize to `000000000001` before sanitization. Paginatio
 links use relative API paths on disk and are restored on replay. Node IDs use
 stable per-tape placeholders; response API URLs and avatars become valid URLs
 under the permitted spike HTML root before generic redaction and the final leak
-scan. Persistence errors are aggregated at suite end so later cases still run. `ReplayFetch`
+scan. Git commit `author`/`committer` signature emails (commit, branch, compare
+and pull commit rows) become `<github-noreply>` before the leak scan; the adapter
+never reads them. Every other email still fails. A leak scan failure while
+recording is a `TapeLeakError`: the adapter sees it as `github_unavailable`, so
+the recorder keeps it and `assertNoLeak()`/`save()` raise it as a harness error.
+Persistence errors are aggregated at suite end so later cases still run. `ReplayFetch`
 has no network fallback; missing, extra, reordered, or different calls fail.
 Always call `assertConsumed()`. Supply known synthetic `bodies` for SHA-256
 rehydration (including markers); unknown summaries become deterministic strings.
