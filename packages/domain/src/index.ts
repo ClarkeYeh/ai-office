@@ -15,3 +15,4 @@ export {
 export type { EvolveResult, EvolveWarning } from './evolve.js';
 export * from './state/index.js';
 export * from './spec-builder/index.js';
+export { scmTitle } from './scm-title.js';

@@ -1,3 +1,4 @@
+import { scmTitle } from '@ai-office/domain';
 import { z } from 'zod';
 import { PortError } from '../../../ports/errors.js';
 import type { PrRef, RepoScmRef } from '../../../ports/refs.js';
@@ -65,7 +66,7 @@ export function createPrMethods(
         {
           ...params,
           body: {
-            title: draft.title,
+            title: scmTitle(draft.title, 256),
             body,
             head: draft.head,
             base: draft.base,

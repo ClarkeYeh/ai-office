@@ -916,3 +916,15 @@ describe('pause time does not count toward deadlines (FX8, FX8b)', () => {
     expect(sim.rejections).toEqual([]);
   });
 });
+
+it('caps worker PR titles derived from free-text work items', () => {
+  const { sim } = setup({
+    items: [{ ...item('A'), title: '\n' + '😀'.repeat(200) + '\nDetails' }],
+  });
+  done(sim, 'A');
+  const command = sim.issued.find(
+    (e) => e.command.kind === 'scm.openPR',
+  )!.command;
+  expect(command).toMatchObject({ args: { title: '😀'.repeat(59) + '…' } });
+  expect(sim.rejections).toEqual([]);
+});

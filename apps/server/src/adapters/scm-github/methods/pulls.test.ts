@@ -677,3 +677,31 @@ describe('listReviewComments', () => {
     ]);
   });
 });
+
+it.each([
+  ['a'.repeat(256), 'a'.repeat(256)],
+  ['字'.repeat(300), '字'.repeat(255) + '…'],
+  ['a'.repeat(254) + '😀more', 'a'.repeat(254) + '…'],
+])(
+  'caps PR titles before HTTP without changing their body',
+  async (title, expected) => {
+    const f = setup({
+      'POST /pulls': [
+        synthetic({
+          number: 8,
+          html_url: 'https://github.com/ClarkeYeh/ai-office-spike/pull/8',
+        }),
+      ],
+    });
+    await f.openPR(
+      repo,
+      { title, body: 'Full source', head: int, base: 'main' },
+      c,
+    );
+    expect(f.calls).toHaveLength(1);
+    expect(f.calls[0]!.body).toMatchObject({
+      title: expected,
+      body: 'Full source\n\n' + mark,
+    });
+  },
+);

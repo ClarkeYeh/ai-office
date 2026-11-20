@@ -44,7 +44,7 @@ it('keeps proposed work items private until approval and applies revisions', () 
       items: [
         {
           key: 'X',
-          title: 'Revised',
+          title: '\n' + '項目'.repeat(150) + '\nMore details',
           body: 'Updated',
           acceptance: ['Works'],
           role: 'engineer',
@@ -56,6 +56,10 @@ it('keeps proposed work items private until approval and applies revisions', () 
   });
   expect(sim.state.workItemOrder).toEqual(['X']);
   expect(sim.state.workItems.X?.issue).toBe(1);
+  expect(
+    sim.issued.filter((c) => c.command.kind === 'scm.createIssue').at(-1)
+      ?.command,
+  ).toMatchObject({ args: { title: '項目'.repeat(59) + '項…' } });
   expect(sim.rejections).toEqual([]);
   expect(
     sim
