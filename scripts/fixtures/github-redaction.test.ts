@@ -107,7 +107,9 @@ it('keeps a product branch only as a ref value and only in its exact form', () =
     { ref: 'ai-office/1cd773791d59-sk-x9kq2zr7lm3vb8wq5tn1' },
     // Lowercase high-entropy words are not a slug either.
     { ref: 'ai-office/1cd773791d59-q7x9m2k4p8w3z6r1t5y0u2i8o4p6a3s9d1f7g5h2' },
-    { ref: 'ai-office/1cd773791d59-fix-q7x9m2k4p8w3z6r1t5y0u2i8o4p6a3s9d1f7g5h2' },
+    {
+      ref: 'ai-office/1cd773791d59-fix-q7x9m2k4p8w3z6r1t5y0u2i8o4p6a3s9d1f7g5h2',
+    },
     { ref: 'other/1cd773791d59-smoke-test-work-item-1-adds-smok' },
   ])
     expect(scan.hasLeaks(value)).toBe(true);
