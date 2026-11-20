@@ -166,8 +166,12 @@ export function assertCommand(
       (w) => `id:${w.id}` === flags.get('--worktree'),
     )!;
     testWorktree(item.name, item.comment, claims(ledger));
-    testBranch(item.branch, false, claims(ledger));
-    allowed = ['--worktree', '--delete-branch'];
+    // M3-T17: a detached worktree has no branch, so nothing to delete with it.
+    if (item.branch === '') allowed = ['--worktree'];
+    else {
+      testBranch(item.branch, false, claims(ledger));
+      allowed = ['--worktree', '--delete-branch'];
+    }
   } else if (group === 'terminal' && action === 'close') {
     own(
       '--terminal',

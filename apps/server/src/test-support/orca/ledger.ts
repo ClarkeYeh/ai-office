@@ -137,7 +137,8 @@ export async function cleanup(
   }
   for (const item of ledger.worktrees.filter((r) => !r.done)) {
     testWorktree(item.name, item.comment, claims(ledger));
-    testBranch(item.branch, false, claims(ledger));
+    // A detached worktree has no branch; its name and marker were checked.
+    if (item.branch !== '') testBranch(item.branch, false, claims(ledger));
     await driver.removeWorktree(item.id);
     item.done = true;
     await persist();

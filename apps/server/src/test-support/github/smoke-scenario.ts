@@ -105,6 +105,45 @@ async function ownerDecision(
   throw new Error(`No owner decision for ${String(status.for)}`);
 }
 
+/** Waits until every command issued after `afterSeq` settled; kinds and codes only. */
+async function settleAfter(
+  api: Api,
+  workflowId: string,
+  afterSeq: number,
+  timeoutMs = 10 * 60_000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const log = (await events(api, workflowId)).filter(
+      (e) => (e.seq as number) > afterSeq,
+    );
+    const done = new Map(
+      log
+        .filter(
+          (e) => e.type === 'command.succeeded' || e.type === 'command.failed',
+        )
+        .map((e) => [e.payload.commandId as string, e]),
+    );
+    const issued = log.filter((e) => e.type === 'command.issued');
+    if (
+      (issued.length > 0 &&
+        issued.every((e) => done.has(e.payload.commandId))) ||
+      Date.now() > deadline
+    )
+      return issued.map((e) => {
+        const settled = done.get(e.payload.commandId);
+        return {
+          kind: String(e.payload.kind),
+          outcome: settled?.type ?? 'pending',
+          ...(settled?.payload.error?.code
+            ? { code: String(settled.payload.error.code) }
+            : {}),
+        };
+      });
+    await delay(3_000);
+  }
+}
+
 /** Commit identity counts only: emails are compared, never reported. */
 function identity(commits: Json[], email: string) {
   return {
@@ -340,7 +379,11 @@ export async function run(h: OrcaHarness): Promise<void> {
         const integration = log.find((e) => e.type === 'workflow.started')
           ?.payload.integrationBranch as string | undefined;
         if (integration) branches.add(integration);
-        const pushes = (await reader.list('/activity')).filter((a) =>
+        // The activity API pages by cursor and ignores `page` (GithubApi.list
+        // would loop to its bound); the latest 100 entries cover one run.
+        const activity = (await reader.request('GET', '/activity?per_page=100'))
+          .data as unknown as Json[];
+        const pushes = activity.filter((a) =>
           branches.has(String(a.ref).replace(/^refs\/heads\//, '')),
         );
         Object.assign(report, {
@@ -537,6 +580,21 @@ export async function run(h: OrcaHarness): Promise<void> {
       expect.that(
         log.filter((e) => e.type.startsWith('budget.')).length === 0,
         'enforcement off: no budget.* events',
+      );
+      // The owner's "clean up" (M2-T17 D9): retained workspaces and worker
+      // branches go before the backend stops and both janitors run.
+      const cleanupFrom = (log.at(-1)?.seq as number | undefined) ?? 0;
+      const cleaned = await live.call(
+        'POST',
+        `/api/v1/workflows/${encodeURIComponent(id)}/cleanup`,
+      );
+      expect.that(cleaned.status < 300, `owner cleanup ${cleaned.status}`);
+      const cleanup = await settleAfter(live, id, cleanupFrom);
+      report.cleanup = cleanup;
+      expect.that(
+        cleanup.length > 0 &&
+          cleanup.every((c) => c.outcome === 'command.succeeded'),
+        'owner cleanup commands succeeded',
       );
       finished = true;
     } finally {
