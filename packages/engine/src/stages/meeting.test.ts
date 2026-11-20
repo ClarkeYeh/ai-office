@@ -385,3 +385,17 @@ describe('re-evaluation on resume', () => {
     });
   });
 });
+
+it('caps conclusion Issue titles from a long template name', () => {
+  const sim = new Simulator({
+    world: scenario(),
+    react: createReact(DEFAULT_MODULES),
+  });
+  const start = startWorkflow();
+  start.template.name = 'a'.repeat(300);
+  sim.dispatch(start);
+  expect(
+    sim.issued.find((c) => c.command.kind === 'scm.createIssue')?.command,
+  ).toMatchObject({ args: { title: 'a'.repeat(119) + '…' } });
+  expect(sim.rejections).toEqual([]);
+});

@@ -77,6 +77,28 @@ const finalGate = (sim: Simulator) =>
     .at(-1)!;
 
 describe('wrap-up and final PR', () => {
+  it.each([
+    ['x'.repeat(300), 'x'.repeat(119) + '…'],
+    ['\n  First\t line  \r\nFull details', 'First line'],
+    ['需求'.repeat(200), '需求'.repeat(59) + '需…'],
+    ['😀'.repeat(200), '😀'.repeat(59) + '…'],
+  ])(
+    'publishes a derived title and retains the full requirement',
+    (requirement, title) => {
+      const sim = setup();
+      sim.state.workflow!.requirement = requirement;
+      report(sim);
+      const command = sim.issued.find(
+        (e) => e.command.kind === 'scm.openPR',
+      )!.command;
+      expect(command.kind).toBe('scm.openPR');
+      if (command.kind !== 'scm.openPR') throw new Error('Missing PR');
+      expect(command.args.title).toBe(title);
+      expect(command.args.body).toContain('## Requirement\n\n' + requirement);
+      expect(finalGate(sim).status).toBe('open');
+      expect(sim.rejections).toEqual([]);
+    },
+  );
   it('opens the final-PR gate only after the integrator release succeeded (M2-FX12)', () => {
     const lag = laggingReleases(cooperativeWorld);
     const sim = report(setup(lag.world));
