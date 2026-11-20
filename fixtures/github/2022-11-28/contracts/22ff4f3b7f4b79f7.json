@@ -1,0 +1,855 @@
+[
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}",
+    "path": "/repos/ClarkeYeh/ai-office-spike",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:26 GMT",
+      "etag": "W/\"2534cc41833b7bf0592350a17c19560b18469103eff4a75e39a263da6400cec1\"",
+      "x-github-request-id": "E6D8:13F860:6F0B6E:B3D21A:6AFFC381",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4352",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "648"
+    },
+    "response": {
+      "id": 1461048541,
+      "node_id": "NODE_000001",
+      "name": "ai-office-spike",
+      "full_name": "ClarkeYeh/ai-office-spike",
+      "private": false,
+      "owner": {
+        "login": "ClarkeYeh",
+        "id": 229904565,
+        "node_id": "NODE_000002",
+        "avatar_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/avatar.png",
+        "gravatar_id": "",
+        "url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh",
+        "html_url": "<redacted>",
+        "followers_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/followers",
+        "following_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/following%7B/other_user%7D",
+        "gists_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/gists%7B/gist_id%7D",
+        "starred_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/starred%7B/owner%7D%7B/repo%7D",
+        "subscriptions_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/subscriptions",
+        "organizations_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/orgs",
+        "repos_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/repos",
+        "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/events%7B/privacy%7D",
+        "received_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "html_url": "https://github.com/ClarkeYeh/ai-office-spike",
+      "description": "Throwaway spike repo for AI Office (two-tier PR test)",
+      "fork": false,
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__",
+      "forks_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/forks",
+      "keys_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/keys%7B/key_id%7D",
+      "collaborators_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/collaborators%7B/collaborator%7D",
+      "teams_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/teams",
+      "hooks_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/hooks",
+      "issue_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/issues/events%7B/number%7D",
+      "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/events",
+      "assignees_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/assignees%7B/user%7D",
+      "branches_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/branches%7B/branch%7D",
+      "tags_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/tags",
+      "blobs_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/blobs%7B/sha%7D",
+      "git_tags_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/tags%7B/sha%7D",
+      "git_refs_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/refs%7B/sha%7D",
+      "trees_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/trees%7B/sha%7D",
+      "statuses_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/statuses/%7Bsha%7D",
+      "languages_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/languages",
+      "stargazers_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/stargazers",
+      "contributors_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/contributors",
+      "subscribers_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/subscribers",
+      "subscription_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/subscription",
+      "commits_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits%7B/sha%7D",
+      "git_commits_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/commits%7B/sha%7D",
+      "comments_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/comments%7B/number%7D",
+      "issue_comment_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/issues/comments%7B/number%7D",
+      "contents_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/contents/%7B+path%7D",
+      "compare_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/compare/%7Bbase%7D...%7Bhead%7D",
+      "merges_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/merges",
+      "archive_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/%7Barchive_format%7D%7B/ref%7D",
+      "downloads_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/downloads",
+      "issues_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/issues%7B/number%7D",
+      "pulls_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/pulls%7B/number%7D",
+      "milestones_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/milestones%7B/number%7D",
+      "notifications_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/notifications%7B?since%2Call%2Cparticipating%7D=",
+      "labels_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/labels%7B/name%7D",
+      "releases_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/releases%7B/id%7D",
+      "deployments_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/deployments",
+      "created_at": "2026-11-17T07:13:04Z",
+      "updated_at": "2026-11-17T07:18:29Z",
+      "pushed_at": "2026-11-20T03:50:22Z",
+      "git_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/clone",
+      "ssh_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/clone",
+      "clone_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/clone",
+      "svn_url": "https://github.com/ClarkeYeh/ai-office-spike",
+      "homepage": null,
+      "size": 6,
+      "stargazers_count": 0,
+      "watchers_count": 0,
+      "language": "JavaScript",
+      "has_issues": true,
+      "has_projects": true,
+      "has_downloads": false,
+      "has_wiki": false,
+      "has_pages": false,
+      "has_discussions": false,
+      "forks_count": 0,
+      "mirror_url": null,
+      "archived": false,
+      "disabled": false,
+      "open_issues_count": 1,
+      "license": null,
+      "allow_forking": true,
+      "is_template": false,
+      "web_commit_signoff_required": false,
+      "has_pull_requests": true,
+      "pull_request_creation_policy": "all",
+      "topics": [],
+      "visibility": "public",
+      "forks": 0,
+      "open_issues": 1,
+      "watchers": 0,
+      "default_branch": "main",
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true,
+        "triage": true,
+        "pull": true
+      },
+      "temp_clone_token": "<redacted>",
+      "allow_squash_merge": true,
+      "allow_merge_commit": true,
+      "allow_rebase_merge": true,
+      "allow_auto_merge": false,
+      "delete_branch_on_merge": false,
+      "allow_update_branch": false,
+      "use_squash_pr_title_as_default": false,
+      "squash_merge_commit_message": "COMMIT_MESSAGES",
+      "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+      "merge_commit_message": "PR_TITLE",
+      "merge_commit_title": "MERGE_MESSAGE",
+      "security_and_analysis": {
+        "secret_scanning": "<redacted>",
+        "secret_scanning_push_protection": "<redacted>",
+        "dependabot_security_updates": {
+          "status": "disabled"
+        },
+        "secret_scanning_non_provider_patterns": "<redacted>",
+        "secret_scanning_validity_checks": "<redacted>"
+      },
+      "network_count": 0,
+      "subscribers_count": 0
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/user",
+    "path": "/user",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:26 GMT",
+      "etag": "W/\"15a91b6a8b594f444c55a2f37170378be91f02b03c625008acf2eb9549f23519\"",
+      "x-github-request-id": "E6D8:13F860:6F0BCD:B3D2D4:6AFFC382",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4351",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "649"
+    },
+    "response": {
+      "login": "ClarkeYeh",
+      "id": 229904565,
+      "node_id": "NODE_000002",
+      "avatar_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/avatar.png",
+      "gravatar_id": "",
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh",
+      "html_url": "<redacted>",
+      "followers_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/followers",
+      "following_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/following%7B/other_user%7D",
+      "gists_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/gists%7B/gist_id%7D",
+      "starred_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/starred%7B/owner%7D%7B/repo%7D",
+      "subscriptions_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/subscriptions",
+      "organizations_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/orgs",
+      "repos_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/repos",
+      "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/events%7B/privacy%7D",
+      "received_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false,
+      "name": null,
+      "company": null,
+      "blog": "",
+      "location": null,
+      "email": null,
+      "hireable": null,
+      "bio": null,
+      "twitter_username": null,
+      "notification_email": null,
+      "public_repos": 3,
+      "public_gists": 0,
+      "followers": 0,
+      "following": 2,
+      "created_at": "2025-09-02T07:52:09Z",
+      "updated_at": "2026-11-19T07:49:29Z"
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/branches/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/branches/main",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:26 GMT",
+      "etag": "W/\"3036fee41ff6a80b3f12c889bc367ae17b8d5d38716c17962f6bb87e7e5e9aa0\"",
+      "x-github-request-id": "E6D8:13F860:6F0C26:B3D334:6AFFC382",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4350",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "650"
+    },
+    "response": {
+      "name": "main",
+      "commit": {
+        "sha": "64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "node_id": "NODE_000003",
+        "commit": {
+          "author": {
+            "name": "ClarkeYeh",
+            "email": "<github-noreply>",
+            "date": "2026-11-20T02:17:45Z"
+          },
+          "committer": {
+            "name": "GitHub",
+            "email": "<github-noreply>",
+            "date": "2026-11-20T02:17:45Z"
+          },
+          "message": "Merge pull request #144 from <redacted>\n\nSmoke test: work item 1 adds <redacted>.txt with the line \"hello from AI Office\"; work item 2 depends on it and adds <redacted>.txt with the line \"goodbye from AI Office\". No other files.",
+          "tree": {
+            "sha": "62c9422fcc946573a74ec6a7a6dd58aefdfc760c",
+            "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/trees/62c9422fcc946573a74ec6a7a6dd58aefdfc760c"
+          },
+          "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/commits/64681a692873a262fe0ef5a877a5649b6fef5a03",
+          "comment_count": 0,
+          "verification": {
+            "verified": true,
+            "reason": "valid",
+            "signature": "-----BEGIN PGP SIGNATURE-----\n\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n=3hSh\n-----END PGP SIGNATURE-----\n",
+            "payload": "tree 62c9422fcc946573a74ec6a7a6dd58aefdfc760c\nparent 1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d\nparent efd7f5cebdf51f631caab3584b45f850d6398086\nauthor ClarkeYeh <<redacted>> 1795141065 +0800\ncommitter GitHub <<redacted>> 1795141065 +0800\n\nMerge pull request #144 from <redacted>\n\nSmoke test: work item 1 adds <redacted>.txt with the line \"hello from AI Office\"; work item 2 depends on it and adds <redacted>.txt with the line \"goodbye from AI Office\". No other files.",
+            "verified_at": "2026-11-20T02:17:46Z"
+          }
+        },
+        "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "comments_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/64681a692873a262fe0ef5a877a5649b6fef5a03/comments",
+        "author": {
+          "login": "ClarkeYeh",
+          "id": 229904565,
+          "node_id": "NODE_000002",
+          "avatar_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/avatar.png",
+          "gravatar_id": "",
+          "url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh",
+          "html_url": "<redacted>",
+          "followers_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/followers",
+          "following_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/following%7B/other_user%7D",
+          "gists_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/gists%7B/gist_id%7D",
+          "starred_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/starred%7B/owner%7D%7B/repo%7D",
+          "subscriptions_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/subscriptions",
+          "organizations_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/orgs",
+          "repos_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/repos",
+          "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/events%7B/privacy%7D",
+          "received_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "committer": {
+          "login": "web-flow",
+          "id": 19864447,
+          "node_id": "NODE_000004",
+          "avatar_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/avatar.png",
+          "gravatar_id": "",
+          "url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow",
+          "html_url": "<redacted>",
+          "followers_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/followers",
+          "following_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/following%7B/other_user%7D",
+          "gists_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/gists%7B/gist_id%7D",
+          "starred_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/starred%7B/owner%7D%7B/repo%7D",
+          "subscriptions_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/subscriptions",
+          "organizations_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/orgs",
+          "repos_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/repos",
+          "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/events%7B/privacy%7D",
+          "received_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "parents": [
+          {
+            "sha": "1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d",
+            "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d",
+            "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d"
+          },
+          {
+            "sha": "efd7f5cebdf51f631caab3584b45f850d6398086",
+            "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/efd7f5cebdf51f631caab3584b45f850d6398086",
+            "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/efd7f5cebdf51f631caab3584b45f850d6398086"
+          }
+        ]
+      },
+      "_links": {
+        "self": "https://github.com/ClarkeYeh/ai-office-spike/__api__/branches/main",
+        "html": "https://github.com/ClarkeYeh/ai-office-spike/tree/main"
+      },
+      "protected": true,
+      "protection": {
+        "enabled": false,
+        "required_status_checks": {
+          "enforcement_level": "off",
+          "contexts": [],
+          "checks": []
+        }
+      },
+      "protection_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/branches/main/protection"
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/rules/branches/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/rules/branches/main",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:27 GMT",
+      "etag": "W/\"bd2eede1942f43feb121582289bf88fc17fc7b35951d3ca271958e99c02f5d4d\"",
+      "x-github-request-id": "E6D8:13F860:6F0C68:B3D3A8:6AFFC383",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4349",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "651"
+    },
+    "response": [
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": false,
+          "required_reviewers": [],
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": false,
+          "require_extra_approval_for_unattributed_changes": true,
+          "allowed_merge_methods": [
+            "merge",
+            "squash",
+            "rebase"
+          ]
+        },
+        "ruleset_source_type": "Repository",
+        "ruleset_source": "ClarkeYeh/ai-office-spike",
+        "ruleset_id": 27439305
+      },
+      {
+        "type": "non_fast_forward",
+        "ruleset_source_type": "Repository",
+        "ruleset_source": "ClarkeYeh/ai-office-spike",
+        "ruleset_id": 27439305
+      },
+      {
+        "type": "deletion",
+        "ruleset_source_type": "Repository",
+        "ruleset_source": "ClarkeYeh/ai-office-spike",
+        "ruleset_id": 27439305
+      }
+    ]
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/branches/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/branches/main/protection",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 404,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:27 GMT",
+      "x-github-request-id": "E6D8:13F860:6F0CBD:B3D42B:6AFFC383",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4348",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "652"
+    },
+    "response": {
+      "message": "Branch not protected",
+      "documentation_url": "<redacted>",
+      "status": "404"
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/rules/branches/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/rules/branches/ai-office%2Fprotection-probe",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:27 GMT",
+      "etag": "\"5da79a4ef887a5a8b6e07728fcbf6d697b428caec9db133e90a3c5bbd3f49de5\"",
+      "x-github-request-id": "E6D8:13F860:6F0D1E:B3D4C4:6AFFC383",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4347",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "653"
+    },
+    "response": []
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/git/ref/heads/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/git/ref/heads/ai-office%2Ft000000000001-encoded%2Fpath",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 404,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:28 GMT",
+      "x-github-request-id": "E6D8:13F860:6F0D5C:B3D531:6AFFC384",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4346",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "654"
+    },
+    "response": {
+      "message": "Not Found",
+      "documentation_url": "<redacted>",
+      "status": "404"
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/git/ref/heads/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/git/ref/heads/main",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:28 GMT",
+      "etag": "W/\"276f9e2074d80ba7b18b9d8f8ce3cae2e86cde00b05d14317fa05ce34dfc1815\"",
+      "x-github-request-id": "E6D8:13F860:6F0DAB:B3D5A2:6AFFC384",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4345",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "655"
+    },
+    "response": {
+      "ref": "refs/heads/main",
+      "node_id": "NODE_000005",
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/refs/heads/main",
+      "object": {
+        "sha": "64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "type": "commit",
+        "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/commits/64681a692873a262fe0ef5a877a5649b6fef5a03"
+      }
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "POST",
+    "pathTemplate": "/repos/{owner}/{repo}/git/refs",
+    "path": "/repos/ClarkeYeh/ai-office-spike/git/refs",
+    "query": [],
+    "requestBodySha256": "78c9a49722dfca429253cdc0f7b9841bbc19e8da09c10b7565deb5c792c60367",
+    "status": 201,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:29 GMT",
+      "etag": "\"6e6a55cae19e2f9604af78fc7f128449aa52cc0d81b1ad84d1111ad6f1487ab3\"",
+      "x-github-request-id": "E6D8:13F860:6F0E3E:B3D67E:6AFFC384",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4841",
+      "x-ratelimit-reset": "1795149023",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "159"
+    },
+    "response": {
+      "ref": "refs/heads/ai-office/t000000000001-encoded/path",
+      "node_id": "NODE_000006",
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/refs/heads/ai-office/t000000000001-encoded/path",
+      "object": {
+        "sha": "64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "type": "commit",
+        "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/commits/64681a692873a262fe0ef5a877a5649b6fef5a03"
+      }
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/git/ref/heads/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/git/ref/heads/ai-office%2Ft000000000001-encoded%2Fpath",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:29 GMT",
+      "etag": "W/\"378f6b91d6d14b5478802835b82d3d2fec3f6076511376f1ee8e964f2ec5daa2\"",
+      "x-github-request-id": "E6D8:13F860:6F0ED4:B3D76C:6AFFC385",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4343",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "657"
+    },
+    "response": {
+      "ref": "refs/heads/ai-office/t000000000001-encoded/path",
+      "node_id": "NODE_000006",
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/refs/heads/ai-office/t000000000001-encoded/path",
+      "object": {
+        "sha": "64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "type": "commit",
+        "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/commits/64681a692873a262fe0ef5a877a5649b6fef5a03"
+      }
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}",
+    "path": "/repos/ClarkeYeh/ai-office-spike",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:30 GMT",
+      "etag": "W/\"c4c59c51eb4b3d5f802a2fb816b4c7deb26232536ab0bf5c18225cb6544a4370\"",
+      "x-github-request-id": "E6D8:13F860:6F0F28:B3D7F1:6AFFC385",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4342",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "658"
+    },
+    "response": {
+      "id": 1461048541,
+      "node_id": "NODE_000001",
+      "name": "ai-office-spike",
+      "full_name": "ClarkeYeh/ai-office-spike",
+      "private": false,
+      "owner": {
+        "login": "ClarkeYeh",
+        "id": 229904565,
+        "node_id": "NODE_000002",
+        "avatar_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/avatar.png",
+        "gravatar_id": "",
+        "url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh",
+        "html_url": "<redacted>",
+        "followers_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/followers",
+        "following_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/following%7B/other_user%7D",
+        "gists_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/gists%7B/gist_id%7D",
+        "starred_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/starred%7B/owner%7D%7B/repo%7D",
+        "subscriptions_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/subscriptions",
+        "organizations_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/orgs",
+        "repos_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/repos",
+        "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/events%7B/privacy%7D",
+        "received_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "html_url": "https://github.com/ClarkeYeh/ai-office-spike",
+      "description": "Throwaway spike repo for AI Office (two-tier PR test)",
+      "fork": false,
+      "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__",
+      "forks_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/forks",
+      "keys_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/keys%7B/key_id%7D",
+      "collaborators_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/collaborators%7B/collaborator%7D",
+      "teams_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/teams",
+      "hooks_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/hooks",
+      "issue_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/issues/events%7B/number%7D",
+      "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/events",
+      "assignees_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/assignees%7B/user%7D",
+      "branches_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/branches%7B/branch%7D",
+      "tags_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/tags",
+      "blobs_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/blobs%7B/sha%7D",
+      "git_tags_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/tags%7B/sha%7D",
+      "git_refs_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/refs%7B/sha%7D",
+      "trees_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/trees%7B/sha%7D",
+      "statuses_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/statuses/%7Bsha%7D",
+      "languages_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/languages",
+      "stargazers_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/stargazers",
+      "contributors_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/contributors",
+      "subscribers_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/subscribers",
+      "subscription_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/subscription",
+      "commits_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits%7B/sha%7D",
+      "git_commits_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/commits%7B/sha%7D",
+      "comments_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/comments%7B/number%7D",
+      "issue_comment_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/issues/comments%7B/number%7D",
+      "contents_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/contents/%7B+path%7D",
+      "compare_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/compare/%7Bbase%7D...%7Bhead%7D",
+      "merges_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/merges",
+      "archive_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/%7Barchive_format%7D%7B/ref%7D",
+      "downloads_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/downloads",
+      "issues_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/issues%7B/number%7D",
+      "pulls_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/pulls%7B/number%7D",
+      "milestones_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/milestones%7B/number%7D",
+      "notifications_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/notifications%7B?since%2Call%2Cparticipating%7D=",
+      "labels_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/labels%7B/name%7D",
+      "releases_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/releases%7B/id%7D",
+      "deployments_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/deployments",
+      "created_at": "2026-11-17T07:13:04Z",
+      "updated_at": "2026-11-17T07:18:29Z",
+      "pushed_at": "2026-11-20T03:50:29Z",
+      "git_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/clone",
+      "ssh_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/clone",
+      "clone_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/clone",
+      "svn_url": "https://github.com/ClarkeYeh/ai-office-spike",
+      "homepage": null,
+      "size": 6,
+      "stargazers_count": 0,
+      "watchers_count": 0,
+      "language": "JavaScript",
+      "has_issues": true,
+      "has_projects": true,
+      "has_downloads": false,
+      "has_wiki": false,
+      "has_pages": false,
+      "has_discussions": false,
+      "forks_count": 0,
+      "mirror_url": null,
+      "archived": false,
+      "disabled": false,
+      "open_issues_count": 1,
+      "license": null,
+      "allow_forking": true,
+      "is_template": false,
+      "web_commit_signoff_required": false,
+      "has_pull_requests": true,
+      "pull_request_creation_policy": "all",
+      "topics": [],
+      "visibility": "public",
+      "forks": 0,
+      "open_issues": 1,
+      "watchers": 0,
+      "default_branch": "main",
+      "permissions": {
+        "admin": true,
+        "maintain": true,
+        "push": true,
+        "triage": true,
+        "pull": true
+      },
+      "temp_clone_token": "<redacted>",
+      "allow_squash_merge": true,
+      "allow_merge_commit": true,
+      "allow_rebase_merge": true,
+      "allow_auto_merge": false,
+      "delete_branch_on_merge": false,
+      "allow_update_branch": false,
+      "use_squash_pr_title_as_default": false,
+      "squash_merge_commit_message": "COMMIT_MESSAGES",
+      "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+      "merge_commit_message": "PR_TITLE",
+      "merge_commit_title": "MERGE_MESSAGE",
+      "security_and_analysis": {
+        "secret_scanning": "<redacted>",
+        "secret_scanning_push_protection": "<redacted>",
+        "dependabot_security_updates": {
+          "status": "disabled"
+        },
+        "secret_scanning_non_provider_patterns": "<redacted>",
+        "secret_scanning_validity_checks": "<redacted>"
+      },
+      "network_count": 0,
+      "subscribers_count": 0
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/branches/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/branches/ai-office%2Ft000000000001-encoded%2Fpath",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 200,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:30 GMT",
+      "etag": "W/\"421a721d072884ce0b7fb4a89b0b16fdfb9de96a3b10cb027cc7c58ad7a2c509\"",
+      "x-github-request-id": "E6D8:13F860:6F0F6C:B3D85B:6AFFC386",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4341",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "659"
+    },
+    "response": {
+      "name": "ai-office/t000000000001-encoded/path",
+      "commit": {
+        "sha": "64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "node_id": "NODE_000003",
+        "commit": {
+          "author": {
+            "name": "ClarkeYeh",
+            "email": "<github-noreply>",
+            "date": "2026-11-20T02:17:45Z"
+          },
+          "committer": {
+            "name": "GitHub",
+            "email": "<github-noreply>",
+            "date": "2026-11-20T02:17:45Z"
+          },
+          "message": "Merge pull request #144 from <redacted>\n\nSmoke test: work item 1 adds <redacted>.txt with the line \"hello from AI Office\"; work item 2 depends on it and adds <redacted>.txt with the line \"goodbye from AI Office\". No other files.",
+          "tree": {
+            "sha": "62c9422fcc946573a74ec6a7a6dd58aefdfc760c",
+            "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/trees/62c9422fcc946573a74ec6a7a6dd58aefdfc760c"
+          },
+          "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/git/commits/64681a692873a262fe0ef5a877a5649b6fef5a03",
+          "comment_count": 0,
+          "verification": {
+            "verified": true,
+            "reason": "valid",
+            "signature": "-----BEGIN PGP SIGNATURE-----\n\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n<redacted>\n=3hSh\n-----END PGP SIGNATURE-----\n",
+            "payload": "tree 62c9422fcc946573a74ec6a7a6dd58aefdfc760c\nparent 1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d\nparent efd7f5cebdf51f631caab3584b45f850d6398086\nauthor ClarkeYeh <<redacted>> 1795141065 +0800\ncommitter GitHub <<redacted>> 1795141065 +0800\n\nMerge pull request #144 from <redacted>\n\nSmoke test: work item 1 adds <redacted>.txt with the line \"hello from AI Office\"; work item 2 depends on it and adds <redacted>.txt with the line \"goodbye from AI Office\". No other files.",
+            "verified_at": "2026-11-20T02:17:46Z"
+          }
+        },
+        "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/64681a692873a262fe0ef5a877a5649b6fef5a03",
+        "comments_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/64681a692873a262fe0ef5a877a5649b6fef5a03/comments",
+        "author": {
+          "login": "ClarkeYeh",
+          "id": 229904565,
+          "node_id": "NODE_000002",
+          "avatar_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/avatar.png",
+          "gravatar_id": "",
+          "url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh",
+          "html_url": "<redacted>",
+          "followers_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/followers",
+          "following_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/following%7B/other_user%7D",
+          "gists_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/gists%7B/gist_id%7D",
+          "starred_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/starred%7B/owner%7D%7B/repo%7D",
+          "subscriptions_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/subscriptions",
+          "organizations_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/orgs",
+          "repos_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/repos",
+          "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/events%7B/privacy%7D",
+          "received_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/ClarkeYeh/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "committer": {
+          "login": "web-flow",
+          "id": 19864447,
+          "node_id": "NODE_000004",
+          "avatar_url": "https://github.com/ClarkeYeh/ai-office-spike/__fixtures__/avatar.png",
+          "gravatar_id": "",
+          "url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow",
+          "html_url": "<redacted>",
+          "followers_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/followers",
+          "following_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/following%7B/other_user%7D",
+          "gists_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/gists%7B/gist_id%7D",
+          "starred_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/starred%7B/owner%7D%7B/repo%7D",
+          "subscriptions_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/subscriptions",
+          "organizations_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/orgs",
+          "repos_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/repos",
+          "events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/events%7B/privacy%7D",
+          "received_events_url": "https://github.com/ClarkeYeh/ai-office-spike/__users__/web-flow/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "parents": [
+          {
+            "sha": "1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d",
+            "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d",
+            "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/1e6c7acab6fcd2ad2c50a045fcd5e28f01b6d00d"
+          },
+          {
+            "sha": "efd7f5cebdf51f631caab3584b45f850d6398086",
+            "url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/commits/efd7f5cebdf51f631caab3584b45f850d6398086",
+            "html_url": "https://github.com/ClarkeYeh/ai-office-spike/commit/efd7f5cebdf51f631caab3584b45f850d6398086"
+          }
+        ]
+      },
+      "_links": {
+        "self": "https://github.com/ClarkeYeh/ai-office-spike/__api__/branches/ai-office/t000000000001-encoded/path",
+        "html": "https://github.com/ClarkeYeh/ai-office-spike/tree/ai-office/t000000000001-encoded/path"
+      },
+      "protected": false,
+      "protection": {
+        "enabled": false,
+        "required_status_checks": {
+          "enforcement_level": "off",
+          "contexts": [],
+          "checks": []
+        }
+      },
+      "protection_url": "https://github.com/ClarkeYeh/ai-office-spike/__api__/branches/ai-office/t000000000001-encoded/path/protection"
+    }
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "DELETE",
+    "pathTemplate": "/repos/{owner}/{repo}/git/refs/heads/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/git/refs/heads/ai-office%2Ft000000000001-encoded%2Fpath",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 204,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:31 GMT",
+      "x-github-request-id": "E6D8:13F860:6F1010:B3D948:6AFFC386",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4339",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "661"
+    },
+    "response": null
+  },
+  {
+    "apiVersion": "2022-11-28",
+    "method": "GET",
+    "pathTemplate": "/repos/{owner}/{repo}/git/ref/heads/{ref}",
+    "path": "/repos/ClarkeYeh/ai-office-spike/git/ref/heads/ai-office%2Ft000000000001-encoded%2Fpath",
+    "query": [],
+    "requestBodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": 404,
+    "headers": {
+      "date": "Fri, 20 Nov 2026 03:50:32 GMT",
+      "x-github-request-id": "E6D8:13F860:6F10D2:B3DAA8:6AFFC387",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": "4338",
+      "x-ratelimit-reset": "1795147419",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "662"
+    },
+    "response": {
+      "message": "Not Found",
+      "documentation_url": "<redacted>",
+      "status": "404"
+    }
+  }
+]
