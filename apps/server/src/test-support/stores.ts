@@ -7,6 +7,7 @@ import type {
 import type { Clock, IdGen } from '../ports/services.js';
 import type {
   CursorWrite,
+  IdempotencyWrite,
   EventQuery,
   EventStore,
   ProjectionStore,
@@ -29,11 +30,23 @@ export class InMemoryEventStore implements EventStore {
   constructor(
     private clock: Clock = new FakeClock(),
     private ids: IdGen = new SeqIdGen(),
+    readonly idempotency = new InMemoryIdempotencyStore(clock),
   ) {}
   append(
     drafts: DomainEventDraft[],
-    opts?: { cursors?: CursorWrite[] },
+    opts?: { cursors?: CursorWrite[]; idempotency?: IdempotencyWrite },
   ): DomainEvent[] {
+    const write = opts?.idempotency;
+    const prior = write && this.idempotency.get(write.scope, write.key);
+    if (write && prior) {
+      if (prior.requestHash !== write.record.requestHash)
+        throw new PortError(
+          'conflict',
+          'idempotency_mismatch',
+          'Key reused for a different request',
+        );
+      return [];
+    }
     const keys = new Set(this.keys);
     const batch: DomainEvent[] = [];
     for (const draft of drafts) {
@@ -55,6 +68,7 @@ export class InMemoryEventStore implements EventStore {
         copy(cursor.value),
       );
     // All validation and copying completes before publishing either half of the transaction.
+    if (write) this.idempotency.put(write.scope, write.key, write.record);
     this.events.push(...batch);
     this.keys = keys;
     this.cursors = cursors;

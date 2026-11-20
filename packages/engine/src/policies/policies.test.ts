@@ -4,7 +4,11 @@ import type {
   EventPayload,
   EventType,
 } from '@ai-office/contracts/events';
-import type { AttemptPurpose, OpenGate } from '@ai-office/domain';
+import type {
+  AttemptPurpose,
+  EvaluateAnomaly,
+  OpenGate,
+} from '@ai-office/domain';
 import { createReact, DEFAULT_MODULES } from '../react.js';
 import { external, internal } from '../effects.js';
 import type { Effect } from '../effects.js';
@@ -1601,4 +1605,142 @@ it('the implementation scheduler retries a hard-limited item with its scoped top
   usage(sim, sim.state.workItems.A!.currentAttemptId!, 499_999);
   expect(sim.state.workItems.A!.status).toBe('in_progress');
   expect(sim.rejections).toEqual([]);
+});
+
+describe('duplicate compensation (S19, M3 §4.8)', () => {
+  const repo = { owner: 'octo', name: 'demo' };
+  const target = { type: 'pr' as const, repo, number: 4 };
+  const seeded = () => {
+    const sim = setup();
+    sim.inject('command.issued', {
+      commandId: 'wf/issue',
+      kind: 'scm.createIssue',
+      args: { repo, title: 'T', body: 'B', labels: ['ai-office:item'] },
+    });
+    sim.inject('command.succeeded', {
+      commandId: 'wf/issue',
+      kind: 'scm.createIssue',
+      result: { issue: 7, url: 'https://github.com/octo/demo/issues/7' },
+    });
+    sim.inject('command.issued', {
+      commandId: 'wf/pr',
+      kind: 'scm.openPR',
+      args: { repo, title: 'T', body: 'B', head: 'h', base: 'b' },
+    });
+    sim.inject('command.issued', {
+      commandId: 'wf/comment',
+      kind: 'scm.comment',
+      args: { target, body: 'hi' },
+    });
+    return sim;
+  };
+  const compensations = (sim: Simulator) =>
+    sim.issued
+      .filter((i) => i.commandId.includes('/duplicate/'))
+      .map((i) => ({ id: i.commandId, command: i.command }));
+
+  it('closes extra issues and PRs and deletes extra comments, keeping the recorded copy, without pausing', () => {
+    const sim = seeded();
+    const duplicates: Omit<
+      Extract<EvaluateAnomaly['observation'], { kind: 'duplicate' }>,
+      'kind'
+    >[] = [
+      { objectKind: 'issue', commandId: 'wf/issue', numbers: [5, 7] },
+      { objectKind: 'pr', commandId: 'wf/pr', numbers: [9, 8] },
+      {
+        objectKind: 'comment',
+        commandId: 'wf/comment',
+        commentIds: ['30', '12'],
+      },
+    ];
+    for (const observation of duplicates)
+      sim.dispatch({
+        type: 'EvaluateAnomaly',
+        observation: { kind: 'duplicate', ...observation },
+      });
+    const id = (...parts: (string | number)[]) =>
+      [WORKFLOW_ID, 'duplicate', ...parts].join('/');
+    expect(compensations(sim)).toEqual([
+      {
+        id: id('wf/issue', 'issue', 5),
+        command: {
+          kind: 'scm.updateIssue',
+          args: { issue: { repo, number: 5 }, patch: { state: 'closed' } },
+        },
+      },
+      {
+        id: id('wf/issue', 'issue', 5, 'label'),
+        command: {
+          kind: 'scm.setLabels',
+          args: {
+            target: { type: 'issue', repo, number: 5 },
+            labels: ['ai-office:item', 'ai-office:duplicate'],
+          },
+        },
+      },
+      {
+        id: id('wf/pr', 'pr', 9),
+        command: {
+          kind: 'scm.updatePR',
+          args: { pr: { repo, number: 9 }, patch: { state: 'closed' } },
+        },
+      },
+      {
+        id: id('wf/comment', 'comment', '30'),
+        command: {
+          kind: 'scm.deleteComment',
+          args: { target, commentId: '30' },
+        },
+      },
+    ]);
+    expect(sim.state.workflow!.pausedReasons).toEqual([]);
+    expect(Object.values(sim.state.gates)).toEqual([]);
+    expect(sim.rejections).toEqual([]);
+  });
+  it('is idempotent on redelivery and ignores other runs', () => {
+    const sim = seeded();
+    const anomaly = {
+      kind: 'duplicate-object' as const,
+      severity: 'warning' as const,
+      summary: 'dup',
+      commandId: 'wf/issue',
+      number: 5,
+    };
+    sim.inject('anomaly.detected', anomaly);
+    sim.inject('anomaly.detected', anomaly);
+    expect(compensations(sim)).toHaveLength(2);
+    sim.inject('anomaly.detected', { ...anomaly, commandId: 'other-run/x' });
+    sim.inject('anomaly.detected', {
+      ...anomaly,
+      commandId: 'wf/issue',
+      number: undefined,
+      commentId: '3',
+    });
+    expect(compensations(sim)).toHaveLength(2);
+  });
+});
+
+describe('warning anomalies (SPEC rev2.15.3 §12.3)', () => {
+  it('notify without an anomaly gate or pause; high ones still gate', () => {
+    const sim = setup();
+    for (const kind of [
+      'integration-branch-moved',
+      'unmanaged-close',
+      'default-branch-moved',
+    ] as const)
+      sim.inject('anomaly.detected', {
+        kind,
+        severity: 'warning',
+        summary: kind,
+      });
+    expect(Object.values(sim.state.gates)).toEqual([]);
+    expect(sim.state.workflow!.pausedReasons).toEqual([]);
+    sim.inject('anomaly.detected', {
+      kind: 'merge-base-changed',
+      severity: 'high',
+      summary: 'retargeted',
+    });
+    expect(Object.values(sim.state.gates)).toHaveLength(1);
+    expect(sim.state.workflow!.pausedReasons).toEqual(['anomaly']);
+  });
 });

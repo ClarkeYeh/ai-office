@@ -8,6 +8,7 @@ import {
 } from '../agent-submission/index.js';
 import {
   AgentSubmissionSchema,
+  AnomalyKindSchema,
   CommandIssuedPayloadSchema,
   CommandResultSchema,
   CURRENT_SCHEMA_VERSION,
@@ -18,7 +19,11 @@ import {
   EXTERNAL_COMMAND_KINDS,
   ExceptionKindSchema,
   ExternalCommandSchema,
+  GateContentSchema,
   ORCA_REQUEST_ID_KINDS,
+  PauseReasonSchema,
+  PolicyHitSchema,
+  RepoSnapshotSchema,
   seatIdFor,
   SubmissionAcceptedPayloadSchema,
   TimerPayloadSchema,
@@ -203,6 +208,10 @@ const commandExamples: Record<ExternalCommandKind, unknown> = {
     pr: { repo, number: 4 },
     method: 'merge',
     expectedHeadSha: sha,
+  },
+  'scm.deleteComment': {
+    target: { repo, number: 1, type: 'issue' },
+    commentId: '2468013579',
   },
 };
 
@@ -1344,5 +1353,187 @@ describe('M2-CP1 contract additions', () => {
       true,
     ])
       expect(schema.safeParse({ ...base, rateLimited }).success).toBe(false);
+  });
+});
+
+describe('M3-CP1 contract additions', () => {
+  test('policy hits cover gh pr create/edit and gh issue create; legacy rules still parse', () => {
+    for (const rule of [
+      'gh-pr-create',
+      'gh-pr-edit',
+      'gh-issue-create',
+      'gh-merge',
+      'gh-comment',
+      'gh-label',
+    ]) {
+      const hit = { rule, severity: 'high', messageId: 'm1' };
+      expect(PolicyHitSchema.parse(hit)).toEqual(hit);
+    }
+    for (const rule of ['gh-pr-close', 'gh_pr_edit', 'gh-issue-edit'])
+      expect(
+        PolicyHitSchema.safeParse({ rule, severity: 'high', messageId: 'm1' })
+          .success,
+      ).toBe(false);
+    const violation = EVENT_PAYLOAD_SCHEMAS['seat.policy_violation'];
+    const legacy = payloadExamples['seat.policy_violation'].valid as {
+      hits: object[];
+    };
+    expect(violation.parse(legacy)).toEqual(legacy);
+    const edited = {
+      ...legacy,
+      hits: [{ rule: 'gh-pr-edit', severity: 'high', messageId: 'm2' }],
+    };
+    expect(violation.parse(edited)).toEqual(edited);
+  });
+
+  test('workflow.paused keeps the auth reason (already present before M3)', () => {
+    expect(PauseReasonSchema.options).toContain('auth');
+    for (const type of ['workflow.paused', 'workflow.resumed'] as const)
+      expect(
+        DomainEventSchema.safeParse(event(type, { reason: 'auth' })).success,
+      ).toBe(true);
+  });
+
+  test('anomaly kinds add the M3 GitHub kinds; legacy kinds still parse', () => {
+    const schema = EVENT_PAYLOAD_SCHEMAS['anomaly.detected'];
+    for (const kind of [
+      'duplicate-object',
+      'merge-base-changed',
+      'integration-branch-moved',
+      'unmanaged-close',
+      'unknown-object',
+      'reconcile-gave-up',
+    ]) {
+      expect(AnomalyKindSchema.parse(kind)).toBe(kind);
+      const payload = { kind, severity: 'warning', summary: 'x' };
+      expect(schema.parse(payload)).toEqual(payload);
+    }
+    expect(AnomalyKindSchema.safeParse('duplicate_object').success).toBe(false);
+  });
+
+  test('anomaly.detected takes an optional commentId; legacy payloads still parse', () => {
+    const schema = EVENT_PAYLOAD_SCHEMAS['anomaly.detected'];
+    const legacy = {
+      kind: 'duplicate-object',
+      severity: 'warning',
+      summary: 'x',
+      commandId: 'c1',
+      number: 7,
+    };
+    expect(schema.parse(legacy)).toEqual(legacy);
+    const comment = {
+      kind: 'duplicate-object',
+      severity: 'warning',
+      summary: 'x',
+      commandId: 'c1',
+      commentId: '123456789',
+    };
+    expect(schema.parse(comment)).toEqual(comment);
+    expect(schema.safeParse({ ...legacy, commentId: '' }).success).toBe(false);
+  });
+
+  test('scm.mergePR takes an optional expectedBaseSha; older commands still parse', () => {
+    const legacy = commandExamples['scm.mergePR'] as object;
+    for (const args of [legacy, { ...legacy, expectedBaseSha: 'c'.repeat(40) }])
+      expect(
+        ExternalCommandSchema.parse({ kind: 'scm.mergePR', args }),
+      ).toEqual({ kind: 'scm.mergePR', args });
+    for (const expectedBaseSha of ['main', '', 'C'.repeat(40)])
+      expect(
+        ExternalCommandSchema.safeParse({
+          kind: 'scm.mergePR',
+          args: { ...legacy, expectedBaseSha },
+        }).success,
+      ).toBe(false);
+  });
+
+  test('scm.mergePR takes an optional expectedBase; older commands still parse', () => {
+    const legacy = commandExamples['scm.mergePR'] as object;
+    for (const args of [
+      legacy,
+      { ...legacy, expectedBase: 'ai-office/abcd1234-demo' },
+      {
+        ...legacy,
+        expectedBase: 'ai-office/abcd1234-demo',
+        expectedBaseSha: 'c'.repeat(40),
+      },
+    ])
+      expect(
+        ExternalCommandSchema.parse({ kind: 'scm.mergePR', args }),
+      ).toEqual({ kind: 'scm.mergePR', args });
+    for (const expectedBase of ['', 7])
+      expect(
+        ExternalCommandSchema.safeParse({
+          kind: 'scm.mergePR',
+          args: { ...legacy, expectedBase },
+        }).success,
+      ).toBe(false);
+  });
+
+  test('scm.deleteComment targets one comment and succeeds with an empty result', () => {
+    const args = commandExamples['scm.deleteComment'] as object;
+    expect(
+      CommandIssuedPayloadSchema.parse({
+        commandId: 'c9',
+        kind: 'scm.deleteComment',
+        args,
+      }),
+    ).toEqual({ commandId: 'c9', kind: 'scm.deleteComment', args });
+    expect(
+      CommandResultSchema.parse({ kind: 'scm.deleteComment', result: {} }),
+    ).toEqual({ kind: 'scm.deleteComment', result: {} });
+    for (const invalid of [
+      { ...args, commentId: '' },
+      { ...args, commentId: 2468013579 },
+      { target: { repo, number: 1 }, commentId: '1' },
+      { target: { repo, number: 1, type: 'issue' } },
+    ])
+      expect(
+        ExternalCommandSchema.safeParse({
+          kind: 'scm.deleteComment',
+          args: invalid,
+        }).success,
+      ).toBe(false);
+  });
+
+  test('repo snapshots carry optional allowMergeCommit and warnings; older snapshots still parse', () => {
+    const full = {
+      ...repoSnapshot,
+      allowMergeCommit: false,
+      warnings: ['merge_commit_disabled', 'default_unprotected'],
+    };
+    expect(RepoSnapshotSchema.parse(full)).toEqual(full);
+    expect(RepoSnapshotSchema.parse(repoSnapshot)).toEqual(repoSnapshot);
+    expect(
+      DomainEventSchema.safeParse(event('repo.registered', full)).success,
+    ).toBe(true);
+    expect(
+      DomainEventSchema.safeParse(
+        event('repo.updated', {
+          repoId: 'r1',
+          status: 'registered',
+          warnings: ['archived'],
+        }),
+      ).success,
+    ).toBe(true);
+    for (const patch of [
+      { allowMergeCommit: 'no' },
+      { warnings: 'archived' },
+      { warnings: [1] },
+    ])
+      expect(
+        RepoSnapshotSchema.safeParse({ ...repoSnapshot, ...patch }).success,
+      ).toBe(false);
+  });
+
+  test('final-pr gate content carries an optional prClosedAt', () => {
+    const legacy = { type: 'final-pr', artifactId: 'art2', pr: 9 };
+    const closed = { ...legacy, prClosedAt: at };
+    expect(GateContentSchema.parse(legacy)).toEqual(legacy);
+    expect(GateContentSchema.parse(closed)).toEqual(closed);
+    expect(
+      GateContentSchema.safeParse({ ...legacy, prClosedAt: 'yesterday' })
+        .success,
+    ).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { scmTitle, REQUEST_CHANGES_OPTION } from '@ai-office/domain';
 import type { WorkflowState } from '@ai-office/domain';
 import { metaFor } from '../context.js';
 import { external, internal } from '../effects.js';
@@ -35,6 +36,8 @@ const gate: StageGateBuilder = (state, stageId) => {
     integrate?.status !== 'done'
   )
     return undefined;
+  // S9: a final PR already closed on GitHub leaves only keep-open and abort.
+  const closedAt = state.prsClosedAt?.[String(workflow.finalPr)];
   return {
     kind: 'stage',
     gateId: `${workflow.id}/${stageId}/gate/${integrate.attempt}`,
@@ -44,8 +47,8 @@ const gate: StageGateBuilder = (state, stageId) => {
     optional: false,
     title: config.gate.title,
     options: [
-      ...(integrate.revisions < config.maxRevisions
-        ? [{ optionId: 'request-changes', label: 'Request changes' }]
+      ...(integrate.revisions < config.maxRevisions && closedAt === undefined
+        ? [{ ...REQUEST_CHANGES_OPTION }]
         : []),
       { optionId: 'keep-open', label: 'Keep open for manual handling' },
       { optionId: 'abort', label: 'Abort workflow' },
@@ -54,6 +57,7 @@ const gate: StageGateBuilder = (state, stageId) => {
       type: 'final-pr',
       artifactId: report.artifactId ?? report.id,
       pr: workflow.finalPr,
+      ...(closedAt === undefined ? {} : { prClosedAt: closedAt }),
     },
   };
 };
@@ -73,6 +77,8 @@ const bodyFor = (state: WorkflowState, marker: string): string => {
   );
   return [
     payload.summary,
+    '## Requirement',
+    state.workflow!.requirement,
     '## Conclusion',
     issue?.kind === 'issue' ? issue.url : '',
     '## Technical decisions',
@@ -321,7 +327,7 @@ export const finalPrStage: StageModule = {
             kind: 'scm.openPR',
             args: {
               repo: workflow.repo.github,
-              title: workflow.requirement,
+              title: scmTitle(workflow.requirement),
               body,
               head: workflow.integrationBranch,
               base: workflow.repo.defaultBranch,

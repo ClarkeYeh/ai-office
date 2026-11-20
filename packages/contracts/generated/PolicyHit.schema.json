@@ -12,7 +12,10 @@
         "gh-merge",
         "gh-comment",
         "push-default-branch",
-        "gh-label"
+        "gh-label",
+        "gh-pr-create",
+        "gh-pr-edit",
+        "gh-issue-create"
       ]
     },
     "severity": {

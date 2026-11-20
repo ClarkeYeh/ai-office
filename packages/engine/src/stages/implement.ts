@@ -2,6 +2,7 @@ import { seatIdFor } from '@ai-office/contracts/events';
 import type { DomainEvent, EventPayload } from '@ai-office/contracts/events';
 import {
   decide,
+  scmTitle,
   dependencyOrder,
   isAttemptPossiblyAlive,
   possiblyLiveAttempts,
@@ -683,7 +684,7 @@ const reactImplement: StageModule['react'] = (ctx) => {
                     repo: workflow.repo.github,
                     head: item.branch!,
                     base: workflow.integrationBranch,
-                    title: item.title,
+                    title: scmTitle(item.title),
                     body: `${item.body}\n\n${item.issue ? `Refs #${item.issue}\n\n` : ''}<!-- ai-office:cmd=${itemId(ctx, item, 'pr')} -->`,
                   },
                 },

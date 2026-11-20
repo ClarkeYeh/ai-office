@@ -1,0 +1,23 @@
+{
+  "apiVersion": "2022-11-28",
+  "recordedAt": "2026-11-19T05:21:33.607Z",
+  "method": "PUT",
+  "pathTemplate": "/repos/{owner}/{repo}/pulls/{pull_number}/merge",
+  "query": {},
+  "status": 405,
+  "headers": {
+    "date": "Thu, 19 Nov 2026 05:21:34 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4942",
+    "x-ratelimit-reset": "1795069051",
+    "x-ratelimit-used": "58",
+    "x-ratelimit-resource": "core",
+    "x-github-request-id": "C094:31FD4E:74D535:BA5C21:6AFE875D"
+  },
+  "response": {
+    "message": "Pull Request has merge conflicts",
+    "documentation_url": "<redacted>",
+    "status": "405"
+  },
+  "requestBodySha256": "16b78700c54a58520664dfd1dc054fe5485f5fd4c80f95f70082487eac28416b"
+}

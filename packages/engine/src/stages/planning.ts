@@ -1,3 +1,4 @@
+import { scmTitle } from '@ai-office/domain';
 import { metaFor, sessionRef } from '../context.js';
 import type { ReactContext } from '../context.js';
 import { external, internal } from '../effects.js';
@@ -105,7 +106,7 @@ const reactPlanning: StageModule['react'] = (ctx) => {
           kind: 'scm.createIssue',
           args: {
             repo: workflow.repo.github,
-            title: item.title,
+            title: scmTitle(item.title),
             body: `${item.body}\n\n## Acceptance\n${item.acceptance.map((a) => `- ${a}`).join('\n')}\n\nDependencies: ${item.deps.join(', ')}\n\n<!-- ai-office:cmd=${id} -->`,
             labels: [
               'ai-office:work-item',

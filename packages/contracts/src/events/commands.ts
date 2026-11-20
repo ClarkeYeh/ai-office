@@ -182,7 +182,17 @@ export const ExternalCommandSchema = z.discriminatedUnion('kind', [
       pr: PrRefSchema,
       method: z.literal('merge'),
       expectedHeadSha: GitShaSchema,
+      /** rev2.15 §7.4: integration-branch head at merge-request time; mismatch → `base_moved`. */
+      expectedBaseSha: GitShaSchema.optional(),
+      /** M3 S20: the base branch from our record; a PR retargeted elsewhere → `base_mismatch`. */
+      expectedBase: id.optional(),
     }),
+  ),
+  // Only for compensating duplicate marker comments (M3 §4.8); the adapter also
+  // checks author, marker and repo before deleting.
+  command(
+    'scm.deleteComment',
+    z.object({ target: ScmTargetSchema, commentId: id }),
   ),
 ]);
 export type ExternalCommand = z.infer<typeof ExternalCommandSchema>;
@@ -209,6 +219,7 @@ export const EXTERNAL_COMMAND_KINDS = [
   'scm.openPR',
   'scm.updatePR',
   'scm.mergePR',
+  'scm.deleteComment',
 ] as const satisfies readonly ExternalCommandKind[];
 export const ExternalCommandKindSchema = z.enum(EXTERNAL_COMMAND_KINDS);
 
@@ -283,6 +294,7 @@ export const CommandResultSchema = z.discriminatedUnion('kind', [
   result('scm.openPR', z.object({ pr: positiveInt, url: z.url() })),
   result('scm.updatePR', empty),
   result('scm.mergePR', z.object({ mergeCommitSha: GitShaSchema })),
+  result('scm.deleteComment', empty),
 ]);
 export const CommandSucceededPayloadSchema = z.intersection(
   z.object({ commandId: id }),

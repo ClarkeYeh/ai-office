@@ -1,23 +1,124 @@
 import type { EventPayload } from '@ai-office/contracts/events';
+import type { Gate } from '@ai-office/domain';
 import type { ScmEvent } from '../../ports/scm-events.js';
 import type { EventStore } from '../../ports/stores.js';
 import type { Redactor } from '../../ports/services.js';
 import { Batch } from './batch.js';
 
+/** An integration-branch move held back while a backend merge is in flight. */
+export type IntegrationMove = {
+  externalKey: string;
+  occurredAt: string;
+  sha: string;
+  previousSha: string;
+};
+
+/**
+ * `baseline`: the workflow's first poll; head moves it lists predate it.
+ * `deferred`: integration moves held back by earlier polls. Returns the moves
+ * still held back: while an `scm.mergePR` is issued but unsettled, a poll can
+ * list its merge before `command.succeeded` exempts the merge commit (S14).
+ */
 export function ingestScm(
   batch: Batch,
   events: readonly ScmEvent[],
   store: EventStore,
   redactor: Redactor,
-): void {
+  baseline = false,
+  deferred: readonly IntegrationMove[] = [],
+): IntegrationMove[] {
   const workflow = batch.state.workflow!;
   const history = store.read({ workflowId: workflow.id });
   const matches = (repo: { owner: string; name: string }) =>
     repo.owner === workflow.repo.github.owner &&
     repo.name === workflow.repo.github.name;
+  // Head moves are judged after the rest of the poll: GitHub lists the final
+  // PR's merge in any order relative to the default branch moving to it.
+  const heads: Extract<ScmEvent, { type: 'branch.head_changed' }>[] = [];
+  /** The Issue artifact and, for a conclusion, its stage's latest gate. */
+  const issueArtifact = (number: number) => {
+    const artifactEvent = history.findLast(
+      (e) =>
+        e.type === 'artifact.created' &&
+        e.payload.kind === 'issue' &&
+        e.payload.number === number,
+    );
+    if (
+      artifactEvent?.type !== 'artifact.created' ||
+      artifactEvent.payload.kind !== 'issue'
+    )
+      return undefined;
+    const artifact = artifactEvent.payload;
+    const gate =
+      artifact.purpose === 'conclusion'
+        ? Object.values(batch.state.gates).findLast(
+            (g) =>
+              g.content.type === 'conclusion' &&
+              g.stageId === artifactEvent.stageId,
+          )
+        : undefined;
+    return { artifact, gate };
+  };
+  /** §8.2: a GitHub body other than the gate's known one updates the gate. */
+  const updateConclusion = (
+    gate: Gate,
+    bodyHash: string,
+    githubUpdatedAt: string,
+    event: ScmEvent,
+  ) => {
+    if (gate.content.type !== 'conclusion') return;
+    if ((gate.github?.bodyHash ?? gate.content.renderedHash) === bodyHash)
+      return;
+    batch.command(
+      {
+        type: 'UpdateGateContent',
+        meta: {
+          occurredAt: event.occurredAt,
+          source: 'scm',
+          provenance: 'observed',
+        },
+        update: {
+          gateId: gate.gateId,
+          source: 'github',
+          bodyHash,
+          githubUpdatedAt,
+        },
+      },
+      event,
+    );
+  };
   for (const event of events) {
     if (batch.observed(event.externalKey)) continue;
     switch (event.type) {
+      case 'branch.head_changed':
+        heads.push(event);
+        break;
+      case 'object.duplicate':
+        // Another run's marker (T6 rule b): never compensate it.
+        if (batch.state.commands[event.commandId] === undefined) break;
+        if (event.target !== undefined && !matches(event.target.repo)) break;
+        batch.anomaly(
+          {
+            kind: 'duplicate',
+            commandId: event.commandId,
+            objectKind: event.kind,
+            ...(event.target === undefined
+              ? {}
+              : {
+                  target: {
+                    repo: event.target.repo,
+                    number: event.target.number,
+                  },
+                }),
+            ...(event.numbers === undefined ? {} : { numbers: event.numbers }),
+            ...(event.commentIds === undefined
+              ? {}
+              : { commentIds: event.commentIds }),
+          },
+          event,
+          'scm',
+        );
+        break;
       case 'pr.state': {
         if (!matches(event.pr.repo)) continue;
         const old = batch.state.prs[event.pr.number];
@@ -68,46 +169,11 @@ export function ingestScm(
       }
       case 'issue.edited': {
         if (!matches(event.issue.repo)) continue;
-        const artifactEvent = history.findLast(
-          (e) =>
-            e.type === 'artifact.created' &&
-            e.payload.kind === 'issue' &&
-            e.payload.number === event.issue.number,
-        );
-        const artifact =
-          artifactEvent?.type === 'artifact.created' &&
-          artifactEvent.payload.kind === 'issue'
-            ? artifactEvent.payload
-            : undefined;
-        if (!artifact) continue;
-        const gate =
-          artifact.purpose === 'conclusion'
-            ? Object.values(batch.state.gates).findLast(
-                (g) =>
-                  g.content.type === 'conclusion' &&
-                  g.stageId === artifactEvent?.stageId,
-              )
-            : undefined;
+        const found = issueArtifact(event.issue.number);
+        if (!found) continue;
+        const { artifact, gate } = found;
         if (gate?.status === 'open' && gate.content.type === 'conclusion') {
-          const hash = gate.github?.bodyHash ?? gate.content.renderedHash;
-          if (hash !== event.bodyHash)
-            batch.command(
-              {
-                type: 'UpdateGateContent',
-                meta: {
-                  occurredAt: event.occurredAt,
-                  source: 'scm',
-                  provenance: 'observed',
-                },
-                update: {
-                  gateId: gate.gateId,
-                  source: 'github',
-                  bodyHash: event.bodyHash,
-                  githubUpdatedAt: event.updatedAt,
-                },
-              },
-              event,
-            );
+          updateConclusion(gate, event.bodyHash, event.updatedAt, event);
         } else {
           // §8.2: only body edits drift; label and comment changes (including
           // the backend's own decision labels) keep the last known body hash.
@@ -135,20 +201,75 @@ export function ingestScm(
         }
         break;
       }
-      case 'repo.object_created':
-        if (matches(event.ref.repo))
-          batch.anomaly(
-            {
-              kind: 'issue',
-              number: event.ref.number,
-              author: event.author,
-              managed: event.hasMarker,
-              createdAt: event.occurredAt,
-            },
+      case 'repo.object_created': {
+        if (!matches(event.ref.repo)) break;
+        batch.anomaly(
+          {
+            kind: 'issue',
+            number: event.ref.number,
+            author: event.author,
+            managed: event.hasMarker,
+            createdAt: event.occurredAt,
+          },
+          event,
+          'scm',
+        );
+        // A body edited before this first sighting has no `issue.edited`:
+        // compare the sighted body with the open conclusion gate's (FX-B).
+        if (event.bodyHash === undefined) break;
+        const gate = issueArtifact(event.ref.number)?.gate;
+        if (gate?.status === 'open' && gate.content.type === 'conclusion')
+          updateConclusion(
+            gate,
+            event.bodyHash,
+            event.updatedAt ?? event.occurredAt,
             event,
-            'scm',
           );
         break;
+      }
     }
   }
+  const moves: IntegrationMove[] = [...deferred];
+  for (const event of heads)
+    if (
+      event.branch === workflow.integrationBranch &&
+      event.previousSha !== null &&
+      !baseline
+    )
+      moves.push({
+        externalKey: event.externalKey,
+        occurredAt: event.occurredAt,
+        sha: event.sha,
+        previousSha: event.previousSha,
+      });
+  for (const event of heads)
+    if (event.branch === workflow.repo.defaultBranch && !baseline)
+      batch.anomaly(
+        {
+          kind: 'default-branch',
+          sha: event.sha,
+          ...(event.previousSha === null
+            ? {}
+            : { previousSha: event.previousSha }),
+        },
+        event,
+        'scm',
+      );
+  if (
+    Object.values(batch.state.commands).some(
+      (c) => c.status === 'issued' && c.issued.kind === 'scm.mergePR',
+    )
+  )
+    return moves;
+  for (const move of moves)
+    batch.anomaly(
+      {
+        kind: 'integration-branch',
+        sha: move.sha,
+        previousSha: move.previousSha,
+      },
+      move,
+      'scm',
+    );
+  return [];
 }

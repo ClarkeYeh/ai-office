@@ -20,7 +20,8 @@ import {
   flush,
 } from '../runner/test-support/harness.js';
 import { HEALTH_TIMER_PREFIX, HealthMonitor } from './health-monitor.js';
-import type { HealthComponent } from './health-monitor.js';
+import type { HealthComponent, HealthMonitorDeps } from './health-monitor.js';
+import type { ScmHealth } from '../../ports/scm.js';
 
 const transient = () =>
   new PortError('transient', 'unavailable', 'sensitive raw error');
@@ -29,6 +30,7 @@ function setup(
   react: RunnerReact = () => [],
   store = new InMemoryEventStore(),
   probeTimeoutMs?: number,
+  extra: Partial<HealthMonitorDeps> = {},
 ) {
   const clock = new FakeClock();
   const probes = {
@@ -49,6 +51,7 @@ function setup(
     workflows: () => runners.all(),
     runtime: { mode: 'fake', verified: true },
     ...(probeTimeoutMs === undefined ? {} : { probeTimeoutMs }),
+    ...extra,
   });
   const executor = new CommandExecutor({
     handlers,
@@ -158,11 +161,11 @@ describe('HealthMonitor', () => {
           finish = resolve;
         }),
     );
-    h.probes.scm.mockRejectedValueOnce(transient());
+    h.probes.store.mockRejectedValueOnce(transient());
     await h.fail('runtime');
-    await h.fail('scm');
+    await h.fail('store');
     const admitted = vi.fn();
-    void h.health.waitUntilDispatchable().then(admitted);
+    void h.health.waitUntilDispatchable('runtime.send').then(admitted);
     await h.advance(10_000);
     expect(h.health.snapshot().runtime.breaker).toBe('half_open');
     await h.health.onTimer({
@@ -182,7 +185,7 @@ describe('HealthMonitor', () => {
     const h = setup();
     await h.runners.start(startWorkflow());
     await h.fail('usage');
-    await h.health.waitUntilDispatchable();
+    await h.health.waitUntilDispatchable('runtime.send');
     expect(h.health.snapshot().status).toBe('degraded');
     expect(h.health.snapshot().usage.detail).toContain('wall-clock');
     expect(h.store.read({}).some((e) => e.type === 'workflow.paused')).toBe(
@@ -273,14 +276,155 @@ describe('HealthMonitor', () => {
 
   it('holds new commands across systems without consuming retry budgets', async () => {
     const handler = vi.fn(async () => ({}));
-    const h = setup({ 'runtime.stop': handler });
-    await h.fail('scm');
-    const result = h.executor.execute(issued);
+    const h = setup({ 'runtime.send': handler });
+    await h.fail('store');
+    const send: IssuedCommand = {
+      ...issued,
+      command: {
+        kind: 'runtime.send',
+        args: { agent: 'agent-1', subject: 's', body: 'b' },
+      },
+    };
+    const result = h.executor.execute(send);
     await flush();
     expect(handler).not.toHaveBeenCalled();
     await h.advance(10_000);
     expect(await result).toMatchObject({ ok: true, attempts: 1 });
   });
+
+  describe('per-component dispatch blocking (S21)', () => {
+    const repo = { owner: 'o', name: 'r' };
+    const commands = {
+      stop: { kind: 'runtime.stop', args: { agent: 'a' } },
+      release: {
+        kind: 'runtime.release',
+        args: { agent: 'a', removeWorkspace: false },
+      },
+      send: {
+        kind: 'runtime.send',
+        args: { agent: 'a', subject: 's', body: 'b' },
+      },
+      label: { kind: 'scm.ensureLabels', args: { repo, labels: [] } },
+    } as const satisfies Record<string, IssuedCommand['command']>;
+    const blocked = (h: ReturnType<typeof setup>) =>
+      Object.fromEntries(
+        Object.entries(commands).map(([name, command]) => [
+          name,
+          h.health.dispatchBlockedFor(command.kind),
+        ]),
+      );
+
+    it('maps each command kind to the breakers it needs', async () => {
+      const scm = setup();
+      await scm.fail('scm');
+      expect(blocked(scm)).toEqual({
+        stop: false,
+        release: false,
+        send: false,
+        label: true,
+      });
+      const store = setup();
+      await store.fail('store');
+      expect(blocked(store)).toEqual({
+        stop: false,
+        release: false,
+        send: true,
+        label: true,
+      });
+      const runtime = setup();
+      await runtime.fail('runtime');
+      expect(blocked(runtime)).toEqual({
+        stop: true,
+        release: true,
+        send: true,
+        label: false,
+      });
+      const usage = setup();
+      await usage.fail('usage');
+      expect(Object.values(blocked(usage))).not.toContain(true);
+    });
+
+    it('sends runtime.stop and runtime.release while the scm breaker is open', async () => {
+      const stop = vi.fn(async () => ({}));
+      const release = vi.fn(async () => ({}));
+      const label = vi.fn(async () => ({}));
+      const h = setup({
+        'runtime.stop': stop,
+        'runtime.release': release,
+        'scm.ensureLabels': label,
+      });
+      await h.runners.start(startWorkflow());
+      await h.fail('scm');
+      expect(h.runners.get('wf-1')?.state.workflow?.pausedReasons).toEqual([
+        'scm_unhealthy',
+      ]);
+      const run = (command: IssuedCommand['command']) =>
+        h.executor.execute({ ...issued, command });
+      const scmOutcome = vi.fn();
+      void run(commands.label).then(scmOutcome);
+      expect(await run(commands.stop)).toMatchObject({ ok: true });
+      expect(await run(commands.release)).toMatchObject({ ok: true });
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(release).toHaveBeenCalledTimes(1);
+      expect(label).not.toHaveBeenCalled();
+      expect(scmOutcome).not.toHaveBeenCalled();
+      await h.advance(10_000);
+      expect(scmOutcome).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true }),
+      );
+    });
+
+    it('sends runtime.stop while the store breaker is open, but not runtime.send', async () => {
+      const stop = vi.fn(async () => ({}));
+      const send = vi.fn(async () => ({}));
+      const h = setup({ 'runtime.stop': stop, 'runtime.send': send });
+      await h.fail('store');
+      void h.executor.execute({ ...issued, command: commands.send });
+      expect(
+        await h.executor.execute({ ...issued, command: commands.stop }),
+      ).toMatchObject({ ok: true });
+      await flush();
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('keeps a transient scm failure pending on the scm outage only', async () => {
+      const label = vi
+        .fn()
+        .mockRejectedValueOnce(transient())
+        .mockResolvedValue({});
+      const h = setup({ 'scm.ensureLabels': label });
+      await h.fail('scm', 4);
+      const outcome = h.executor.execute({
+        ...issued,
+        command: commands.label,
+      });
+      await flush();
+      expect(h.health.dispatchBlockedFor('scm.ensureLabels')).toBe(true);
+      expect(h.health.dispatchBlockedFor('runtime.send')).toBe(false);
+      await h.advance(10_000);
+      expect(await outcome).toMatchObject({ ok: true, attempts: 2 });
+    });
+
+    it('wakes a waiter only once every breaker its kind needs is closed', async () => {
+      const send = vi.fn(async () => ({}));
+      const h = setup({ 'runtime.send': send });
+      h.probes.runtime.mockRejectedValueOnce(transient());
+      await h.fail('store');
+      await h.fail('runtime');
+      const outcome = vi.fn();
+      void h.executor
+        .execute({ ...issued, command: commands.send })
+        .then(outcome);
+      await h.advance(10_000);
+      expect(h.health.snapshot().store.breaker).toBe('closed');
+      expect(outcome).not.toHaveBeenCalled();
+      await h.advance(10_000);
+      expect(outcome).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true, attempts: 1 }),
+      );
+    });
+  });
+
   it('leaves runner outbox commands issued without failed events or exception gates through an outage', async () => {
     const handler = vi
       .fn()
@@ -322,13 +466,16 @@ describe('HealthMonitor', () => {
   });
   it('pauses a workflow created while a required breaker is already open', async () => {
     const handler = vi.fn(async () => ({}));
-    const h = setup({ 'runtime.stop': handler }, (_state, event) =>
+    const h = setup({ 'scm.ensureLabels': handler }, (_state, event) =>
       event.type === 'workflow.started'
         ? [
             {
               kind: 'external',
               commandId: issued.commandId,
-              command: issued.command,
+              command: {
+                kind: 'scm.ensureLabels',
+                args: { repo: { owner: 'o', name: 'r' }, labels: [] },
+              },
             },
           ]
         : [],
@@ -516,6 +663,204 @@ describe('HealthMonitor', () => {
       expect(view.runtime.status).toBe('unhealthy');
       expect(view.usage.status).toBe('degraded');
       expect(view.status).toBe('unhealthy');
+    });
+  });
+
+  describe('SCM status, slowdown and the active login (M3-T9)', () => {
+    const scmHealth = (remaining: number, extra: Partial<ScmHealth> = {}) => ({
+      available: true,
+      viewerLogin: 'owner',
+      rateLimitRemaining: remaining,
+      rateLimitResetAt: '2026-01-01T01:00:00.000Z',
+      ...extra,
+    });
+    const paused = (h: ReturnType<typeof setup>) =>
+      h.runners.get('wf-1')?.state.workflow?.pausedReasons;
+
+    it('maps the adapter report into HealthView and publishes degraded below 200', async () => {
+      const scmStatus = vi
+        .fn<() => Promise<ScmHealth>>()
+        .mockResolvedValue(
+          scmHealth(4_000, { tokenSource: 'gh', warnings: ['token_reloaded'] }),
+        );
+      const h = setup({}, () => [], undefined, undefined, { scmStatus });
+      await h.health.publishInitial();
+      const view = h.health.snapshot();
+      expect(view.scm).toMatchObject({
+        status: 'healthy',
+        login: 'owner',
+        tokenSource: 'gh',
+        warnings: ['token_reloaded'],
+        rateLimit: {
+          limit: 5_000,
+          remaining: 4_000,
+          resetAt: '2026-01-01T01:00:00.000Z',
+        },
+      });
+      expect(HealthViewSchema.safeParse(view).success).toBe(true);
+      scmStatus.mockResolvedValue(scmHealth(150));
+      await h.advance(60_000);
+      expect(h.health.snapshot()).toMatchObject({
+        status: 'degraded',
+        scm: {
+          status: 'degraded',
+          breaker: 'closed',
+          warnings: ['rate_limit_low'],
+        },
+      });
+      expect(
+        h.store
+          .read({})
+          .filter(
+            (e) => e.type === 'health.changed' && e.payload.component === 'scm',
+          )
+          .map((e) => e.payload),
+      ).toEqual([
+        { component: 'scm', status: 'healthy', breaker: 'closed' },
+        { component: 'scm', status: 'degraded', breaker: 'closed' },
+      ]);
+      expect(JSON.stringify(h.store.read({}))).not.toContain('token');
+    });
+
+    it('smooths the slowdown thresholds with hysteresis', async () => {
+      const samples = [
+        4_000, 999, 1_050, 1_099, 1_100, 199, 250, 299, 300, 1_099, 1_100,
+      ];
+      const scmStatus = vi.fn<() => Promise<ScmHealth>>();
+      for (const remaining of samples)
+        scmStatus.mockResolvedValueOnce(scmHealth(remaining));
+      const h = setup({}, () => [], undefined, undefined, { scmStatus });
+      await h.health.publishInitial();
+      const paces = [h.health.scmPace()];
+      for (let i = 1; i < samples.length; i++) {
+        await h.advance(60_000);
+        paces.push(h.health.scmPace());
+      }
+      expect(paces).toEqual([
+        'normal',
+        'slow',
+        'slow',
+        'slow',
+        'normal',
+        'critical',
+        'critical',
+        'critical',
+        'slow',
+        'slow',
+        'normal',
+      ]);
+    });
+
+    it('pauses with auth while the active login differs and resumes when it matches', async () => {
+      const activeLoginProbe = vi.fn(async () => true);
+      const h = setup({}, () => [], undefined, undefined, { activeLoginProbe });
+      await h.runners.start(startWorkflow());
+      await h.advance(5 * 60_000 - 1);
+      expect(activeLoginProbe).not.toHaveBeenCalled();
+      await h.advance(1);
+      expect(activeLoginProbe).toHaveBeenCalledTimes(1);
+      expect(paused(h)).toEqual([]);
+      activeLoginProbe.mockResolvedValue(false);
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual(['auth']);
+      expect(h.health.snapshot().scm).toMatchObject({
+        status: 'degraded',
+        breaker: 'closed',
+        warnings: ['active_account_mismatch'],
+      });
+      expect(h.health.dispatchBlockedFor('runtime.stop')).toBe(false);
+      // gh unavailable: the verdict stands.
+      activeLoginProbe.mockRejectedValueOnce(new Error('gh missing'));
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual(['auth']);
+      activeLoginProbe.mockResolvedValue(true);
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual([]);
+      expect(
+        h.store
+          .read({})
+          .filter((e) => e.type === 'workflow.paused')
+          .map((e) => e.payload),
+      ).toEqual([{ reason: 'auth', detail: 'active_account_mismatch' }]);
+    });
+
+    it('shows a failing SCM poll as poll_failing until a poll succeeds, without touching the breaker', async () => {
+      const h = setup();
+      await h.runners.start(startWorkflow());
+      await h.health.noteScmPoll('invalid_pagination');
+      expect(h.health.snapshot().scm).toMatchObject({
+        status: 'degraded',
+        breaker: 'closed',
+        warnings: ['poll_failing:invalid_pagination'],
+      });
+      expect(h.health.dispatchBlockedFor('scm.createIssue')).toBe(false);
+      await h.health.noteScmPoll(undefined);
+      expect(h.health.snapshot().scm.status).toBe('healthy');
+      expect(h.health.snapshot().scm).not.toHaveProperty('warnings');
+      expect(paused(h)).toEqual([]);
+    });
+
+    it('never resumes an auth pause it did not make', async () => {
+      const activeLoginProbe = vi.fn(async () => true);
+      const h = setup({}, () => [], undefined, undefined, { activeLoginProbe });
+      await h.runners.start(startWorkflow());
+      await h.runners.dispatch('wf-1', {
+        type: 'PauseWorkflow',
+        reason: 'auth',
+        meta: { occurredAt: h.clock.now().toISOString(), source: 'system' },
+      });
+      activeLoginProbe.mockResolvedValue(false);
+      await h.advance(5 * 60_000);
+      activeLoginProbe.mockResolvedValue(true);
+      await h.advance(5 * 60_000);
+      expect(paused(h)).toEqual(['auth']);
+    });
+
+    it('pauses scm_unhealthy once a command is rate limited past five minutes, without holding runtime commands', async () => {
+      const rateLimited = () =>
+        new PortError(
+          'rate_limited',
+          'primary_rate_limit',
+          'limited',
+          true,
+          4 * 60_000,
+        );
+      const label = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited())
+        .mockRejectedValueOnce(rateLimited())
+        .mockResolvedValue({});
+      const stop = vi.fn(async () => ({}));
+      const h = setup({ 'scm.ensureLabels': label, 'runtime.stop': stop });
+      await h.runners.start(startWorkflow());
+      const outcome = vi.fn();
+      void h.executor
+        .execute({
+          ...issued,
+          command: {
+            kind: 'scm.ensureLabels',
+            args: { repo: { owner: 'o', name: 'r' }, labels: [] },
+          },
+        })
+        .then(outcome);
+      await flush();
+      expect(paused(h)).toEqual([]);
+      await h.advance(4 * 60_000);
+      // The second wait takes the streak past five minutes.
+      expect(paused(h)).toEqual(['scm_unhealthy']);
+      expect(h.health.snapshot().scm.breaker).toBe('closed');
+      expect(await h.executor.execute(issued)).toMatchObject({ ok: true });
+      await h.advance(4 * 60_000);
+      expect(outcome).toHaveBeenCalledWith(
+        expect.objectContaining({ ok: true, attempts: 3 }),
+      );
+      expect(paused(h)).toEqual([]);
+      expect(
+        h.store
+          .read({})
+          .filter((e) => e.type === 'workflow.paused')
+          .map((e) => e.payload),
+      ).toEqual([{ reason: 'scm_unhealthy', detail: 'rate_limited' }]);
     });
   });
 });

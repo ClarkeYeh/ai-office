@@ -34,6 +34,25 @@ afterEach(() => {
 });
 
 describe('settings', () => {
+  it('accepts empty defaults and validates production owner and shim paths', () => {
+    expect(
+      SettingsSchema.parse({
+        orca: { homeDir: '/isolated/orca' },
+        github: { expectedLogin: 'fixture-owner' },
+      }),
+    ).toMatchObject({
+      orca: { homeDir: '/isolated/orca' },
+      github: { expectedLogin: 'fixture-owner' },
+    });
+    for (const homeDir of ['relative', '/bad\0path'])
+      expect(SettingsSchema.safeParse({ orca: { homeDir } }).success).toBe(
+        false,
+      );
+    for (const expectedLogin of ['--user', 'bad name', 'bad/login'])
+      expect(
+        SettingsSchema.safeParse({ github: { expectedLogin } }).success,
+      ).toBe(false);
+  });
   it('resolves the default home and override', () => {
     expect(resolveDataDir({ HOME: '/home/example' })).toBe(
       '/home/example/.ai-office',
@@ -65,6 +84,7 @@ describe('settings', () => {
       server: { port: 4319 },
       orca: {
         bin: 'orca',
+        homeDir: '',
         supportedRange: '>=1.4.259 <1.5',
         shimLocation: 'folder-workspace',
         shim: { closeOnExit: false },
@@ -79,7 +99,7 @@ describe('settings', () => {
         claudeConfigDirs: [],
         codexHomes: [],
       },
-      github: { tokenSource: 'auto', ghBin: '' },
+      github: { tokenSource: 'auto', ghBin: '', expectedLogin: '' },
       env: { passthrough: ['GH_CONFIG_DIR', 'XDG_CONFIG_HOME'] },
       limits: { globalAgents: 10 },
       retention: { workerBranches: 'delete-on-complete' },
@@ -107,6 +127,64 @@ describe('settings', () => {
 });
 
 describe('GitHub token', () => {
+  it('pins the requested account and rejects invalid logins before spawning', () => {
+    const run = vi.fn<GhTokenSpawn>().mockReturnValue({
+      pid: 1,
+      output: [],
+      stdout: 'example',
+      stderr: '',
+      status: 0,
+      signal: null,
+    });
+    // An absolute ghBin: CI runners have no gh at the known macOS paths.
+    const settings = SettingsSchema.parse({ github: { ghBin: '/fixture/gh' } });
+    readGhToken(settings, '/tmp/example', {}, run, {
+      user: 'fixture-owner',
+    });
+    expect(run.mock.calls[0]?.[1]).toEqual([
+      'auth',
+      'token',
+      '--user',
+      'fixture-owner',
+      '--hostname',
+      'github.com',
+    ]);
+    run.mockClear();
+    for (const user of ['--hostname', 'a b', 'a/b', 'a--b', '', 'a'.repeat(40)])
+      expect(() =>
+        readGhToken(settings, '/tmp/example', {}, run, {
+          user,
+        }),
+      ).toThrow('Invalid GitHub login');
+    expect(run).not.toHaveBeenCalled();
+  });
+  it('reads the active account independently of an environment token', () => {
+    const run = vi.fn<GhTokenSpawn>().mockReturnValue({
+      pid: 1,
+      output: [],
+      stdout: 'active-example',
+      stderr: '',
+      status: 0,
+      signal: null,
+    });
+    expect(
+      readGhToken(
+        SettingsSchema.parse({
+          github: { tokenSource: 'env', ghBin: '/fixture/gh' },
+        }),
+        '/tmp/example',
+        { AI_OFFICE_GITHUB_TOKEN: 'backend-example' },
+        run,
+        { active: true },
+      ),
+    ).toBe('active-example');
+    expect(run.mock.calls[0]?.[1]).toEqual([
+      'auth',
+      'token',
+      '--hostname',
+      'github.com',
+    ]);
+  });
   it('prefers the explicit environment token without spawning', () => {
     const run = vi.fn<GhTokenSpawn>();
     expect(
@@ -166,7 +244,7 @@ describe('GitHub token', () => {
     ).toBe('example-value');
     expect(run).toHaveBeenCalledWith(
       '/custom/gh',
-      ['auth', 'token'],
+      ['auth', 'token', '--hostname', 'github.com'],
       expect.objectContaining({
         shell: false,
         cwd: '/tmp/example/cli-cwd',

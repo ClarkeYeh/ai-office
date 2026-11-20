@@ -325,6 +325,37 @@ describe('harness claim and adoption', () => {
     );
     expect(mutations).toEqual([]);
   });
+
+  it('removes a claimed worktree an agent left on a detached HEAD (M3-T17)', async () => {
+    const { h, mutations } = await harness({
+      worktrees: [
+        {
+          id: 'w-detached',
+          displayName: `aio-${NS}-merge-1`,
+          branch: null,
+          comment: 'aio:cmd-1 base:abc',
+        },
+        {
+          id: 'w-unmarked',
+          displayName: `aio-${OTHER}-merge-1`,
+          branch: null,
+          comment: 'aio:cmd-2',
+        },
+      ],
+      local: [`ai-office/${NS}/merge-1`],
+      remote: [],
+      workers: [],
+    });
+    await (
+      await h.claimWorkflowNamespace()
+    )(NS);
+    await h.clean();
+    expect(mutations).toEqual([
+      'worktree rm --worktree id:w-detached',
+      `git branch -D ai-office/${NS}/merge-1`,
+    ]);
+    expect(leftovers(h.ledger)).toEqual([]);
+  });
 });
 
 describe(

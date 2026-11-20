@@ -4,7 +4,7 @@ import type {
   RepoSnapshot,
   ExternalCommand,
 } from '@ai-office/contracts/events';
-import { decide, isAttemptAlive } from '@ai-office/domain';
+import { decide, isAttemptAlive, ownerReviewFeedback } from '@ai-office/domain';
 import type {
   StartWorkflow,
   DecideGate,
@@ -14,7 +14,7 @@ import type { Clock, IdGen, Redactor } from '../../ports/services.js';
 import type { EventStore, IdempotencyStore } from '../../ports/stores.js';
 import type { TemplateRepository } from '../../ports/template.js';
 import type { RuntimePort } from '../../ports/runtime.js';
-import type { ScmPort } from '../../ports/scm.js';
+import type { ReviewComment, ScmPort } from '../../ports/scm.js';
 import type { WorkflowRunners } from '../runner/runners.js';
 import {
   check,
@@ -59,6 +59,30 @@ export interface CommandUseCaseDeps {
   redactor: Redactor;
   limits: StartWorkflow['limits'];
 }
+/** The owner's comment plus the owner's PR review comments (S10). */
+export const revisionFeedback = (
+  comment: string | undefined,
+  review: { comments: readonly ReviewComment[]; ignored: number },
+): string | undefined => {
+  const parts = [
+    ...(comment?.trim() ? [comment] : []),
+    ...(review.comments.length === 0
+      ? []
+      : [
+          [
+            'Review comments by the repository owner on the final PR:',
+            ...review.comments.map(
+              (c) =>
+                `- ${c.path}${c.line === null ? '' : `:${c.line}`}: ${c.body}`,
+            ),
+          ].join('\n'),
+        ]),
+    ...(review.ignored === 0
+      ? []
+      : [`(${review.ignored} review comment(s) by other accounts ignored.)`]),
+  ];
+  return parts.length === 0 ? undefined : parts.join('\n\n');
+};
 const fields = [
   'summary',
   'decisions',
@@ -121,8 +145,11 @@ export class CommandUseCases {
       fail(404, `unknown_${kind === 'gates' ? 'gate' : 'question'}`)
     );
   }
-  private repos(): RepoSnapshot[] {
-    const repos = new Map<string, RepoSnapshot>();
+  private repos(): (RepoSnapshot & { status?: 'registered' | 'invalid' })[] {
+    const repos = new Map<
+      string,
+      RepoSnapshot & { status?: 'registered' | 'invalid' }
+    >();
     for (const event of this.deps.store.read({ workflowId: null })) {
       if (event.type === 'repo.registered')
         repos.set(event.payload.repoId, event.payload);
@@ -152,6 +179,16 @@ export class CommandUseCases {
       this.repos().find((r) => r.repoId === input.repoId) ??
       fail(404, 'unknown_repo');
     const health = await runtime.health();
+    if (
+      repo.status === 'invalid' ||
+      repo.allowMergeCommit === false ||
+      repo.warnings?.some((warning) =>
+        ['merge_commit_disabled', 'archived', 'no_push_permission'].includes(
+          warning,
+        ),
+      )
+    )
+      fail(422, 'repo_not_ready');
     if (!health.available) fail(503, 'runtime_unavailable');
     if (!health.verified && !input.acknowledgeUnverifiedRuntime)
       fail(428, 'runtime_unverified');
@@ -184,7 +221,7 @@ export class CommandUseCases {
     input: GateDecisionInput,
     key: string,
   ): Promise<{ gateId: string }> {
-    return this.idem.run(`gate:${gateId}`, key, input, async () => {
+    return this.idem.run(`gate:${gateId}`, key, input, async (record) => {
       const runner = this.locate('gates', gateId);
       return this.serial.run(runner.workflowId, async () => {
         const gate = runner.state.gates[gateId]!;
@@ -269,6 +306,31 @@ export class CommandUseCases {
             },
           });
         }
+        // S10: a final-PR revision carries the owner's PR review comments;
+        // on a public repository anyone can review, so others only count.
+        const workflow = runner.state.workflow!;
+        if (
+          gate.kind === 'stage' &&
+          gate.stageKind === 'final-pr' &&
+          input.decision === 'reject' &&
+          workflow.finalPr !== undefined
+        ) {
+          let comments;
+          try {
+            comments = await this.deps.scm.listReviewComments({
+              repo: workflow.repo.github,
+              number: workflow.finalPr,
+            });
+          } catch {
+            return fail(503, 'scm_unavailable');
+          }
+          const feedback = revisionFeedback(
+            input.comment,
+            ownerReviewFeedback(comments, workflow.repo.ownerLogin),
+          );
+          if (feedback !== undefined)
+            command.comment = this.deps.redactor.maskSecrets(feedback);
+        }
         // No await between checking current state and appending the atomic decision/outbox batch.
         const result = decide(runner.state, command);
         if (!result.ok) throw domainFailure(result.error);
@@ -278,6 +340,7 @@ export class CommandUseCases {
           this.deps.ids,
           sync,
           result.events,
+          record({ gateId }),
         );
         return { gateId };
       });
@@ -288,39 +351,48 @@ export class CommandUseCases {
     input: AnswerInput,
     key: string,
   ): Promise<{ questionId: string }> {
-    return this.idem.run(`question:${questionId}`, key, input, async () => {
-      const runner = this.locate('questions', questionId);
-      return this.serial.run(runner.workflowId, async () => {
-        if (!input.body.trim()) fail(422, 'empty_answer');
-        const gateId = runner.state.questions[questionId]?.escalation?.gateId;
-        const gate = gateId ? runner.state.gates[gateId] : undefined;
-        if (!gate || gate.status !== 'open')
-          fail(409, 'question_gate_not_open');
-        const result = decide(runner.state, {
-          ...input,
-          type: 'AnswerQuestion',
-          questionId,
-          by: 'user',
-          gateId: gate.gateId,
-          meta: this.meta(),
-        });
-        if (!result.ok) throw domainFailure(result.error);
-        await runner.append([
-          ...result.events,
-          draft(this.deps.clock, runner.workflowId, 'gate.decided', {
-            gateId: gate.gateId,
-            version: gate.version,
-            decision: 'answer',
+    return this.idem.run(
+      `question:${questionId}`,
+      key,
+      input,
+      async (record) => {
+        const runner = this.locate('questions', questionId);
+        return this.serial.run(runner.workflowId, async () => {
+          if (!input.body.trim()) fail(422, 'empty_answer');
+          const gateId = runner.state.questions[questionId]?.escalation?.gateId;
+          const gate = gateId ? runner.state.gates[gateId] : undefined;
+          if (!gate || gate.status !== 'open')
+            fail(409, 'question_gate_not_open');
+          const result = decide(runner.state, {
+            ...input,
+            type: 'AnswerQuestion',
+            questionId,
             by: 'user',
-            comment: input.body,
-            ...(input.optionId === undefined
-              ? {}
-              : { optionId: input.optionId }),
-          }),
-        ]);
-        return { questionId };
-      });
-    });
+            gateId: gate.gateId,
+            meta: this.meta(),
+          });
+          if (!result.ok) throw domainFailure(result.error);
+          await runner.append(
+            [
+              ...result.events,
+              draft(this.deps.clock, runner.workflowId, 'gate.decided', {
+                gateId: gate.gateId,
+                version: gate.version,
+                decision: 'answer',
+                by: 'user',
+                comment: input.body,
+                ...(input.optionId === undefined
+                  ? {}
+                  : { optionId: input.optionId }),
+              }),
+            ],
+            undefined,
+            record({ questionId }),
+          );
+          return { questionId };
+        });
+      },
+    );
   }
   async cancelWorkflow(workflowId: string): Promise<{ workflowId: string }> {
     check(
@@ -463,6 +535,19 @@ export class CommandUseCases {
         visibility: info.visibility,
         ownerLogin: info.viewerLogin,
         defaultBranchProtected: info.defaultBranchProtected,
+        ...(info.allowMergeCommit === undefined
+          ? {}
+          : { allowMergeCommit: info.allowMergeCommit }),
+        warnings: [
+          ...new Set([
+            ...(info.warnings ?? []),
+            ...(info.archived ? ['archived'] : []),
+            ...(info.canPush === false ? ['no_push_permission'] : []),
+            ...(info.allowMergeCommit === false
+              ? ['merge_commit_disabled']
+              : []),
+          ]),
+        ],
       };
       this.deps.store.append([
         draft(this.deps.clock, null, 'repo.registered', repo),

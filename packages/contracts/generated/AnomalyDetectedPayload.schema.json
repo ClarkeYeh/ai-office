@@ -40,6 +40,10 @@
     "commandId": {
       "type": "string",
       "minLength": 1
+    },
+    "commentId": {
+      "type": "string",
+      "minLength": 1
     }
   },
   "required": [

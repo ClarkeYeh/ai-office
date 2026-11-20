@@ -296,7 +296,8 @@ export const exceptionsPolicy: Policy = (ctx) => {
       'hijacked',
       `Run ${event.payload.run} was taken over; explicit reclamation is required.`,
     );
-  if (event.type === 'anomaly.detected')
+  // SPEC rev2.15.3 §12.3: warning-level anomalies are notifications, no gate.
+  if (event.type === 'anomaly.detected' && event.payload.severity !== 'warning')
     return openException(
       ctx,
       'anomaly',

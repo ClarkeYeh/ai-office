@@ -8,6 +8,10 @@
     "default-branch-moved",
     "policy-hit",
     "agents-alive-before-gate",
-    "reconcile-gave-up"
+    "reconcile-gave-up",
+    "duplicate-object",
+    "merge-base-changed",
+    "integration-branch-moved",
+    "unmanaged-close"
   ]
 }

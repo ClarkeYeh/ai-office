@@ -2,6 +2,7 @@ import type { EventPayload } from '@ai-office/contracts/events';
 import type { Attempt } from '@ai-office/domain';
 import type { RuntimePort } from '../../ports/runtime.js';
 import type { ScmPort } from '../../ports/scm.js';
+import { PortError } from '../../ports/errors.js';
 import type { UsageLocateRef, UsagePort } from '../../ports/usage.js';
 import type { RuntimeCursor, ScmCursor, SessionRef } from '../../ports/refs.js';
 import type {
@@ -16,6 +17,7 @@ import { Batch } from './batch.js';
 import type { ObservationWorkflow } from './batch.js';
 import { ingestRuntime } from './runtime.js';
 import { ingestScm } from './scm.js';
+import type { IntegrationMove } from './scm.js';
 import { budgetFormula, DEFAULT_BUDGET_FORMULA, ingestUsage } from './usage.js';
 import type { UsageCheckpoint } from './usage.js';
 export type { ObservationWorkflow } from './batch.js';
@@ -46,11 +48,30 @@ export interface ObservationLoopDeps {
   usageIntervalMs?: number;
   /** Overrides the §6.4 SCM cadence (15 s, 30 s with an open final-PR gate); fakes only. */
   scmIntervalMs?: number;
+  /** §12.2 slowdown from the rate limit (HealthMonitor.scmPace); absent → normal. */
+  scmPace?: () => ScmPace;
+  /**
+   * Each SCM poll's outcome (HealthMonitor.noteScmPoll): the code of a
+   * non-transient failure, or undefined after a successful poll. Transient
+   * failures belong to the breaker and leave the last outcome unchanged.
+   */
+  onScmPoll?: (failureCode: string | undefined) => Promise<void>;
 }
+/** Mirrors HealthMonitor's ScmPace (§12.2). */
+export type ScmPace = 'normal' | 'slow' | 'critical';
+/** SCM cadence while the rate limit is low (§12.2). */
+export const SCM_SLOW_INTERVAL_MS = 60_000;
 type Job = { runner: ObservationWorkflow } & (
   { kind: 'runtime'; session: SessionRef } | { kind: 'scm' | 'usage' }
 );
-type ScmCheckpoint = { cursor: ScmCursor; defaultSha?: string; poll?: number };
+/**
+ * v2 (M3-T9): default-branch moves arrive as `branch.head_changed`. A v1
+ * checkpoint kept the default head from a `compareBranch(default, default)`
+ * per poll; it is compared once more, then dropped.
+ */
+type ScmCheckpoint =
+  | { v: 2; cursor: ScmCursor; deferred?: IntegrationMove[] }
+  | { v?: undefined; cursor: ScmCursor; defaultSha?: string; poll?: number };
 
 /** Composition: start after reconciliation, forward aio-observe timers to onTimer,
  * stop before closing adapters. One pending/runtime call per session; paused
@@ -143,8 +164,20 @@ export class ObservationLoop {
     try {
       if (job.kind === 'runtime')
         await this.pollRuntime(job.runner, job.session);
-      else if (job.kind === 'scm') await this.pollScm(job.runner);
-      else
+      else if (job.kind === 'scm') {
+        try {
+          await this.pollScm(job.runner);
+        } catch (error) {
+          if (
+            error instanceof PortError &&
+            error.category !== 'transient' &&
+            error.retryAfterMs === undefined
+          )
+            await this.reportScmPoll(error.code);
+          throw error;
+        }
+        await this.reportScmPoll(undefined);
+      } else
         for (const attempt of Object.values(job.runner.state.attempts)) {
           if (!this.unsubscribe) break;
           await this.pollUsage(job.runner, attempt.attemptId);
@@ -160,13 +193,19 @@ export class ObservationLoop {
       this.refresh();
     }
   }
+  private async reportScmPoll(code: string | undefined): Promise<void> {
+    try {
+      await this.deps.onScmPoll?.(code);
+    } catch {
+      this.deps.logger.warn({ source: 'scm' }, 'SCM poll health report failed');
+    }
+  }
   scmInterval(runner: ObservationWorkflow): number {
     if (this.deps.scmIntervalMs !== undefined) return this.deps.scmIntervalMs;
-    return Object.values(runner.state.gates).some(
-      (g) => g.status === 'open' && g.content.type === 'final-pr',
-    )
-      ? 30_000
-      : 15_000;
+    const base = finalGateOpen(runner) ? 30_000 : 15_000;
+    return (this.deps.scmPace?.() ?? 'normal') === 'normal'
+      ? base
+      : Math.max(base, SCM_SLOW_INTERVAL_MS);
   }
   pollRuntime(runner: ObservationWorkflow, session: SessionRef): Promise<void> {
     return this.serial(runner, `runtime:${session}`, async () => {
@@ -252,15 +291,34 @@ export class ObservationLoop {
         'observation.scm',
         scope,
       ) as ScmCheckpoint | null;
-      const result = await this.deps.scm.poll(
-        workflow.repo.github,
-        checkpoint?.cursor ?? null,
-      );
-      const head = await this.deps.scm.compareBranch(
-        workflow.repo.github,
-        workflow.repo.defaultBranch,
-        workflow.repo.defaultBranch,
-      );
+      const deferred = checkpoint?.v === 2 ? (checkpoint.deferred ?? []) : [];
+      // §12.2 below 200 remaining: only the final PR and merges in flight.
+      // Held-back integration moves are still judged once the merge settles.
+      const skip =
+        this.deps.scmPace?.() === 'critical' &&
+        !finalGateOpen(runner) &&
+        !Object.values(runner.state.commands).some(
+          (c) => c.status === 'issued' && c.issued.kind === 'scm.mergePR',
+        );
+      if (skip && (checkpoint === null || deferred.length === 0)) return;
+      const result = skip
+        ? { events: [], cursor: checkpoint!.cursor }
+        : await this.deps.scm.poll(
+            workflow.repo.github,
+            checkpoint?.cursor ?? null,
+          );
+      const legacy =
+        checkpoint !== null && checkpoint.v === undefined
+          ? checkpoint
+          : undefined;
+      const head =
+        legacy?.defaultSha === undefined
+          ? undefined
+          : await this.deps.scm.compareBranch(
+              workflow.repo.github,
+              workflow.repo.defaultBranch,
+              workflow.repo.defaultBranch,
+            );
       const batch = new Batch(runner, this.deps.store);
       const redactor = this.deps.redactors.forAttempt({
         attemptId: 'scm',
@@ -268,36 +326,41 @@ export class ObservationLoop {
         defaultBranch: workflow.repo.defaultBranch,
         integrationBranch: workflow.integrationBranch,
       });
-      ingestScm(batch, result.events, this.deps.store, redactor);
-      if (head)
+      const held = ingestScm(
+        batch,
+        // The one-time comparison already covers this poll's default moves.
+        head
+          ? result.events.filter(
+              (e) =>
+                e.type !== 'branch.head_changed' ||
+                e.branch !== workflow.repo.defaultBranch,
+            )
+          : result.events,
+        this.deps.store,
+        redactor,
+        checkpoint === null,
+        deferred,
+      );
+      if (head && legacy?.defaultSha !== undefined)
         batch.anomaly(
           {
             kind: 'default-branch',
             sha: head.headSha,
-            ...(checkpoint?.defaultSha === undefined
-              ? {}
-              : { previousSha: checkpoint.defaultSha }),
+            previousSha: legacy.defaultSha,
           },
           {
-            externalKey: `gh:default:${workflow.id}:${checkpoint?.poll ?? 0}:${checkpoint?.defaultSha ?? 'initial'}:${head.headSha}`,
+            externalKey: `gh:default:${workflow.id}:${legacy.poll ?? 0}:${legacy.defaultSha}:${head.headSha}`,
             occurredAt: this.deps.clock.now().toISOString(),
           },
           'scm',
         );
+      const value: ScmCheckpoint = {
+        v: 2,
+        cursor: result.cursor,
+        ...(held.length === 0 ? {} : { deferred: held }),
+      };
       await runner.append(batch.drafts, [
-        {
-          source: 'observation.scm',
-          scope,
-          value: {
-            cursor: result.cursor,
-            poll: (checkpoint?.poll ?? 0) + 1,
-            ...(head
-              ? { defaultSha: head.headSha }
-              : checkpoint?.defaultSha === undefined
-                ? {}
-                : { defaultSha: checkpoint.defaultSha }),
-          },
-        },
+        { source: 'observation.scm', scope, value },
       ]);
     });
   }
@@ -322,3 +385,8 @@ export class ObservationLoop {
     return current;
   }
 }
+
+const finalGateOpen = (runner: ObservationWorkflow): boolean =>
+  Object.values(runner.state.gates).some(
+    (g) => g.status === 'open' && g.content.type === 'final-pr',
+  );

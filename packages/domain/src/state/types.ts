@@ -307,6 +307,8 @@ export interface WorkflowState {
   artifacts: Record<string, Artifact>;
   /** Latest `pr.status` per PR number. */
   prs: Record<string, EventPayload<'pr.status'>>;
+  /** S9: when each PR was first observed closed without merging (cleared on reopen). */
+  prsClosedAt?: Record<string, string>;
   /** Latest `scm.issue_drift` per issue number. */
   issueDrift: Record<string, EventPayload<'scm.issue_drift'>>;
   anomalies: Anomaly[];

@@ -7,11 +7,14 @@ import type {
 import type { Clock, IdGen } from '../../ports/services.js';
 import type {
   CursorWrite,
+  IdempotencyWrite,
   EventQuery,
   EventStore,
 } from '../../ports/stores.js';
 import { upcastEvent, type Upcasters } from './upcasters/index.js';
 import { json } from './json.js';
+import { SqliteIdempotencyStore } from './stores.js';
+import { PortError } from '../../ports/errors.js';
 
 export class SqliteEventStore implements EventStore {
   private listeners = new Set<(event: DomainEvent) => void>();
@@ -25,10 +28,22 @@ export class SqliteEventStore implements EventStore {
   ) {}
   append(
     drafts: DomainEventDraft[],
-    opts?: { cursors?: CursorWrite[] },
+    opts?: { cursors?: CursorWrite[]; idempotency?: IdempotencyWrite },
   ): DomainEvent[] {
     const batch = this.db
       .transaction(() => {
+        const idempotency = new SqliteIdempotencyStore(this.db, this.clock);
+        const write = opts?.idempotency;
+        const prior = write && idempotency.get(write.scope, write.key);
+        if (write && prior) {
+          if (prior.requestHash !== write.record.requestHash)
+            throw new PortError(
+              'conflict',
+              'idempotency_mismatch',
+              'Key reused for a different request',
+            );
+          return [];
+        }
         const inserted: DomainEvent[] = [];
         let seq = this.lastSeq();
         for (const draft of drafts) {
@@ -71,6 +86,7 @@ export class SqliteEventStore implements EventStore {
             )
             .run(cursor.source, cursor.scope, json(cursor.value));
         }
+        if (write) idempotency.put(write.scope, write.key, write.record);
         return inserted;
       })
       .immediate();

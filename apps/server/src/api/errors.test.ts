@@ -117,3 +117,15 @@ describe('use-case error translation', () => {
     }
   });
 });
+
+it.each([
+  ['repo_not_ready', 422],
+  ['scm_login_mismatch', 409],
+] as const)('preserves production refusal %s', (code, status) => {
+  expect(
+    mapError(new UseCaseError(status, code, 'private detail')),
+  ).toMatchObject({
+    status,
+    body: { error: { code } },
+  });
+});

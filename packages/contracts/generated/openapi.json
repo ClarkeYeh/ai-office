@@ -1458,6 +1458,10 @@
           "commandId": {
             "type": "string",
             "minLength": 1
+          },
+          "commentId": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -1475,7 +1479,11 @@
           "default-branch-moved",
           "policy-hit",
           "agents-alive-before-gate",
-          "reconcile-gave-up"
+          "reconcile-gave-up",
+          "duplicate-object",
+          "merge-base-changed",
+          "integration-branch-moved",
+          "unmanaged-close"
         ]
       },
       "AnomalyView": {
@@ -1517,6 +1525,10 @@
             "minLength": 1
           },
           "commandId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commentId": {
             "type": "string",
             "minLength": 1
           },
@@ -1637,8 +1649,10 @@
           "question_retry_limit",
           "repo_not_in_orca",
           "repo_not_main_worktree",
+          "repo_not_ready",
           "responder_not_failed",
           "runtime_unavailable",
+          "scm_login_mismatch",
           "scm_unavailable",
           "snapshot_required",
           "stage_not_complete",
@@ -3122,6 +3136,23 @@
                 "required": [
                   "mergeCommitSha"
                 ]
+              }
+            },
+            "required": [
+              "kind",
+              "result"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "scm.deleteComment"
+              },
+              "result": {
+                "type": "object",
+                "properties": {}
               }
             },
             "required": [
@@ -10183,12 +10214,49 @@
                   "expectedHeadSha": {
                     "type": "string",
                     "pattern": "^[0-9a-f]{7,64}$"
+                  },
+                  "expectedBaseSha": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{7,64}$"
+                  },
+                  "expectedBase": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
                   "pr",
                   "method",
                   "expectedHeadSha"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "args"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "scm.deleteComment"
+              },
+              "args": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "$ref": "#/components/schemas/ScmTarget"
+                  },
+                  "commentId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "target",
+                  "commentId"
                 ]
               }
             },
@@ -10222,7 +10290,8 @@
           "scm.setLabels",
           "scm.openPR",
           "scm.updatePR",
-          "scm.mergePR"
+          "scm.mergePR",
+          "scm.deleteComment"
         ]
       },
       "Gate": {
@@ -10336,6 +10405,11 @@
                 "type": "integer",
                 "exclusiveMinimum": 0,
                 "maximum": 9007199254740991
+              },
+              "prClosedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
               }
             },
             "required": [
@@ -11115,6 +11189,19 @@
               },
               "ghBinPath": {
                 "type": "string"
+              },
+              "tokenSource": {
+                "type": "string",
+                "enum": [
+                  "env",
+                  "gh"
+                ]
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               },
               "rateLimit": {
                 "type": "object",
@@ -11933,7 +12020,10 @@
               "gh-merge",
               "gh-comment",
               "push-default-branch",
-              "gh-label"
+              "gh-label",
+              "gh-pr-create",
+              "gh-pr-edit",
+              "gh-issue-create"
             ]
           },
           "severity": {
@@ -12345,6 +12435,15 @@
                 "const": "unknown"
               }
             ]
+          },
+          "allowMergeCommit": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -12416,6 +12515,15 @@
               }
             ]
           },
+          "allowMergeCommit": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -12478,6 +12586,15 @@
                 "const": "unknown"
               }
             ]
+          },
+          "allowMergeCommit": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "status": {
             "type": "string",
@@ -13038,7 +13155,10 @@
                     "gh-merge",
                     "gh-comment",
                     "push-default-branch",
-                    "gh-label"
+                    "gh-label",
+                    "gh-pr-create",
+                    "gh-pr-edit",
+                    "gh-issue-create"
                   ]
                 },
                 "severity": {

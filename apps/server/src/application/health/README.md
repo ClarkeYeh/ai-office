@@ -26,13 +26,35 @@ Every probe (startup's `publishInitial` included) is bounded by `probeTimeoutMs`
 serves and reports that component `degraded`.
 Successful ordinary calls already in flight do not close an open breaker.
 
-Runtime, SCM, and store outages block all new executor attempts and add their
-own workflow pause reasons. In-flight calls can settle. A transient failure that
+Runtime, SCM, and store outages add their own workflow pause reasons and block
+the executor attempts that depend on them (`dispatchBlockedFor(kind)`, SPEC §15
+S21): `scm.*` waits for the scm and store breakers, other `runtime.*` for the
+runtime and store breakers, and `runtime.stop`/`runtime.release` only for the
+runtime breaker, so a GitHub outage never holds a cancel, a hard budget stop or
+a release. `dispatchBlocked` (any of the three) remains the overall status.
+A failure carrying `retryAfterMs` is sampled but neither extends nor resets the
+transient streak, so rate limits and pending creates never open a breaker. In-flight calls can settle. A transient failure that
 opens the breaker keeps its command issued, without a failure event or gate.
 Recovery retries the same recorded arguments and command ID with a fresh retry
 budget; the outcome's attempt count includes every actual call. Unrelated pause
 reasons are preserved. Usage outages show degraded health and a budget fallback
 message without blocking dispatch, per the coordinator's §10 decision.
+
+SCM detail (M3-T9): with `scmStatus` the monitor reads the adapter's report every
+60 s (login, `tokenSource`, warnings, rate limit) into `HealthView.scm`, and
+derives `scmPace()` for the ObservationLoop: `slow` below 1,000 remaining,
+`critical` below 200, each left only 100 above its threshold (hysteresis), and
+`critical` while a reported rate limit lasts. `critical` shows scm `degraded`
+with breaker closed. The executor reports `rate_limited` waits
+(`noteRateLimit` → `rate_limited`/`secondary_rate_limited` warnings) and a
+command rate limited for over five minutes holds its workflow in
+`paused{scm_unhealthy, detail: rate_limited}` until it settles. The ObservationLoop
+reports each SCM poll (`noteScmPoll`): a non-transient failure (guard,
+contract mismatch, …) shows `poll_failing:<code>` and scm `degraded` until a poll
+succeeds, without touching the breaker; transient failures stay with the breaker. With
+`activeLoginProbe` (T12) the active gh login is checked every five minutes; a
+mismatch adds `active_account_mismatch`, shows scm `degraded` and pauses running
+workflows with `auth`; a match resumes only the `auth` pauses the monitor made.
 
 Health events that cannot be persisted during a store outage remain in memory
 and are retried on observations/probes. The in-memory breaker still blocks work.

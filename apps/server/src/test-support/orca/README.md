@@ -94,6 +94,10 @@ these on the spike repo after claiming the workflow's namespace:
   workers of adopted runs, `aio-<id>-*` worktrees, claimed branches), cleans them,
   then marks the claim done. The scan includes claimed namespaces, so
   `assertClean` proves claimed resources = 0 as well as the test prefixes.
+  A claimed worktree an agent left on a detached HEAD (Orca reports its branch
+  as null, M3-T17) is adopted by its claimed name and `aio:` marker and removed
+  without `--delete-branch`; a worktree naming any unclaimed branch still fails
+  closed.
 - `scm-gitremote` accepts writes only to `ai-office-test/*` and to active
   (not done) ledger claims; offline tests pass `namespaces` explicitly.
 

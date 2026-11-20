@@ -1,3 +1,4 @@
+import { bodyHash } from '@ai-office/domain';
 import { PortError } from '../../ports/errors.js';
 import { ScmCursorSchema } from '../../ports/refs.js';
 import type {
@@ -9,10 +10,17 @@ import type {
 import type { Correlation } from '../../ports/runtime.js';
 import type { ScmEvent } from '../../ports/scm-events.js';
 import type { Clock } from '../../ports/services.js';
+import {
+  CREATE_PENDING_WINDOW_MS,
+  CREATE_RETRY_AFTER_MS,
+  MARKER_SCAN_SLACK_MS,
+} from '../../ports/scm.js';
 import type {
   IssueDraft,
   IssuePatch,
   LabelSpec,
+  MarkerHint,
+  MarkerMatch,
   PrDraft,
   PrPatch,
   ReviewComment,
@@ -20,6 +28,14 @@ import type {
 } from '../../ports/scm.js';
 
 type RepoInfo = Awaited<ReturnType<ScmPort['inspectRepo']>>;
+type StoredComment = {
+  id: string;
+  body: string;
+  author: string;
+  createdAt: string;
+  /** Epoch ms from which list scans see it (`setListLag`). */
+  listedAt: number;
+};
 type ObjectState = {
   ref: IssueRef;
   kind: 'issue' | 'pr';
@@ -29,7 +45,8 @@ type ObjectState = {
   state: 'open' | 'closed' | 'merged';
   updatedAt: string;
   revision: number;
-  comments: string[];
+  listedAt: number;
+  comments: StoredComment[];
   reviews: ReviewComment[];
   base: string;
   head: string;
@@ -37,6 +54,8 @@ type ObjectState = {
   checks: 'pending' | 'success' | 'failure' | 'none';
   mergeCommitSha?: string;
   mergedBy?: string;
+  /** The head when merged, or when its branch was deleted. */
+  headSha?: string;
 };
 type RepoState = {
   info: RepoInfo;
@@ -62,13 +81,18 @@ const key = (repo: RepoScmRef) => JSON.stringify([repo.owner, repo.name]);
 const marker = (commandId: string) => `<!-- ai-office:cmd=${commandId} -->`;
 const marked = (body: string, commandId: string) =>
   body.includes(marker(commandId)) ? body : `${body}\n${marker(commandId)}`;
-const hash = async (body: string) =>
-  Array.from(
-    new Uint8Array(
-      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body)),
-    ),
-    (b) => b.toString(16).padStart(2, '0'),
-  ).join('');
+const anyMarker = /<!-- ai-office:cmd=.+? -->/;
+const managedBranch = (repo: RepoState, branch: string) =>
+  branch === repo.info.defaultBranch || branch.startsWith('ai-office/');
+const outcomeUnknown = () =>
+  new PortError(
+    'transient',
+    'create_outcome_unknown',
+    'Fake SCM create outcome unknown',
+    true,
+    CREATE_RETRY_AFTER_MS,
+  );
+type LostCreate = 'createIssue' | 'comment';
 
 /** In-memory SCM with deterministic IDs and replayable, change-only poll cursors. */
 export class FakeScm implements ScmPort {
@@ -104,6 +128,11 @@ export class FakeScm implements ScmPort {
         : { ownerMergeDelayMs: this.ownerMergeDelayMs }),
       ownerMerges: [...this.ownerMerges],
       mergeDeadlines: [...this.mergeDeadlines],
+      commentSequence: this.commentSequence,
+      listLagMs: this.listLagMs,
+      lostCreates: [...this.lostCreates],
+      pendingCreates: [...this.pendingCreates],
+      retargets: [...this.retargets],
     });
   }
   restore(state: ReturnType<FakeScm['snapshot']>): void {
@@ -129,6 +158,28 @@ export class FakeScm implements ScmPort {
     this.ownerMergeDelayMs = data.ownerMergeDelayMs;
     this.ownerMerges = new Map(data.ownerMerges);
     this.mergeDeadlines = new Map(data.mergeDeadlines);
+    // Snapshots before M3-T2 lack these fields and store comments as text.
+    this.commentSequence = data.commentSequence ?? 0;
+    this.listLagMs = data.listLagMs ?? 0;
+    this.lostCreates = new Set(data.lostCreates ?? []);
+    this.pendingCreates = new Map(data.pendingCreates ?? []);
+    this.retargets = new Map(data.retargets ?? []);
+    for (const repo of this.repos.values())
+      for (const obj of repo.objects.values()) {
+        obj.listedAt ??= 0;
+        obj.comments = (obj.comments as (StoredComment | string)[]).map(
+          (comment) =>
+            typeof comment === 'string'
+              ? {
+                  id: String(++this.commentSequence),
+                  body: comment,
+                  author: repo.info.viewerLogin,
+                  createdAt: obj.updatedAt,
+                  listedAt: 0,
+                }
+              : comment,
+        );
+      }
     for (const [id, pending] of this.ownerMerges)
       this.armOwnerMerge(id, pending);
   }
@@ -151,6 +202,51 @@ export class FakeScm implements ScmPort {
         true,
       );
   }
+  private commentSequence = 0;
+  private listLagMs = 0;
+  private lostCreates = new Set<LostCreate>();
+  /** commandId → epoch ms of the create whose response was lost. */
+  private pendingCreates = new Map<string, number>();
+  /** PR key → base it is moved to during its next merge. */
+  private retargets = new Map<string, string>();
+  /**
+   * The next create of this kind succeeds but answers
+   * `create_outcome_unknown` with `retryAfterMs`, as scm-github does after a
+   * timeout; retries scan markers within the pending window (SPEC §11.5).
+   */
+  loseNextResponse(operation: LostCreate): void {
+    this.lostCreates.add(operation);
+  }
+  /** Issues and comments created from now on stay unlisted for `ms`. */
+  setListLag(ms: number): void {
+    if (!Number.isFinite(ms) || ms < 0) throw new RangeError('Invalid lag');
+    this.listLagMs = ms;
+  }
+  private created(operation: LostCreate, commandId: string): void {
+    if (!this.lostCreates.delete(operation)) return;
+    this.pendingCreates.set(commandId, this.nowMs());
+    throw outcomeUnknown();
+  }
+  /** A retried create: the object a marker scan finds, or null to create. */
+  private recover(
+    ref: RepoScmRef,
+    commandId: string,
+    kind: 'issue' | 'comment',
+  ): MarkerMatch | null {
+    const first = this.pendingCreates.get(commandId);
+    if (first === undefined) return null;
+    const found = this.scan(ref, commandId, {
+      since: new Date(first).toISOString(),
+      kind,
+    });
+    if (found) {
+      this.pendingCreates.delete(commandId);
+      return found;
+    }
+    if (this.nowMs() - first < CREATE_PENDING_WINDOW_MS) throw outcomeUnknown();
+    this.pendingCreates.delete(commandId);
+    return null;
+  }
   private mergeDelayMs: number;
   private ownerMergeDelayMs: number | undefined;
   constructor(private options: FakeScmOptions = {}) {
@@ -162,6 +258,9 @@ export class FakeScm implements ScmPort {
     return (
       this.options.clock?.now() ?? new Date('2026-01-01T00:00:00Z')
     ).toISOString();
+  }
+  private nowMs() {
+    return Date.parse(this.now());
   }
   private sha() {
     return (++this.sequence).toString(16).padStart(40, '0');
@@ -188,6 +287,21 @@ export class FakeScm implements ScmPort {
   }
   private emit(repo: RepoState, event: ScmEvent) {
     repo.events.push(structuredClone(event));
+  }
+  private moved(
+    repo: RepoState,
+    branch: string,
+    sha: string,
+    previousSha: string | null,
+  ) {
+    if (managedBranch(repo, branch) && sha !== previousSha)
+      this.emit(repo, {
+        ...this.envelope(repo),
+        type: 'branch.head_changed',
+        branch,
+        sha,
+        previousSha,
+      });
   }
   private envelope(repo: RepoState) {
     return {
@@ -243,6 +357,12 @@ export class FakeScm implements ScmPort {
   ) {
     void c;
     const repo = this.repo(ref);
+    if (name === repo.info.defaultBranch || !name.startsWith('ai-office/'))
+      throw new PortError(
+        'guard',
+        'branch_guard',
+        'Only ai-office/ branches may be created',
+      );
     if (repo.branches.has(name)) return;
     const sha =
       repo.branches.get(from) ?? (repo.parents.has(from) ? from : undefined);
@@ -253,6 +373,7 @@ export class FakeScm implements ScmPort {
         'Unknown source branch',
       );
     repo.branches.set(name, sha);
+    this.moved(repo, name, sha, null);
   }
   async deleteBranch(ref: RepoScmRef, name: string) {
     const repo = this.repo(ref);
@@ -262,7 +383,18 @@ export class FakeScm implements ScmPort {
         'branch_delete_guard',
         'Cannot delete this branch',
       );
+    const sha = repo.branches.get(name);
+    if (sha === undefined) return;
     repo.branches.delete(name);
+    // GitHub closes open PRs whose head branch is deleted (G9).
+    for (const obj of repo.objects.values())
+      if (obj.kind === 'pr' && obj.state === 'open' && obj.head === name) {
+        obj.headSha = sha;
+        obj.state = 'closed';
+        obj.revision++;
+        obj.updatedAt = this.now();
+        this.prState(obj);
+      }
   }
   private ancestors(repo: RepoState, sha: string): Set<string> {
     const seen = new Set<string>();
@@ -305,9 +437,11 @@ export class FakeScm implements ScmPort {
             (repo.parents.has(from) ? from : undefined)));
     if (!parent)
       throw new PortError('permanent', 'branch_not_found', 'Unknown branch');
-    const sha = this.sha();
+    const sha = this.sha(),
+      previous = repo.branches.get(branch) ?? null;
     repo.parents.set(sha, [parent]);
     repo.branches.set(branch, sha);
+    this.moved(repo, branch, sha, previous);
     for (const obj of repo.objects.values())
       if (obj.kind === 'pr' && obj.head === branch) {
         obj.revision++;
@@ -331,6 +465,8 @@ export class FakeScm implements ScmPort {
       state: 'open',
       updatedAt: this.now(),
       revision: 0,
+      // PRs have GitHub's head/base uniqueness; only Issues can duplicate.
+      listedAt: this.nowMs() + (kind === 'issue' ? this.listLagMs : 0),
       comments: [],
       reviews: [],
       base: 'base' in draft ? draft.base : '',
@@ -344,11 +480,31 @@ export class FakeScm implements ScmPort {
       type: 'repo.object_created',
       ref: obj.ref,
       author,
-      hasMarker: /<!-- ai-office:cmd=.+? -->/.test(obj.body),
+      hasMarker: anyMarker.test(obj.body),
+      ...(kind === 'issue'
+        ? { bodyHash: bodyHash(obj.body), updatedAt: obj.updatedAt }
+        : {}),
     });
     return obj;
   }
+  /** PP7: one marker on several Issues/PRs, as poll would see it (§4.8). */
+  private duplicates(repo: RepoState, commandId: string, kind: 'issue' | 'pr') {
+    const numbers = [...repo.objects.values()]
+      .filter((o) => o.kind === kind && o.body.includes(marker(commandId)))
+      .map((o) => o.ref.number);
+    if (numbers.length > 1)
+      this.emit(repo, {
+        ...this.envelope(repo),
+        type: 'object.duplicate',
+        commandId,
+        kind,
+        numbers,
+      });
+  }
   async createIssue(ref: RepoScmRef, draft: IssueDraft, c: Correlation) {
+    const found = this.recover(ref, c.commandId, 'issue');
+    if (found)
+      return { repo: found.repo, number: found.number, url: found.url };
     const issue = structuredClone(
       this.create(
         ref,
@@ -357,11 +513,16 @@ export class FakeScm implements ScmPort {
         this.repo(ref).info.viewerLogin,
       ).ref,
     );
+    this.duplicates(this.repo(ref), c.commandId, 'issue');
+    this.created('createIssue', c.commandId);
     this.afterMutation('createIssue');
     return { ...issue, url: this.htmlUrl(issue, 'issues') };
   }
   private htmlUrl(ref: IssueRef | PrRef, kind: 'issues' | 'pull'): string {
     return `https://github.com/${ref.repo.owner}/${ref.repo.name}/${kind}/${ref.number}`;
+  }
+  private objectUrl(obj: ObjectState): string {
+    return this.htmlUrl(obj.ref, obj.kind === 'pr' ? 'pull' : 'issues');
   }
   async createExternalIssue(
     ref: RepoScmRef,
@@ -373,7 +534,7 @@ export class FakeScm implements ScmPort {
   async getIssue(ref: IssueRef) {
     const obj = this.object(ref, 'issue');
     const { body, updatedAt, labels } = structuredClone(obj);
-    return { body, bodyHash: await hash(body), updatedAt, labels };
+    return { body, bodyHash: bodyHash(body), updatedAt, labels };
   }
   private async changed(obj: ObjectState) {
     obj.revision++;
@@ -401,17 +562,62 @@ export class FakeScm implements ScmPort {
   async editIssueBody(ref: IssueRef, body: string) {
     await this.updateIssue(ref, { body });
   }
+  private addComment(obj: ObjectState, body: string, author: string) {
+    obj.comments.push({
+      id: String(++this.commentSequence),
+      body,
+      author,
+      createdAt: this.now(),
+      listedAt: this.nowMs() + this.listLagMs,
+    });
+  }
   async comment(ref: IssueRef | PrRef, body: string, c: Correlation) {
-    const obj = this.object(ref);
-    if (obj.comments.some((value) => value.includes(marker(c.commandId))))
+    const obj = this.object(ref),
+      repo = this.repo(ref.repo);
+    if (this.recover(ref.repo, c.commandId, 'comment')) return;
+    const now = this.nowMs(),
+      mine = (value: StoredComment) => value.body.includes(marker(c.commandId));
+    if (obj.comments.some((value) => value.listedAt <= now && mine(value)))
       return;
-    obj.comments.push(marked(body, c.commandId));
+    this.addComment(obj, marked(body, c.commandId), repo.info.viewerLogin);
+    const commentIds = obj.comments.filter(mine).map((value) => value.id);
+    if (commentIds.length > 1)
+      this.emit(repo, {
+        ...this.envelope(repo),
+        type: 'object.duplicate',
+        commandId: c.commandId,
+        kind: 'comment',
+        target: structuredClone(obj.ref),
+        commentIds,
+      });
     await this.changed(obj);
+    this.created('comment', c.commandId);
     this.afterMutation('comment');
   }
-  async addExternalComment(ref: IssueRef | PrRef, body: string) {
+  async deleteComment(target: IssueRef | PrRef, commentId: string) {
+    const obj = this.object(target),
+      index = obj.comments.findIndex((value) => value.id === commentId);
+    if (index < 0) return;
+    const found = obj.comments[index]!;
+    if (
+      found.author !== this.repo(target.repo).info.viewerLogin ||
+      !anyMarker.test(found.body)
+    )
+      throw new PortError(
+        'guard',
+        'comment_delete_guard',
+        'Only the viewer’s marked comments may be deleted',
+      );
+    obj.comments.splice(index, 1);
+    await this.changed(obj);
+  }
+  async addExternalComment(
+    ref: IssueRef | PrRef,
+    body: string,
+    author = this.repo(ref.repo).info.viewerLogin,
+  ) {
     const obj = this.object(ref);
-    obj.comments.push(body);
+    this.addComment(obj, body, author);
     await this.changed(obj);
   }
   async setLabels(ref: IssueRef | PrRef, labels: string[]) {
@@ -451,7 +657,7 @@ export class FakeScm implements ScmPort {
       state: obj.state,
       base: obj.base,
       head: obj.head,
-      headSha: repo.branches.get(obj.head) ?? '',
+      headSha: repo.branches.get(obj.head) ?? obj.headSha ?? '',
       mergeable: obj.mergeable,
       ...(obj.mergedBy ? { mergedBy: obj.mergedBy } : {}),
       ...(obj.mergeCommitSha ? { mergeCommitSha: obj.mergeCommitSha } : {}),
@@ -515,16 +721,63 @@ export class FakeScm implements ScmPort {
     if (!Number.isFinite(ms) || ms < 0) throw new RangeError('Invalid delay');
     this.mergeDelayMs = ms;
   }
-  private checkMerge(obj: ObjectState, expectedHeadSha: string) {
+  /** Moves the PR's base: now, or between the next merge's base read and merge. */
+  async retargetExternally(
+    ref: PrRef,
+    base: string,
+    when: 'now' | 'during-next-merge' = 'now',
+  ) {
+    const obj = this.object(ref, 'pr');
+    if (!this.repo(ref.repo).branches.has(base))
+      throw new PortError('permanent', 'branch_not_found', 'Unknown PR base');
+    if (when === 'during-next-merge') {
+      this.retargets.set(JSON.stringify(obj.ref), base);
+      return;
+    }
+    obj.base = base;
+    await this.changed(obj);
+  }
+  private checkMerge(
+    obj: ObjectState,
+    opts: {
+      expectedHeadSha: string;
+      expectedBaseSha?: string;
+      expectedBase?: string;
+    },
+  ) {
     const repo = this.repo(obj.ref.repo);
+    // The PR's actual base decides, whatever the command asked for.
     if (obj.base === repo.info.defaultBranch)
       throw new PortError(
         'guard',
         'default_branch_merge',
         'Cannot merge into the default branch',
       );
-    if (repo.branches.get(obj.head) !== expectedHeadSha)
+    if (!obj.base.startsWith('ai-office/'))
+      throw new PortError(
+        'guard',
+        'base_not_ai_office',
+        'Only ai-office/ bases may be merged into',
+      );
+    if (opts.expectedBase !== undefined && obj.base !== opts.expectedBase)
+      throw new PortError(
+        'conflict',
+        'base_mismatch',
+        'PR base is not the expected base',
+      );
+    if (obj.state === 'merged') {
+      // Pre-M3 snapshots did not freeze the merged head.
+      if ((obj.headSha ?? repo.branches.get(obj.head)) !== opts.expectedHeadSha)
+        throw new PortError('conflict', 'head_sha_mismatch', 'PR head changed');
+      return;
+    }
+    if (repo.branches.get(obj.head) !== opts.expectedHeadSha)
       throw new PortError('conflict', 'head_sha_mismatch', 'PR head changed');
+    if (
+      opts.expectedBaseSha !== undefined &&
+      repo.branches.get(obj.base) !== opts.expectedBaseSha
+    )
+      throw new PortError('conflict', 'base_moved', 'PR base moved');
     if (
       obj.state === 'closed' ||
       obj.mergeable !== true ||
@@ -537,19 +790,21 @@ export class FakeScm implements ScmPort {
         'PR cannot be merged',
       );
   }
-  private merge(obj: ObjectState, author: string) {
+  private merge(obj: ObjectState, author: string, into = obj.base) {
     if (obj.mergeCommitSha) return { mergeCommitSha: obj.mergeCommitSha };
     const repo = this.repo(obj.ref.repo),
-      base = repo.branches.get(obj.base),
+      base = repo.branches.get(into),
       head = repo.branches.get(obj.head);
     if (!base || !head)
       throw new PortError('permanent', 'branch_not_found', 'Unknown PR branch');
     const sha = this.sha();
     repo.parents.set(sha, [base, head]);
-    repo.branches.set(obj.base, sha);
+    repo.branches.set(into, sha);
     obj.state = 'merged';
     obj.mergeCommitSha = sha;
     obj.mergedBy = author;
+    obj.headSha = head;
+    this.moved(repo, into, sha, base);
     this.prState(obj);
     return { mergeCommitSha: sha };
   }
@@ -558,15 +813,24 @@ export class FakeScm implements ScmPort {
     return {
       state: obj.state,
       ...(obj.mergeCommitSha ? { mergeCommitSha: obj.mergeCommitSha } : {}),
+      headSha: obj.headSha ?? this.repo(ref.repo).branches.get(obj.head) ?? '',
+      base: obj.base,
+      ...(obj.mergedBy ? { mergedBy: obj.mergedBy } : {}),
     };
   }
   async mergePR(
     ref: PrRef,
-    opts: { method: 'merge'; expectedHeadSha: string },
+    opts: {
+      method: 'merge';
+      expectedHeadSha: string;
+      expectedBaseSha?: string;
+      expectedBase?: string;
+    },
   ) {
     const obj = this.object(ref, 'pr');
-    this.checkMerge(obj, opts.expectedHeadSha);
+    this.checkMerge(obj, opts);
     if (obj.mergeCommitSha) return { mergeCommitSha: obj.mergeCommitSha };
+    const base = obj.base;
     const deadlineKey = JSON.stringify([ref, opts.expectedHeadSha]);
     const deadline =
       this.mergeDeadlines.get(deadlineKey) ??
@@ -578,8 +842,20 @@ export class FakeScm implements ScmPort {
         ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
       )(Math.max(0, deadline - Date.parse(this.now())));
     this.mergeDeadlines.delete(deadlineKey);
-    this.checkMerge(obj, opts.expectedHeadSha);
-    const result = this.merge(obj, this.repo(ref.repo).info.viewerLogin);
+    this.checkMerge(obj, opts);
+    const retarget = this.retargets.get(JSON.stringify(obj.ref));
+    if (retarget !== undefined) {
+      this.retargets.delete(JSON.stringify(obj.ref));
+      obj.base = retarget;
+    }
+    // Like scm-github's POST /merges: into the base that was checked.
+    const result = this.merge(obj, this.repo(ref.repo).info.viewerLogin, base);
+    if (obj.base !== base)
+      throw new PortError(
+        'guard',
+        'merge_base_changed',
+        'PR base changed while merging',
+      );
     this.afterMutation('mergePR');
     return result;
   }
@@ -603,15 +879,60 @@ export class FakeScm implements ScmPort {
   ) {
     return this.merge(this.object(ref, 'pr'), author);
   }
-  async findByMarker(ref: RepoScmRef, commandId: string) {
-    for (const obj of this.repo(ref).objects.values())
-      if (
-        [obj.body, ...obj.comments].some((body) =>
-          body.includes(marker(commandId)),
-        )
+  /** A list scan: lagging objects are invisible; the lowest match is kept. */
+  private scan(
+    ref: RepoScmRef,
+    commandId: string,
+    hint: MarkerHint = {},
+  ): MarkerMatch | null {
+    const repo = this.repo(ref),
+      now = this.nowMs(),
+      from =
+        hint.since === undefined
+          ? -Infinity
+          : Date.parse(hint.since) - MARKER_SCAN_SLACK_MS,
+      listed = (at: number, time: string) =>
+        at <= now && Date.parse(time) >= from,
+      objects = [...repo.objects.values()];
+    const bodies = objects.filter(
+      (o) =>
+        (hint.kind === undefined || hint.kind === o.kind) &&
+        listed(o.listedAt, o.updatedAt) &&
+        o.body.includes(marker(commandId)),
+    );
+    if (bodies.length) {
+      const [keeper] = bodies;
+      return {
+        ...structuredClone(keeper!.ref),
+        kind: keeper!.kind,
+        url: this.objectUrl(keeper!),
+        ...(bodies.length > 1 ? { duplicates: bodies.length - 1 } : {}),
+      };
+    }
+    if (hint.kind !== undefined && hint.kind !== 'comment') return null;
+    const comments = objects
+      .flatMap((obj) =>
+        obj.comments
+          .filter(
+            (value) =>
+              listed(value.listedAt, value.createdAt) &&
+              value.body.includes(marker(commandId)),
+          )
+          .map((value) => ({ obj, id: value.id })),
       )
-        return structuredClone(obj.ref);
-    return null;
+      .sort((a, b) => Number(a.id) - Number(b.id));
+    const [keeper] = comments;
+    if (!keeper) return null;
+    return {
+      ...structuredClone(keeper.obj.ref),
+      kind: 'comment',
+      url: `${this.objectUrl(keeper.obj)}#issuecomment-${keeper.id}`,
+      commentId: keeper.id,
+      ...(comments.length > 1 ? { duplicates: comments.length - 1 } : {}),
+    };
+  }
+  async findByMarker(ref: RepoScmRef, commandId: string, hint?: MarkerHint) {
+    return this.scan(ref, commandId, hint);
   }
   async listReviewComments(ref: PrRef) {
     return structuredClone(this.object(ref, 'pr').reviews);

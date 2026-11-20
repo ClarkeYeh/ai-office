@@ -3,6 +3,10 @@ import { parse } from 'smol-toml';
 import { z } from 'zod';
 
 const positive = z.number().int().positive();
+export const GithubLoginSchema = z
+  .string()
+  .max(39)
+  .regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/);
 const binaryPath = (name: string) =>
   z
     .string()
@@ -20,6 +24,14 @@ export const SettingsSchema = z.strictObject({
   orca: z
     .strictObject({
       bin: binaryPath('orca').default('orca'),
+      homeDir: z
+        .string()
+        .refine(
+          (value) =>
+            value === '' || (value.startsWith('/') && !value.includes('\0')),
+          'Expected an absolute path',
+        )
+        .default(''),
       supportedRange: z.string().min(1).default('>=1.4.259 <1.5'),
       shimLocation: z
         .enum(['folder-workspace', 'repo-main-worktree'])
@@ -52,6 +64,7 @@ export const SettingsSchema = z.strictObject({
     .strictObject({
       tokenSource: z.enum(['auto', 'env', 'gh']).default('auto'),
       ghBin: binaryPath('gh').default(''),
+      expectedLogin: z.union([z.literal(''), GithubLoginSchema]).default(''),
     })
     .prefault({}),
   env: z

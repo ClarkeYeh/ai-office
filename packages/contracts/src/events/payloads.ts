@@ -176,6 +176,8 @@ export const GateContentSchema = z.discriminatedUnion('type', [
     type: z.literal('final-pr'),
     artifactId: id,
     pr: positiveInt.optional(),
+    /** rev2.15 §8.2 (S9): the final PR was closed on GitHub without merging. */
+    prClosedAt: isoDateTime.optional(),
   }),
   z.object({
     type: z.literal('exception'),
@@ -628,6 +630,11 @@ export const AnomalyKindSchema = z.enum([
   'policy-hit',
   'agents-alive-before-gate',
   'reconcile-gave-up',
+  // M3 (rev2.15 §8.2, §12.3): duplicate markers, merge guard, external moves and closes.
+  'duplicate-object',
+  'merge-base-changed',
+  'integration-branch-moved',
+  'unmanaged-close',
 ]);
 export const AnomalyDetectedPayloadSchema = z.object({
   kind: AnomalyKindSchema,
@@ -639,6 +646,8 @@ export const AnomalyDetectedPayloadSchema = z.object({
   attemptId: id.optional(),
   dispatch: id.optional(),
   commandId: id.optional(),
+  /** M3 §4.8: an extra marker comment that compensation deletes (`duplicate-object`). */
+  commentId: id.optional(),
 });
 
 // usage / budget ------------------------------------------------------------

@@ -62,6 +62,63 @@ const put = <T>(
   value: T,
 ): Record<string, T> => ({ ...record, [key]: value });
 
+/** The final-PR gate's revision option, as the engine's gate builder offers it. */
+export const REQUEST_CHANGES_OPTION = {
+  optionId: 'request-changes',
+  label: 'Request changes',
+} as const;
+
+/**
+ * S9: while the final PR is closed without merging, its open gate shows
+ * `prClosedAt` and offers only keep-open and abort. A reopen clears the mark
+ * and restores the full option set (request-changes while revisions remain).
+ */
+const finalPrClosure = (
+  state: WorkflowState,
+  pr: number,
+  closedAt: string | undefined,
+): WorkflowState['gates'] => {
+  const config = state.workflow?.template.stages.find(
+    (s) => s.kind === 'final-pr',
+  );
+  const integrate = Object.values(state.stages).find(
+    (s) => s.kind === 'integrate',
+  );
+  const revisable =
+    config?.kind === 'final-pr' &&
+    integrate !== undefined &&
+    integrate.revisions < config.maxRevisions;
+  let next = state.gates;
+  for (const gate of Object.values(state.gates)) {
+    const content = gate.content;
+    if (
+      gate.status !== 'open' ||
+      gate.kind !== 'stage' ||
+      content.type !== 'final-pr' ||
+      content.pr !== pr ||
+      content.prClosedAt === closedAt
+    )
+      continue;
+    const narrowed = gate.options.filter(
+      (o) => o.optionId !== REQUEST_CHANGES_OPTION.optionId,
+    );
+    const reopened = { ...content };
+    delete reopened.prClosedAt;
+    next = put(next, gate.gateId, {
+      ...gate,
+      ...(closedAt === undefined
+        ? {
+            content: reopened,
+            options: revisable
+              ? [{ ...REQUEST_CHANGES_OPTION }, ...narrowed]
+              : narrowed,
+          }
+        : { content: { ...content, prClosedAt: closedAt }, options: narrowed }),
+    });
+  }
+  return next;
+};
+
 const putOndemand = (
   state: WorkflowState,
   stageId: string,
@@ -1061,10 +1118,20 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
       }),
     };
   },
-  'pr.status': (state, { payload }) => ({
-    ...state,
-    prs: put(state.prs, payload.pr, payload),
-  }),
+  'pr.status': (state, { payload, occurredAt }) => {
+    const key = String(payload.pr);
+    const { [key]: since, ...others } = state.prsClosedAt ?? {};
+    const closedAt =
+      payload.state === 'closed' ? (since ?? occurredAt) : undefined;
+    const prsClosedAt =
+      closedAt === undefined ? others : { ...others, [key]: closedAt };
+    return {
+      ...state,
+      prs: put(state.prs, payload.pr, payload),
+      ...(state.prsClosedAt || closedAt ? { prsClosedAt } : {}),
+      gates: finalPrClosure(state, payload.pr, closedAt),
+    };
+  },
   'scm.issue_drift': (state, { payload }) => ({
     ...state,
     issueDrift: put(state.issueDrift, payload.issue, payload),

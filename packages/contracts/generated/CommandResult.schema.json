@@ -468,6 +468,23 @@
         "kind",
         "result"
       ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "scm.deleteComment"
+        },
+        "result": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "required": [
+        "kind",
+        "result"
+      ]
     }
   ]
 }
