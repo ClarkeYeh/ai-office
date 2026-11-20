@@ -31,12 +31,21 @@ const structuralPaths = new Map<string, RegExp>(
     new RegExp(`^${root}${concrete}$`),
   ]),
 );
-/** A request signature's `path`; token-prefix and email checks still apply. */
-const structuralPath = (value: Record<string, unknown>) =>
+/**
+ * A request signature's `path`; token-prefix and email checks still apply, and
+ * every segment but a commit SHA must pass the base masker on its own.
+ */
+const structuralPath = (
+  value: Record<string, unknown>,
+  clean: (part: string) => boolean,
+) =>
   typeof value.path === 'string' &&
   typeof value.pathTemplate === 'string' &&
   structuralPaths.get(value.pathTemplate)?.test(value.path) === true &&
-  !/\b(?:gh[a-z]_|github_pat_|sk-|aio_seat_)|@/i.test(value.path);
+  !/\b(?:gh[a-z]_|github_pat_|sk-|aio_seat_)|@/i.test(value.path) &&
+  value.path
+    .split(/\/|%2F|\.\.\./)
+    .every((part) => /^[a-f0-9]{40}$/.test(part) || clean(part));
 
 /** Fixture-only exception; keep in sync with scripts/fixtures/github-redaction.ts. */
 export function githubRefRedactor(base: ReturnType<typeof createRedactor>) {
@@ -57,7 +66,12 @@ export function githubRefRedactor(base: ReturnType<typeof createRedactor>) {
   const productRef = (value: string) =>
     value.length <= 120 &&
     /^ai-office\/[a-f0-9]{12}-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) &&
-    !/\b(?:gh[a-z]_|github_pat_|sk-|aio_seat_)/.test(value);
+    !/\b(?:gh[a-z]_|github_pat_|sk-|aio_seat_)/.test(value) &&
+    // Each slug word on its own: a high-entropy value is not a branch slug.
+    value
+      .slice('ai-office/'.length)
+      .split('-')
+      .every((part) => base.maskText(part) === part);
   const restore = (original: unknown, sanitized: unknown): unknown => {
     if (Array.isArray(original) && Array.isArray(sanitized))
       return original.map((v, i) => restore(v, sanitized[i]));
@@ -68,7 +82,10 @@ export function githubRefRedactor(base: ReturnType<typeof createRedactor>) {
       typeof sanitized === 'object'
     ) {
       const clean = sanitized as Record<string, unknown>;
-      const signature = structuralPath(original as Record<string, unknown>);
+      const signature = structuralPath(
+        original as Record<string, unknown>,
+        (part) => base.maskText(part) === part,
+      );
       return Object.fromEntries(
         Object.entries(clean).map(([key, value]) => {
           const raw = (original as Record<string, unknown>)[key];

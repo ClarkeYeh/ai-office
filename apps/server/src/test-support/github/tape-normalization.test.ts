@@ -219,6 +219,11 @@ it.each([
     '/git/ref/heads/x9Kq2Zr7Lm3Vb8Wq5Tn1',
     '/git/ref/heads/{ref}',
   ],
+  [
+    'a high-entropy segment under ai-office/',
+    '/branches/ai-office/q7x9m2k4p8w3z6r1t5y0u2i8o4p6a3s9d1f7g5h2',
+    '/branches/{ref}',
+  ],
 ])('still scans a request path with %s', (_, path, t) => {
   expect(() =>
     assertTapeSafe(recorded(ROOT + path, '/repos/{owner}/{repo}' + t)),
