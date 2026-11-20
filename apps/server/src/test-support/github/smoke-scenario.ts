@@ -600,7 +600,14 @@ export async function run(h: OrcaHarness): Promise<void> {
     } finally {
       if (workflowId && api) {
         if (!finished)
-          report.trace = await compactTrace(api, workflowId).catch(() => []);
+          // Kinds and codes only: agent-written summaries stay out of the report.
+          report.trace = (
+            await compactTrace(api, workflowId).catch(() => [])
+          ).map((entry: Json) => {
+            const rest = { ...entry };
+            delete rest.summary;
+            return rest;
+          });
         await registerEvents(
           github.ledger,
           ledgerEvents(await events(api, workflowId).catch(() => [])),
