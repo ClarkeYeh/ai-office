@@ -9,7 +9,7 @@ import { GithubApi } from './api.js';
 import { cleanup, scan } from './janitor.js';
 import { API, ROOT, marker, assertBranch, assertRemote } from './safety.js';
 import { guardedFetch } from './transport.js';
-import { RecordingFetch, ReplayFetch } from './recording.js';
+import { RecordingFetch, ReplayFetch, type Recording } from './recording.js';
 import { commitEnvironment, verifyRemotes, GitPusher } from './pusher.js';
 import { git } from './process.js';
 
@@ -339,6 +339,32 @@ describe('record/replay', () => {
     expect(result.status).toBe(304);
     expect(await result.text()).toBe('');
     replay.assertConsumed();
+  });
+  it('replays normalized API URLs and redacted /repositories next links the adapter can follow', async () => {
+    const list = `${API}${ROOT}/issues/comments?per_page=100`;
+    const recording = new RecordingFetch(
+      async () =>
+        new Response(
+          JSON.stringify([{ issue_url: `${API}${ROOT}/issues/7` }]),
+          {
+            headers: {
+              link: `<${API}/repositories/1461048541/issues/comments?per_page=100&page=2>; rel="next"`,
+            },
+          },
+        ),
+    );
+    await recording.fetch(list);
+    const path = join(await dir(), 'recording.json');
+    await recording.save(path);
+    const tape = JSON.parse(await readFile(path, 'utf8')) as Recording[];
+    const replay = new ReplayFetch(tape);
+    const result = await replay.fetch(list);
+    expect(await result.json()).toEqual([
+      { issue_url: `${API}${ROOT}/issues/7` },
+    ]);
+    expect(result.headers.get('link')).toBe(
+      `<${API}${ROOT}/issues/comments?per_page=100&page=2>; rel="next"`,
+    );
   });
 });
 

@@ -13,6 +13,7 @@ import {
   assertTapeSafe,
 } from './tape-normalization.js';
 
+const API_ALIAS = `https://github.com/${REPO}/__api__`;
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 const redactor = githubRefRedactor(
   createRedactor({
@@ -175,12 +176,19 @@ export class ReplayFetch {
       const summary = /^<redacted length=\d+ sha256=([a-f0-9]{64})>$/.exec(
         value,
       );
-      return summary
-        ? (this.known.get(summary[1]!) ??
-            `[recorded body ${summary[1]!.slice(0, 16)}]`)
-        : this.runId
-          ? value.replaceAll('000000000001', this.runId)
-          : value;
+      if (summary)
+        return (
+          this.known.get(summary[1]!) ??
+          `[recorded body ${summary[1]!.slice(0, 16)}]`
+        );
+      // TapeNormalizer stores spike API URLs as `<html root>/__api__…`; the
+      // adapter parses some of them (a comment's issue_url), so restore them.
+      const restored = value.startsWith(API_ALIAS)
+        ? API + ROOT + value.slice(API_ALIAS.length)
+        : value;
+      return this.runId
+        ? restored.replaceAll('000000000001', this.runId)
+        : restored;
     }
     if (Array.isArray(value)) return value.map((v) => this.rehydrate(v));
     if (value && typeof value === 'object')
@@ -212,7 +220,11 @@ export class ReplayFetch {
           Object.entries(next.headers).map(([key, value]) => [
             key,
             key === 'link'
-              ? value.replace(/<\/repos\//g, '<' + API + '/repos/')
+              ? value
+                  .replace(/<\/repos\//g, '<' + API + '/repos/')
+                  // A `/repositories/{id}/…` next link is redacted in the
+                  // tape; replay it as the same-path form the client accepts.
+                  .replace(/<<redacted>\?/g, '<' + API + sig.path + '?')
               : value,
           ]),
         ),
