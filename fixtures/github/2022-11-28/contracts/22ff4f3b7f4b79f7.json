@@ -358,11 +358,7 @@
           "require_last_push_approval": false,
           "required_review_thread_resolution": false,
           "require_extra_approval_for_unattributed_changes": true,
-          "allowed_merge_methods": [
-            "merge",
-            "squash",
-            "rebase"
-          ]
+          "allowed_merge_methods": ["merge", "squash", "rebase"]
         },
         "ruleset_source_type": "Repository",
         "ruleset_source": "ClarkeYeh/ai-office-spike",
