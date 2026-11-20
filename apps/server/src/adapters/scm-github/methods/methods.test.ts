@@ -830,3 +830,31 @@ describe('GitHub commit signatures', () => {
       );
   });
 });
+
+it.each([
+  ['a'.repeat(256), 'a'.repeat(256)],
+  ['字'.repeat(300), '字'.repeat(255) + '…'],
+  ['a'.repeat(254) + '😀more', 'a'.repeat(254) + '…'],
+])(
+  'caps Issue titles before HTTP without changing their body',
+  async (title, expected) => {
+    const f = setup([
+      {
+        path: base + '/issues',
+        method: 'POST',
+        data: issue,
+        check: (_url, init) =>
+          expect(JSON.parse(String(init.body))).toMatchObject({
+            title: expected,
+            body: 'Full source\n\n' + marker,
+          }),
+      },
+    ]);
+    await f.scm.createIssue(
+      repo,
+      { title, body: 'Full source', labels: [] },
+      correlation,
+    );
+    f.done();
+  },
+);

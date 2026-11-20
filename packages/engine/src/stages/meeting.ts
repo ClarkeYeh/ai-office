@@ -1,6 +1,6 @@
 import { seatIdFor } from '@ai-office/contracts/events';
 import type { Conclusion } from '@ai-office/contracts/events';
-import { bodyHash } from '@ai-office/domain';
+import { bodyHash, scmTitle } from '@ai-office/domain';
 import type { Attempt, SpecRequest, WorkflowState } from '@ai-office/domain';
 import { releaseAttempt, stopAttempt } from '../agents.js';
 import { commandId, metaFor, sessionRef } from '../context.js';
@@ -771,7 +771,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
           kind: 'scm.createIssue',
           args: {
             repo: workflow.repo.github,
-            title: `${workflow.template.name}: 結論`,
+            title: scmTitle(`${workflow.template.name}: 結論`),
             body,
             labels: [
               'ai-office:conclusion',

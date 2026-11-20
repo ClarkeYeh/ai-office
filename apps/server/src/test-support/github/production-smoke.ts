@@ -484,15 +484,11 @@ export async function run(h: OrcaHarness): Promise<void> {
  * The T17 smoke requirement: small, explicit, two work items with one
  * dependency, under a per-run directory so a merged final PR never collides
  * with a later run. `tag` is lowercase alphanumeric (for example the date).
+ * One line of at most 256 characters: the final PR title is the requirement.
  */
 export function smokeRequirement(tag: string): string {
   if (!/^[a-z0-9]{4,16}$/.test(tag)) throw new Error('Invalid smoke tag');
-  return [
-    `Smoke test for AI Office. Add two tiny text files under smoke/${tag}/ and nothing else.`,
-    `Work item 1 creates smoke/${tag}/greeting.txt containing exactly one line: hello from AI Office.`,
-    `Work item 2 depends on work item 1: it creates smoke/${tag}/farewell.txt containing exactly one line: goodbye from AI Office, and must not modify greeting.txt.`,
-    'Split the work into exactly these two work items. No code, no dependencies, no CI or workflow files, no other files.',
-  ].join('\n');
+  return `Smoke test: work item 1 adds smoke/${tag}/greeting.txt with the line "hello from AI Office"; work item 2 depends on it and adds smoke/${tag}/farewell.txt with the line "goodbye from AI Office". No other files.`;
 }
 
 /** The task-split the owner approves; used to revise a proposal that differs. */
@@ -521,21 +517,32 @@ export function smokeItems(tag: string) {
   ];
 }
 
-/** A proposed split matches the smoke shape: two items, exactly one dependency. */
+/**
+ * A proposed split matches the smoke shape: two items, exactly one dependency,
+ * one implemented by Claude and one by Codex.
+ */
 export function splitMatchesSmoke(items: unknown): boolean {
   if (!Array.isArray(items) || items.length !== 2) return false;
   const keys = new Set(items.map((i: Json) => i?.key));
   const deps = items.flatMap((i: Json) =>
     Array.isArray(i?.deps) ? (i.deps as unknown[]) : [],
   );
-  return keys.size === 2 && deps.length === 1 && keys.has(deps[0]);
+  const agents = new Set(items.map((i: Json) => i?.agent));
+  return (
+    keys.size === 2 &&
+    deps.length === 1 &&
+    keys.has(deps[0]) &&
+    agents.has('claude-code') &&
+    agents.has('codex')
+  );
 }
 
 /**
  * Plays the owner over the API until the final-PR gate opens (the owner then
  * merges by hand on GitHub, Q1) or the workflow ends: the conclusion gate is
  * approved; the task split is approved when it matches, otherwise revised to
- * `smokeItems`. Exception gates fail the drive (T17 triages them).
+ * `smokeItems`. Exception gates go to `onException` (the owner's triage) or
+ * fail the drive.
  */
 export async function driveSmokeToFinalGate(
   h: OrcaHarness,
@@ -545,6 +552,7 @@ export async function driveSmokeToFinalGate(
     tag: string;
     run: () => Promise<string | undefined>;
     record: DriveRecord;
+    onException?: (gate: Json) => Promise<boolean>;
   },
 ): Promise<{ workflow: Json; finalGate?: Json; revisedSplit: boolean }> {
   let finalGate: Json | undefined;
@@ -559,6 +567,7 @@ export async function driveSmokeToFinalGate(
     {
       run: options.run,
       record: options.record,
+      ...(options.onException ? { onException: options.onException } : {}),
       onStageGate: async (gate) => {
         if (gate.stageKind === 'final-pr') {
           finalGate = gate;

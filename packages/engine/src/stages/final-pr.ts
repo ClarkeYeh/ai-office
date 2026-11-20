@@ -1,4 +1,4 @@
-import { REQUEST_CHANGES_OPTION } from '@ai-office/domain';
+import { scmTitle, REQUEST_CHANGES_OPTION } from '@ai-office/domain';
 import type { WorkflowState } from '@ai-office/domain';
 import { metaFor } from '../context.js';
 import { external, internal } from '../effects.js';
@@ -77,6 +77,8 @@ const bodyFor = (state: WorkflowState, marker: string): string => {
   );
   return [
     payload.summary,
+    '## Requirement',
+    state.workflow!.requirement,
     '## Conclusion',
     issue?.kind === 'issue' ? issue.url : '',
     '## Technical decisions',
@@ -325,7 +327,7 @@ export const finalPrStage: StageModule = {
             kind: 'scm.openPR',
             args: {
               repo: workflow.repo.github,
-              title: workflow.requirement,
+              title: scmTitle(workflow.requirement),
               body,
               head: workflow.integrationBranch,
               base: workflow.repo.defaultBranch,

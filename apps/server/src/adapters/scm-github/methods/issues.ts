@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { bodyHash } from '@ai-office/domain';
+import { bodyHash, scmTitle } from '@ai-office/domain';
 import type { ScmPort } from '../../../ports/scm.js';
 import { emptySchema } from '../schemas/common.js';
 import { repoParams, type ScmGithubDeps } from './deps.js';
@@ -27,6 +27,7 @@ export function createIssueMethods(
             ...repoParams(repo),
             body: {
               ...draft,
+              title: scmTitle(draft.title, 256),
               body: markedBody(draft.body, c.commandId),
             },
           },

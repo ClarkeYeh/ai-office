@@ -131,3 +131,22 @@ GET only): `getPR`, then a poll from a cursor that last saw the PR open reports
 `pr.state` merged with `mergedBy`/`mergeCommitSha` and `main` moving. Collection
 rows are scoped to PR #144 before the adapter sees them. The live test writes
 `observations/external-merge-pr-144.json` only with `AIO_GITHUB_RECORD=1`.
+
+## Real-agent smoke (T17)
+
+`smoke-scenario.ts` (`acceptance/github/smoke.github.test.ts`, with `AIO_REAL_AGENTS=1`,
+under `caffeinate -i`) starts the built `ai-office start` in production mode in the
+same isolated home layout as T16, registers the spike, and runs the built-in
+template with real Claude and Codex agents up to the final-PR gate. The scenario
+never merges and never decides the final-PR gate: it writes the final PR URL to the
+private `AIO_T17_STATUS` file, the owner merges by hand on GitHub, and the backend
+observes it. Exception gates and escalated questions also wait for the owner
+through `<AIO_T17_STATUS>.decision.json`. After the workflow completes, the scenario
+performs the owner's "clean up" (`POST /api/v1/workflows/{id}/cleanup`) and waits for
+those commands before it stops the backend. Production SCM objects are imported
+into the T7 ledger from the workflow's own issued/succeeded events
+(`registerEvents`); agent-pushed worker branches are covered by the shortId claim
+and removed by the owner's cleanup or the Orca janitor. The report
+(`AIO_T17_REPORT`) holds counts, kinds and booleans only; emails are compared and
+never written. The repo-local noreply identity must already be set in the clone
+(`noreplyApplied`); the scenario refuses to start otherwise.
