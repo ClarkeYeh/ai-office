@@ -2,7 +2,13 @@ import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { OWNER_PORT, assertIsolated, freePort, pinPort } from './backends.js';
+import {
+  OWNER_PORT,
+  assertIsolated,
+  freePort,
+  keepPreventSleep,
+  pinPort,
+} from './backends.js';
 import { MASKED_TARGETS, REPO_ROOT, writeJointExports } from './export-run.js';
 import { HealthSampler, summarize, toSample } from './sampler.js';
 
@@ -82,6 +88,20 @@ describe('isolated backend homes', () => {
     await pinPort(dir, port);
     expect(await readFile(join(dir, 'config.toml'), 'utf8')).toBe(
       `[budget]\nenforcement = "off"\n[server]\nport = ${port}\n`,
+    );
+  });
+});
+
+describe('prevent-sleep default (coordinator ruling)', () => {
+  it("drops the shared writers' preventSleep = false and keeps the rest", async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'aio-joint-'));
+    await writeFile(
+      join(dir, 'config.toml'),
+      '[orca]\nbin = "/x/orca"\npreventSleep = false\n[budget]\nenforcement = "off"\n',
+    );
+    await keepPreventSleep(dir);
+    expect(await readFile(join(dir, 'config.toml'), 'utf8')).toBe(
+      '[orca]\nbin = "/x/orca"\n[budget]\nenforcement = "off"\n',
     );
   });
 });

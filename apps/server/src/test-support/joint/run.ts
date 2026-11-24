@@ -44,6 +44,7 @@ import {
 import { restartAssertions, type RestartEvidence } from './assertions.js';
 import {
   freePort,
+  keepPreventSleep,
   pinPort,
   previewLauncher,
   productionHome,
@@ -53,6 +54,7 @@ import { writeJointExports } from './export-run.js';
 import {
   GITHUB_LOCK,
   ORCA_LOCK,
+  caffeinateFor,
   holdsLock,
   oldControlTokenStatus,
   openSessionStatus,
@@ -106,6 +108,19 @@ async function holdLock(path: string): Promise<() => Promise<void>> {
 }
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
+
+/** Polls `check` every 2 s until true or `ms` elapsed. */
+async function waitFor(
+  check: () => Promise<boolean>,
+  ms: number,
+): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    if (await check().catch(() => false)) return true;
+    if (Date.now() > deadline) return false;
+    await delay(2_000);
+  }
+}
 
 interface Mode {
   kind: JointMode;
@@ -169,6 +184,7 @@ async function previewMode(h: OrcaHarness): Promise<Mode> {
     templates: await mainlineTemplates(),
   });
   const port = await freePort();
+  await keepPreventSleep(dir);
   await pinPort(dir, port);
   const inner = await GitRemoteScm.create({
     remote: h.ledger.repoPath,
@@ -549,6 +565,7 @@ async function drill(
           .filter((r) => r.kind === 'shim')
           .map((r) => r.id);
         controlTokenBefore = await readControlToken(mode.home);
+        const caffeinatedBefore = await caffeinateFor(backend.pid);
         evidence.killSeq = maxSeq;
         const record = await control.killAndRestart(fired.trigger, fired.seq);
         backend = control.backend;
@@ -563,11 +580,19 @@ async function drill(
         };
         const open = await openSessionStatus(mode.home, backend.url, id);
         if (open !== undefined) evidence.session.openSessionStatus = open;
+        // #14: the restarted backend re-arms its prevent-sleep child once its
+        // run is observed again (a few seconds after readiness).
+        evidence.files = {
+          caffeinateForNewPid: await waitFor(
+            () => caffeinateFor(backend.pid),
+            60_000,
+          ),
+        };
+        report.caffeinatedBeforeKill = caffeinatedBefore;
         const tokenAfter = await readControlToken(mode.home);
         if (controlTokenBefore && tokenAfter) {
-          evidence.files = {
-            controlTokenRotated: tokenAfter !== controlTokenBefore,
-          };
+          evidence.files.controlTokenRotated =
+            tokenAfter !== controlTokenBefore;
           const old = await oldControlTokenStatus(
             backend.url,
             controlTokenBefore,
@@ -656,8 +681,6 @@ async function drill(
       },
       sse: { seqs: stream.seqs, reconnects: stream.reconnects },
       locks,
-      // #17's resend count needs a gateway request log the product does not
-      // write (Fastify logger off; the gateway logs failures only): n/a.
     };
     const assertions = restartAssertions(full, {
       ...(heldAttempt ? { heldQuestionAttempt: heldAttempt } : {}),

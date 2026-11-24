@@ -27,6 +27,11 @@ T8's `m5-mainline` text (`scenario/`).
 - `assertions.ts`: §2.3.4 restart assertions #1–10 and #12–17 (#11 is T17)
   as pure functions over events plus observations; missing observations make
   a row (or part of it) `n/a`, never a pass.
+  #17 is revised by coordinator ruling: instead of counting resends (they
+  fail at TCP level while the backend is down), it checks that the merge-request
+  in flight at K was accepted exactly once (before the kill), that its merge
+  outcome lands after the kill with a single first-parent merge commit, and
+  that no submission id is accepted twice.
 - `session.ts`: cookie sessions that outlive the restart, and the harness SSE
   client that reconnects with `Last-Event-ID` and records every seq.
 - `sampler.ts`: health sampler every 30 s (CLI calls per minute, adapter call

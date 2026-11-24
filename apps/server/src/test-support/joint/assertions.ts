@@ -65,8 +65,6 @@ export interface RestartEvidence {
   sse?: { seqs: number[]; reconnects: number };
   /** Lock-held samples across the run. */
   locks?: { github: boolean[]; orca: boolean[] };
-  /** Gateway log: submission requests resent after the restart (count). */
-  resentSubmissions?: number;
 }
 
 type Detail = AssertionResult['detail'];
@@ -619,38 +617,99 @@ export function a16Locks(x: RestartEvidence): AssertionResult {
 }
 
 /**
- * #17 the integrator really hit exit 4 and resent: resends seen in the gateway
- * log (count only) against exactly one accepted merge-request for that PR.
+ * #17 (revised, coordinator ruling): the submit in flight across the kill.
+ * Retries during the downtime fail at TCP level and the backend writes no
+ * request log, so the resend itself is not counted. Instead, on K:
+ * (a') the integrator's merge-request for the K PR is accepted exactly once
+ * in the whole log, before the kill, and that PR's merge outcome lands after
+ * the kill — `command.reconciled{found|redone}` plus exactly one
+ * `command.succeeded{scm.mergePR}`, or `workitem.merged` for its item — with
+ * no second merge commit for it on the integration first-parent history;
+ * (b) no submission id is accepted twice. (a') is `n/a` on K′.
+ * "After the kill" is by seq: the startup reconcile runs before the new
+ * process writes runtime.json, so its events can precede the ready time.
  */
 export function a17InFlightSubmission(x: RestartEvidence): AssertionResult {
+  const ids = new Map<string, number>();
+  for (const e of of(x.events, 'submission.accepted'))
+    ids.set(e.payload.submissionId, (ids.get(e.payload.submissionId) ?? 0) + 1);
+  const repeatedIds = [...ids.values()].filter((n) => n > 1).length;
+  // (b) needs at least one acceptance to say anything.
+  const uniqueIds = ids.size ? repeatedIds === 0 : undefined;
   const r = x.restart;
   if (!r || r.trigger !== 'K')
-    return verdict(17, 'in-flight submission resent once', [undefined], {
-      trigger: r?.trigger ?? null,
-    });
+    return verdict(
+      17,
+      'in-flight submission recorded once (revised)',
+      [uniqueIds],
+      {
+        trigger: r?.trigger ?? null,
+        inFlightSubmission: 'n/a',
+        repeatedSubmissionIds: repeatedIds,
+      },
+    );
+  const kill = x.killSeq ?? r.triggerSeq;
   const issued = of(x.events, 'command.issued').find(
     (e) => seqOf(e) === r.triggerSeq,
   );
+  const commandId = String(issued?.payload.commandId);
   const pr = Number(issued?.payload.args?.pr?.number);
   const accepted = of(x.events, 'submission.accepted').filter(
     (e) =>
       e.payload.kind === 'merge-request' &&
       Number(e.payload.submission?.payload?.pr) === pr,
   );
-  const afterKill = accepted.filter((e) => seqOf(e) > r.triggerSeq).length;
+  const acceptedBeforeKill = accepted.filter((e) => seqOf(e) <= kill).length;
+  const after = x.events.filter((e) => seqOf(e) > kill);
+  const reconciled = after.some(
+    (e) =>
+      e.type === 'command.reconciled' &&
+      e.payload.commandId === commandId &&
+      ['found', 'redone'].includes(e.payload.outcome),
+  );
+  const succeeded = of(x.events, 'command.succeeded').filter(
+    (e) => e.payload.commandId === commandId,
+  );
+  const succeededAfter = succeeded.filter((e) => seqOf(e) > kill).length;
+  const item = of(x.events, 'workitem.merge_queued').find(
+    (e) => Number(e.payload.pr) === pr,
+  )?.payload.itemKey as string | undefined;
+  const mergedAfter = after.filter(
+    (e) => e.type === 'workitem.merged' && e.payload.itemKey === item,
+  );
+  const outcome =
+    (reconciled && succeeded.length === 1 && succeededAfter === 1) ||
+    (item !== undefined && mergedAfter.length >= 1);
+  const shas = new Set(
+    of(x.events, 'workitem.merged')
+      .filter((e) => e.payload.itemKey === item)
+      .map((e) => String(e.payload.mergeCommitSha)),
+  );
+  const firstParents = x.scm?.integrationFirstParents;
+  const singleMergeCommit =
+    firstParents === undefined || shas.size !== 1
+      ? undefined
+      : firstParents.filter((sha) => shas.has(sha)).length === 1;
   return verdict(
     17,
-    'in-flight submission resent once',
+    'in-flight submission recorded once (revised)',
     [
-      x.resentSubmissions === undefined ? undefined : x.resentSubmissions >= 1,
-      // The resend answers with the earlier result: no second acceptance.
-      afterKill === 0,
+      accepted.length === 1 && acceptedBeforeKill === 1,
+      outcome,
+      shas.size <= 1,
+      singleMergeCommit,
+      uniqueIds,
     ],
     {
       pr: Number.isSafeInteger(pr) ? pr : null,
       acceptedForPr: accepted.length,
-      acceptedAfterKill: afterKill,
-      resentSubmissions: x.resentSubmissions ?? null,
+      acceptedBeforeKill,
+      reconciledAfterKill: reconciled,
+      mergeSucceededAfterKill: succeededAfter,
+      itemMergedAfterKill: mergedAfter.length,
+      mergeCommitsForPr: shas.size,
+      singleFirstParentMerge: singleMergeCommit ?? null,
+      repeatedSubmissionIds: repeatedIds,
     },
   );
 }

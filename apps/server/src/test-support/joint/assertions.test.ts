@@ -89,6 +89,7 @@ function healthyLog(): Json[] {
   });
   add('workitem.merged', { itemKey: 'sub', mergeCommitSha: SHA2 });
   add('gate.opened', { gateId: 'fin', kind: 'stage', stageKind: 'final-pr' });
+  add('workitem.merge_queued', { itemKey: 'sub', pr: 7, attemptId: 'w-sub' });
   return log;
 }
 
@@ -139,7 +140,6 @@ function healthy(): RestartEvidence {
     session: { oldCookieStatus: 200, openSessionStatus: 200 },
     sse: { seqs: events.map((e) => e.seq as number), reconnects: 1 },
     locks: { github: [true, true], orca: [true, true] },
-    resentSubmissions: 1,
   };
 }
 
@@ -415,13 +415,19 @@ describe('each row fails on its own defect', () => {
     expect(a16Locks(x).status).toBe('fail');
   });
 
-  it('#17 no resend seen, or a second acceptance after the kill; n/a for K′', () => {
-    const x = healthy();
-    x.resentSubmissions = 0;
-    expect(a17InFlightSubmission(x).status).toBe('fail');
-    const y = healthy();
-    push(y, 'submission.accepted', {
-      submissionId: 's3',
+  it('#17 (revised) the in-flight merge-request', () => {
+    const ok = a17InFlightSubmission(healthy());
+    expect(ok.status).toBe('pass');
+    expect(ok.detail).toMatchObject({
+      pr: 7,
+      acceptedForPr: 1,
+      acceptedBeforeKill: 1,
+      reconciledAfterKill: true,
+      mergeSucceededAfterKill: 1,
+      singleFirstParentMerge: true,
+    });
+    const mergeRequest = (submissionId: string) => ({
+      submissionId,
       attemptId: 'mq',
       kind: 'merge-request',
       submission: {
@@ -429,10 +435,39 @@ describe('each row fails on its own defect', () => {
         payload: { pr: 7, expectedHeadSha: SHA1 },
       },
     });
-    expect(a17InFlightSubmission(y).detail.acceptedAfterKill).toBe(1);
-    expect(a17InFlightSubmission(y).status).toBe('fail');
-    const z = healthy();
-    z.restart = { ...record, trigger: "K'" };
-    expect(a17InFlightSubmission(z).status).toBe('n/a');
+    // A second acceptance (here after the kill) fails (a').
+    const twice = healthy();
+    push(twice, 'submission.accepted', mergeRequest('s3'));
+    expect(a17InFlightSubmission(twice).status).toBe('fail');
+    // No merge outcome after the kill.
+    const lost = healthy();
+    lost.events = lost.events.filter(
+      (e) =>
+        !(
+          (e.type === 'command.succeeded' &&
+            e.payload.commandId === 'merge7') ||
+          e.type === 'command.reconciled' ||
+          (e.type === 'workitem.merged' && e.payload.itemKey === 'sub')
+        ),
+    );
+    expect(a17InFlightSubmission(lost).detail.itemMergedAfterKill).toBe(0);
+    expect(a17InFlightSubmission(lost).status).toBe('fail');
+    // workitem.merged alone is an accepted outcome.
+    const merged = healthy();
+    merged.events = merged.events.filter(
+      (e) => e.type !== 'command.reconciled',
+    );
+    expect(a17InFlightSubmission(merged).status).toBe('pass');
+    // A second merge commit for the PR on the first-parent history.
+    const doubled = healthy();
+    doubled.scm!.integrationFirstParents = [SHA1, SHA2, SHA2];
+    expect(a17InFlightSubmission(doubled).status).toBe('fail');
+    // (b) a duplicated submission id fails even on K′, where (a') is n/a.
+    const kPrime = healthy();
+    kPrime.restart = { ...record, trigger: "K'" };
+    expect(a17InFlightSubmission(kPrime).status).toBe('pass');
+    expect(a17InFlightSubmission(kPrime).detail.inFlightSubmission).toBe('n/a');
+    push(kPrime, 'submission.accepted', mergeRequest('s1'));
+    expect(a17InFlightSubmission(kPrime).status).toBe('fail');
   });
 });

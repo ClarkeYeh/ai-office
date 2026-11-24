@@ -7,7 +7,7 @@
  * Both return a `ControlledBackend` for the restart control (same home and
  * port on every start) and never touch `~/.ai-office` or port 4319.
  */
-import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import type { ComposedEffects } from '../orca/harness.js';
@@ -63,6 +63,23 @@ export async function pinPort(home: string, port: number): Promise<void> {
   await appendFile(join(home, 'config.toml'), `[server]\nport = ${port}\n`);
 }
 
+/**
+ * Coordinator ruling (T11b/T12): the isolated config keeps the default
+ * `orca.preventSleep = true`, so the backend's `caffeinate -i -w <pid>` child
+ * exists and #14 can check that it is re-established after the restart. The
+ * shared config writers pin `false`; this drops that line again.
+ */
+export async function keepPreventSleep(home: string): Promise<void> {
+  const path = join(home, 'config.toml');
+  const text = await readFile(path, 'utf8');
+  const kept = text
+    .split('\n')
+    .filter((line) => !/^\s*preventSleep\s*=/.test(line))
+    .join('\n');
+  if (/preventSleep/.test(kept)) throw new Error('Unexpected preventSleep');
+  await writeFile(path, kept, { mode: 0o600 });
+}
+
 /** Template overrides (T8's integrator-scope fallback) beside the built-ins. */
 export async function writeTemplates(
   home: string,
@@ -87,6 +104,7 @@ export async function productionHome(options: {
     productionConfig({ ...options.config, enforcement: 'off' }),
     { mode: 0o600 },
   );
+  await keepPreventSleep(options.home);
   await pinPort(options.home, options.port);
   await writeTemplates(options.home, options.templates);
 }

@@ -145,7 +145,7 @@ export async function openSessionStatus(
   }
 }
 
-/** `caffeinate -w <pid>` exists (only meaningful with `preventSleep = true`). */
+/** The backend's `caffeinate -i -w <pid>` child exists (`preventSleep` defaults to true). */
 export async function caffeinateFor(pid: number): Promise<boolean> {
   const { stdout } = await run('/bin/ps', ['-axww', '-o', 'command='], {
     maxBuffer: 16 * 1024 * 1024,
