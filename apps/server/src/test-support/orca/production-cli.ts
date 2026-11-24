@@ -26,6 +26,10 @@ export type ProductionCliResult =
       banner: string;
       /** Server pid from runtime.json (the CLI's own child). */
       serverPid: number;
+      /** M5-T7: the `ai-office start` CLI shell's own pid. */
+      cliPid: number;
+      /** M5-T7: resolves with the CLI exit code once the shell exits. */
+      exited: Promise<number>;
       /** Stops like Ctrl-C; resolves with the CLI exit code. */
       stop(): Promise<number>;
     }
@@ -38,6 +42,8 @@ export async function runProductionCli(options: {
   /** Extra `ai-office start` arguments (production adds none). */
   args?: string[];
   readyTimeoutMs?: number;
+  /** M5-T7: a fixed port (same home, same port across a restart); default 0. */
+  port?: number;
 }): Promise<ProductionCliResult> {
   await access(CLI_ENTRY).catch(() => {
     throw new Error('Run `pnpm -r build` first: the CLI is not built');
@@ -46,7 +52,14 @@ export async function runProductionCli(options: {
   if (!home) throw new Error('HOME required');
   const child: ChildProcess = spawn(
     process.execPath,
-    [CLI_ENTRY, 'start', '--no-open', '--port', '0', ...(options.args ?? [])],
+    [
+      CLI_ENTRY,
+      'start',
+      '--no-open',
+      '--port',
+      String(options.port ?? 0),
+      ...(options.args ?? []),
+    ],
     {
       // §27 "gh/git usable when launched from the GUI": no shell PATH, no tokens.
       env: {
@@ -88,6 +101,8 @@ export async function runProductionCli(options: {
         bootstrapUrl: open[0].slice('Open '.length),
         banner: lines.find((l) => l.startsWith('AI Office listening on')) ?? '',
         serverPid,
+        cliPid: child.pid!,
+        exited,
         async stop() {
           if (child.exitCode === null && child.signalCode === null)
             child.kill('SIGINT');

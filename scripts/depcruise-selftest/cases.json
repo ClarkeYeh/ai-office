@@ -501,6 +501,10 @@
     "rules": ["joint-allowed-dependencies"]
   },
   {
+    "file": "apps/server/src/test-support/joint/ports-main.ts",
+    "rules": []
+  },
+  {
     "file": "apps/server/src/joint-bad.ts",
     "rules": ["no-production-to-tests"]
   },
