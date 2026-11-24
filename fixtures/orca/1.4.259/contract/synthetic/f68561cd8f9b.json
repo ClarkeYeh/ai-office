@@ -1212,23 +1212,6 @@
     {
       "orcaVersion": "1.4.259",
       "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "git",
-        "-C",
-        "/fixture/w1",
-        "worktree",
-        "list",
-        "--porcelain",
-        "-z"
-      ],
-      "exitCode": 0,
-      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000worktree /fixture/w1\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/rework\u0000\u0000",
-      "responseEncoding": "text",
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
       "argv": ["git", "-C", "/fixture/w1", "rev-parse", "--verify", "HEAD"],
       "exitCode": 0,
       "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1239,14 +1222,23 @@
       "orcaVersion": "1.4.259",
       "recordedAt": "2026-11-18T00:00:00Z",
       "argv": [
-        "orca",
-        "worktree",
-        "rm",
-        "--worktree",
-        "id:wt_1",
-        "--delete-branch",
-        "--json"
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "refs/heads/ai-office/rework"
       ],
+      "exitCode": 0,
+      "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "rm", "--worktree", "id:wt_1", "--json"],
       "exitCode": 0,
       "response": {
         "ok": true,

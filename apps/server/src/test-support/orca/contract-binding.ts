@@ -157,6 +157,16 @@ export async function orcaReplayFixture(
       world.switchSegment(`advance:${ms}`);
       world.advance(ms);
     },
+    detachWorkspace: (workspace, shape) => {
+      world.switchSegment('detach:' + shape);
+      const w = world.workspaces.find((w) => w.id === workspace)!;
+      const branch = w.branch.replace('refs/heads/', '');
+      const tip = 'd'.repeat(40);
+      w.branch = '';
+      w.head = tip;
+      if (shape === 'worker') world.branches.set(branch, tip);
+      if (shape !== 'unpushed') world.originTips.add(tip);
+    },
     identity: (agent) => ({
       terminalHandle: `term_${agent}`,
       paneKey: 'pane_contract',

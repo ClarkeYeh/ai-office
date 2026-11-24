@@ -63,6 +63,7 @@ runtimePortContract(async () => {
       f.clock.advance(ms);
       f.runtime.finishPendingSpawns();
     },
+    detachWorkspace: (ws, shape) => f.runtime.detachWorkspace(ws, shape),
     identity: (a) => f.runtime.identity(a),
     stimulus: async (a, action) => {
       if (action === 'identity-lost') f.runtime.loseIdentity();
@@ -831,3 +832,58 @@ describe('injected agent and Git behavior', () => {
     expect(types).not.toContain('agent.output');
   });
 });
+
+it.each(['integrator', 'worker', 'unpushed'] as const)(
+  'retains independent detached workspace and branch state across restore: %s',
+  async (shape) => {
+    const f = await fixture();
+    const baseSha = 'a'.repeat(40);
+    f.runtime.setRemoteBranch(f.repo, 'main', baseSha);
+    const p = await f.runtime.prepareWorkspace({
+      session: f.session,
+      repo: f.repo,
+      baseBranch: baseSha,
+      baseSha,
+      fetchBranch: 'main',
+      branch: 'ai-office/wf/merge-1',
+      name: 'merge-1',
+      correlation: { workflowId: 'wf', commandId: 'prepare-detached' },
+    });
+    const agent = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      workspace: {
+        kind: 'existing-worktree',
+        workspace: p.workspace,
+        readOnly: false,
+      },
+    });
+    f.runtime.detachWorkspace(p.workspace, shape);
+    const runtime = new FakeRuntime({ clock: f.clock });
+    runtime.restore(f.runtime.snapshot());
+    expect(runtime.workspaceBranch(p.workspace)).toBeNull();
+    await runtime.stop(agent);
+    if (shape === 'unpushed') {
+      await expect(
+        runtime.release(agent, { removeWorkspace: true }),
+      ).rejects.toMatchObject({
+        category: 'guard',
+        code: 'workspace_unpushed',
+      });
+      expect(runtime.snapshot().localBranches[0]![1]).toContainEqual([
+        'ai-office/wf/merge-1',
+        baseSha,
+      ]);
+      expect(await runtime.inspectWorkspace(p.workspace)).toEqual({
+        clean: true,
+        changedFiles: [],
+      });
+    } else {
+      await runtime.release(agent, { removeWorkspace: true });
+      expect(runtime.snapshot().localBranches[0]![1]).toEqual([]);
+      expect(await runtime.inspectWorkspace(p.workspace)).toEqual({
+        clean: false,
+        changedFiles: [],
+      });
+    }
+  },
+);

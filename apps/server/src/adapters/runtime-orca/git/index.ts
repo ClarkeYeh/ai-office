@@ -17,7 +17,8 @@ export interface GitCli {
     branch: string,
     expectedSha: string,
   ): Promise<void>;
-  fetch(repo: string, branch: string): Promise<void>;
+  fetch(repo: string, branch?: string): Promise<void>;
+  originContains(repo: string, sha: string): Promise<boolean>;
   revParse(repo: string, ref: string): Promise<string>;
   localBranch(repo: string, branch: string): Promise<string | null>;
   isAncestor(
@@ -100,8 +101,24 @@ export class DefaultGitCli implements GitCli {
       );
     return result;
   }
-  async fetch(repo: string, branch: string): Promise<void> {
-    await this.execute(repo, ['fetch', 'origin', branchName(branch)], true);
+  async fetch(repo: string, branch?: string): Promise<void> {
+    await this.execute(
+      repo,
+      branch === undefined
+        ? ['fetch', 'origin', '--prune']
+        : ['fetch', 'origin', branchName(branch)],
+      true,
+    );
+  }
+  async originContains(repo: string, sha: string): Promise<boolean> {
+    if (!/^[0-9a-f]{40}$/.test(sha)) throw guard('invalid_git_sha');
+    const result = await this.execute(repo, [
+      'for-each-ref',
+      '--format=%(refname)',
+      '--contains=' + sha,
+      'refs/remotes/origin/',
+    ]);
+    return result.stdout.trim().length > 0;
   }
   async revParse(repo: string, revision: string): Promise<string> {
     return (

@@ -1,0 +1,324 @@
+{
+  "default": [
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "list",
+        "--repo",
+        "id:repo_contract",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktrees": [
+            {
+              "id": "wt_existing",
+              "path": "/synthetic/existing",
+              "branch": "refs/heads/ai-office/existing",
+              "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "repoId": "repo_contract",
+              "comment": "aio:existing base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "displayName": "existing"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/synthetic/repo", "fetch", "origin", "main"],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "merge-base",
+        "--is-ancestor",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "refs/remotes/origin/main"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "refs/heads/ai-office/worker"
+      ],
+      "exitCode": 1,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "terminal",
+        "list",
+        "--worktree",
+        "path:/synthetic/repo",
+        "--limit",
+        "500",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "terminals": [
+            {
+              "handle": "term_shim"
+            }
+          ]
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "worktree",
+        "create",
+        "--repo",
+        "id:repo_contract",
+        "--name",
+        "worker",
+        "--branch",
+        "ai-office/worker",
+        "--base-branch",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "--no-parent",
+        "--setup",
+        "skip",
+        "--comment",
+        "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "id": "00000000-0000-4000-8000-000000000053",
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/worker",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "worker"
+          }
+        },
+        "_meta": {
+          "runtimeId": "00000000-0000-4000-8000-00000000001b"
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "refs/heads/ai-office/worker",
+            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "repoId": "repo_contract",
+            "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "worker"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "rev-parse", "--verify", "HEAD"],
+      "exitCode": 0,
+      "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "worktree",
+        "list",
+        "--porcelain",
+        "-z"
+      ],
+      "exitCode": 0,
+      "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000worktree /fixture/w1\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/worker\u0000\u0000",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    }
+  ],
+  "1:detach:unpushed": [
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "",
+            "head": "dddddddddddddddddddddddddddddddddddddddd",
+            "repoId": "repo_contract",
+            "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "worker"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "status", "--porcelain", "-z"],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "rev-parse", "--verify", "HEAD"],
+      "exitCode": 0,
+      "response": "dddddddddddddddddddddddddddddddddddddddd",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "refs/heads/ai-office/worker"
+      ],
+      "exitCode": 0,
+      "response": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/synthetic/repo", "fetch", "origin", "--prune"],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "git",
+        "-C",
+        "/synthetic/repo",
+        "for-each-ref",
+        "--format=%(refname)",
+        "--contains=dddddddddddddddddddddddddddddddddddddddd",
+        "refs/remotes/origin/"
+      ],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "worktree": {
+            "id": "wt_1",
+            "path": "/fixture/w1",
+            "branch": "",
+            "head": "dddddddddddddddddddddddddddddddddddddddd",
+            "repoId": "repo_contract",
+            "comment": "aio:45666d976bab316d base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "displayName": "worker"
+          }
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": ["git", "-C", "/fixture/w1", "status", "--porcelain", "-z"],
+      "exitCode": 0,
+      "response": "",
+      "responseEncoding": "text",
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    }
+  ]
+}
