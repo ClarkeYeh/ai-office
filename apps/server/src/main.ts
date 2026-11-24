@@ -181,6 +181,12 @@ export interface StartOptions {
       github: RepoScmRef;
     };
     shortId?: string;
+    /**
+     * M5-T11: checkpoint and restore the fake world even with an injected
+     * `scm` (the rehearsal kills a fake-runtime backend that talks to real
+     * GitHub). Default false: the M3 mixed acceptances keep no checkpoint.
+     */
+    persistFakeWorld?: boolean;
     onShimCreated?: (handle: string) => void | Promise<void>;
   };
   /** Dev hybrid only: an existing, owner-approved Orca folder workspace. */
@@ -213,6 +219,11 @@ export interface RunningServer {
   readonly runtimeMode: 'fake' | 'orca';
   readonly runners: WorkflowRunners;
   readonly fakeWorld?: FakeWorld;
+  /**
+   * Fake mode with a checkpoint: writes it now, synchronously (M5-T11 flushes
+   * at an exact pause point before its `kill -9`).
+   */
+  readonly checkpointFakeWorld?: () => void;
   close(): Promise<void>;
 }
 
@@ -273,7 +284,8 @@ export function checkStartOptions(options: StartOptions): void {
   if (
     (options.testOnly?.fakeRuntime ||
       options.testOnly?.fakeRepo ||
-      options.testOnly?.shortId) &&
+      options.testOnly?.shortId ||
+      options.testOnly?.persistFakeWorld !== undefined) &&
     options.fake === undefined
   )
     throw new StartupError('Fake world hooks require --dev --fake');
@@ -1132,6 +1144,7 @@ async function compose(
     options.cliPath ?? resolve(import.meta.dirname, '../../cli/dist/main.js');
 
   let world: FakeWorld | undefined;
+  let checkpointFakeWorld: (() => void) | undefined;
   let finalCheckpointError: unknown;
   let runtime: RuntimePort;
   let scm: ScmPort;
@@ -1156,10 +1169,12 @@ async function compose(
       });
     if (world.scenario !== options.fake)
       throw new StartupError('The surviving fake world runs another scenario');
-    const saveFakeWorld = options.testOnly?.scm
-      ? () => {}
-      : persistFakeWorld(world, dataDir, options.fakeWorld === undefined);
+    const saveFakeWorld =
+      options.testOnly?.scm && options.testOnly.persistFakeWorld !== true
+        ? () => {}
+        : persistFakeWorld(world, dataDir, options.fakeWorld === undefined);
     saveFakeWorld();
+    checkpointFakeWorld = saveFakeWorld;
     // Sampling all three adapters also covers scenario/test mutations outside ports.
     // Compare before writing: changes are coalesced to at most one checkpoint/second.
     const checkpoint = setInterval(() => {
@@ -1647,6 +1662,7 @@ async function compose(
     runtimeMode,
     runners,
     ...(world ? { fakeWorld: world } : {}),
+    ...(checkpointFakeWorld ? { checkpointFakeWorld } : {}),
     close: () => {
       observation.stop();
       submissions.close();
