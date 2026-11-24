@@ -3,9 +3,10 @@
  * - `production` (T12): real `ai-office start` on an isolated home, real
  *   GitHub (spike, GitHub live lock + safety gate via `withHarness`), real Orca
  *   and agents; the final PR waits for the owner's hand merge (W2).
- * - `preview` (T11b): `--dev --runtime orca` child + scm-gitremote stand-in
- *   in this process (bridged over IPC); the final PR is merged explicitly by
- *   the stand-in; no GitHub API, no owner.
+ * - `preview` (T11b, `preview/mode.ts`): `--dev --runtime orca` child +
+ *   scm-gitremote stand-in in this process (bridged over IPC); the final PR
+ *   is merged explicitly by the stand-in; no GitHub API, no owner.
+ * - `dry` (`dry-run.ts`): the built CLI in `--dev --fake m5-mainline`.
  * Both: T8's `m5-mainline` text, the scripted owner policy, exactly one
  * `kill -9` (K or K′) with a same-home same-port restart, the 30 s health
  * sampler, restart assertions #1–10 and #12–17, the B4 export (raw only to a
@@ -21,7 +22,6 @@ import { acquireLiveLock } from '../github/lock.js';
 import type { OrcaHarness } from '../orca/harness.js';
 import {
   adoptRun,
-  backendHome,
   events,
   gates,
   liveWorkers,
@@ -31,9 +31,6 @@ import {
   type Json,
 } from '../orca/t17/office.js';
 import { alive, checkProcesses } from '../orca/t17/backend-process.js';
-import { GitRemoteScm } from '../orca/scm-gitremote/index.js';
-import type { PrRef } from '../../ports/refs.js';
-import type { ScmPort } from '../../ports/scm.js';
 import {
   CODE_NAME,
   mainlineTag,
@@ -42,14 +39,7 @@ import {
   TEMPLATE_ID,
 } from './scenario/index.js';
 import { restartAssertions, type RestartEvidence } from './assertions.js';
-import {
-  freePort,
-  keepPreventSleep,
-  pinPort,
-  previewLauncher,
-  productionHome,
-  productionLauncher,
-} from './backends.js';
+import { freePort, productionHome, productionLauncher } from './backends.js';
 import { writeJointExports } from './export-run.js';
 import {
   GITHUB_LOCK,
@@ -101,7 +91,7 @@ export function jointModeFromEnv(): JointMode {
 }
 
 /** Ensures this process holds a live lock (idempotent; T16 may already hold it). */
-async function holdLock(path: string): Promise<() => Promise<void>> {
+export async function holdLock(path: string): Promise<() => Promise<void>> {
   if (await holdsLock(path)) return async () => undefined;
   return acquireLiveLock(path);
 }
@@ -185,7 +175,7 @@ export interface Side {
   runs(): number | undefined;
 }
 
-function orcaSide(h: OrcaHarness): Side {
+export function orcaSide(h: OrcaHarness): Side {
   const scan = async (kind: 'shim' | 'worktree') =>
     (await h.scan())
       .filter((r) => r.kind === kind)
@@ -210,6 +200,8 @@ function orcaSide(h: OrcaHarness): Side {
 
 export interface Mode {
   kind: JointMode;
+  /** The run's directory tag when the mode fixed it (T8 binding). */
+  tag?: string;
   side: Side;
   /** Drive-loop interval. */
   pollMs: number;
@@ -270,16 +262,12 @@ export async function runJoint(
   mode: JointMode,
   paths: JointPaths,
 ): Promise<Json> {
+  if (mode !== 'production')
+    throw new Error(
+      'runJoint runs production; the T11b preview is joint/preview/scenario.ts',
+    );
   const releaseOrca = await holdLock(ORCA_LOCK);
   try {
-    if (mode === 'preview') {
-      const releaseGithub = await holdLock(GITHUB_LOCK);
-      try {
-        return await drill(await previewMode(h), paths);
-      } finally {
-        await releaseGithub();
-      }
-    }
     const { withHarness } = await import('../github/harness.js');
     return await withHarness(async (github) =>
       drill(await productionMode(h, github), paths),
@@ -287,125 +275,6 @@ export async function runJoint(
   } finally {
     await releaseOrca();
   }
-}
-
-async function previewMode(h: OrcaHarness): Promise<Mode> {
-  const home = process.env.HOME;
-  if (!home) throw new Error('HOME required');
-  const dir = await backendHome(h, {
-    enforcement: 'off',
-    templates: await mainlineTemplates(),
-  });
-  const port = await freePort();
-  await keepPreventSleep(dir);
-  await pinPort(dir, port);
-  const inner = await GitRemoteScm.create({
-    remote: h.ledger.repoPath,
-    harness: h,
-  });
-  let claimed!: () => void;
-  const bound = new Promise<void>((r) => (claimed = r));
-  let finalRef: PrRef | undefined;
-  // Writes wait for the namespace claim; the final PR (base main) is noted.
-  const scm = new Proxy(inner, {
-    get(target, property) {
-      const value = Reflect.get(target, property, target) as unknown;
-      if (typeof value !== 'function') return value;
-      const fn = (value as (...a: unknown[]) => unknown).bind(target);
-      if (property === 'health' || String(property).startsWith('get'))
-        return fn;
-      return async (...args: unknown[]) => {
-        if (
-          ![
-            'poll',
-            'inspectRepo',
-            'compareBranch',
-            'findByMarker',
-            'listReviewComments',
-          ].includes(String(property))
-        )
-          await bound;
-        const result = await fn(...args);
-        if (
-          property === 'openPR' &&
-          (args[1] as { base?: string }).base === 'main'
-        )
-          finalRef = result as PrRef;
-        return result;
-      };
-    },
-  }) as unknown as ScmPort;
-  const effects = await h.composedBackend(dir);
-  return {
-    kind: 'preview',
-    side: orcaSide(h),
-    pollMs: 2_000,
-    sampleLocks: true,
-    preventSleepChild: true,
-    checkerNa: {},
-    home: dir,
-    launcher: previewLauncher({
-      home: dir,
-      port,
-      orcaHome: join(home, '.ai-office', 'orca-home'),
-      scm,
-      effects,
-    }),
-    afterFirstStart: () => effects.settle(),
-    importObjects: async () => undefined,
-    async integrationFile(log, path) {
-      const integration = log.find((e) => e.type === 'workflow.started')
-        ?.payload.integrationBranch as string | undefined;
-      if (!integration) return undefined;
-      return exec('git', [
-        '-C',
-        h.ledger.repoPath,
-        'show',
-        `origin/${integration}:${path}`,
-      ]).then(
-        (r) => r.stdout,
-        () => undefined,
-      );
-    },
-    onShortId: async () => claimed(),
-    async finalPr() {
-      if (!finalRef) throw new Error('Stand-in final PR not opened');
-      // T11b: the stand-in's explicit merge replaces the owner (§2.2.4).
-      inner.simulateOwnerMerge(finalRef);
-    },
-    async scmFacts(log) {
-      const integration = log.find((e) => e.type === 'workflow.started')
-        ?.payload.integrationBranch as string | undefined;
-      const base = log.find(
-        (e) =>
-          e.type === 'command.succeeded' &&
-          e.payload.kind === 'runtime.prepareWorkspace',
-      )?.payload.result?.baseSha as string | undefined;
-      if (!integration) return {};
-      try {
-        const { stdout } = await exec(
-          'git',
-          [
-            '-C',
-            h.ledger.repoPath,
-            'rev-list',
-            '--first-parent',
-            '--reverse',
-            ...(base
-              ? [`${base}..origin/${integration}`]
-              : [`origin/${integration}`]),
-          ],
-          { maxBuffer: 4 * 1024 * 1024 },
-        );
-        return {
-          integrationFirstParents: stdout.split('\n').filter(Boolean),
-        };
-      } catch {
-        return {};
-      }
-    },
-    dispose: () => inner.dispose(),
-  };
 }
 
 type Github = Awaited<
@@ -540,7 +409,7 @@ export async function drill(
   judge?: Judge,
 ): Promise<Json> {
   const side = mode.side;
-  const tag = mainlineTag(new Date());
+  const tag = mode.tag ?? mainlineTag(new Date());
   const report: Json = { mode: mode.kind, tag, template: TEMPLATE_ID };
   const save = () =>
     writeFile(paths.report, JSON.stringify(report, null, 2), { mode: 0o600 });

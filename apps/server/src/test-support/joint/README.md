@@ -46,6 +46,27 @@ T8's `m5-mainline` text (`scenario/`).
 - `backends.ts`: launchers for both modes and the isolated home and port.
 - `run.ts`: the shared control flow (runner scenario entry).
 
+## T11b preview binding (`preview/`)
+
+- `preview/mode.ts`: the `preview` mode. `--dev --runtime orca` runs in the
+  killable child, with scm-gitremote kept in the harness process. The T8
+  binding (`mainlineRun('gitremote')`) supplies the tag, requirement and
+  template override; writes wait for the namespace claim; the final PR is
+  merged in the stand-in's memory, so the spike's `main` is never touched.
+- `preview/facts.ts`: GitHub-only facts from gitremote equivalents, read with
+  git in the spike clone after a fetch, plus the stand-in's `findByMarker`:
+  first-parent merges, ancestry, the path-A two-parent merge, the `#pending`
+  README heads and the merge's second parent, and objects per create
+  commandId.
+- `preview/report.ts`: the T13 usage ledger (numbers only), the §2.6
+  verdicts, and which side of the merge K landed on.
+- `preview/scenario.ts`: the runner entry. It holds both live locks, runs the
+  drill, then checks the final integration branch (all three operations and
+  `node --test`, via `git archive`) and writes the usage ledger.
+- `acceptance/joint/preview.orca.test.ts`: the live entry. It runs the T10
+  checker on the private exports and writes the §2.6 verdicts into the
+  private report.
+
 ## Offline dry run (M5-T7 part 2)
 
 `dry-run.ts` drives the same control flow (`drill` in `run.ts`) against the
