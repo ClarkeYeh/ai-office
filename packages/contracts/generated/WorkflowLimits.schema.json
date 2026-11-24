@@ -18,6 +18,13 @@
         "on",
         "off"
       ]
+    },
+    "workerBranchRetention": {
+      "type": "string",
+      "enum": [
+        "delete-on-complete",
+        "keep"
+      ]
     }
   },
   "required": [
