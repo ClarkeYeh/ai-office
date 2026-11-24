@@ -17,6 +17,10 @@ import {
 } from './index.js';
 import type { AgentSpec, SpecParams, SpecRequest } from './index.js';
 import { renderConclusion } from './inputs.js';
+import {
+  ORCA_NOTICE_IS_NOT_AN_ANSWER,
+  WAIT_FOR_THE_ANSWER,
+} from './purposes.js';
 import { fenced, shellQuote } from './markdown.js';
 
 const SEAT_TOKEN = 'aio_seat_' + 'Zx9'.repeat(14);
@@ -241,6 +245,29 @@ describe('buildSpec snapshots', () => {
   test.each(Object.entries(REQUESTS))('%s', async (name, request) => {
     await expect(ok(stateFor(name), request).text).toMatchFileSnapshot(
       `__snapshots__/${name}.txt`,
+    );
+  });
+});
+
+describe("Orca's automatic notice is not an answer (M5-FX-QSPEC)", () => {
+  const asking = ['participant', 'worker', 'worker-retry', 'worker-rework'];
+  test.each(Object.entries(REQUESTS))('%s', (name, request) => {
+    const text = ok(stateFor(name), request).text;
+    const present = WAIT_FOR_THE_ANSWER.every((line) => text.includes(line));
+    // Only the purposes that may `ask` get the notice and the wait rule.
+    expect(present).toBe(asking.includes(name));
+    expect(text.includes(ORCA_NOTICE_IS_NOT_AN_ANSWER)).toBe(
+      asking.includes(name),
+    );
+  });
+  test('names the aio: reply and defers to the engine timeout, never a self-made deadline', () => {
+    const rule = WAIT_FOR_THE_ANSWER.join(' ');
+    expect(rule).toMatch(/not an answer/);
+    expect(rule).toMatch(/first line starts with `aio:`/);
+    expect(rule).toMatch(/do not finalize anything that does/);
+    expect(rule).toMatch(/Set no deadline of your own/);
+    expect(rule).toMatch(
+      /question timeout \(a reminder, then escalation to a human\)/,
     );
   });
 });

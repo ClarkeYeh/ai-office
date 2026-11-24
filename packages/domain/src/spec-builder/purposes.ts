@@ -121,6 +121,21 @@ const workspace = (...lines: string[]): SpecSection => ({
   lines,
 });
 
+/**
+ * M5-FX-QSPEC: Orca 1.4.272 answers an `ask` itself with an automatic
+ * "decide it yourself" notice when the coordinator runs no agent (always the
+ * case for AI Office). Asking purposes must wait for AI Office's own answer,
+ * and the engine's question timeout (reminder, then escalation) is the only
+ * deadline, so the wait cannot deadlock.
+ */
+export const ORCA_NOTICE_IS_NOT_AN_ANSWER =
+  'Orca may at once post an automatic notice telling you to decide it yourself (for example "Your coordinator stopped without answering your question … Decide it yourself …"). That notice is not an answer. AI Office answers you itself, in a reply whose first line starts with `aio:`; wait for that reply.';
+export const WAIT_FOR_THE_ANSWER = [
+  ORCA_NOTICE_IS_NOT_AN_ANSWER,
+  'While you wait, you may continue parts of your task that do not depend on the answer, but do not finalize anything that does.',
+  'Set no deadline of your own and never decide the question yourself: if no answer comes in time, AI Office follows its question timeout (a reminder, then escalation to a human) and replies once it has the answer.',
+] as const;
+
 const questions = (...lines: string[]): SpecSection => ({
   id: 'questions',
   title: 'Questions',
@@ -369,6 +384,7 @@ const participant: Builder<'participant', 'meeting'> = (
       ),
       questions(
         'If you cannot state a position without an answer, use the `ask` command from your Orca preamble; AI Office routes it to the facilitator. Otherwise record open points under `concerns`.',
+        ...WAIT_FOR_THE_ANSWER,
       ),
       completion(
         [
@@ -657,7 +673,8 @@ const worker: Builder<'worker', 'implement'> = (ctx, request, stage) => {
           ].join('\n'),
         ),
         '',
-        'Wait for the reply before continuing; the wait does not count toward your time limit.',
+        'Waiting for the answer does not count toward your time limit.',
+        ...WAIT_FOR_THE_ANSWER,
       ),
       completion(
         [
