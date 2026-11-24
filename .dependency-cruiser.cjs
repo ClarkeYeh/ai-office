@@ -76,6 +76,7 @@ const config = {
           // adapters directly.
           '^apps/server/src/ports/',
           '^apps/server/src/main\\.ts$',
+          '^apps/server/src/adapters/runtime-fake/scenarios/m5-mainline-data\\.ts$',
           '^packages/',
           '(^|/)node_modules/',
         ],

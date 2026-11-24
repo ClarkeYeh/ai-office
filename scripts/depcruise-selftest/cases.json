@@ -481,6 +481,14 @@
     "rules": []
   },
   {
+    "file": "apps/server/src/test-support/joint/data-good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/test-support/joint/adapter-bad.ts",
+    "rules": ["joint-allowed-dependencies"]
+  },
+  {
     "file": "apps/server/src/test-support/orca/safe.ts",
     "rules": []
   },
@@ -495,10 +503,6 @@
   {
     "file": "apps/server/src/test-support/joint/ports-main.ts",
     "rules": []
-  },
-  {
-    "file": "apps/server/src/test-support/joint/adapter-bad.ts",
-    "rules": ["joint-allowed-dependencies"]
   },
   {
     "file": "apps/server/src/joint-bad.ts",
