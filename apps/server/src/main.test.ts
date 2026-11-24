@@ -1180,6 +1180,51 @@ it('creates fresh github-mainline worlds and wires the harness bridge and fixed 
   expect(existsSync(join(directory, 'data/fake-world.json'))).toBe(false);
 });
 
+it('checkpoints and restores the fake world with an injected SCM only when persistFakeWorld is set', async () => {
+  const scm = createFakeScm();
+  scm.addRepo(FAKE_REPO.github);
+  expect(() =>
+    checkStartOptions({
+      dev: true,
+      runtime: 'orca',
+      testOnly: { persistFakeWorld: true },
+    }),
+  ).toThrow('--dev --fake');
+  expect(() =>
+    checkStartOptions({ testOnly: { scm, persistFakeWorld: true } }),
+  ).toThrow('--dev');
+
+  const directory = home();
+  const first = await boot(directory, {
+    testOnly: { scm, persistFakeWorld: true },
+  });
+  const ui = await browser(first);
+  const repoId = (await ui.call('GET', '/api/v1/repos')).body.repos[0].repoId;
+  await ui.call('POST', '/api/v1/workflows', {
+    templateId: 'feature-to-pr',
+    repoId,
+    requirement: 'fixture',
+  });
+  const world = first.fakeWorld!;
+  for (let i = 0; i < 200 && world.runtime.activeAgents().length === 0; i++)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(world.runtime.activeAgents().length).toBeGreaterThan(0);
+  // The synchronous flush the rehearsal calls at its pause points.
+  first.checkpointFakeWorld!();
+  const flushed = JSON.parse(
+    readFileSync(join(directory, 'data/fake-world.json'), 'utf8'),
+  ) as { payload: string };
+  expect(JSON.parse(flushed.payload).runtime).toEqual(world.runtime.snapshot());
+  await first.close();
+  servers.splice(servers.indexOf(first), 1);
+  const saved = world.runtime.snapshot();
+
+  const second = await boot(directory, {
+    testOnly: { scm, persistFakeWorld: true },
+  });
+  expect(second.fakeWorld!.runtime.snapshot().agents).toEqual(saved.agents);
+});
+
 it('refuses configured shim homes containing cli-cwd before any process starts', async () => {
   const directory = home();
   writeFileSync(
