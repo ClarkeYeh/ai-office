@@ -51,6 +51,7 @@ import { SUBMISSION_HEADER_NAMES } from '@ai-office/contracts/agent-submission';
 import { PROJECTION_VERSION } from '@ai-office/projection';
 import type { ReadModel } from '@ai-office/projection';
 import { githubMainlineScenario } from './adapters/runtime-fake/scenarios/github-mainline.js';
+import { m5MainlineScenario } from './adapters/runtime-fake/scenarios/m5-mainline.js';
 import type { FakeRuntimeOptions } from './adapters/runtime-fake/index.js';
 import { mainlineScenario } from './adapters/runtime-fake/mainline.js';
 import { createFakeRuntime } from './adapters/runtime-fake/index.js';
@@ -143,6 +144,7 @@ export const FAKE_SCENARIOS: Readonly<
 > = {
   mainline: mainlineScenario,
   'github-mainline': githubMainlineScenario,
+  'm5-mainline': m5MainlineScenario,
   demo: demoScenario,
   parallel: parallelScenario,
   trouble: troubleScenario,
