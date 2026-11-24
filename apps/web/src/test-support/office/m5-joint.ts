@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import {
   EVENT_TYPES,
   type DomainEvent,
@@ -108,14 +107,4 @@ export function foldJointExport(
       return models[index]!;
     },
   };
-}
-
-export function loadJointLog(
-  url: URL = M5_JOINT_FIXTURE,
-  restartSeq = M5_JOINT_RESTART_SEQ,
-): JointLog {
-  return foldJointExport(
-    parseJointExport(readFileSync(url, 'utf8')),
-    restartSeq,
-  );
 }

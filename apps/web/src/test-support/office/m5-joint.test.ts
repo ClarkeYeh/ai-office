@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { DomainEvent, EventPayload } from '@ai-office/contracts/events';
 import type { ReadModel } from '@ai-office/projection';
 import { describe, expect, test } from 'vitest';
@@ -12,10 +13,23 @@ import { keyT } from './log.js';
 import {
   M5_JOINT_FIXTURE,
   PLACEHOLDER,
+  M5_JOINT_RESTART_SEQ,
   foldJointExport,
-  loadJointLog,
   parseJointExport,
+  type JointLog,
 } from './m5-joint.js';
+
+// Reads the fixture from disk; kept in the test file, which has Node types
+// (the web app's own tsconfig does not, M5-T17).
+function loadJointLog(
+  url: URL = M5_JOINT_FIXTURE,
+  restartSeq = M5_JOINT_RESTART_SEQ,
+): JointLog {
+  return foldJointExport(
+    parseJointExport(readFileSync(url, 'utf8')),
+    restartSeq,
+  );
+}
 
 // M5-T17 CI replay of the masked joint-run export (M5_PLAN §5 T17, §6.1).
 // Semantics only: seat poses, needs, board columns, gate headers and replay =

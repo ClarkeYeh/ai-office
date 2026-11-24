@@ -11,6 +11,7 @@ const root = resolve(import.meta.dirname, '../..');
 // same file as fixtures/m5/joint.events.json), so it gets the fixtures/m5
 // rule; every other fixtures/web/*.events.json keeps the M4 web-event rule.
 
+/** @param {number} seq @param {string} type @param {Record<string, unknown>} payload */
 const event = (seq, type, payload) => ({
   seq,
   id: `01ARZ3NDEKTSV4RRFFQ69G5F${String(seq).padStart(2, '0')}`,
@@ -44,6 +45,7 @@ const b4 = (extra = {}) => ({
   ],
 });
 
+/** @param {Record<string, unknown>} files @returns {number | null} */
 function scan(files) {
   const directory = mkdtempSync(join(tmpdir(), 'aio-t17-scan-'));
   try {
