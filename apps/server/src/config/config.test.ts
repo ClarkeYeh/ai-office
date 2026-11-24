@@ -77,6 +77,22 @@ describe('settings', () => {
       expect(statSync(`${directory}/${child}`).isDirectory()).toBe(true);
     expect(statSync(`${directory}/data/specs`).mode & 0o777).toBe(0o700);
   });
+  it('creates the default Orca home only when no custom home is configured', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'aio-config-'));
+    directories.push(directory);
+    const custom = join(directory, 'custom-orca');
+    writeFileSync(
+      `${directory}/config.toml`,
+      `[orca]\nhomeDir = "${custom}"\n`,
+    );
+    createDataDirectories(directory);
+    expect(existsSync(`${directory}/orca-home`)).toBe(false);
+    expect(existsSync(custom)).toBe(false);
+    expect(statSync(`${directory}/data/specs`).mode & 0o777).toBe(0o700);
+    writeFileSync(`${directory}/config.toml`, '[orca]\nhomeDir = ""\n');
+    createDataDirectories(directory);
+    expect(statSync(`${directory}/orca-home`).isDirectory()).toBe(true);
+  });
   it('uses the specification defaults and merges partial settings', () => {
     const directory = home();
     const defaults = readSettings(directory);

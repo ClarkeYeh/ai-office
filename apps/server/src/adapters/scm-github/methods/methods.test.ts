@@ -426,6 +426,15 @@ describe('GitHub T4 methods through the HTTP boundary (offline)', () => {
       f.done();
     }
   });
+  it('compares identical commit SHAs without resolving them as branch refs', async () => {
+    const f = setup([]);
+    expect(await f.scm.compareBranch(repo, sha, sha)).toEqual({
+      ahead: 0,
+      headSha: sha,
+    });
+    expect(f.requests).toEqual([]);
+    f.done();
+  });
   it('compares branches using the actual head, handles equal and missing refs', async () => {
     const f = setup([
       { path: `${base}/compare/${sha}...ai-office%2Fx`, data: { ahead_by: 3 } },
