@@ -2,7 +2,8 @@ import { TapeLeakError } from './tape-normalization.js';
 
 /** Safe, actionable reasons only: never include raw errors or fixture contents. */
 export function refusalReason(error: unknown): string {
-  if (error instanceof TapeLeakError) return 'tape leak scan';
+  if (error instanceof TapeLeakError)
+    return error.label ? `tape leak scan: ${error.label}` : 'tape leak scan';
   const code = (error as NodeJS.ErrnoException | null)?.code;
   if (
     ['EEXIST', 'EACCES', 'EPERM', 'ENOSPC', 'ENOENT', 'EROFS', 'EIO'].includes(
