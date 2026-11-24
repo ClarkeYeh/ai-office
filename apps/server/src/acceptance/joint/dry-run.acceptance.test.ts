@@ -61,6 +61,22 @@ describe('M5-T7 offline dry run (--dev --fake m5-mainline)', () => {
     for (const id of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 15, 17])
       expect(pass.has(id)).toBe(true);
 
+    // T6 merged: #14 rotates the control token (the old one now answers
+    // 401) and #15 logs in again through `ai-office open --print`.
+    const detail = (id: number) =>
+      assertions.find((a) => a.id === id)?.detail as Json;
+    expect(detail(14)).toMatchObject({
+      runtimePidIsNew: true,
+      controlTokenRotated: true,
+      oldControlTokenStatus: 401,
+    });
+    expect(detail(15)).toMatchObject({
+      oldCookieStatus: 200,
+      openSessionStatus: 200,
+      sseGaps: 0,
+      sseDuplicates: 0,
+    });
+
     // T10 checker on the masked export: every judgeable row passes.
     const rows = report.acceptance.rows as Json[];
     expect(rows.filter((r) => r.verdict === 'fail')).toEqual([]);
