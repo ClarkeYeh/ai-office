@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { EVENT_TYPES } from '@ai-office/contracts/events';
+import {
+  EVENT_PAYLOAD_SCHEMAS,
+  EVENT_TYPES,
+} from '@ai-office/contracts/events';
 import {
   EVENT_STRING_ALLOWLIST,
   exportJointEvents,
@@ -125,4 +128,74 @@ it('retains template structure for budget replay without retaining role prose', 
       },
     },
   });
+});
+
+/** Does a dotted payload path (`*` for array items and record values) exist in a zod schema? */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- walks zod internals
+function schemaHas(schema: any, parts: readonly string[]): boolean {
+  const def = schema._zod.def;
+  if (
+    ['optional', 'nullable', 'default', 'readonly', 'catch'].includes(def.type)
+  )
+    return schemaHas(def.innerType, parts);
+  if (def.type === 'pipe') return schemaHas(def.in, parts);
+  if (def.type === 'lazy') return schemaHas(def.getter(), parts);
+  if (def.type === 'union')
+    return def.options.some((option: unknown) => schemaHas(option, parts));
+  if (def.type === 'intersection')
+    return schemaHas(def.left, parts) || schemaHas(def.right, parts);
+  if (parts.length === 0) return true;
+  const [head, ...rest] = parts;
+  if (def.type === 'object')
+    return Object.hasOwn(def.shape, head!) && schemaHas(def.shape[head!], rest);
+  if (def.type === 'array') return head === '*' && schemaHas(def.element, rest);
+  if (def.type === 'record')
+    return head === '*' && schemaHas(def.valueType, rest);
+  return false;
+}
+
+it('allowlists only payload paths that exist in the contracts schemas', () => {
+  const missing = EVENT_TYPES.flatMap((type) =>
+    EVENT_STRING_ALLOWLIST[type]
+      .filter((path) => path.startsWith('payload.'))
+      .filter(
+        (path) =>
+          !schemaHas(EVENT_PAYLOAD_SCHEMAS[type], path.slice(8).split('.')),
+      )
+      .map((path) => `${type} ${path}`),
+  );
+  expect(missing).toEqual([]);
+});
+
+it('keeps work-item dependency keys and still placeholders unknown fields', () => {
+  const items = [
+    { key: 'core', agent: 'claude-code', deps: [], title: 'Private title' },
+    { key: 'mul', agent: 'codex', deps: ['core'], dependsOn: ['core'] },
+  ];
+  const [proposed, approved] = exportJointEvents(
+    [
+      { type: 'workitem.proposed', payload: { stageId: 'breakdown', items } },
+      { type: 'workitem.approved', payload: { gateId: 'g1', items } },
+    ],
+    metadata,
+  ).events;
+  for (const event of [proposed, approved])
+    expect(event).toMatchObject({
+      payload: {
+        items: [
+          {
+            key: 'core',
+            agent: 'claude-code',
+            deps: [],
+            title: textPlaceholder('Private title'),
+          },
+          {
+            key: 'mul',
+            agent: 'codex',
+            deps: ['core'],
+            dependsOn: [textPlaceholder('core')],
+          },
+        ],
+      },
+    });
 });
