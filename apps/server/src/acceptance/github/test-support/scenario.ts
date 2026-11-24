@@ -1,6 +1,6 @@
 import { expect } from 'vitest';
 import { bodyHash } from '@ai-office/domain';
-import { golden, sleep, type Json } from '../../test-support/harness.js';
+import { golden, type Json } from '../../test-support/harness.js';
 import { SPIKE, waitFor, type MixedOffice } from './mixed-office.js';
 
 /** One M3_PLAN §6 "M3-T15" scenario outcome (never carries GitHub bodies). */
@@ -273,7 +273,7 @@ export async function runMixedMainline(
           throw new Error(`Unexpected stage gate ${gate.stageKind}`);
         }
       }
-      await sleep(live ? 1000 : 25);
+      await o.sleep(live ? 1000 : 25);
       const status = (await o.readModel(workflowId)).status;
       if (['failed', 'cancelled', 'completed'].includes(status))
         throw new Error(`Workflow ended early: ${status}`);
@@ -459,7 +459,7 @@ export async function runMixedMainline(
       )!;
       expect(approveComment.body).toMatch(OWNER_MARKER);
       expect(approveComment.body).not.toContain('ai-office:cmd');
-      await sleep(pollMs);
+      await o.sleep(pollMs);
       const after = (await events()).filter((e) => e.seq > seq);
       expect(
         after
