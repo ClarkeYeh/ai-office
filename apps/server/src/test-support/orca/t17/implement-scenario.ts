@@ -5,6 +5,11 @@
  * items (B depends on A). A is merged by the merge queue, B starts from the new
  * integration head, B is reworked once through its retained worktree (W1), the
  * wrap-up runs, and the final PR (in-memory) is merged explicitly by the test.
+ *
+ * M5-T8 (§28 item 4): B's rework is forced by a value that exists only after
+ * the worker pushes (its own PR number, which the backend opens), not by a
+ * reviewer-only instruction in the acceptance criteria. The first submission
+ * ends with the `#pending` nonce, so the first review cannot pass.
  */
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
@@ -16,6 +21,8 @@ import type { OrcaHarness } from '../harness.js';
 import { composedShimOptions } from '../composed-shim-seam.js';
 import { requireValue } from '../contract-live-cli.js';
 import { GitRemoteScm } from '../scm-gitremote/index.js';
+import { PENDING_LINE, nonceState } from '../../joint/scenario/m5-mainline.js';
+import { INTEGRATOR_SCOPE_FALLBACK } from '../../joint/scenario/template.js';
 import {
   count,
   duplicatedFacts,
@@ -54,7 +61,7 @@ roles:
   lead: { agent: claude-code, scope: 'Facilitate briefly; split work; answer on-call questions' }
   pm: { agent: claude-code, scope: 'Check scope and acceptance criteria' }
   engineer: { agent: codex, scope: 'Implement the assigned work item exactly as written' }
-  integrator: { agent: claude-code, scope: 'Review worker PRs in the merge queue and write the integration report' }
+  integrator: { agent: claude-code, scope: "Review worker PRs in the merge queue and write the integration report. ${INTEGRATOR_SCOPE_FALLBACK}" }
 defaults:
   integrationBranch: 'ai-office/{shortId}-{slug}'
   maxReruns: 1
@@ -115,10 +122,11 @@ export const ITEMS = [
   {
     key: 'farewell',
     title: 'Add t17/farewell.txt',
-    body: 'Create the file t17/farewell.txt containing exactly one line: `goodbye from item B`. Item A (t17/greeting.txt) is already merged into your base; do not modify it. Do not add any other line unless a merge-queue reviewer asks for it. While your merge request is being processed, do not push.',
+    body: `Create the file t17/farewell.txt containing exactly two lines: \`goodbye from item B\`, then \`Reviewed in PR #<number>\`, where <number> is the number of this work item's pull request. AI Office opens that pull request only after you push, so the number does not exist yet: on your first submission write exactly \`${PENDING_LINE}\` as the second line. Do not guess the number and do not look it up. Only the worker of this item writes that line; a merge-queue reviewer does not edit it and instead sends the item back with rework-request stating the correct number. Item A (t17/greeting.txt) is already merged into your base; do not modify it. While your merge request is being processed, do not push.`,
     acceptance: [
       't17/farewell.txt exists and t17/greeting.txt from item A is present in the branch',
-      'Merge-queue reviewer: on the FIRST review of this item you MUST request rework, asking the worker to append a second line `reviewed` to t17/farewell.txt. Approve and merge the next submission once that line is present.',
+      `The last line of t17/farewell.txt is \`Reviewed in PR #<number of this work item's pull request>\`; on the first submission it is exactly \`${PENDING_LINE}\`, never a guessed number`,
+      "That line is written only by this work item's worker; a merge-queue reviewer does not edit it and reports the correct number with rework-request",
     ],
     role: 'engineer',
     agent: 'codex',
@@ -277,6 +285,26 @@ export async function run(h: OrcaHarness): Promise<void> {
         e.payload.kind === 'runtime.prepareWorkspace' &&
         e.payload.args?.branch === bFirst?.payload.branch,
     ).length;
+    // §2.2.3 judgement: the first queued head carries `#pending`, the merged
+    // head the PR's own number (git reads; null when an object is missing).
+    const queued = log.filter(
+      (e) =>
+        e.type === 'workitem.merge_queued' && e.payload.itemKey === 'farewell',
+    );
+    const nonceAt = async (event: Json | undefined) =>
+      event === undefined
+        ? null
+        : git('/usr/bin/git', [
+            '-C',
+            h.ledger.repoPath,
+            'show',
+            `${String(event.payload.headSha)}:t17/farewell.txt`,
+          ]).then(
+            ({ stdout }) => nonceState(stdout, Number(event.payload.pr)),
+            () => null,
+          );
+    const firstNonce = await nonceAt(queued[0]);
+    const lastNonce = await nonceAt(queued.at(-1));
     const prsFor = (key: string) => [
       ...new Set(
         log
@@ -304,6 +332,8 @@ export async function run(h: OrcaHarness): Promise<void> {
         bRework?.payload.workspaceName === bFirst?.payload.workspaceName,
       farewellWorkspacesPrepared: farewellWorkspaces,
       farewellPrs: prsFor('farewell').length,
+      firstHeadNonce: firstNonce,
+      mergedHeadNonce: lastNonce,
       questions: count(log, 'message.question'),
       answers: log
         .filter((e) => e.type === 'message.answered')
@@ -354,6 +384,14 @@ export async function run(h: OrcaHarness): Promise<void> {
       'rework reused the retained worktree on the same branch (W1)',
     );
     expect.that(prsFor('farewell').length === 1, 'rework kept the same PR');
+    expect.that(
+      firstNonce !== 'correct' && firstNonce !== 'other',
+      `first farewell head ends with the #pending nonce (${firstNonce})`,
+    );
+    expect.that(
+      lastNonce !== 'pending' && lastNonce !== 'other',
+      `merged farewell head names its own PR (${lastNonce})`,
+    );
     expect.that(
       count(log, 'message.question') >= 1 &&
         count(log, 'message.answered') >= 1,
