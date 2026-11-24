@@ -380,10 +380,13 @@ export async function runRehearsal(
         ),
       // Hand-offs are recorded in the owner record and fail the run below.
       handOff: async () => undefined,
-      async finalPr() {
+      async finalPr(gate) {
         // The final PR targets the spike's main: never merged (G-D).
         report.finalGateOpened = true;
+        // The gate's own content names the PR; the event log can lag behind
+        // the gate under load, so it is only the fallback (as in ../run.ts).
         report.finalPr =
+          ((gate.content as Json | undefined)?.pr as number | undefined) ??
           (log.find(
             (e) =>
               e.type === 'command.succeeded' &&
@@ -394,7 +397,8 @@ export async function runRehearsal(
                   i.payload.commandId === e.payload.commandId &&
                   i.payload.args?.base === 'main',
               ),
-          )?.payload.result?.pr as number | undefined) ?? null;
+          )?.payload.result?.pr as number | undefined) ??
+          null;
       },
     };
     const owner = new OwnerPolicyExecutor(port_, { tag });
