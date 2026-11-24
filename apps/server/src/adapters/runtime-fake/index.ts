@@ -460,12 +460,21 @@ export class FakeRuntime implements RuntimePort {
   /** Releases held by `releaseLagMs`, completed by `runDue` once due. */
   private lagging: { at: number; resolve: () => void }[] = [];
   private executing: Scheduled | undefined;
+  /**
+   * Submissions in flight, one per agent at most: an agent's `ai-office
+   * submit` blocks only its own turn. A merge-request waits for the merge, so
+   * awaiting it in the pump stalled every other agent behind slow SCM I/O
+   * (M5-T11 nf.latency: 5–9 s bursts with real GitHub).
+   */
+  private readonly submitting = new Map<Agent, Scheduled>();
   constructor(private readonly options: FakeRuntimeOptions) {}
   /** JSON data only; behavior functions and spec credentials are reloaded locally. */
   snapshot() {
-    const jobs = this.executing
-      ? [this.executing, ...this.scheduled]
-      : this.scheduled;
+    const jobs = [
+      ...(this.executing ? [this.executing] : []),
+      ...this.submitting.values(),
+      ...this.scheduled,
+    ];
     return structuredClone({
       version: 1 as const,
       sequence: this.sequence,
@@ -523,6 +532,7 @@ export class FakeRuntime implements RuntimePort {
       throw new Error('Unsupported fake runtime snapshot version');
     if (
       this.pumping ||
+      this.submitting.size ||
       this.pendingDeliveries.size ||
       this.pendingSpawns.size ||
       this.lagging.length
@@ -1174,28 +1184,69 @@ export class FakeRuntime implements RuntimePort {
   async runDue(): Promise<void> {
     if (this.pumping) return;
     this.pumping = true;
+    const inflight = new Set<Promise<void>>();
+    let failure: { error: unknown } | undefined;
     try {
-      const due = this.lagging.filter((l) => l.at <= this.now());
-      this.lagging = this.lagging.filter((l) => l.at > this.now());
-      for (const { resolve } of due) resolve();
       while (true) {
+        const due = this.lagging.filter((l) => l.at <= this.now());
+        this.lagging = this.lagging.filter((l) => l.at > this.now());
+        for (const { resolve } of due) resolve();
         this.scheduled.sort((a, b) => a.at - b.at || a.order - b.order);
-        const job = this.scheduled[0];
-        if (!job || job.at > this.now()) return;
-        this.scheduled.shift();
-        if (
-          job.generation !== job.agent.generation ||
-          ['released', 'lost', 'stopped'].includes(job.agent.state)
-        )
+        // The earliest due step of an agent that is not mid-submission.
+        const index = this.scheduled.findIndex(
+          (job) => job.at <= this.now() && !this.submitting.has(job.agent),
+        );
+        const job = index < 0 ? undefined : this.scheduled[index];
+        if (job) {
+          this.scheduled.splice(index, 1);
+          if (
+            job.generation !== job.agent.generation ||
+            ['released', 'lost', 'stopped'].includes(job.agent.state)
+          )
+            continue;
+          if (job.action.type === 'submit') {
+            // Runs alongside the other agents; its own later steps wait.
+            this.submitting.set(job.agent, job);
+            const done = this.execute(job)
+              .catch((error: unknown) => {
+                failure ??= { error };
+              })
+              .finally(() => {
+                this.submitting.delete(job.agent);
+                inflight.delete(done);
+              });
+            inflight.add(done);
+            continue;
+          }
+          this.executing = job;
+          try {
+            await this.execute(job);
+          } finally {
+            this.executing = undefined;
+          }
           continue;
-        this.executing = job;
-        try {
-          await this.execute(job);
-        } finally {
-          this.executing = undefined;
         }
+        if (failure) throw failure.error;
+        if (inflight.size === 0) return;
+        // Wait for a submission to settle, or for another agent's next step
+        // to come due (real time; an injected clock only moves via the test).
+        const next = this.scheduled.find((j) => !this.submitting.has(j.agent));
+        await Promise.race([
+          ...inflight,
+          ...(next
+            ? [
+                new Promise<void>((resolve) =>
+                  setTimeout(
+                    resolve,
+                    Math.min(25, Math.max(0, next.at - this.now())),
+                  ),
+                ),
+              ]
+            : []),
+        ]);
       }
     } finally {
+      if (inflight.size) await Promise.allSettled([...inflight]);
       this.pumping = false;
     }
   }

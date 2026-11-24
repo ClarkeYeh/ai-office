@@ -177,6 +177,76 @@ describe('FakeRuntime scenarios and faults', () => {
     });
     expect(JSON.stringify(events)).not.toContain('aio_seat_');
   });
+  it('a slow submission blocks only its own agent, not the others (M5-T11 nf.latency)', async () => {
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const f = await fixture({
+      // A merge-request waits for the merge: model a 5 s+ SCM call.
+      submitter: (r) =>
+        r.submission.kind === 'merge-request' ? slow : undefined,
+      scenario: {
+        roles: {
+          reviewer: {
+            spawn: [
+              {
+                type: 'submit',
+                afterMs: 10,
+                submission: {
+                  kind: 'merge-request',
+                  payload: { pr: 7, expectedHeadSha: 'a'.repeat(40) },
+                },
+              },
+              { type: 'done', afterMs: 30 },
+            ],
+          },
+          worker: { spawn: [{ type: 'done', afterMs: 20 }] },
+        },
+      },
+    });
+    const reviewer = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      title: 'reviewer',
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'r',
+        commandId: 'spawn-r',
+      },
+    });
+    const worker = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'w',
+        commandId: 'spawn-w',
+      },
+    });
+    f.clock.advance(10);
+    const pump = f.runtime.runDue(); // the reviewer's submit is now in flight
+    f.clock.advance(10);
+    await new Promise((r) => setTimeout(r, 60));
+    const during = await f.runtime.observe(f.session, null);
+    // The worker finished on time although the reviewer is still submitting.
+    expect(
+      during.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([worker]);
+    expect(during.events.find((e) => e.type === 'agent.done')?.occurredAt).toBe(
+      '2026-01-01T00:00:00.020Z',
+    );
+    // The reviewer's own next step waits for its submission.
+    f.clock.advance(30);
+    await new Promise((r) => setTimeout(r, 60));
+    const stillWaiting = await f.runtime.observe(f.session, during.cursor);
+    expect(stillWaiting.events.some((e) => e.type === 'agent.done')).toBe(
+      false,
+    );
+    release();
+    await pump;
+    await f.runtime.runDue();
+    const after = await f.runtime.observe(f.session, stillWaiting.cursor);
+    expect(
+      after.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([reviewer]);
+  });
   it.each(['lost', 'degraded', 'duplicate', 'unmanaged', 'policy'] as const)(
     'injects %s using valid port events',
     async (fault) => {
