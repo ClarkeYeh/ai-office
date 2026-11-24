@@ -42,6 +42,12 @@ import { restartAssertions, type RestartEvidence } from './assertions.js';
 import { freePort, productionHome, productionLauncher } from './backends.js';
 import { writeJointExports } from './export-run.js';
 import {
+  afterMerge,
+  identityChecks,
+  implementFirstParents,
+  policyHits,
+} from './production-checks.js';
+import {
   GITHUB_LOCK,
   ORCA_LOCK,
   caffeinateFor,
@@ -97,6 +103,41 @@ export async function holdLock(path: string): Promise<() => Promise<void>> {
 }
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
+
+/** Error class names only: messages may carry paths or response text. */
+const errorName = (error: unknown) =>
+  error instanceof Error ? error.constructor.name : 'unknown';
+
+/**
+ * Writes a private status and waits for `<status>.decision.json` whose `for`
+ * matches (the coordinator's hand-off file, as in the M3-T17 smoke).
+ */
+export async function holdFor(
+  statusPath: string,
+  body: Json,
+  waitMs: number,
+  pollMs = 5_000,
+): Promise<'done' | 'timeout'> {
+  await writeFile(
+    statusPath,
+    JSON.stringify({ ...body, at: new Date().toISOString() }, null, 2),
+    { mode: 0o600 },
+  );
+  const decision = `${statusPath}.decision.json`;
+  const deadline = Date.now() + waitMs;
+  while (Date.now() < deadline) {
+    const text = await readFile(decision, 'utf8').catch(() => undefined);
+    if (text) {
+      try {
+        if ((JSON.parse(text) as Json).for === body.for) return 'done';
+      } catch {
+        /* A half-written decision file: read it again. */
+      }
+    }
+    await delay(pollMs);
+  }
+  return 'timeout';
+}
 
 /**
  * The T10 §24 checker, injected by the caller: joint may not import
@@ -222,6 +263,12 @@ export interface Mode {
   beforeKill?: (api: Api, workflowId: string) => Promise<number>;
   /** Dry run only: undo `beforeKill` on the restarted backend. */
   afterRestart?: (api: Api) => Promise<void>;
+  /** Production (T12): health and spike registration right after start. */
+  startChecks?: (api: Api, repoId: string) => Promise<Json>;
+  /** Production (T12): read-only identity checks once the final PR is open. */
+  atFinalGate?: (log: Json[]) => Promise<Json>;
+  /** Production (T12): the owner's merge and what must follow it. */
+  afterCompletion?: (log: Json[]) => Promise<Json>;
   /** Dry run: leftover scan of the fake world after cleanup (counts). */
   janitor?: (log: Json[]) => Promise<Json>;
   launcher: () => Promise<import('./restart.js').ControlledBackend>;
@@ -360,6 +407,29 @@ async function productionMode(h: OrcaHarness, github: Github): Promise<Mode> {
     async finalPr() {
       // Q1 / W2: never decided here; the status file says it can be merged.
     },
+    async startChecks(api, repoId) {
+      const health = (await api.call('GET', '/api/v1/health')).body;
+      const repo = (
+        ((await api.call('GET', '/api/v1/repos')).body?.repos ?? []) as Json[]
+      ).find((r) => r.repoId === repoId);
+      const healthProblems = smoke.healthFailures(
+        health,
+        smoke.approvedOrcaHome(),
+      );
+      const registrationProblems = smoke.registrationFailures(repo);
+      return {
+        healthProblems,
+        registrationProblems,
+        rateLimitRemaining: health?.scm?.rateLimit?.remaining ?? null,
+        ok: !healthProblems.length && !registrationProblems.length,
+      };
+    },
+    atFinalGate: (log) =>
+      identityChecks(github.api, log, {
+        owner: smoke.OWNER,
+        noreplyEmail: github.gate.email,
+      }),
+    afterCompletion: async (log) => afterMerge(log, { owner: smoke.OWNER }),
     async scmFacts(log) {
       const integration = log.find((e) => e.type === 'workflow.started')
         ?.payload.integrationBranch as string | undefined;
@@ -393,7 +463,11 @@ async function productionMode(h: OrcaHarness, github: Github): Promise<Mode> {
             .data as Json;
           sha = (commit.parents as Json[] | undefined)?.[0]?.sha;
         }
-        return { markerCounts, integrationFirstParents: chain };
+        // Wrap-up commits after the last backend merge are not implement's.
+        return {
+          markerCounts,
+          integrationFirstParents: implementFirstParents(chain, log),
+        };
       } catch {
         return { markerCounts };
       }
@@ -435,6 +509,10 @@ export async function drill(
     sampler = new HealthSampler(() => live);
     sampler.start();
     const repoId = await registerRepo(live, side.repoPath);
+    if (mode.startChecks)
+      report.start = await mode
+        .startChecks(live, repoId)
+        .catch((error: unknown) => ({ ok: false, error: errorName(error) }));
     let shortId = '';
     const started = await side.startWorkflow(
       live,
@@ -531,11 +609,22 @@ export async function drill(
         if (mode.kind === 'production')
           await status({
             phase: 'can-merge',
+            message:
+              'Ready to merge: the owner merges this final PR by hand on GitHub (W2). No live agent is running.',
             for: gate.gateId,
             finalPr,
             url: `https://github.com/ClarkeYeh/ai-office-spike/pull/${finalPr}`,
           });
         await mode.finalPr(gate, log, finalPr, live);
+        // Read-only, after the hand-off: never delays the owner.
+        if (mode.atFinalGate)
+          report.identity = await mode
+            .atFinalGate(log)
+            .catch((error: unknown) => ({
+              ok: false,
+              error: errorName(error),
+            }));
+        await save();
       },
     };
     const owner = new OwnerPolicyExecutor(port, { tag });
@@ -676,6 +765,26 @@ export async function drill(
       if (pending === 0 || Date.now() > settleDeadline) break;
       await delay(1_000);
     }
+    report.policyHits = policyHits(log);
+    if (mode.afterCompletion)
+      report.afterMerge = await mode
+        .afterCompletion(log)
+        .catch((error: unknown) => ({ ok: false, error: errorName(error) }));
+    // §5 T12 step 5: T17's live UI check runs against this backend before it
+    // stops. The coordinator answers `<status>.decision.json` {"for":"t17-live"}.
+    const holdMin = Number(process.env.AIO_JOINT_T17_WAIT_MIN ?? '0');
+    if (mode.kind === 'production' && holdMin > 0)
+      report.t17Hold = await holdFor(
+        paths.status,
+        {
+          phase: 't17-live',
+          message: `Backend still running for T17's live UI check (ai-office open --home ${mode.home} --print). Write ${paths.status}.decision.json with {"for":"t17-live"} when done.`,
+          for: 't17-live',
+          url: backend.url,
+        },
+        holdMin * 60_000,
+      );
+    await save();
     const shimsAfter = await side.shims();
     const inbox = orcaRun ? await side.inbox(orcaRun) : undefined;
     const worktrees = await side.worktrees();
