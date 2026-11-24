@@ -13,9 +13,9 @@ runtime survives `kill -9`.
 `pause.ts` wraps the served SCM. The real call runs to completion, and then the
 bridge withholds its reply forever:
 
-| Window | Fires on                                                           | Then                                                   |
-| ------ | ------------------------------------------------------------------ | ------------------------------------------------------ |
-| P1     | the first `createIssue` that succeeded                             | freeze → kill -9 → same-home, same-port restart        |
+| Window | Fires on                                                                      | Then                                                           |
+| ------ | ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| P1     | the first `createIssue` that succeeded                                        | freeze → kill -9 → same-home, same-port restart                |
 | P2     | after P1, the first `mergePR` (its `POST /merges` succeeded) of `mul` / `sub` | freeze → kill -9 → restart; releases the held code-name answer |
 
 Freeze means the child flushes the fake-world checkpoint

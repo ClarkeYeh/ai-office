@@ -58,8 +58,7 @@ try {
     },
   });
   process.on('message', (message: { type?: string; window?: string }) => {
-    if (message.type !== 'freeze' || typeof message.window !== 'string')
-      return;
+    if (message.type !== 'freeze' || typeof message.window !== 'string') return;
     server.checkpointFakeWorld?.();
     writeFileSync(frozenMarker(home, message.window), `${process.pid}\n`, {
       mode: 0o600,

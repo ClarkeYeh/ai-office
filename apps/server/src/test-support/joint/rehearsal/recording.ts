@@ -113,6 +113,7 @@ function leaks(value: unknown): boolean {
     }
   }
   if (Array.isArray(value)) return value.some(leaks);
-  if (value && typeof value === 'object') return Object.values(value).some(leaks);
+  if (value && typeof value === 'object')
+    return Object.values(value).some(leaks);
   return false;
 }

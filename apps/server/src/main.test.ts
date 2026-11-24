@@ -1214,9 +1214,7 @@ it('checkpoints and restores the fake world with an injected SCM only when persi
   const flushed = JSON.parse(
     readFileSync(join(directory, 'data/fake-world.json'), 'utf8'),
   ) as { payload: string };
-  expect(JSON.parse(flushed.payload).runtime).toEqual(
-    world.runtime.snapshot(),
-  );
+  expect(JSON.parse(flushed.payload).runtime).toEqual(world.runtime.snapshot());
   await first.close();
   servers.splice(servers.indexOf(first), 1);
   const saved = world.runtime.snapshot();

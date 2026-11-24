@@ -40,109 +40,114 @@ import {
  */
 realGithubSuite('M5-T11 rehearsal (live spike, fake runtime)', () => {
   // Its own opt-in on top of the T7 gate: `pnpm test:github` must not start it.
-  it.skipIf(process.env.AIO_T11_REHEARSAL !== '1')('reconciles P1 and P2 to one Issue and one merge, ready ≤ 60 s, leftovers 0', async () => {
-    const harness = await openHarness();
-    const runId = harness.ledger.data.runId;
-    const base = await mkdtemp(join(tmpdir(), 'aio-rehearsal-live-'));
-    const remaining = async () => {
-      const response = await harness.fetch(`${API}/rate_limit`);
-      const data = (await response.json()) as {
-        resources?: { core?: { remaining?: number } };
+  it.skipIf(process.env.AIO_T11_REHEARSAL !== '1')(
+    'reconciles P1 and P2 to one Issue and one merge, ready ≤ 60 s, leftovers 0',
+    async () => {
+      const harness = await openHarness();
+      const runId = harness.ledger.data.runId;
+      const base = await mkdtemp(join(tmpdir(), 'aio-rehearsal-live-'));
+      const remaining = async () => {
+        const response = await harness.fetch(`${API}/rate_limit`);
+        const data = (await response.json()) as {
+          resources?: { core?: { remaining?: number } };
+        };
+        return data.resources?.core?.remaining ?? -1;
       };
-      return data.resources?.core?.remaining ?? -1;
-    };
-    const record: Record<string, unknown> = { runId };
-    let pusher: GitPusher | undefined;
-    let report: RehearsalReport | undefined;
-    const recorded = segmentRecording(harness.fetch, runId);
-    try {
-      record.rateLimitBefore = await remaining();
-      await harness.ensureLabel();
-      pusher = await GitPusher.create(harness.ledger, harness.gate, {
-        ...(process.env.AIO_TEST_REPO_PATH
-          ? { sourcePath: process.env.AIO_TEST_REPO_PATH }
-          : {}),
-      });
-      const startedAt = new Date().toISOString();
-      const scm = assembleContractScm({
-        fetch: recorded.fetch,
-        clock: { now: () => new Date() },
-        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-        registeredAt: () => startedAt,
-      });
-      report = await runRehearsal(
-        {
-          mode: 'live',
-          scm,
-          runId,
-          pusher,
-          ...githubRehearsalFacts(harness.api, runId, startedAt),
-          endSegment1: () => recorded.stop(),
-          pollMs: 2_000,
-          stallMs: 15 * 60_000,
-        },
-        {
-          home: join(base, 'home'),
-          judge: (events, facts) => checkAcceptance(events, parseFacts(facts)),
-        },
-      );
-    } finally {
+      const record: Record<string, unknown> = { runId };
+      let pusher: GitPusher | undefined;
+      let report: RehearsalReport | undefined;
+      const recorded = segmentRecording(harness.fetch, runId);
       try {
-        const result = await harness.cleanup();
-        Object.assign(record, {
-          report,
-          requests: recorded.counts,
-          notModifiedRatio: recorded.counts.requests
-            ? +(
-                recorded.counts.notModified / recorded.counts.requests
-              ).toFixed(3)
-            : 0,
-          cleanup: {
-            leftovers: result.leftovers,
-            scanOpenObjects: result.scan.openObjects.length,
-            scanBranches: result.scan.branches.length,
+        record.rateLimitBefore = await remaining();
+        await harness.ensureLabel();
+        pusher = await GitPusher.create(harness.ledger, harness.gate, {
+          ...(process.env.AIO_TEST_REPO_PATH
+            ? { sourcePath: process.env.AIO_TEST_REPO_PATH }
+            : {}),
+        });
+        const startedAt = new Date().toISOString();
+        const scm = assembleContractScm({
+          fetch: recorded.fetch,
+          clock: { now: () => new Date() },
+          sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+          registeredAt: () => startedAt,
+        });
+        report = await runRehearsal(
+          {
+            mode: 'live',
+            scm,
+            runId,
+            pusher,
+            ...githubRehearsalFacts(harness.api, runId, startedAt),
+            endSegment1: () => recorded.stop(),
+            pollMs: 2_000,
+            stallMs: 15 * 60_000,
           },
-          rateLimitAfter: await remaining(),
-        });
-        const path = `${process.env.HOME}/.ai-office/test-state/t11-rehearsal-${runId}.json`;
-        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-        await writeFile(path, JSON.stringify(record, null, 2) + '\n', {
-          mode: 0o600,
-        });
-        console.info(`[T11] private report: ${path}`);
-        console.info(
-          JSON.stringify({
-            ...record,
-            report: report && {
-              failed: report.failed,
-              windows: report.windows,
-              scmCalls: report.scmCalls,
-              checker: report.checker?.summary,
-              minutesTotal: report.minutesTotal,
-            },
-          }),
+          {
+            home: join(base, 'home'),
+            judge: (events, facts) =>
+              checkAcceptance(events, parseFacts(facts)),
+          },
         );
-        assertClean(result);
       } finally {
-        await pusher?.close();
-        await harness.close();
-        if (!process.env.AIO_DEBUG_HOME)
-          await rm(base, { recursive: true, force: true });
+        try {
+          const result = await harness.cleanup();
+          Object.assign(record, {
+            report,
+            requests: recorded.counts,
+            notModifiedRatio: recorded.counts.requests
+              ? +(
+                  recorded.counts.notModified / recorded.counts.requests
+                ).toFixed(3)
+              : 0,
+            cleanup: {
+              leftovers: result.leftovers,
+              scanOpenObjects: result.scan.openObjects.length,
+              scanBranches: result.scan.branches.length,
+            },
+            rateLimitAfter: await remaining(),
+          });
+          const path = `${process.env.HOME}/.ai-office/test-state/t11-rehearsal-${runId}.json`;
+          await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+          await writeFile(path, JSON.stringify(record, null, 2) + '\n', {
+            mode: 0o600,
+          });
+          console.info(`[T11] private report: ${path}`);
+          console.info(
+            JSON.stringify({
+              ...record,
+              report: report && {
+                failed: report.failed,
+                windows: report.windows,
+                scmCalls: report.scmCalls,
+                checker: report.checker?.summary,
+                minutesTotal: report.minutesTotal,
+              },
+            }),
+          );
+          assertClean(result);
+        } finally {
+          await pusher?.close();
+          await harness.close();
+          if (!process.env.AIO_DEBUG_HOME)
+            await rm(base, { recursive: true, force: true });
+        }
       }
-    }
-    expect(report?.failed).toEqual([]);
-    if (report && process.env.AIO_GITHUB_RECORD === '1') {
-      recorded.sanitize();
-      await writeFile(
-        rehearsalTracePath,
-        JSON.stringify(
-          { format: 1, source: 'live', segment1: report.segment1 },
-          null,
-          2,
-        ) + '\n',
-        { flag: 'wx' },
-      );
-      await recorded.recorder.save(rehearsalHttpPath);
-    }
-  }, 3_600_000);
+      expect(report?.failed).toEqual([]);
+      if (report && process.env.AIO_GITHUB_RECORD === '1') {
+        recorded.sanitize();
+        await writeFile(
+          rehearsalTracePath,
+          JSON.stringify(
+            { format: 1, source: 'live', segment1: report.segment1 },
+            null,
+            2,
+          ) + '\n',
+          { flag: 'wx' },
+        );
+        await recorded.recorder.save(rehearsalHttpPath);
+      }
+    },
+    3_600_000,
+  );
 });

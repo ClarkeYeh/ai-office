@@ -318,16 +318,19 @@ export async function runRehearsal(
     let log: Json[] = [];
     const port_: OwnerPort = {
       openGates: async () =>
-        (((await live.call('GET', '/api/v1/gates')).body?.gates ??
-          []) as Json[]).filter(
-          (g) => g.workflowId === id && g.status === 'open',
-        ),
+        (
+          ((await live.call('GET', '/api/v1/gates')).body?.gates ??
+            []) as Json[]
+        ).filter((g) => g.workflowId === id && g.status === 'open'),
       gateDetail: async (gateId) =>
         (await live.call('GET', `/api/v1/gates/${encodeURIComponent(gateId)}`))
           .body,
       async decide(g, body) {
         const detail = (
-          await live.call('GET', `/api/v1/gates/${encodeURIComponent(g.gateId)}`)
+          await live.call(
+            'GET',
+            `/api/v1/gates/${encodeURIComponent(g.gateId)}`,
+          )
         ).body;
         return live.call(
           'POST',
@@ -402,7 +405,7 @@ export async function runRehearsal(
       await control.start();
       const restartIssuedAt = record.readyAt - record.readyMs;
       let reconcileMs: number | undefined;
-      for (const deadline = Date.now() + 180_000; Date.now() < deadline; ) {
+      for (const deadline = Date.now() + 180_000; Date.now() < deadline;) {
         const after = await events(live, id).catch(() => [] as Json[]);
         if (terminalOf(after, commandId)) {
           reconcileMs = Date.now() - restartIssuedAt;
@@ -450,8 +453,8 @@ export async function runRehearsal(
     }
 
     log = await events(live, id);
-    const integration = log.find((e) => e.type === 'workflow.started')
-      ?.payload.integrationBranch as string | undefined;
+    const integration = log.find((e) => e.type === 'workflow.started')?.payload
+      .integrationBranch as string | undefined;
     for (const w of evidence) {
       const commandId = windowCommand(log, w.hit, w.killSeq);
       w.objects =
@@ -460,7 +463,10 @@ export async function runRehearsal(
             ? undefined
             : await binding.issuesWithMarker(`t${runId}:${commandId}`)
           : integration && w.hit.headSha
-            ? await binding.mergesOf(branches.remote(integration), w.hit.headSha)
+            ? await binding.mergesOf(
+                branches.remote(integration),
+                w.hit.headSha,
+              )
             : undefined;
       const rows = windowAssertions(log, w);
       const { readyAt: _readyAt, ...restart } = w.restart;
@@ -516,7 +522,9 @@ export async function runRehearsal(
       for (const r of rows) summary[r.verdict] = (summary[r.verdict] ?? 0) + 1;
       report.checker = { rows, summary };
       report.failed.push(
-        ...rows.filter((r) => r.verdict === 'fail').map((r) => `checker.${r.id}`),
+        ...rows
+          .filter((r) => r.verdict === 'fail')
+          .map((r) => `checker.${r.id}`),
       );
     }
     return report;

@@ -1172,7 +1172,7 @@ async function compose(
     const saveFakeWorld =
       options.testOnly?.scm && options.testOnly.persistFakeWorld !== true
         ? () => {}
-      : persistFakeWorld(world, dataDir, options.fakeWorld === undefined);
+        : persistFakeWorld(world, dataDir, options.fakeWorld === undefined);
     saveFakeWorld();
     checkpointFakeWorld = saveFakeWorld;
     // Sampling all three adapters also covers scenario/test mutations outside ports.

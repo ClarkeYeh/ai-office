@@ -75,7 +75,11 @@ export function windowAssertions(
   const id = windowCommand(events, w.hit, w.killSeq);
   const rows: WindowRow[] = [];
   const add = (name: string, ok: boolean, detail: string) =>
-    rows.push({ id: `${w.window}.${name}`, status: ok ? 'pass' : 'fail', detail });
+    rows.push({
+      id: `${w.window}.${name}`,
+      status: ok ? 'pass' : 'fail',
+      detail,
+    });
   const mine = events.filter((e) => e.payload?.commandId === id);
   const issued = mine.filter((e) => e.type === 'command.issued');
   const terminal = mine.filter((e) => TERMINAL.includes(e.type));
@@ -137,7 +141,8 @@ export function segmentSemantics(events: Json[], killSeq: number) {
   const flow: string[] = [];
   for (const { type, payload: p } of before) {
     if (type === 'workflow.started') flow.push(type);
-    else if (type === 'stage.started') flow.push(`${type} ${p.stageId} ${p.mode}`);
+    else if (type === 'stage.started')
+      flow.push(`${type} ${p.stageId} ${p.mode}`);
     else if (type === 'stage.completed') flow.push(`${type} ${p.stageId}`);
     else if (type === 'gate.opened')
       flow.push(`${type} ${p.stageId ?? ''} ${p.kind}`.replace(/\s+/g, ' '));
