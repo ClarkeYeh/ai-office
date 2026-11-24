@@ -85,6 +85,51 @@ const sequence = (drafts: Omit<DomainEvent, 'seq' | 'id'>[]): DomainEvent[] => [
   ...drafts.map((draft, i) => toEvent(draft as never, i + 2)),
 ];
 
+// Node 26.6.0 can confuse escaped quote/backslash keys in JSON.parse after an
+// earlier parse with the same object shape. Repro (no project dependencies):
+// https://github.com/ClarkeYeh/ai-office/blob/ClarkeYeh/m5-fx-flake-evolve/packages/domain/src/test-support/json-parse-repro.mjs
+// Keep the roundtrip oracle on the project's supported runtime (.nvmrc / CI).
+const supportedJsonRuntime = process.versions.node.split('.')[0] === '24';
+
+const expectJsonRepresentable = (value: unknown): void => {
+  if (value === null) return;
+  if (typeof value === 'number') {
+    expect(Number.isFinite(value)).toBe(true);
+    expect(Object.is(value, -0)).toBe(false);
+    return;
+  }
+  if (typeof value === 'object') {
+    if (Array.isArray(value)) {
+      expect(Object.keys(value)).toHaveLength(value.length);
+    } else {
+      expect([Object.prototype, null]).toContain(Object.getPrototypeOf(value));
+      expect(Reflect.ownKeys(value)).toEqual(Object.keys(value));
+    }
+    for (const child of Object.values(value)) expectJsonRepresentable(child);
+    return;
+  }
+  expect(['boolean', 'string']).toContain(typeof value);
+};
+
+const schemaValidSequenceProperty = () =>
+  fc.property(fc.array(plausibleEvent, { maxLength: 60 }), (drafts) => {
+    const events = sequence(drafts);
+    let state = initialState();
+    let lastSeq = 0;
+    for (const event of events) {
+      const result = evolveWithWarning(state, event);
+      expect(result.warning?.code).not.toBe('handler_error');
+      expect(result.state.lastSeq).toBeGreaterThanOrEqual(lastSeq);
+      lastSeq = result.state.lastSeq;
+      state = result.state;
+    }
+    expect(state.lastSeq).toBe(events.length);
+    expectJsonRepresentable(state);
+    expect(() => JSON.stringify(state)).not.toThrow();
+    if (supportedJsonRuntime)
+      expect(JSON.parse(JSON.stringify(state))).toEqual(state);
+  });
+
 describe('evolve is total', () => {
   test('arbitrary junk never throws', () => {
     const junkEvent = fc.oneof(
@@ -111,23 +156,42 @@ describe('evolve is total', () => {
   });
 
   test('schema-valid events in any order never hit a handler error', () => {
-    fc.assert(
-      fc.property(fc.array(plausibleEvent, { maxLength: 60 }), (drafts) => {
-        const events = sequence(drafts);
-        let state = initialState();
-        let lastSeq = 0;
-        for (const event of events) {
-          const result = evolveWithWarning(state, event);
-          expect(result.warning?.code).not.toBe('handler_error');
-          expect(result.state.lastSeq).toBeGreaterThanOrEqual(lastSeq);
-          lastSeq = result.state.lastSeq;
-          state = result.state;
-        }
-        expect(state.lastSeq).toBe(events.length);
+    fc.assert(schemaValidSequenceProperty(), { numRuns: 300 });
+  });
+
+  test.each([
+    { name: 'full stream', path: undefined },
+    { name: 'shrunk path', path: '222:1:2:2:2:2:2:6:6:6' },
+  ])('regression seed -379712680 ($name)', ({ path }) => {
+    // The complete stream primes the runtime bug; the shrunk case alone passes.
+    fc.assert(schemaValidSequenceProperty(), {
+      seed: -379712680,
+      numRuns: 300,
+      ...(path === undefined ? {} : { path }),
+    });
+  });
+
+  test('budget alerts preserve escaped JSON keys', () => {
+    for (const [index, key] of ['"', '\\', '"'].entries()) {
+      const payload = {
+        ...samplePayloads()['budget.exceeded'],
+        [key]: false,
+      };
+      const event = toEvent(eventDraft('budget.exceeded', payload), index + 2);
+      const result = evolveWithWarning(
+        evolve(initialState(), started()),
+        event,
+      );
+      expect(result.warning).toBeUndefined();
+      const state = result.state;
+      const alert = state.budgetAlerts['stage|meeting#1|exceeded'];
+      expect(alert).toHaveProperty(key, false);
+      expect(Object.keys(alert ?? {})).toContain(key);
+      expect(Object.keys(alert ?? {})).not.toContain(key === '"' ? '\\' : '"');
+      expectJsonRepresentable(state);
+      if (supportedJsonRuntime)
         expect(JSON.parse(JSON.stringify(state))).toEqual(state);
-      }),
-      { numRuns: 300 },
-    );
+    }
   });
 
   test('shuffled seq (out-of-order delivery) is skipped, never thrown', () => {
