@@ -641,17 +641,20 @@ export async function drill(
         : {}),
       handOff: (body) => status(body),
       async finalPr(gate) {
-        const finalPr = log.find(
-          (e) =>
-            e.type === 'command.succeeded' &&
-            e.payload.kind === 'scm.openPR' &&
-            log.some(
-              (i) =>
-                i.type === 'command.issued' &&
-                i.payload.commandId === e.payload.commandId &&
-                i.payload.args?.base === 'main',
-            ),
-        )?.payload.result?.pr as number | undefined;
+        // The gate's own content names the PR; the event log can lag behind
+        // the gate under load, so it is only the fallback.
+        const finalPr = ((gate.content as Json | undefined)?.pr ??
+          log.find(
+            (e) =>
+              e.type === 'command.succeeded' &&
+              e.payload.kind === 'scm.openPR' &&
+              log.some(
+                (i) =>
+                  i.type === 'command.issued' &&
+                  i.payload.commandId === e.payload.commandId &&
+                  i.payload.args?.base === 'main',
+              ),
+          )?.payload.result?.pr) as number | undefined;
         report.finalPr = finalPr ?? null;
         report.minutesToFinalGate = Math.round(
           (Date.now() - startedAt) / 60_000,
