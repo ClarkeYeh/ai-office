@@ -76,6 +76,7 @@ export class ContractWorld implements Exec {
     },
   ];
   readonly branches = new Map<string, string>();
+  readonly originTips = new Set<string>();
   readonly mail: {
     id: string;
     type: string;
@@ -251,7 +252,18 @@ export class ContractWorld implements Exec {
         if (a.includes('--quiet')) {
           text = this.branches.get(ref.replace('refs/heads/', '')) ?? '';
           exitCode = text ? 0 : 1;
-        } else text = /^[ab]{40}$/.test(ref) ? ref : SHA;
+        } else
+          text =
+            ref === 'HEAD'
+              ? (this.workspaces.find((w) => w.path === a[1])?.head ?? SHA)
+              : /^[ab]{40}$/.test(ref)
+                ? ref
+                : SHA;
+      } else if (verb === 'for-each-ref') {
+        const tip = a.find((v) => v.startsWith('--contains='))!.slice(11);
+        text = this.originTips.has(tip)
+          ? 'refs/remotes/origin/ai-office/worker'
+          : '';
       } else if (verb === 'worktree')
         text = this.workspaces
           .map(

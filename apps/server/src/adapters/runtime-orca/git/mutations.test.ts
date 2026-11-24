@@ -122,3 +122,33 @@ it('checkout -B refuses occupied or unpushed W', async () => {
     sha,
   ]);
 });
+
+it('refreshes all origin refs with pruning and checks reachability only under origin', async () => {
+  const { git, run } = await fixture();
+  await git.fetch('/repo');
+  expect(run.mock.calls.at(-1)![0].args).toEqual([
+    '-C',
+    '/repo',
+    'fetch',
+    'origin',
+    '--prune',
+  ]);
+  run.mockResolvedValue({
+    stdout: 'refs/remotes/origin/ai-office/worker\n',
+    exitCode: 0,
+  });
+  expect(await git.originContains('/repo', sha)).toBe(true);
+  expect(run.mock.calls.at(-1)![0].args).toEqual([
+    '-C',
+    '/repo',
+    'for-each-ref',
+    '--format=%(refname)',
+    '--contains=' + sha,
+    'refs/remotes/origin/',
+  ]);
+  run.mockResolvedValue({ stdout: '', exitCode: 0 });
+  expect(await git.originContains('/repo', sha)).toBe(false);
+  await expect(git.originContains('/repo', '--bad')).rejects.toMatchObject({
+    code: 'invalid_git_sha',
+  });
+});

@@ -298,7 +298,12 @@ export class FakeRuntime implements RuntimePort {
   /** Branch and base commit each workspace was created with (pushes target it). */
   private workspaceBranches = new Map<
     WorkspaceRef,
-    { branch: string; base?: string; repo?: RepoRuntimeRef }
+    {
+      branch: string;
+      base?: string;
+      repo?: RepoRuntimeRef;
+      detachedTip?: string;
+    }
   >();
   /** Simulated local git branches per repo (branch → tip); W1 occupancy derives from workspaces. */
   private localBranches = new Map<string, Map<string, string | undefined>>();
@@ -312,6 +317,7 @@ export class FakeRuntime implements RuntimePort {
     for (const [ws, entry] of this.workspaceBranches)
       if (
         this.workspaces.has(ws) &&
+        entry.detachedTip === undefined &&
         entry.branch === branch &&
         entry.repo !== undefined &&
         canonical(entry.repo) === canonical(repo)
@@ -376,15 +382,54 @@ export class FakeRuntime implements RuntimePort {
   }
   /** `worktree rm`; the adapter also deletes the branch it created (§6.5). */
   private removeWorkspace(ws: WorkspaceRef): void {
-    if (!this.workspaces.delete(ws)) return;
+    const workspace = this.workspaces.get(ws);
+    if (!workspace) return;
     const entry = this.workspaceBranches.get(ws);
+    if (entry?.detachedTip && entry.repo) {
+      const repo = entry.repo;
+      const pushed = (sha: string) =>
+        sha === entry.base ||
+        [...this.remoteBranches].some(([key, remote]) => {
+          const [repoId, path] = JSON.parse(key) as string[];
+          return (
+            repoId === repo.orcaRepoId &&
+            path === repo.localPath &&
+            remote.commits.has(sha)
+          );
+        });
+      if (!workspace.clean) throw fail('workspace_dirty');
+      const branchSha = this.local(repo).get(entry.branch);
+      if (!pushed(entry.detachedTip) || (branchSha && !pushed(branchSha)))
+        throw fail('workspace_unpushed');
+    }
+    this.workspaces.delete(ws);
     if (entry?.repo && !this.holder(entry.repo, entry.branch))
       this.local(entry.repo).delete(entry.branch);
+  }
+  /** Optional D1 stimulus: detached HEAD and the created branch have independent tips. */
+  detachWorkspace(
+    ws: WorkspaceRef,
+    shape: 'integrator' | 'worker' | 'unpushed',
+  ): void {
+    const entry = this.workspaceBranches.get(ws);
+    if (!entry?.repo || !this.workspaces.has(ws))
+      throw fail('unknown_workspace');
+    const tip = 'd'.repeat(40);
+    entry.detachedTip = tip;
+    if (shape === 'worker') this.local(entry.repo).set(entry.branch, tip);
+    if (shape !== 'unpushed')
+      this.setRemoteBranch(
+        entry.repo,
+        shape === 'worker' ? entry.branch : 'ai-office/other-worker',
+        tip,
+      );
   }
   /** The branch a workspace actually checked out, for W1 assertions. */
   workspaceBranch(ws: WorkspaceRef): string | null {
     return this.workspaces.has(ws)
-      ? (this.workspaceBranches.get(ws)?.branch ?? null)
+      ? this.workspaceBranches.get(ws)?.detachedTip
+        ? null
+        : (this.workspaceBranches.get(ws)?.branch ?? null)
       : null;
   }
   private commands = new Map<
