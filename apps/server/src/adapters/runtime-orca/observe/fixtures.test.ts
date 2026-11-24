@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AgentRef } from '../../../ports/refs.js';
@@ -10,6 +11,7 @@ import {
   messageEvent,
   workerState,
 } from './mapping.js';
+import { isAnswer } from './observer.js';
 import { detectRateLimit } from './rate-limit.js';
 import {
   CheckResultSchema,
@@ -167,4 +169,47 @@ it('uuidV5 matches RFC 4122 (DNS namespace sample)', () => {
   expect(
     uuidV5('www.example.com', '6ba7b810-9dad-11d1-80b4-00c04fd430c8'),
   ).toBe('2ed6657d-e927-568b-95e1-2665a8aea6a2');
+});
+
+describe('Orca 1.4.272 question notice (M5-FX-ORCA-OBS)', () => {
+  const file = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../../../../fixtures/orca/1.4.272/inbox.dispatch.question-notice.ok.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as { response: unknown };
+  const inbox = InboxResultSchema.parse(
+    parseResult(JSON.stringify(file.response)),
+  );
+  const run = 'run_58fc91ed06c4';
+  /** Orca's fixed notice (orcad-server `gps`, reason `unanswered`). */
+  const NOTICE =
+    'Your coordinator stopped without answering your question and has no worker running for it. Decide it yourself and say what you chose when you report. If an answer comes later, it still reaches you.';
+  /** Our `runtime.answer` body: `aio:<tag>` line, then the answer. */
+  const REPLY = 'aio:161bacce3a04a422\nBirch';
+  const redacted = (text: string) =>
+    `<redacted length=${text.length} sha256=${createHash('sha256').update(text).digest('hex')}>`;
+
+  it('records the notice and our reply in the question thread, both from the run', () => {
+    const [reply, notice] = inbox.messages;
+    expect(reply!.thread_id).toBe(notice!.thread_id);
+    expect([reply!.from_handle, notice!.from_handle]).toEqual([
+      `run:${run}`,
+      `run:${run}`,
+    ]);
+    // The recorded bodies are exactly these texts (pinned by sha256).
+    expect(notice!.body).toBe(redacted(NOTICE));
+    expect(reply!.body).toBe(redacted(REPLY));
+    // The notice came first, in the second the question was asked.
+    expect(notice!.created_at < reply!.created_at).toBe(true);
+  });
+
+  it('only our marked reply answers the question', () => {
+    const [reply, notice] = inbox.messages;
+    expect(isAnswer({ ...reply!, body: REPLY }, run)).toBe(true);
+    expect(isAnswer({ ...notice!, body: NOTICE }, run)).toBe(false);
+  });
 });

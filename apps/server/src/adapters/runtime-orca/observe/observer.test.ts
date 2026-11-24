@@ -35,6 +35,8 @@ type Mail = {
   filesModified?: unknown;
   /** Raw payload override, for malformed shapes. */
   payload?: string;
+  /** Body override (replies: `aio:` marker line; Orca's notices: plain text). */
+  body?: string;
   sequence: number;
   read: boolean;
 };
@@ -45,7 +47,8 @@ type W = {
   terminalState?: string | null;
   verdict?: string;
   activity?: string;
-  observedAt?: number;
+  /** `null`: Orca 1.4.272 leaves `evidence.lastObservedAt` out. */
+  observedAt?: number | null;
   owner?: string | null;
   origin?: string | null;
   parent?: unknown;
@@ -93,7 +96,7 @@ class World {
         m.from ?? (m.dispatch ? `dispatch:${m.dispatch}` : 'run:' + RUN),
       to_handle: m.to,
       subject: 'aio subject',
-      body: m.type === 'question' ? 'raw question body' : 'body',
+      body: m.body ?? (m.type === 'question' ? 'raw question body' : 'body'),
       type: m.type,
       thread_id: m.thread ?? (m.type === 'question' ? m.id : null),
       payload:
@@ -231,7 +234,10 @@ class World {
                 activity: w.activity ?? 'working',
               },
               liveness: { verdict: w.verdict ?? 'live' },
-              evidence: { lastObservedAt: w.observedAt ?? 1 },
+              evidence:
+                w.observedAt === null
+                  ? {}
+                  : { lastObservedAt: w.observedAt ?? 1 },
             },
           })),
         });
@@ -304,7 +310,10 @@ interface Rig {
   }>;
 }
 async function rig(
-  extra: { ownsCommand?: (commandId: string) => boolean } = {},
+  extra: {
+    ownsCommand?: (commandId: string) => boolean;
+    pressured?: () => boolean;
+  } = {},
   world = new World(),
   state = memory(),
 ): Promise<Rig> {
@@ -1028,11 +1037,77 @@ describe('OrcaObserver: mapping', () => {
         waitingSince: '2026-11-18T05:50:51.000Z',
       }),
     ]);
-    // reply → dispatch mailbox, thread_id = question id (fixture reply.question).
+    // reply → dispatch mailbox, thread_id = question id (fixture reply.question);
+    // `runtime.answer` puts the `aio:` command marker on the first line.
     r.world.mail.push({
       id: 'msg_r',
       type: 'status',
       to: 'dispatch:ctx_a',
+      thread: 'msg_q',
+      body: `${marker('cmd-answer')}\nno`,
+      sequence: ++r.world.seq,
+      read: true,
+    });
+    r.clock.now += 10_000;
+    const answered = await r.observe(asked.cursor);
+    expect(ofType(answered.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'working' }),
+    ]);
+  });
+
+  it("keeps waiting_input through Orca 1.4.272's own 'decide it yourself' notice (M5-T11b)", async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const asked = await r.observe(first.cursor);
+    expect(ofType(asked.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'waiting_input' }),
+    ]);
+    // Orca posts its notice into the thread at once: the shim runs no agent.
+    r.world.mail.push({
+      id: 'msg_notice',
+      type: 'status',
+      to: 'dispatch:ctx_a',
+      thread: 'msg_q',
+      body: 'Your coordinator stopped without answering your question and has no worker running for it. Decide it yourself and say what you chose when you report. If an answer comes later, it still reaches you.',
+      sequence: ++r.world.seq,
+      read: true,
+    });
+    r.clock.now += 10_000;
+    const noticed = await r.observe(asked.cursor);
+    expect(ofType(noticed.events, 'agent.status')).toEqual([]);
+    // The agent keeps working on its own meanwhile: still waiting for us.
+    r.world.workers[0]!.activity = 'working';
+    r.clock.now += 10_000;
+    const still = await r.observe(noticed.cursor);
+    expect(ofType(still.events, 'agent.status')).toEqual([]);
+    // AI Office's own reply ends the wait.
+    r.world.mail.push({
+      id: 'msg_r',
+      type: 'status',
+      to: 'dispatch:ctx_a',
+      thread: 'msg_q',
+      body: `${marker('cmd-answer')}\nno`,
+      sequence: ++r.world.seq,
+      read: true,
+    });
+    r.clock.now += 10_000;
+    const answered = await r.observe(still.cursor);
+    expect(ofType(answered.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'working' }),
+    ]);
+  });
+
+  it('counts a reply from any handle but the run as an answer', async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const asked = await r.observe(first.cursor);
+    r.world.mail.push({
+      id: 'msg_r',
+      type: 'status',
+      to: 'dispatch:ctx_a',
+      from: 'terminal:owner',
       thread: 'msg_q',
       sequence: ++r.world.seq,
       read: true,
@@ -1152,6 +1227,48 @@ describe('OrcaObserver: mapping', () => {
     ]);
   });
 
+  it('re-reads a long turn every 15 s although its signature never changes (1.4.272, M5-T11b)', async () => {
+    spawned(r, 'ctx_a');
+    r.world.workers[0]!.observedAt = null; // 1.4.272: no lastObservedAt
+    r.world.transcripts.set('ctx_a', [
+      { id: 'm1', role: 'assistant', text: 'start' },
+    ]);
+    let cursor: RuntimeCursor | null = null;
+    const reads = () =>
+      r.world.calls.filter((c) => c[1] === 'worker-read').length;
+    cursor = (await r.observe(cursor)).cursor;
+    expect(reads()).toBe(1);
+    // The agent keeps working; its transcript grows; nothing else changes.
+    const outputs: string[] = [];
+    for (let i = 2; i <= 10; i++) {
+      r.world.transcripts
+        .get('ctx_a')!
+        .push({ id: `m${i}`, role: 'assistant', text: `step ${i}` });
+      const result = await r.observe(cursor); // +2.5 s each
+      cursor = result.cursor;
+      outputs.push(...keys(ofType(result.events, 'agent.output')));
+    }
+    // 22.5 s of working: one periodic re-read (at ≥ 15 s), not one per poll.
+    expect(reads()).toBe(2);
+    expect(outputs.length).toBeGreaterThan(0);
+    expect(outputs[0]).toBe('orca:tx:ctx_a:m2');
+  });
+
+  it('stretches the re-read to 30 s under CLI pressure', async () => {
+    const pressed = await rig({ pressured: () => true });
+    spawned(pressed, 'ctx_a');
+    pressed.world.workers[0]!.observedAt = null;
+    let cursor: RuntimeCursor | null = null;
+    const reads = () =>
+      pressed.world.calls.filter((c) => c[1] === 'worker-read').length;
+    cursor = (await pressed.observe(cursor)).cursor;
+    for (let i = 0; i < 9; i++) cursor = (await pressed.observe(cursor)).cursor;
+    expect(reads()).toBe(1); // 22.5 s < 30 s
+    for (let i = 0; i < 4; i++) cursor = (await pressed.observe(cursor)).cursor;
+    expect(reads()).toBe(2); // ≥ 30 s
+    pressed.observer.close();
+  });
+
   it('reports no_transcript_source and transcript_clipped once', async () => {
     spawned(r, 'ctx_a');
     spawned(r, 'ctx_b');
@@ -1256,5 +1373,39 @@ describe('OrcaObserver: CLI budget (SPEC §6.4)', () => {
     r.observer.close();
     expect(r.world.count('orchestration worker-list')).toBeLessThanOrEqual(31);
     expect(calls).toBeLessThanOrEqual(90);
+  });
+
+  it('bounds transcript lag at 15 s for 10 long turns without exceeding 120 calls per minute (1.4.272)', async () => {
+    const r = await rig();
+    for (let i = 0; i < 10; i++) spawned(r, `ctx_${i}`);
+    // 1.4.272: no lastObservedAt, so the worker-list signature never changes.
+    for (const w of r.world.workers) w.observedAt = null;
+    let cursor: RuntimeCursor | null = null;
+    const start = r.clock.now;
+    const before = r.world.calls.length;
+    const readTimes = new Map<string, number[]>();
+    while (r.clock.now - start < 60_000) {
+      const tick = r.clock.now - start;
+      if (tick > 0 && tick % 30_000 < 1_000) r.world.timeout();
+      const seen = r.world.calls.length;
+      const result = await r.observer.observe(session, cursor);
+      cursor = result.cursor;
+      for (const call of r.world.calls.slice(seen))
+        if (call[1] === 'worker-read') {
+          const d = flag(call, '--dispatch')!;
+          readTimes.set(d, [...(readTimes.get(d) ?? []), tick]);
+        }
+      r.clock.now += 1_000;
+    }
+    const calls = r.world.calls.length - before;
+    r.observer.close();
+    expect(calls).toBeLessThanOrEqual(120);
+    for (let i = 0; i < 10; i++) {
+      const times = readTimes.get(`ctx_${i}`) ?? [];
+      // Read at start, then at most every 15 s (+1 s poll granularity).
+      expect(times.length).toBeGreaterThanOrEqual(4);
+      for (let k = 1; k < times.length; k++)
+        expect(times[k]! - times[k - 1]!).toBeLessThanOrEqual(16_000);
+    }
   });
 });
