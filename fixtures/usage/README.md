@@ -20,5 +20,4 @@ counters are kept; message ids are replaced by placeholders. Both parse with the
 adapter's parsers. Relative to the synthetic files, Claude Code 2.1.311 adds
 non-counter usage keys (`service_tier`, `speed`, `iterations`, ...) that are ignored,
 and codex-cli 0.171.0 adds `cache_write_input_tokens` to `total_token_usage`
-(0 in every record of this session). That key is omitted from the committed
-sample because the fixture redactor does not yet recognize it as a counter.
+(0 in every record of this session), which the adapter maps to `cacheWrite`.

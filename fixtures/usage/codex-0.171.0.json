@@ -8,6 +8,7 @@
         "total_token_usage": {
           "input_tokens": 20532,
           "cached_input_tokens": 7936,
+          "cache_write_input_tokens": 0,
           "output_tokens": 95,
           "reasoning_output_tokens": 0,
           "total_tokens": 20627
@@ -24,6 +25,7 @@
         "total_token_usage": {
           "input_tokens": 42171,
           "cached_input_tokens": 28416,
+          "cache_write_input_tokens": 0,
           "output_tokens": 134,
           "reasoning_output_tokens": 0,
           "total_tokens": 42305
@@ -40,6 +42,7 @@
         "total_token_usage": {
           "input_tokens": 63905,
           "cached_input_tokens": 49920,
+          "cache_write_input_tokens": 0,
           "output_tokens": 165,
           "reasoning_output_tokens": 0,
           "total_tokens": 64070
@@ -56,6 +59,7 @@
         "total_token_usage": {
           "input_tokens": 88109,
           "cached_input_tokens": 57856,
+          "cache_write_input_tokens": 0,
           "output_tokens": 363,
           "reasoning_output_tokens": 0,
           "total_tokens": 88472
@@ -72,6 +76,7 @@
         "total_token_usage": {
           "input_tokens": 112636,
           "cached_input_tokens": 82048,
+          "cache_write_input_tokens": 0,
           "output_tokens": 473,
           "reasoning_output_tokens": 0,
           "total_tokens": 113109
@@ -88,6 +93,7 @@
         "total_token_usage": {
           "input_tokens": 137369,
           "cached_input_tokens": 106496,
+          "cache_write_input_tokens": 0,
           "output_tokens": 495,
           "reasoning_output_tokens": 0,
           "total_tokens": 137864

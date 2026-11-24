@@ -12,7 +12,17 @@ into `UsageLocateRef`: fallback searches exclude older files. Legacy callers tha
 omit it use a rolling 24-hour window. An explicit reported session id is not age
 filtered. Unreadable or missing candidates are skipped; an absent session is null.
 
-Reads return Claude per-message counters and Codex cumulative counters. The existing
+A dispatch marker counts only inside a provider user-prompt record (Claude `user`
+text that is not a tool result, sidechain or meta record; Codex user `message`
+`input_text` or `user_message`), where Orca delivers the worker's preamble and
+follow-ups. Tool output, tool calls and replies never match, so a coordinator's
+transcript that mentions a dispatch id is not taken for the worker's (M5-T1). A
+match in a session's first prompt wins over one in a later prompt.
+
+Reads return Claude per-message counters and Codex cumulative counters. Codex
+`cache_write_input_tokens` (codex-cli 0.171.0+, absent before) is part of
+`input_tokens` like `cached_input_tokens`: it maps to `cacheWrite` and is
+subtracted from `inputUncached`, so the total input is unchanged. The existing
 application observation layer computes Codex deltas and persists deduplication
 keys; this adapter must not subtract them a second time. Claude uses the last line
 for a message in a read, waits for a stop reason, a subsequent message, or 30 seconds

@@ -23,6 +23,8 @@ const codex = z.object({
       total_token_usage: z.object({
         input_tokens: count,
         cached_input_tokens: count.optional().default(0),
+        // codex-cli 0.171.0+; older rollouts omit it.
+        cache_write_input_tokens: count.optional().default(0),
         output_tokens: count,
         reasoning_output_tokens: count.optional(),
         total_tokens: count,
@@ -76,8 +78,11 @@ export function parseUsage(
   if (object(entry.payload)?.info === null) return null;
   const parsed = codex.parse(row);
   const usage = parsed.payload.info.total_token_usage;
+  // input_tokens already includes cache reads and writes (codex reports
+  // non_cached = input - cached - cache_write), so the split keeps the sum.
+  const cached = usage.cached_input_tokens + usage.cache_write_input_tokens;
   if (
-    usage.cached_input_tokens > usage.input_tokens ||
+    cached > usage.input_tokens ||
     (usage.reasoning_output_tokens ?? 0) > usage.output_tokens ||
     usage.total_tokens !== usage.input_tokens + usage.output_tokens
   )
@@ -88,10 +93,10 @@ export function parseUsage(
     sample: {
       externalKey: `usage:codex:${sessionId}:${usage.total_tokens}`,
       occurredAt: parsed.timestamp,
-      inputUncached: usage.input_tokens - usage.cached_input_tokens,
+      inputUncached: usage.input_tokens - cached,
       output: usage.output_tokens,
       cacheRead: usage.cached_input_tokens,
-      cacheWrite: 0,
+      cacheWrite: usage.cache_write_input_tokens,
       ...(usage.reasoning_output_tokens === undefined
         ? {}
         : { reasoning: usage.reasoning_output_tokens }),
