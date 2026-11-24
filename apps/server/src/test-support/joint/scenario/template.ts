@@ -9,9 +9,9 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseDocument } from 'yaml';
 import { TEMPLATE_ID } from './m5-mainline.js';
+import { INTEGRATOR_SCOPE_FALLBACK } from '../../orca/t17/review-nonce.js';
 
-export const INTEGRATOR_SCOPE_FALLBACK =
-  "When an acceptance criterion requires content that only the work item's worker may write, send the pull request back with rework-request stating what must change; never edit that content yourself.";
+export { INTEGRATOR_SCOPE_FALLBACK };
 
 /**
  * The built-in `feature-to-pr.yaml` source, read by path like the M1 gates
