@@ -192,6 +192,13 @@ export class FakeRuntime implements RuntimePort {
       ? { status: 'completed', result: structuredClone(result) }
       : { status: 'absent' };
   }
+  spawnedWorkspace(commandId: string): WorkspaceRef | undefined {
+    const marker = this.markers.get(commandId);
+    return marker?.kind === 'runtime.spawnAgent' &&
+      marker.result.workspace !== undefined
+      ? WorkspaceRefSchema.parse(marker.result.workspace)
+      : undefined;
+  }
   async findCommandByMarker(commandId: string): Promise<CommandResult | null> {
     this.before('findByCorrelation');
     return structuredClone(this.markers.get(commandId) ?? null);
@@ -647,7 +654,7 @@ export class FakeRuntime implements RuntimePort {
           operation === 'openSession'
             ? { session: result }
             : operation === 'spawnAgent'
-              ? { agent: result }
+              ? this.spawnResult(result as AgentRef)
               : {},
       } as CommandResult);
     }
@@ -658,6 +665,13 @@ export class FakeRuntime implements RuntimePort {
     });
     this.after(operation);
     return result;
+  }
+  /** M5 §4.2: a `new-worktree` spawn also reports the worktree it created. */
+  private spawnResult(ref: AgentRef): { agent: AgentRef; workspace?: string } {
+    const agent = this.agents.get(ref);
+    return agent?.request.workspace.kind === 'new-worktree'
+      ? { agent: ref, workspace: agent.workspace }
+      : { agent: ref };
   }
   private agent(ref: AgentRef): Agent {
     const agent = this.agents.get(ref);

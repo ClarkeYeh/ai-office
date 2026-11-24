@@ -130,7 +130,12 @@ export const portHandlers = (ports: {
         correlation,
         keepOpen: args.keepOpen,
       });
-      return { agent };
+      // M5 §4.2: record the created worktree so cleanup reads state only.
+      const workspace =
+        args.workspace.kind === 'new-worktree'
+          ? runtime.spawnedWorkspace?.(issued.commandId)
+          : undefined;
+      return workspace === undefined ? { agent } : { agent, workspace };
     },
     'runtime.send': async (args, { correlation }) => {
       await runtime.send(args.agent as AgentRef, {

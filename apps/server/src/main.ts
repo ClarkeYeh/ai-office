@@ -1427,6 +1427,7 @@ async function compose(
       globalAgents: settings.limits.globalAgents,
       spawnStallMs: settings.engine.spawnStallMs,
       budgetEnforcement: settings.budget.enforcement,
+      workerBranchRetention: settings.retention.workerBranches,
     },
   });
   if (github) {

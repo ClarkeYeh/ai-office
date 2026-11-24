@@ -899,6 +899,41 @@ it('fetches legacy new-worktree spawn bases and removes only its owned worktree 
   await f.runtime.release(a, { removeWorkspace: true });
   expect(f.calls.some((r) => command(r, 'worktree rm'))).toBe(true);
 });
+it('reports the worktree a new-worktree spawn created, also in its saved result (M5 §4.2)', async () => {
+  const f = await fixture();
+  const p = await f.runtime.prepareWorkspace(f.prepare);
+  await f.runtime.spawnAgent({
+    ...f.spawn,
+    workspace: {
+      kind: 'existing-worktree',
+      workspace: p.workspace,
+      readOnly: false,
+    },
+  });
+  // An existing worktree belongs to its prepareWorkspace, not to the spawn.
+  expect(f.runtime.spawnedWorkspace!('spawn')).toBeUndefined();
+  expect(await f.runtime.findCommandByMarker('spawn')).toEqual({
+    kind: 'runtime.spawnAgent',
+    result: { agent: 'ctx' },
+  });
+  const g = await fixture();
+  await g.runtime.spawnAgent({
+    ...g.spawn,
+    workspace: {
+      kind: 'new-worktree',
+      baseBranch: 'main',
+      name: 'planner',
+      branch: 'ai-office/planner',
+    },
+  });
+  const created = g.runtime.spawnedWorkspace!('spawn');
+  expect(created).toEqual(expect.any(String));
+  expect(await g.runtime.findCommandByMarker('spawn')).toEqual({
+    kind: 'runtime.spawnAgent',
+    result: { agent: 'ctx', workspace: created },
+  });
+  expect(g.runtime.spawnedWorkspace!('unknown')).toBeUndefined();
+});
 it.each([false, true])(
   'release of backend-prepared existing workspaces honors removeWorkspace=%s',
   async (removeWorkspace) => {

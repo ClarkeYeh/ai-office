@@ -395,6 +395,11 @@ export interface EvaluateAnomaly extends Base<'EvaluateAnomaly'> {
       }
     /** EP1: `scm.mergePR` failed with `guard merge_base_changed`. */
     | { kind: 'merge-base-changed'; commandId: string; pr: number }
+    /**
+     * M5 §4.2: a `runtime.disposeWorkspace` / `scm.deleteBranch` failed after
+     * the workflow ended. Raised in terminal states too; never pauses.
+     */
+    | { kind: 'cleanup-failed'; commandId: string }
     | {
         kind: 'policy-hits';
         attemptId: string;
