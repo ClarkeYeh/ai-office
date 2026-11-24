@@ -20,6 +20,7 @@ export const FORBIDDEN_COMMANDS = [
   'gh issue create',
   'gh issue comment',
   'gh label',
+  'ai-office open (including node …/cli/dist/main.js open); never read data/control.token',
 ] as const;
 
 export const forbiddenSection = (
