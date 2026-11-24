@@ -78,7 +78,7 @@ export const SettingsSchema = z.strictObject({
   retention: z
     .strictObject({
       workerBranches: z
-        .literal('delete-on-complete')
+        .enum(['delete-on-complete', 'keep'])
         .default('delete-on-complete'),
     })
     .prefault({}),

@@ -111,6 +111,19 @@ describe('settings', () => {
     expect(readSettings(directory).server.port).toBe(4320);
     expect(readSettings(directory).orca.shim.closeOnExit).toBe(true);
   });
+  it('accepts keep for retention.workerBranches and rejects other values (M5 §4.2)', () => {
+    const directory = home();
+    writeFileSync(
+      `${directory}/config.toml`,
+      '[retention]\nworkerBranches = "keep"\n',
+    );
+    expect(readSettings(directory).retention.workerBranches).toBe('keep');
+    writeFileSync(
+      `${directory}/config.toml`,
+      '[retention]\nworkerBranches = "forever"\n',
+    );
+    expect(() => readSettings(directory)).toThrow('retention.workerBranches');
+  });
   it('reports invalid field paths without echoing values', () => {
     const directory = home();
     writeFileSync(
