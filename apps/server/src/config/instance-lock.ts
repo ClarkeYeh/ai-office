@@ -14,6 +14,7 @@ import {
   RuntimeInfoSchema,
   type RuntimeInfo,
 } from '@ai-office/contracts/agent-submission';
+import { rotateControlToken } from './control-token.js';
 import { hasCode } from './settings.js';
 
 export type { RuntimeInfo } from '@ai-office/contracts/agent-submission';
@@ -41,6 +42,7 @@ export interface InstanceLock {
   readonly pid: number;
   readonly startedAt: string;
   writeRuntime(port: number): RuntimeInfo;
+  rotateControlToken(): (candidate: string) => boolean;
   release(): void;
 }
 
@@ -159,6 +161,13 @@ export function acquireInstanceLock(
   }
   return {
     ...info,
+    rotateControlToken() {
+      if (!ownsLock())
+        throw new Error(
+          'Only the instance lock holder may rotate control token',
+        );
+      return rotateControlToken(dataDir);
+    },
     writeRuntime(port) {
       if (!ownsLock())
         throw new Error('Only the instance lock holder may write runtime.json');
@@ -194,6 +203,7 @@ export function acquireInstanceLock(
         } catch {
           /* Missing or foreign runtime.json is left alone. */
         }
+        rmSync(`${dataDir}/data/control.token`, { force: true });
         unlinkSync(path);
       }
       if (!released) held.delete(path);

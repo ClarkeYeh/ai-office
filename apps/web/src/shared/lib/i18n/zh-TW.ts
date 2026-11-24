@@ -50,8 +50,8 @@ export const zhTW = {
   'app.question': '升級提問',
   'auth.title': '請從啟動連結登入',
   'auth.description':
-    '登入已失效或尚未登入。請重新執行下列指令，並開啟新的登入連結。',
-  'auth.command': 'ai-office start',
+    '登入已失效或尚未登入。請執行下列指令，並開啟新的登入連結；或重新執行 ai-office start。',
+  'auth.command': 'ai-office open',
   'banner.fake': 'Fake 模式：目前顯示模擬資料。',
   'banner.unverified': 'Orca 版本尚未驗證。',
   'banner.hijacked':

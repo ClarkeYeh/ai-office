@@ -1,3 +1,4 @@
+import { registerLocal } from './api/local/index.js';
 import {
   demoScenario,
   parallelScenario,
@@ -1098,6 +1099,7 @@ async function compose(
   cleanup: (() => void | Promise<void>)[],
   unwind: () => Promise<void>,
 ): Promise<RunningServer> {
+  const verifyControlToken = lock.rotateControlToken();
   const settings: Settings = readSettings(dataDir);
   createDataDirectories(dataDir);
   const fake = options.fake !== undefined;
@@ -1543,6 +1545,15 @@ async function compose(
         : {}
       : { devOrigin: options.devOrigin }),
   };
+  await registerLocal(app, {
+    get port() {
+      return port;
+    },
+    verifyControlToken,
+    sessions: stores.sessions,
+    now: () => clock.now(),
+    issued: () => logger.info({}, 'issued'),
+  });
   await registerApi(app, apiDeps);
   const fakeWorld = world;
   if (options.dev === true && fakeWorld && !options.testOnly?.scm)
@@ -1571,7 +1582,8 @@ async function compose(
     app.setNotFoundHandler((request, reply) =>
       request.method === 'GET' &&
       !request.url.startsWith('/api/') &&
-      !request.url.startsWith('/agent/')
+      !request.url.startsWith('/agent/') &&
+      !request.url.startsWith('/local/')
         ? reply.type('text/html; charset=utf-8').send(index)
         : reply.code(404).send({ error: 'not_found' }),
     );

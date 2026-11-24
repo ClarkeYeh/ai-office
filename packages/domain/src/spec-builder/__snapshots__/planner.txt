@@ -75,6 +75,7 @@ Never run any of these commands, directly or through a script or alias. AI Offic
 - `gh issue create`
 - `gh issue comment`
 - `gh label`
+- `ai-office open (including node …/cli/dist/main.js open); never read data/control.token`
 - `git push` to the default branch `main`, including force pushes and pushes through another remote or refspec
 
 AI Office alone starts, stops and releases agents, merges pull requests and writes to GitHub Issues. Do not start helper workers or sub-agents. The only Orca commands you may run are the reporting commands from your Orca dispatch preamble (`worker_done`, and `ask` where this spec allows questions).
