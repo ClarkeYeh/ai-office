@@ -353,6 +353,7 @@ it('raises transitive dependency exceptions when a prerequisite fails', () => {
       )
       .map((g) => g.content.type === 'exception' && g.content.itemKey),
   ).toEqual(['B', 'C']);
+  expect(gates.every((gate) => gate.stageId === 'implement')).toBe(true);
   expect(sim.eventsOf('workitem.dispatched')).toHaveLength(1);
 });
 
@@ -370,6 +371,7 @@ it('nudges an unpushed worker once then opens the item exception', () => {
   sim.advance(5 * 60_000);
   expect(sim.state.workItems.A?.status).toBe('needs_attention');
   expect(sim.eventsOf('gate.opened').at(-1)?.payload).toMatchObject({
+    stageId: 'implement',
     exceptionKind: 'workitem-failed',
   });
   expect(sim.rejections).toEqual([]);
@@ -486,6 +488,7 @@ it('rework over the limit opens its exception before any extra dispatch', () => 
   });
   expect(sim.state.gates['rework-limit']).toMatchObject({
     status: 'open',
+    stageId: 'implement',
     exceptionKind: 'rework-limit',
   });
   expect(sim.eventsOf('workitem.dispatched')).toHaveLength(1);

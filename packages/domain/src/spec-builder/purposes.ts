@@ -415,6 +415,8 @@ const planner: Builder<'planner', 'planning'> = (ctx, _request, stage) => {
               `\`${role}\` (default agent \`${config.agent}\`)`,
           ),
         ),
+        '',
+        `Available agent kinds in this template: ${[...new Set(Object.values(workflow.template.roles).map((config) => config.agent))].map((agent) => `\`${agent}\``).join(', ')}.`,
         ...(implement === undefined
           ? []
           : [
@@ -458,7 +460,7 @@ const planner: Builder<'planner', 'planning'> = (ctx, _request, stage) => {
         ],
         [
           '`key`: unique, letters, digits, `-` and `_` only (it becomes part of a branch name).',
-          "`role`: one of the roles listed above. `agent` (`claude-code` or `codex`) is optional and defaults to the role's agent.",
+          "`role`: one of the roles listed above. Fill optional `agent` only when an item clearly fits one of the available agent kinds listed above; otherwise omit it to use the role's default agent.",
           '`deps`: keys of items that must be done first; no cycles.',
           '`acceptance`: concrete, checkable criteria. Size each item so one worker can finish it in time without touching the same files as a parallel item.',
         ],
