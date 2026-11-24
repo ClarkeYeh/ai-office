@@ -155,11 +155,14 @@ export const issueBatch = async (
       }),
     };
   });
-  await runner.append(
+  const stored = await runner.append(
     [...events, ...pending.map((p) => p.event)],
     undefined,
     idempotency,
   );
-  for (const { commandId } of pending) runner.redo(commandId);
-  return pending.map((p) => p.commandId);
+  const commandIds = stored.flatMap((event) =>
+    event.type === 'command.issued' ? [event.payload.commandId] : [],
+  );
+  for (const commandId of commandIds) runner.redo(commandId);
+  return commandIds;
 };
