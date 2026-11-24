@@ -17,6 +17,7 @@ import {
 import type {
   Attempt,
   BudgetLevel,
+  CommandResult,
   Gate,
   GateDecided,
   OnDemand,
@@ -1176,7 +1177,7 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     const command = state.commands[p.commandId];
     if (command === undefined || command.issued.kind !== p.kind)
       return skip('unknown_command', `No ${p.kind} command ${p.commandId}`);
-    const result = omit(p, 'commandId');
+    const result = omit(p, 'commandId') as CommandResult;
     let next: WorkflowState = {
       ...state,
       commands: put(state.commands, p.commandId, {

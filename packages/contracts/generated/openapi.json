@@ -1483,7 +1483,8 @@
           "duplicate-object",
           "merge-base-changed",
           "integration-branch-moved",
-          "unmanaged-close"
+          "unmanaged-close",
+          "cleanup-failed"
         ]
       },
       "AnomalyView": {
@@ -1593,6 +1594,8 @@
           "validation_failed",
           "unauthorized",
           "bootstrap_code_invalid",
+          "control_token_invalid",
+          "bootstrap_rate_limited",
           "forbidden_origin",
           "forbidden_host",
           "not_found",
@@ -2817,6 +2820,10 @@
                 "type": "object",
                 "properties": {
                   "agent": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "workspace": {
                     "type": "string",
                     "minLength": 1
                   }
@@ -11470,6 +11477,24 @@
           "name"
         ]
       },
+      "LocalBootstrapCodeResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "code",
+          "expiresAt"
+        ]
+      },
       "MeetingConcludedPayload": {
         "type": "object",
         "properties": {
@@ -12023,7 +12048,8 @@
               "gh-label",
               "gh-pr-create",
               "gh-pr-edit",
-              "gh-issue-create"
+              "gh-issue-create",
+              "aio-open"
             ]
           },
           "severity": {
@@ -13158,7 +13184,8 @@
                     "gh-label",
                     "gh-pr-create",
                     "gh-pr-edit",
-                    "gh-issue-create"
+                    "gh-issue-create",
+                    "aio-open"
                   ]
                 },
                 "severity": {
@@ -14825,6 +14852,13 @@
             "enum": [
               "on",
               "off"
+            ]
+          },
+          "workerBranchRetention": {
+            "type": "string",
+            "enum": [
+              "delete-on-complete",
+              "keep"
             ]
           }
         },

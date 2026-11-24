@@ -126,6 +126,8 @@ export const PolicyHitSchema = z.object({
     'gh-pr-create',
     'gh-pr-edit',
     'gh-issue-create',
+    // M5 §4.1: an agent ran `ai-office open` or read `control.token` (argv match).
+    'aio-open',
   ]),
   severity: z.enum(['high', 'medium']),
   messageId: id,

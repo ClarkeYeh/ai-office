@@ -59,6 +59,23 @@ const adapterCommon = [
 ];
 const config = {
   forbidden: [
+    rule(
+      'budget-no-server',
+      { path: '^scripts/budget/' },
+      { path: '^apps/server/' },
+    ),
+    rule(
+      'joint-allowed-dependencies',
+      { path: '^apps/server/src/test-support/joint/' },
+      {
+        dependencyTypesNot: ['core'],
+        pathNot: [
+          '^apps/server/src/test-support/(joint|orca|github)/',
+          '^packages/',
+          '(^|/)node_modules/',
+        ],
+      },
+    ),
     rule('no-circular', {}, { circular: true }),
     rule(
       'no-orphans',
@@ -147,7 +164,7 @@ const config = {
     boundary('config-allowed-dependencies', `^${server}config/`, [
       `^${server}config/`,
       `^${contracts}`,
-      '^(node:)?(fs(/promises)?|child_process)$',
+      '^(node:)?(fs(/promises)?|path|crypto|child_process)$',
       packagePath('zod'),
       packagePath('smol-toml'),
       packagePath('execa'),
@@ -194,7 +211,7 @@ const config = {
     placement(
       'process-only-in-runtime-config-cli-start',
       '^(node:)?child_process$',
-      `^${server}(adapters/runtime-orca/|config/|test-support/(orca|github)/)|^apps/cli/src/(commands/)?start(\\.[cm]?ts$|/)|^apps/e2e/test-support/`,
+      `^${server}(adapters/runtime-orca/|config/|test-support/(orca|github|joint)/)|^apps/cli/src/(commands/)?(start|open)(\\.[cm]?ts$|/)|^apps/e2e/test-support/`,
     ),
     placement(
       'execa-only-in-runtime-config-cli-start',

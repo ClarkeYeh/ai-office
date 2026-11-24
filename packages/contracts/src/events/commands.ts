@@ -273,7 +273,14 @@ export const CommandResultSchema = z.discriminatedUnion('kind', [
     'runtime.inspectWorkspace',
     z.object({ clean: z.boolean(), changedFiles: z.array(z.string()) }),
   ),
-  result('runtime.spawnAgent', z.object({ agent: AgentRef })),
+  result(
+    'runtime.spawnAgent',
+    z.object({
+      agent: AgentRef,
+      /** M5 §4.2: the agent's worktree, so cleanup reads state only; absent in older events. */
+      workspace: WorkspaceRef.optional(),
+    }),
+  ),
   result('runtime.send', empty),
   result('runtime.answer', empty),
   result('runtime.stop', empty),

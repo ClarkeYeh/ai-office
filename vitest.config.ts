@@ -44,6 +44,7 @@ export default defineConfig({
             ...configDefaults.exclude,
             '**/*.orca.test.ts',
             '**/*.github.test.ts',
+            '**/*.joint.test.ts',
           ],
         },
       })),
@@ -76,7 +77,10 @@ export default defineConfig({
       {
         test: {
           name: '@ai-office/server-github',
-          include: ['apps/server/src/**/*.github.test.ts'],
+          include: [
+            'apps/server/src/**/*.github.test.ts',
+            'apps/server/src/**/*.joint.test.ts',
+          ],
           // Live suites share a repo, ledger cleanup, and one live lock.
           fileParallelism: false,
         },

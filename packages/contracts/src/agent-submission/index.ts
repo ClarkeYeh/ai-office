@@ -144,6 +144,17 @@ export const RuntimeInfoSchema = z.object({
 });
 export type RuntimeInfo = z.infer<typeof RuntimeInfoSchema>;
 
+/** `<dataDir>/data/control.token` value prefix (M5 §4.1); the redactor shares it. */
+export const CONTROL_TOKEN_PREFIX = 'aio_ctl_';
+/** `POST /local/v1/bootstrap-codes` body: a one-time, 60-second bootstrap code. */
+export const LocalBootstrapCodeResponseSchema = z.object({
+  code: z.string().min(1),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type LocalBootstrapCodeResponse = z.infer<
+  typeof LocalBootstrapCodeResponseSchema
+>;
+
 export const SEAT_TOKEN_PREFIX = 'aio_seat_';
 export const SUBMISSION_HEADER_NAMES = {
   authorization: 'authorization',
