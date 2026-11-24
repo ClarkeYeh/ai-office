@@ -1,8 +1,25 @@
 import { safeWebEvents } from '../record-web-fixtures/scan-events.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, sep } from 'node:path';
 import process from 'node:process';
 import { fixtureRedactor } from './redaction.ts';
+
+// Inspect decoded JSON strings, including escaped prose. Code-like identifiers,
+// hashes and branches are not natural language; placeholders are exact matches.
+export function hasLongNaturalText(value: unknown): boolean {
+  if (typeof value === 'string')
+    return (
+      value.length > 80 &&
+      !/^‹text len=\d+ sha=[a-f0-9]{12}›$/.test(value) &&
+      /\s|[\u3400-\u9fff]/u.test(value)
+    );
+  if (Array.isArray(value)) return value.some(hasLongNaturalText);
+  if (value && typeof value === 'object')
+    return Object.entries(value).some(
+      ([key, item]) => hasLongNaturalText(key) || hasLongNaturalText(item),
+    );
+  return false;
+}
 
 function scan(
   directory: string,
@@ -37,6 +54,11 @@ function scan(
       if (entry.name.endsWith('.json')) {
         try {
           const value: unknown = JSON.parse(text);
+          if (
+            resolve(path).startsWith(resolve('fixtures/m5') + sep) &&
+            hasLongNaturalText(value)
+          )
+            failures++;
           if (/\/(?:Users|home)\/[^/\s"]+/.test(JSON.stringify(value)))
             failures++;
           if (
@@ -44,6 +66,23 @@ function scan(
             resolve(dirname(path)) === resolve('fixtures/web')
           ) {
             if (!safeWebEvents(value, redactor)) failures++;
+          } else if (resolve(path).startsWith(resolve('fixtures/m5') + sep)) {
+            // Event fixtures preserve counters, including token-named fields.
+            // Do not apply the generic body summarizer to B4 placeholders.
+            const safe = (item: unknown): boolean => {
+              if (typeof item === 'string')
+                return (
+                  /^‹text len=\d+ sha=[a-f0-9]{12}›$/.test(item) ||
+                  (maskText(item) === item && !/aio_ctl_/.test(item))
+                );
+              if (Array.isArray(item)) return item.every(safe);
+              if (item && typeof item === 'object')
+                return Object.entries(item).every(
+                  ([key, child]) => safe(key) && safe(child),
+                );
+              return true;
+            };
+            if (!safe(value)) failures++;
           } else if (fixtureRedactor(path).hasLeaks(value)) failures++;
         } catch {
           failures++;

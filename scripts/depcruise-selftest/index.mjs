@@ -77,6 +77,7 @@ try {
       'json',
       'apps',
       'packages',
+      'scripts',
     ],
     { cwd: temporary, encoding: 'utf8' },
   );
