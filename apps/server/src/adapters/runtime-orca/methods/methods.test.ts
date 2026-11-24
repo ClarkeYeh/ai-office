@@ -65,6 +65,7 @@ async function fixture() {
   const inventory: { path: string; branch: string; head: string }[] = [];
   const git: GitCli = {
     fetch: vi.fn(async () => {}),
+    originContains: vi.fn(async () => true),
     revParse: vi.fn(async () => sha),
     localBranch: vi.fn(async () => null),
     isAncestor: vi.fn(async () => true),
@@ -391,10 +392,10 @@ it('does not dispose dirty or unpushed work, and treats missing workspaces as di
   ).rejects.toMatchObject({ code: 'workspace_dirty' });
   vi.mocked(f.git.status).mockResolvedValue([]);
   vi.mocked(f.git.revParse).mockResolvedValue('b'.repeat(40));
-  vi.mocked(f.git.isAncestor).mockResolvedValue(false);
+  vi.mocked(f.git.originContains).mockResolvedValue(false);
   await expect(
     f.runtime.disposeWorkspace(f.spawn.workspace.workspace),
-  ).rejects.toMatchObject({ code: 'unpushed_commits' });
+  ).rejects.toMatchObject({ code: 'workspace_unpushed' });
   await f.runtime.disposeWorkspace(workspaceRef('absent'));
   expect(await f.runtime.inspectWorkspace(workspaceRef('absent'))).toEqual({
     clean: false,
@@ -403,6 +404,7 @@ it('does not dispose dirty or unpushed work, and treats missing workspaces as di
 });
 it('disposes only marked workspaces and explicitly deletes retained local branches', async () => {
   const f = await fixture();
+  vi.mocked(f.git.localBranch).mockResolvedValue(sha);
   await f.runtime.disposeWorkspace(f.spawn.workspace.workspace);
   expect(f.git.deleteCreatedBranch).toHaveBeenCalledWith(
     '/repo',
@@ -960,10 +962,10 @@ it('preserves backend-prepared existing workspaces with unpushed commits', async
     },
   });
   vi.mocked(f.git.revParse).mockResolvedValue('b'.repeat(40));
-  vi.mocked(f.git.isAncestor).mockResolvedValue(false);
+  vi.mocked(f.git.originContains).mockResolvedValue(false);
   await expect(
     f.runtime.release(agent, { removeWorkspace: true }),
-  ).rejects.toMatchObject({ code: 'unpushed_commits' });
+  ).rejects.toMatchObject({ code: 'workspace_unpushed' });
   expect(f.calls.some((r) => command(r, 'worktree rm'))).toBe(false);
 });
 it('warns for chat receipts without changing Orca settings', async () => {
@@ -1114,4 +1116,83 @@ it('treats a worktree Orca reports as selector_not_found as already disposed (M2
     f.runtime.disposeWorkspace(workspaceRef('wt-gone')),
   ).resolves.toBeUndefined();
   expect(f.calls.some((r) => command(r, 'worktree rm'))).toBe(false);
+});
+
+it.each([
+  'integrator',
+  'worker',
+  'other-pushed-branch',
+  'unpushed',
+  'unpushed-branch',
+] as const)(
+  'checks detached %s tips independently of the created branch',
+  async (shape) => {
+    const f = await fixture();
+    const request = { ...f.prepare, branch: 'ai-office/wf/merge-1' };
+    const p = await f.runtime.prepareWorkspace(request);
+    const w = f.worktrees().find((w) => w.id === p.workspace)!;
+    w.branch = '';
+    const tip = 'b'.repeat(40);
+    const branchSha =
+      shape === 'worker'
+        ? tip
+        : shape === 'integrator' || shape === 'unpushed'
+          ? sha
+          : 'c'.repeat(40);
+    vi.mocked(f.git.revParse).mockResolvedValue(tip);
+    vi.mocked(f.git.localBranch).mockResolvedValue(branchSha);
+    vi.mocked(f.git.originContains).mockImplementation(
+      async (_repo, value) =>
+        !(shape === 'unpushed' && value === tip) &&
+        !(shape === 'unpushed-branch' && value === branchSha),
+    );
+    if (shape === 'unpushed' || shape === 'unpushed-branch') {
+      await expect(
+        f.runtime.disposeWorkspace(p.workspace),
+      ).rejects.toMatchObject({
+        category: 'guard',
+        code: 'workspace_unpushed',
+      });
+      expect(f.worktrees()).toContain(w);
+      expect(f.git.deleteCreatedBranch).not.toHaveBeenCalled();
+      expect(f.calls.some((r) => command(r, 'worktree rm'))).toBe(false);
+    } else {
+      await f.runtime.disposeWorkspace(p.workspace);
+      expect(f.git.deleteCreatedBranch).toHaveBeenCalledWith(
+        '/repo',
+        request.branch,
+        branchSha,
+      );
+      expect(
+        f.calls.find((r) => command(r, 'worktree rm'))!.args,
+      ).not.toContain('--delete-branch');
+    }
+    expect(f.git.fetch).toHaveBeenLastCalledWith('/repo');
+    expect(f.git.fetch).not.toHaveBeenCalledWith(expect.anything(), '');
+  },
+);
+
+it('surfaces a separate branch deletion failure after removing a detached workspace', async () => {
+  const f = await fixture();
+  const p = await f.runtime.prepareWorkspace(f.prepare);
+  const agent = await f.runtime.spawnAgent({
+    ...f.spawn,
+    workspace: {
+      kind: 'existing-worktree',
+      workspace: p.workspace,
+      readOnly: false,
+    },
+  });
+  f.worktrees().find((w) => w.id === p.workspace)!.branch = '';
+  vi.mocked(f.git.revParse).mockResolvedValue('b'.repeat(40));
+  vi.mocked(f.git.localBranch).mockResolvedValue(sha);
+  vi.mocked(f.git.deleteCreatedBranch).mockRejectedValue(
+    new PortError('guard', 'unpushed_commits', 'Branch changed'),
+  );
+  await expect(
+    f.runtime.release(agent, { removeWorkspace: true }),
+  ).rejects.toMatchObject({ code: 'unpushed_commits' });
+  expect(f.calls.find((r) => command(r, 'worktree rm'))!.args).not.toContain(
+    '--delete-branch',
+  );
 });

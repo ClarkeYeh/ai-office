@@ -93,14 +93,22 @@ export async function locateSession(
       ? now - 86_400_000
       : Date.parse(query.startedAt);
   if (!Number.isFinite(since)) return null;
+  const marker = query.dispatchId
+    ? new RegExp(
+        `(?<![a-zA-Z0-9_-])${query.dispatchId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-zA-Z0-9_-])`,
+      )
+    : undefined;
+  let promptMatch: UsageRef | null = null;
   let messageMatch: UsageRef | null = null;
   for (const file of candidates) {
     try {
       if ((await stat(file)).mtimeMs < since) continue;
       let sessionId =
         query.agent === 'claude-code' ? basename(file, '.jsonl') : undefined;
-      let dispatchMatch = false,
-        transcriptMatch = false;
+      let preambleMatch = false,
+        laterMatch = false,
+        transcriptMatch = false,
+        prompts = 0;
       const contents = await readFile(file, 'utf8');
       for (const line of contents.split('\n')) {
         if (!line.trim()) continue;
@@ -119,14 +127,16 @@ export async function locateSession(
           )
             sessionId = candidate;
         }
-        // The dispatch appears in the Orca preamble (not a structured provider field).
-        if (
-          query.dispatchId &&
-          new RegExp(
-            `(?<![a-zA-Z0-9_-])${query.dispatchId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-zA-Z0-9_-])`,
-          ).test(line)
-        )
-          dispatchMatch = true;
+        // The dispatch must be in the worker's own prompt (the Orca preamble or a
+        // follow-up), never in tool output or replies: a coordinator mentions it there.
+        const texts = promptTexts(row, query.agent);
+        if (texts) {
+          if (marker && texts.some((text) => marker.test(text))) {
+            if (prompts === 0) preambleMatch = true;
+            else laterMatch = true;
+          }
+          prompts++;
+        }
         if (
           query.transcriptMessageIds?.some(
             (messageId) =>
@@ -138,11 +148,57 @@ export async function locateSession(
           transcriptMatch = true;
       }
       if (!sessionId) continue;
-      if (dispatchMatch) return ref(file, sessionId);
+      if (preambleMatch) return ref(file, sessionId);
+      if (laterMatch && !promptMatch) promptMatch = ref(file, sessionId);
       if (transcriptMatch && !messageMatch) messageMatch = ref(file, sessionId);
     } catch {
       /* A disappearing or unreadable candidate is not a match. */
     }
   }
-  return messageMatch;
+  return promptMatch ?? messageMatch;
+}
+
+/** Text the provider recorded as user input; null for every other record. */
+function promptTexts(
+  row: Record<string, unknown>,
+  agent: UsageLocateRef['agent'],
+): string[] | null {
+  if (agent === 'claude-code') {
+    // Subagent (sidechain) and injected meta records are not the session's prompt.
+    if (row.type !== 'user' || row.isSidechain === true || row.isMeta === true)
+      return null;
+    const message = object(row.message);
+    if (!message || (message.role !== undefined && message.role !== 'user'))
+      return null;
+    if (typeof message.content === 'string') return [message.content];
+    if (!Array.isArray(message.content)) return null;
+    const texts = message.content.flatMap((block) => {
+      const entry = object(block);
+      return entry?.type === 'text' && typeof entry.text === 'string'
+        ? [entry.text]
+        : [];
+    });
+    return texts.length ? texts : null;
+  }
+  const payload = object(row.payload);
+  if (
+    row.type === 'event_msg' &&
+    payload?.type === 'user_message' &&
+    typeof payload.message === 'string'
+  )
+    return [payload.message];
+  if (
+    row.type !== 'response_item' ||
+    payload?.type !== 'message' ||
+    payload.role !== 'user' ||
+    !Array.isArray(payload.content)
+  )
+    return null;
+  const texts = payload.content.flatMap((block) => {
+    const entry = object(block);
+    return entry?.type === 'input_text' && typeof entry.text === 'string'
+      ? [entry.text]
+      : [];
+  });
+  return texts.length ? texts : null;
 }

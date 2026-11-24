@@ -1,0 +1,104 @@
+[
+  {
+    "type": "event_msg",
+    "timestamp": "2026-11-24T03:02:26.137Z",
+    "payload": {
+      "type": "token_count",
+      "info": {
+        "total_token_usage": {
+          "input_tokens": 20532,
+          "cached_input_tokens": 7936,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 95,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 20627
+        }
+      }
+    }
+  },
+  {
+    "type": "event_msg",
+    "timestamp": "2026-11-24T03:02:30.251Z",
+    "payload": {
+      "type": "token_count",
+      "info": {
+        "total_token_usage": {
+          "input_tokens": 42171,
+          "cached_input_tokens": 28416,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 134,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 42305
+        }
+      }
+    }
+  },
+  {
+    "type": "event_msg",
+    "timestamp": "2026-11-24T03:02:34.379Z",
+    "payload": {
+      "type": "token_count",
+      "info": {
+        "total_token_usage": {
+          "input_tokens": 63905,
+          "cached_input_tokens": 49920,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 165,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 64070
+        }
+      }
+    }
+  },
+  {
+    "type": "event_msg",
+    "timestamp": "2026-11-24T03:02:40.791Z",
+    "payload": {
+      "type": "token_count",
+      "info": {
+        "total_token_usage": {
+          "input_tokens": 88109,
+          "cached_input_tokens": 57856,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 363,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 88472
+        }
+      }
+    }
+  },
+  {
+    "type": "event_msg",
+    "timestamp": "2026-11-24T03:02:46.442Z",
+    "payload": {
+      "type": "token_count",
+      "info": {
+        "total_token_usage": {
+          "input_tokens": 112636,
+          "cached_input_tokens": 82048,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 473,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 113109
+        }
+      }
+    }
+  },
+  {
+    "type": "event_msg",
+    "timestamp": "2026-11-24T03:02:48.873Z",
+    "payload": {
+      "type": "token_count",
+      "info": {
+        "total_token_usage": {
+          "input_tokens": 137369,
+          "cached_input_tokens": 106496,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 495,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 137864
+        }
+      }
+    }
+  }
+]
