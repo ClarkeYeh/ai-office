@@ -13,8 +13,8 @@ const settled = async (promise: Promise<unknown>) => {
 
 function target() {
   return {
-    createIssue: vi.fn(async () => ({ number: 7, url: 'u' })),
-    mergePR: vi.fn(async () => ({ mergeCommitSha: 'c'.repeat(40) })),
+    createIssue: vi.fn(async (..._args: unknown[]) => ({ number: 7, url: 'u' })),
+    mergePR: vi.fn(async (..._args: unknown[]) => ({ mergeCommitSha: 'c'.repeat(40) })),
     getPR: vi.fn(async () => ({ state: 'open' })),
   };
 }

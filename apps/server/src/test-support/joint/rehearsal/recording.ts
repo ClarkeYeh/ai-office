@@ -16,7 +16,10 @@ import {
 
 const NO_BODY = [204, 205, 304];
 
-export function segmentRecording(transport: typeof fetch, runId: string) {
+export function segmentRecording(
+  transport: typeof globalThis.fetch,
+  runId: string,
+) {
   const mine = (body: unknown) =>
     typeof body === 'string' &&
     (body.includes(`<!-- ai-office:cmd=t${runId}:`) ||

@@ -29,13 +29,14 @@ const ev = (type: string, payload: Json): Json => ({
   payload,
 });
 
-function p1Log(after: Json[]) {
+/** Seqs 1–3 lead to the kill; `after` builds the events past it. */
+function p1Log(after: () => Json[] = () => []) {
   seq = 0;
   return [
     ev('workflow.started', { integrationBranch: 'ai-office/x/integration' }),
     ev('stage.started', { stageId: 'design', mode: 'meeting' }),
     ev('command.issued', { commandId: 'c1', kind: 'scm.createIssue' }),
-    ...after,
+    ...after(),
   ];
 }
 const p1 = (objects: number, reconcileMs = 1_500): WindowEvidence => ({
@@ -51,7 +52,7 @@ const failed = (rows: { id: string; status: string }[]) =>
 
 describe('rehearsal window judgement', () => {
   it('passes a P1 reconciled as found with exactly one Issue', () => {
-    const log = p1Log([
+    const log = p1Log(() => [
       ev('command.reconciled', {
         commandId: 'c1',
         kind: 'scm.createIssue',
@@ -65,7 +66,7 @@ describe('rehearsal window judgement', () => {
   });
 
   it('fails a duplicate Issue, a re-issue, gave_up, a missing result and a slow ready', () => {
-    const log = p1Log([
+    const log = p1Log(() => [
       ev('command.issued', { commandId: 'c1', kind: 'scm.createIssue' }),
       ev('command.reconciled', {
         commandId: 'c1',
@@ -81,7 +82,7 @@ describe('rehearsal window judgement', () => {
       'P1.one-issue',
       'P1.ready-60s',
     ]);
-    const unfinished = windowAssertions(p1Log([]), {
+    const unfinished = windowAssertions(p1Log(), {
       ...p1(1),
       reconcileMs: undefined,
     });
@@ -93,7 +94,7 @@ describe('rehearsal window judgement', () => {
   });
 
   it('fails when the command already had its result before the kill', () => {
-    const log = p1Log([
+    const log = p1Log(() => [
       ev('command.succeeded', { commandId: 'c1', kind: 'scm.createIssue' }),
     ]);
     expect(failed(windowAssertions(log, { ...p1(1), killSeq: 4 }))).toContain(
