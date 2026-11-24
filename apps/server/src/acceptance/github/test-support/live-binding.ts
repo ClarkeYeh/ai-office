@@ -190,7 +190,7 @@ function scopedRecording(transport: typeof fetch, runId: string) {
         });
     }
     try {
-      await recorder.fetch(request);
+      await recorder.capture(request);
     } catch (error) {
       if (!(error instanceof TapeLeakError)) throw error;
       recorder.acknowledge(error);
@@ -211,7 +211,7 @@ function scopedRecording(transport: typeof fetch, runId: string) {
           : JSON.stringify({ withheld: 'tape leak scan' }),
         { status: full.status },
       );
-      await recorder.fetch(request);
+      await recorder.capture(request);
     }
     return full;
   };

@@ -101,11 +101,15 @@ export async function runHarnessCli(
     if (argv.includes('--apply'))
       throw new Error('Scan is read-only; use an owned ledger for --apply');
     const harness = await OrcaHarness.create(options);
-    const found = await harness.scan();
-    // Only selected test resources are shown; unrelated inventory never leaves memory.
-    for (const item of found) console.info(JSON.stringify(item));
-    console.info(`Remaining resources (scan): ${found.length}`);
-    return;
+    try {
+      const found = await harness.scan();
+      // Only selected test resources are shown; unrelated inventory never leaves memory.
+      for (const item of found) console.info(JSON.stringify(item));
+      console.info(`Remaining resources (scan): ${found.length}`);
+      return;
+    } finally {
+      await harness.close();
+    }
   }
   if (action === 'janitor') {
     const file = option('--ledger');
@@ -116,8 +120,15 @@ export async function runHarnessCli(
     console.info(`Remaining resources: ${pending.length}`);
     if (argv.includes('--apply')) {
       const harness = await OrcaHarness.create({ ...options, ledger });
-      await harness.clean();
-      console.info(`Remaining resources: ${leftovers(harness.ledger).length}`);
+      try {
+        await harness.clean();
+        await harness.assertClean();
+        console.info(
+          `Remaining resources: ${leftovers(harness.ledger).length}`,
+        );
+      } finally {
+        await harness.close();
+      }
     }
     return;
   }
@@ -198,71 +209,76 @@ export async function runHarnessCli(
     exec: recording,
     ...(ledger ? { ledger } : {}),
   });
-  const status = await harness.command(['status', '--json']);
-  const version = (status.runtime as { appVersion?: unknown } | undefined)
-    ?.appVersion;
-  if (typeof version !== 'string') throw new Error('Orca version unavailable');
-  recording.setVersion(version);
-  if (action === 'p2' && scenarioName === 'prepare') {
-    if (!scenario.prepare)
-      throw new Error('Scenario does not implement P2 prepare');
-    const reader = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    let answer: string;
-    try {
-      answer = await reader.question(`Type exactly: ${P2_CONFIRMATION}\n> `);
-    } finally {
-      reader.close();
-    }
-    const confirmation = {
-      stdinTTY: !!process.stdin.isTTY,
-      stdoutTTY: !!process.stdout.isTTY,
-      answer,
-    };
-    requireInteractiveConfirmation(confirmation);
-    // CLI reports update capability, not whether an update is staged: the typed
-    // confirmation includes the owner's UI check and coordinator's worker check.
-    await harness.command(['status', '--json']);
-    try {
-      const statePath = await scenario.prepare(harness, confirmation);
-      const prepared = await resumeP2(statePath);
-      if (
-        prepared.version !== version ||
-        prepared.ledger.dataDir !== harness.ledger.dataDir
-      )
-        throw new Error('P2 scenario did not persist current observations');
-    } catch (error) {
-      await harness.clean();
-      throw error;
-    }
-    console.info(
-      'Prepared. The owner may now restart Orca; this tool never performs the restart.',
-    );
-    return;
-  }
-  let finish: (() => Promise<void>) | undefined;
-  harness.installCleanup((fn) => {
-    finish = fn;
-  });
   try {
-    if (action === 'p2') {
-      if (!state || !scenario.verify)
-        throw new Error('Scenario does not implement P2 verify');
-      await scenario.verify(harness, state);
-    } else if (action === 'record') await scenario.run(harness);
-    else throw new Error('Unknown harness command');
-  } finally {
-    try {
-      await finish?.();
-      if (scenarioName === 'smoke' || scenario.assertClean === true)
-        await harness.assertClean();
-    } finally {
-      await recording.save(
-        join(harness.ledger.dataDir, `recording-${Date.now()}.json`),
+    const status = await harness.command(['status', '--json']);
+    const version = (status.runtime as { appVersion?: unknown } | undefined)
+      ?.appVersion;
+    if (typeof version !== 'string')
+      throw new Error('Orca version unavailable');
+    recording.setVersion(version);
+    if (action === 'p2' && scenarioName === 'prepare') {
+      if (!scenario.prepare)
+        throw new Error('Scenario does not implement P2 prepare');
+      const reader = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+      let answer: string;
+      try {
+        answer = await reader.question(`Type exactly: ${P2_CONFIRMATION}\n> `);
+      } finally {
+        reader.close();
+      }
+      const confirmation = {
+        stdinTTY: !!process.stdin.isTTY,
+        stdoutTTY: !!process.stdout.isTTY,
+        answer,
+      };
+      requireInteractiveConfirmation(confirmation);
+      // CLI reports update capability, not whether an update is staged: the typed
+      // confirmation includes the owner's UI check and coordinator's worker check.
+      await harness.command(['status', '--json']);
+      try {
+        const statePath = await scenario.prepare(harness, confirmation);
+        const prepared = await resumeP2(statePath);
+        if (
+          prepared.version !== version ||
+          prepared.ledger.dataDir !== harness.ledger.dataDir
+        )
+          throw new Error('P2 scenario did not persist current observations');
+      } catch (error) {
+        await harness.clean();
+        throw error;
+      }
+      console.info(
+        'Prepared. The owner may now restart Orca; this tool never performs the restart.',
       );
-      console.info(`Private harness artifacts: ${harness.ledger.dataDir}`);
+      return;
     }
+    let finish: (() => Promise<void>) | undefined;
+    harness.installCleanup((fn) => {
+      finish = fn;
+    }, false);
+    try {
+      if (action === 'p2') {
+        if (!state || !scenario.verify)
+          throw new Error('Scenario does not implement P2 verify');
+        await scenario.verify(harness, state);
+      } else if (action === 'record') await scenario.run(harness);
+      else throw new Error('Unknown harness command');
+    } finally {
+      try {
+        await finish?.();
+        if (scenarioName === 'smoke' || scenario.assertClean === true)
+          await harness.assertClean();
+      } finally {
+        await recording.save(
+          join(harness.ledger.dataDir, `recording-${Date.now()}.json`),
+        );
+        console.info(`Private harness artifacts: ${harness.ledger.dataDir}`);
+      }
+    }
+  } finally {
+    await harness.close();
   }
 }

@@ -88,12 +88,24 @@ async function signature(request: Request, normalizer: GithubNormalizer) {
     requestBodySha256: hash(text),
   };
 }
+// Keep the raw response off enumerable Error fields and out of error reporters.
+const leakedResponses = new WeakMap<TapeLeakError, Response>();
+class RecordingLeak extends TapeLeakError {
+  constructor(
+    response: Response,
+    readonly leak: TapeLeakError,
+  ) {
+    super();
+    leakedResponses.set(this, response);
+  }
+}
 export class RecordingFetch {
   readonly recordings: Recording[] = [];
   private readonly normalizer: GithubNormalizer;
-  // The adapter maps any transport throw to github_unavailable, so the first
-  // leak is kept and raised again by save()/assertNoLeak() as a harness error.
+  // Never let recording policy become a product transport error.
+  // Incomplete tapes are refused at persistence after cleanup.
   private leak: TapeLeakError | undefined;
+  withheldResponses = 0;
   constructor(
     private readonly transport: typeof fetch,
     runId?: string,
@@ -101,6 +113,15 @@ export class RecordingFetch {
     this.normalizer = new GithubNormalizer(runId);
   }
   fetch: typeof fetch = async (input, init) => {
+    try {
+      return await this.capture(input, init);
+    } catch (error) {
+      if (!(error instanceof RecordingLeak)) throw error;
+      return leakedResponses.get(error)!;
+    }
+  };
+  /** Harness-only boundary for wrappers that replace withheld rows themselves. */
+  capture: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
     const sig = await signature(request, this.normalizer);
     const response = await this.transport(request);
@@ -120,7 +141,16 @@ export class RecordingFetch {
     } catch (error) {
       const leak = error instanceof TapeLeakError ? error : new TapeLeakError();
       this.leak ??= leak;
-      throw leak;
+      this.withheldResponses++;
+      // Only a fixed placeholder enters memory destined for persistence.
+      this.recordings.push({
+        apiVersion: '2022-11-28',
+        ...sig,
+        status: response.status,
+        headers: {},
+        response: { withheld: 'tape leak scan' },
+      });
+      throw new RecordingLeak(response, leak);
     }
     this.recordings.push({
       apiVersion: '2022-11-28',
@@ -133,7 +163,10 @@ export class RecordingFetch {
   };
   /** For recorders that deliberately withhold a response after a leak. */
   acknowledge(error: unknown): void {
-    if (error === this.leak) this.leak = undefined;
+    if (error instanceof RecordingLeak && error.leak === this.leak) {
+      this.leak = undefined;
+      this.recordings.pop();
+    }
   }
   assertNoLeak(): void {
     if (this.leak) throw this.leak;

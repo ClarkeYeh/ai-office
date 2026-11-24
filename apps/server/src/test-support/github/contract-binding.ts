@@ -61,15 +61,21 @@ export function githubContract(
     let scope: GithubCaseScope;
     let activeCleanup: () => Promise<void>;
     const hookTimeoutMs = 300_000;
+    let activeRecorder: RecordingFetch | undefined;
     let persist: (() => Promise<void>) | undefined;
     beforeEach(({ task, signal }) => {
       scope = new GithubCaseScope(signal);
       activeCleanup = async () => {};
       name = task.name;
       persist = undefined;
+      activeRecorder = undefined;
     });
     afterEach(async ({ task }) => {
-      await scope.dispose(activeCleanup);
+      try {
+        await scope.dispose(activeCleanup);
+      } finally {
+        failures.recordWithheld(name, activeRecorder?.withheldResponses ?? 0);
+      }
       if (task.result?.state !== 'skip' && !task.result?.errors?.length)
         await failures.capture(name, async () => {
           await persist?.();
@@ -80,6 +86,8 @@ export function githubContract(
         scope.run(async () => {
           const path = tapePath(name);
           if (mode === 'replay' && !existsSync(path)) {
+            if (process.env.AIO_STRICT_REPLAY === '1')
+              throw new Error('Missing required live contract recording');
             return {
               repo: contractRepo,
               defaultBranch: 'main',
@@ -137,6 +145,7 @@ export function githubContract(
                 runId,
               )
             : undefined;
+          activeRecorder = recorder;
           const pushes: Push[] = [];
           let pushOffset = 0;
           const faults = new ContractFaults(() => clock.now().getTime());
@@ -218,8 +227,7 @@ export function githubContract(
             },
             dispose: async () => {
               await scope.dispose(activeCleanup);
-              // The adapter reports a leak as github_unavailable; fail as the harness.
-              recorder?.assertNoLeak();
+              // Recording leaks are reported at suite end after cleanup.
               if (!harness) {
                 replay!.assertConsumed();
                 time.assertConsumed();
