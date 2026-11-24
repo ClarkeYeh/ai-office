@@ -1,0 +1,114 @@
+[
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:01:47.083Z",
+    "message": {
+      "id": "message-1",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 18666,
+        "cache_read_input_tokens": 28845,
+        "output_tokens": 205
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:01:47.281Z",
+    "message": {
+      "id": "message-1",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 18666,
+        "cache_read_input_tokens": 28845,
+        "output_tokens": 205
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:01:50.613Z",
+    "message": {
+      "id": "message-2",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 3574,
+        "cache_read_input_tokens": 47511,
+        "output_tokens": 145
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:01:54.053Z",
+    "message": {
+      "id": "message-3",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 160,
+        "cache_read_input_tokens": 51085,
+        "output_tokens": 355
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:01:54.789Z",
+    "message": {
+      "id": "message-3",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 160,
+        "cache_read_input_tokens": 51085,
+        "output_tokens": 355
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:01:59.009Z",
+    "message": {
+      "id": "message-4",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 431,
+        "cache_read_input_tokens": 51245,
+        "output_tokens": 184
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:01:59.590Z",
+    "message": {
+      "id": "message-4",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 431,
+        "cache_read_input_tokens": 51245,
+        "output_tokens": 184
+      }
+    }
+  },
+  {
+    "type": "assistant",
+    "timestamp": "2026-11-24T03:02:03.721Z",
+    "message": {
+      "id": "message-5",
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 749,
+        "cache_read_input_tokens": 51676,
+        "output_tokens": 329
+      }
+    }
+  }
+]
