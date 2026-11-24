@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { Json } from '../orca/t17/checks.js';
 import {
   afterMerge,
+  conclusionIssue,
   identityChecks,
   implementFirstParents,
   policyHits,
@@ -167,6 +168,42 @@ describe('M5-T12 production checks', () => {
       anomaliesAfterMerge: ['cleanup-failed'],
     });
     expect(afterMerge(log(), { owner: 'someone-else' }).ok).toBe(false);
+  });
+
+  it('finds the conclusion Issue by its gate stage, not by creation order', () => {
+    const wf = '01M8643EBKGJ4SAKJJ1JZVMWSN';
+    const events: Json[] = [];
+    const add = (type: string, payload: Json) =>
+      events.push({ seq: events.length + 1, type, payload });
+    // An item Issue created first (e.g. a replayed or reordered run).
+    add('command.succeeded', {
+      commandId: `${wf}/breakdown/1/issue/core`,
+      kind: 'scm.createIssue',
+      result: { issue: 2 },
+    });
+    add('command.succeeded', {
+      commandId: `${wf}/meeting/1/issue`,
+      kind: 'scm.createIssue',
+      result: { issue: 7 },
+    });
+    expect(conclusionIssue(events)).toBeUndefined(); // no conclusion gate yet
+    add('gate.opened', {
+      gateId: `${wf}/meeting/1/gate`,
+      stageId: 'meeting',
+      kind: 'stage',
+      content: { type: 'conclusion', artifactId: 'a1' },
+    });
+    expect(conclusionIssue(events)).toBe(7);
+    // A rerun's Issue of the same stage still matches (`/<n>/issue`).
+    const rerun = events.map((e) =>
+      e.payload.commandId === `${wf}/meeting/1/issue`
+        ? {
+            ...e,
+            payload: { ...e.payload, commandId: `${wf}/meeting/2/issue` },
+          }
+        : e,
+    );
+    expect(conclusionIssue(rerun)).toBe(7);
   });
 
   it('keeps implement merges only on the first-parent chain', () => {

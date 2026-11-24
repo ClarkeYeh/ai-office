@@ -34,7 +34,7 @@ export interface OwnerPort {
    * The owner's `/approve` comment on the conclusion Issue (marker
    * `aio-test:owner`); undefined when the mode has no real Issue (T11b).
    */
-  ownerApproveComment?: () => Promise<void>;
+  ownerApproveComment?: () => Promise<boolean>;
   /** Writes the private status file (`can-merge`, `needs-decision`). */
   handOff(status: Json): Promise<void>;
   /**
@@ -146,13 +146,17 @@ export class OwnerPolicyExecutor {
           // that nothing moved (§24 safety: comments never decide gates).
           const version = this.commented.get(gate.gateId);
           if (version === undefined) {
-            await this.port.ownerApproveComment();
-            this.commented.set(gate.gateId, gate.version);
-            return false;
-          }
-          this.record.approveCommentNoEffect =
-            this.record.approveCommentNoEffect !== false &&
-            version === gate.version;
+            // No conclusion Issue found: no comment, so nothing to judge.
+            if (!(await this.port.ownerApproveComment())) {
+              this.commented.set(gate.gateId, -1);
+            } else {
+              this.commented.set(gate.gateId, gate.version);
+              return false;
+            }
+          } else
+            this.record.approveCommentNoEffect =
+              this.record.approveCommentNoEffect !== false &&
+              version === gate.version;
         }
         if (await this.must(gate, { decision: 'approve' }))
           this.record.conclusionApproved++;

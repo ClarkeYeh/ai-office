@@ -173,3 +173,27 @@ export function implementFirstParents(chain: string[], log: Json[]): string[] {
   while (end > 0 && !merges.has(chain[end - 1]!)) end--;
   return chain.slice(0, end);
 }
+
+/**
+ * The conclusion Issue (§2.2.4 first row): the Issue the conclusion gate's
+ * own stage created (commandId `<workflow>/<stage>/<n>/issue`), never simply
+ * the first Issue of the run.
+ */
+export function conclusionIssue(log: Json[]): number | undefined {
+  const gate = of(log, 'gate.opened').find(
+    (e) => e.payload.content?.type === 'conclusion',
+  );
+  const stageId = (gate?.payload.stageId ?? gate?.stageId) as
+    string | undefined;
+  if (!stageId) return undefined;
+  const ofStage = new RegExp(
+    `/${stageId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/\\d+/issue$`,
+  );
+  const created = of(log, 'command.succeeded').find(
+    (e) =>
+      e.payload.kind === 'scm.createIssue' &&
+      ofStage.test(String(e.payload.commandId)),
+  );
+  const issue = Number(created?.payload.result?.issue);
+  return Number.isSafeInteger(issue) && issue > 0 ? issue : undefined;
+}

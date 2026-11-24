@@ -43,6 +43,7 @@ import { freePort, productionHome, productionLauncher } from './backends.js';
 import { writeJointExports } from './export-run.js';
 import {
   afterMerge,
+  conclusionIssue,
   identityChecks,
   implementFirstParents,
   policyHits,
@@ -285,7 +286,8 @@ export interface Mode {
   /** A file's content on the integration branch (booleans derive from it). */
   integrationFile(log: Json[], path: string): Promise<string | undefined>;
   onShortId(shortId: string): Promise<void>;
-  ownerApproveComment?: (log: Json[]) => Promise<void>;
+  /** True when the owner's `/approve` comment was posted. */
+  ownerApproveComment?: (log: Json[]) => Promise<boolean>;
   finalPr(
     gate: Json,
     log: Json[],
@@ -397,12 +399,11 @@ async function productionMode(h: OrcaHarness, github: Github): Promise<Mode> {
       }
     },
     async ownerApproveComment(log) {
-      const issue = log.find(
-        (e) =>
-          e.type === 'command.succeeded' &&
-          e.payload.kind === 'scm.createIssue',
-      )?.payload.result?.issue as number | undefined;
-      if (issue) await owner.ownerComment(issue, 'approve', '/approve');
+      // Found by the conclusion gate's stage, not by creation order.
+      const issue = conclusionIssue(log);
+      if (issue === undefined) return false;
+      await owner.ownerComment(issue, 'approve', '/approve');
+      return true;
     },
     async finalPr() {
       // Q1 / W2: never decided here; the status file says it can be merged.
