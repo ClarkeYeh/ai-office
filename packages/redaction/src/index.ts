@@ -15,7 +15,7 @@ const summaryPattern = /^<redacted length=\d+ sha256=[a-f0-9]{64}>$/;
 export const SECRET_PATTERNS: readonly RegExp[] = [
   /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z ]+ )?PRIVATE KEY-----/g,
   /[a-z][a-z0-9+.-]*:\/\/[^/\s"<>]+/gi,
-  /\b(?:gh[a-z]_+[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|aio_seat_[A-Za-z0-9_-]+)/g,
+  /\b(?:gh[a-z]_+[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|aio_seat_[A-Za-z0-9_-]+|aio_ctl_[A-Za-z0-9_-]+)/g,
   /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
   /\/(?:Users|home)\/(?!<redacted>)[^/\s"<>]+/g,
   /\b[A-Z]:\\Users\\(?!<redacted>)[^\\\s"<>]+/gi,
