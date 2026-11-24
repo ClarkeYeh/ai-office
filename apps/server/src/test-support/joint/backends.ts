@@ -113,11 +113,14 @@ export async function productionHome(options: {
 export function productionLauncher(options: {
   home: string;
   port: number;
+  /** Extra `ai-office start` arguments (the dry run: `--dev --fake m5-mainline`). */
+  args?: string[];
 }): () => Promise<ControlledBackend> {
   return async () => {
     const result = await runProductionCli({
       home: options.home,
       port: options.port,
+      ...(options.args ? { args: options.args } : {}),
     });
     if (result.kind !== 'ready')
       throw new Error(`production start exited ${result.exitCode}`);

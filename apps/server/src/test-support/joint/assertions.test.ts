@@ -461,6 +461,12 @@ describe('each row fails on its own defect', () => {
     const doubled = healthy();
     doubled.scm!.integrationFirstParents = [SHA1, SHA2, SHA2];
     expect(a17InFlightSubmission(doubled).status).toBe('fail');
+    // Settled before the kill: nothing in flight, the outcome part is n/a.
+    const settled = healthy();
+    settled.killSeq = 15; // after the merge's result and workitem.merged
+    const quiet = a17InFlightSubmission(settled);
+    expect(quiet.detail.inFlightAtKill).toBe(false);
+    expect(quiet.status).toBe('pass');
     // (b) a duplicated submission id fails even on K′, where (a') is n/a.
     const kPrime = healthy();
     kPrime.restart = { ...record, trigger: "K'" };

@@ -46,6 +46,31 @@ T8's `m5-mainline` text (`scenario/`).
 - `backends.ts`: launchers for both modes and the isolated home and port.
 - `run.ts`: the shared control flow (runner scenario entry).
 
+## Offline dry run (M5-T7 part 2)
+
+`dry-run.ts` drives the same control flow (`drill` in `run.ts`) against the
+built CLI in fake mode, `ai-office start --dev --fake m5-mainline`, with no
+GitHub and no Orca. It covers the one `kill -9` at K or K′ and the
+same-home, same-port restart, the owner policy with the held code-name
+answer, the restart assertions, the B4 export to a private directory, the
+T10 checker on the masked export, the owner cleanup and a fake-world
+leftover scan.
+
+It is a CI test (`acceptance/joint/dry-run.acceptance.test.ts`, about 20 s,
+after `pnpm -r build`). `AIO_JOINT_DRY_DIR=<dir>` keeps its private report
+and exports.
+
+Fake-world specifics:
+
+- **Kill timing:** the fake world saves its checkpoint at most once a second,
+  and each observe poll mints a cursor the backend stores. Before the kill,
+  the dry run turns off the fake runtime with the dev endpoint, waits for the
+  next checkpoint, and turns it back on after the restart. Live modes kill
+  without this.
+- **N/A checker rows:** listed in `DRY_RUN_NA` with a reason for each. The
+  standalone fake has no conflict model, no token usage, no Orca worker-list
+  and no GitHub Issue; T9's acceptance judges conflict and usage.
+
 ## Running
 
 Offline CI covers the units (`pnpm exec vitest run
