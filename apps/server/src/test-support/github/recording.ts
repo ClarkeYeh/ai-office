@@ -34,7 +34,16 @@ export interface Recording {
 export class GithubNormalizer {
   private readonly normalizer = new FixtureNormalizer(redactor);
   private readonly tape = new TapeNormalizer();
-  constructor(private readonly runId?: string) {}
+  constructor(
+    private readonly runId?: string,
+    private readonly replay = false,
+  ) {}
+  query(key: string, value: string): string {
+    // Replayed links carry fixture-safe cursors accepted by the adapter guard.
+    // Never assign identities to unexpected replay input: strict matching must
+    // reject an arbitrary cursor even when it is the first one encountered.
+    return this.tape.query(key, this.normalize(value), this.replay);
+  }
   normalize(text: string): string {
     return this.runId ? text.replaceAll(this.runId, '000000000001') : text;
   }
@@ -60,7 +69,13 @@ export class GithubNormalizer {
         )
         .map(([k, v]) => [
           k,
-          String(this.value(k === 'link' ? v.replaceAll(API, '') : v)),
+          String(
+            this.value(
+              k === 'link'
+                ? this.tape.value({ link: v.replaceAll(API, '') }).link
+                : v,
+            ),
+          ),
         ]),
     );
   }
@@ -83,7 +98,7 @@ async function signature(request: Request, normalizer: GithubNormalizer) {
     pathTemplate: pathTemplate(path),
     path,
     query: [...url.searchParams]
-      .map(([k, v]): [string, string] => [k, normalizer.normalize(v)])
+      .map(([k, v]): [string, string] => [k, normalizer.query(k, v)])
       .sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv)),
     requestBodySha256: hash(text),
   };
@@ -198,7 +213,7 @@ export class ReplayFetch {
     private readonly recordings: readonly Recording[],
     options: { runId?: string; bodies?: readonly string[] } = {},
   ) {
-    this.normalizer = new GithubNormalizer(options.runId);
+    this.normalizer = new GithubNormalizer(options.runId, true);
     this.runId = options.runId;
     for (const body of options.bodies ?? [])
       this.known.set(hash(this.normalizer.normalize(body)), body);

@@ -52,6 +52,36 @@ const ALLOWED_EMAIL =
 /** Per-tape identities; normalization is idempotent and never changes request hashes. */
 export class TapeNormalizer {
   private readonly nodes = new Map<string, string>();
+  private readonly cursors = new Map<string, string>();
+  /** Matches scm-github/http/pagination.ts; placeholders also pass its guard. */
+  query(key: string, value: string, replay = false): string {
+    assertNoSensitiveText(value);
+    if (
+      !['after', 'before'].includes(key) ||
+      !/^[A-Za-z0-9+/=_-]{1,512}$/.test(value) ||
+      /^CURSOR_[1-9]\d*$/.test(value) ||
+      replay
+    )
+      return value;
+    let mapped = this.cursors.get(value);
+    if (!mapped) {
+      mapped = `CURSOR_${this.cursors.size + 1}`;
+      this.cursors.set(value, mapped);
+    }
+    return mapped;
+  }
+  private link(value: string): string {
+    return value.replace(
+      /([?&])(after|before)=([^&>\s]*)/g,
+      (_, prefix: string, key: string, encoded: string) =>
+        prefix +
+        key +
+        '=' +
+        encodeURIComponent(
+          this.query(key, new URLSearchParams(`${key}=${encoded}`).get(key)!),
+        ),
+    );
+  }
   value<T>(value: T): T {
     const walk = (v: unknown, key = ''): unknown => {
       if (typeof v === 'string') {
@@ -69,6 +99,7 @@ export class TapeNormalizer {
           )
         )
           return v;
+        if (key === 'link') return this.link(v);
         if (publicRemote) return htmlRoot + '/__fixtures__/clone';
         if (
           /^(?:noreply@github\.com|[A-Za-z0-9+_-]+@users\.noreply\.github\.com)$/.test(
@@ -127,7 +158,16 @@ export class TapeNormalizer {
         }
         return v;
       }
-      if (Array.isArray(v)) return v.map((x) => walk(x));
+      if (Array.isArray(v))
+        return key === 'query'
+          ? v.map((entry) =>
+              Array.isArray(entry) &&
+              entry.length === 2 &&
+              entry.every((x) => typeof x === 'string')
+                ? [entry[0], this.query(entry[0]!, entry[1]!)]
+                : walk(entry),
+            )
+          : v.map((x) => walk(x));
       if (isRecord(v)) {
         const commit = isGitCommit(v);
         return Object.fromEntries(

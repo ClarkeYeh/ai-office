@@ -6,6 +6,35 @@ import {
 } from './tape-normalization.js';
 import { API, ROOT, REPO } from './safety.js';
 
+it('assigns cursor placeholders deterministically per tape and preserves non-cursors', () => {
+  const raw = {
+    query: [
+      ['after', 'opaque+/cursor='],
+      ['before', 'another_cursor'],
+      ['after', 'opaque+/cursor='],
+      ['other', 'untouched'],
+      ['after', 'invalid.cursor'],
+    ],
+    headers: { link: '</issues?after=another_cursor>; rel="next"' },
+  };
+  const expected = {
+    query: [
+      ['after', 'CURSOR_1'],
+      ['before', 'CURSOR_2'],
+      ['after', 'CURSOR_1'],
+      ['other', 'untouched'],
+      ['after', 'invalid.cursor'],
+    ],
+    headers: { link: '</issues?after=CURSOR_2>; rel="next"' },
+  };
+  expect(new TapeNormalizer().value(raw)).toEqual(expected);
+  expect(new TapeNormalizer().value(raw)).toEqual(expected);
+  expect(new TapeNormalizer().value(expected)).toEqual(expected);
+  expect(new TapeNormalizer().query('after', 'x'.repeat(513))).toBe(
+    'x'.repeat(513),
+  );
+});
+
 it('maps each distinct node consistently and keeps normalized URLs valid and scan-safe', () => {
   const normalize = new TapeNormalizer();
   const raw = {
