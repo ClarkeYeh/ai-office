@@ -3,6 +3,7 @@ import type {
   DomainEventDraft,
   EventPayload,
 } from '@ai-office/contracts/events';
+import { cleanupResource } from '../cleanup.js';
 import type { AnomalyCommand } from '../commands.js';
 import { accept, reject } from '../errors.js';
 import type { DecideResult } from '../errors.js';
@@ -143,6 +144,36 @@ const duplicates = (
     }));
 };
 
+/**
+ * M5 §4.2: one warning per failed cleanup command, naming the resource it
+ * left behind (from the command ledger). Never pauses; repeats are skipped.
+ */
+const cleanupFailed = (
+  state: WorkflowState,
+  meta: AnomalyCommand['meta'],
+  commandId: string,
+): DecideResult => {
+  const record = state.commands[commandId];
+  const resource = cleanupResource(state, commandId);
+  if (
+    record?.status !== 'failed' ||
+    resource === undefined ||
+    state.anomalies.some(
+      (a) => a.kind === 'cleanup-failed' && a.commandId === commandId,
+    )
+  )
+    return accept();
+  const [kind, ref] = resource;
+  return accept(
+    draft(meta, { workflowId: state.workflow!.id }, 'anomaly.detected', {
+      kind: 'cleanup-failed',
+      severity: 'warning',
+      summary: `Cleanup left ${kind} ${ref} (${record.error?.code ?? 'failed'})`,
+      commandId,
+    }),
+  );
+};
+
 export const decideAnomaly = (
   state: WorkflowState,
   command: AnomalyCommand,
@@ -154,8 +185,11 @@ export const decideAnomaly = (
       'workflow_not_started',
       'Workflow has not started',
     );
-  if (workflow.status !== 'running') return accept();
   const observation = command.observation;
+  // M5 §4.2: cleanup runs after the workflow ends, so this one is not gated on it.
+  if (observation.kind === 'cleanup-failed')
+    return cleanupFailed(state, command.meta, observation.commandId);
+  if (workflow.status !== 'running') return accept();
   const found: EventPayload<'anomaly.detected'>[] = [];
   const events: DomainEventDraft[] = [];
   const scope = { workflowId: workflow.id };

@@ -4,7 +4,13 @@ import type {
   RepoSnapshot,
   ExternalCommand,
 } from '@ai-office/contracts/events';
-import { decide, isAttemptAlive, ownerReviewFeedback } from '@ai-office/domain';
+import {
+  collectCleanup,
+  decide,
+  isAttemptAlive,
+  ownerReviewFeedback,
+  unresolvedSpawnWorkspaces,
+} from '@ai-office/domain';
 import type {
   StartWorkflow,
   DecideGate,
@@ -447,32 +453,12 @@ export class CommandUseCases {
       const runner = this.runner(workflowId);
       const workflow = runner.state.workflow!;
       if (workflow.status === 'running') fail(409, 'workflow_not_terminal');
-      const commands: ExternalCommand[] = [];
-      const workspaces = new Set<string>();
-      const branches = new Set<string>();
-      for (const record of Object.values(runner.state.commands)) {
-        if (
-          record.issued.kind === 'runtime.prepareWorkspace' &&
-          record.result?.kind === 'runtime.prepareWorkspace' &&
-          record.result.result !== null &&
-          'workspace' in record.result.result
-        ) {
-          workspaces.add(record.result.result.workspace);
-          branches.add(record.issued.args.branch);
-        }
-      }
-      // M2-T17 D9: agents spawned into a `new-worktree` (e.g. the planning
-      // lead) create their worktree inside runtime.spawnAgent, with no
-      // prepareWorkspace command; resolve it by its deterministic name/marker.
-      for (const [commandId, record] of Object.entries(runner.state.commands)) {
-        if (
-          record.issued.kind !== 'runtime.spawnAgent' ||
-          record.issued.args.workspace.kind !== 'new-worktree' ||
-          record.result?.kind !== 'runtime.spawnAgent'
-        )
-          continue;
-        const { name, branch } = record.issued.args.workspace;
-        branches.add(branch);
+      // M5 §4.2: the same state-only collection the engine uses on completion;
+      // spawns recorded without `workspace` still resolve by name/marker (D9).
+      const resolved = new Map<string, string>();
+      for (const { commandId, name } of unresolvedSpawnWorkspaces(
+        runner.state,
+      )) {
         const created = await this.deps.runtime
           .findWorkspace({
             repo: {
@@ -483,27 +469,10 @@ export class CommandUseCases {
             commandId: `${commandId}/workspace`,
           })
           .catch(() => null);
-        if (created) workspaces.add(created.workspace);
+        if (created) resolved.set(commandId, created.workspace);
       }
-      for (const item of Object.values(runner.state.workItems))
-        if (item.branch) branches.add(item.branch);
-      for (const workspace of workspaces)
-        commands.push({
-          kind: 'runtime.disposeWorkspace',
-          args: { workspace },
-        });
-      for (const name of branches)
-        if (
-          name.startsWith(`ai-office/${workflow.shortId}/`) &&
-          name !== workflow.integrationBranch &&
-          name !== workflow.repo.defaultBranch
-        )
-          commands.push({
-            kind: 'scm.deleteBranch',
-            args: { repo: workflow.repo.github, name },
-          });
       const commandIds: string[] = [];
-      for (const command of commands)
+      for (const { command } of collectCleanup(runner.state, resolved))
         commandIds.push(
           await issue(runner, this.deps.clock, this.deps.ids, command),
         );

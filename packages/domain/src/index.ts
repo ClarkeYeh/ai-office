@@ -1,5 +1,15 @@
 export * from './commands.js';
 export { bodyHash } from './body-hash.js';
+export {
+  cleanupResource,
+  collectCleanup,
+  unresolvedSpawnWorkspaces,
+} from './cleanup.js';
+export type {
+  CleanupCommand,
+  CleanupTarget,
+  UnresolvedSpawnWorkspace,
+} from './cleanup.js';
 export { ownerReviewFeedback } from './review-feedback.js';
 export { decide } from './decide/index.js';
 export { EXCEPTION_OPTIONS } from './decide/gate.js';

@@ -102,6 +102,13 @@ export interface RuntimePort {
     correlation: Correlation;
     keepOpen: boolean; // 多回合角色為 true（§7.1）；Orca：worker-start --keep-open
   }): Promise<AgentRef>;
+  /**
+   * M5 §4.2: the worktree a `new-worktree` spawn created, read from adapter
+   * state after `spawnAgent` resolved (sync, no runtime call). Optional so
+   * older adapters and test doubles need no change; `AgentRef` is a branded
+   * string, so the spawn result itself cannot carry it.
+   */
+  spawnedWorkspace?(commandId: string): WorkspaceRef | undefined;
   send(
     agent: AgentRef,
     msg: { subject: string; body: string; correlation: Correlation },

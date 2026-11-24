@@ -887,3 +887,33 @@ it.each(['integrator', 'worker', 'unpushed'] as const)(
     }
   },
 );
+
+describe('spawned worktree (M5 §4.2)', () => {
+  it('reports what a new-worktree spawn created, in its marker too, and survives a restore', async () => {
+    const f = await fixture();
+    await f.runtime.spawnAgent(f.spawnRequest);
+    const created = f.runtime.spawnedWorkspace('spawn');
+    expect(created).toEqual(expect.any(String));
+    expect(f.runtime.workspaceBranch(created!)).toBe('work');
+    expect(await f.runtime.findCommandByMarker('spawn')).toMatchObject({
+      kind: 'runtime.spawnAgent',
+      result: { workspace: created },
+    });
+    // An existing worktree belongs to whoever prepared it.
+    await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      workspace: {
+        kind: 'existing-worktree',
+        workspace: created!,
+        readOnly: true,
+      },
+      correlation: { ...f.spawnRequest.correlation, commandId: 'reviewer' },
+    });
+    expect(f.runtime.spawnedWorkspace('reviewer')).toBeUndefined();
+    expect(f.runtime.spawnedWorkspace('open')).toBeUndefined();
+    expect(f.runtime.spawnedWorkspace('missing')).toBeUndefined();
+    const restored = new FakeRuntime({ clock: f.clock });
+    restored.restore(f.runtime.snapshot());
+    expect(restored.spawnedWorkspace('spawn')).toBe(created);
+  });
+});

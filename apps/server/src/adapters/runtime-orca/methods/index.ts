@@ -131,6 +131,7 @@ export function createOrcaRuntime(options: OrcaRuntimeOptions): RuntimePort {
       c.check(req.correlation.commandId, req);
       return serial(req.correlation.commandId, () => agents.spawn(req));
     },
+    spawnedWorkspace: (commandId) => agents.spawned(commandId),
     send: async (agent, msg) => {
       c.check(msg.correlation.commandId, { agent, msg });
       return serial(msg.correlation.commandId, () => agents.send(agent, msg));
