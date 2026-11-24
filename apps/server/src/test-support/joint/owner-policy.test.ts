@@ -10,7 +10,13 @@ import {
 const TAG = '202611241200';
 
 /** A fake backend: gates are mutable rows; every port call is recorded. */
-function fakePort(options: { comment?: boolean; workItems?: unknown } = {}) {
+function fakePort(
+  options: {
+    comment?: boolean;
+    commentPosted?: boolean;
+    workItems?: unknown;
+  } = {},
+) {
   const gates: Json[] = [];
   const calls: { op: string; [k: string]: unknown }[] = [];
   const port: OwnerPort = {
@@ -33,6 +39,7 @@ function fakePort(options: { comment?: boolean; workItems?: unknown } = {}) {
       : {
           ownerApproveComment: async () => {
             calls.push({ op: 'comment' });
+            return options.commentPosted ?? true;
           },
         }),
     handOff: async (status) => {
@@ -93,6 +100,16 @@ describe('conclusion gate', () => {
     await x.step();
     expect(x.record.approveCommentNoEffect).toBe(false);
     expect(x.record.conclusionApproved).toBe(1);
+  });
+
+  it('approves at once when no conclusion Issue was found to comment on', async () => {
+    const f = fakePort({ commentPosted: false });
+    f.add(stage('g1', 'meeting'));
+    const x = new OwnerPolicyExecutor(f.port, { tag: TAG });
+    expect(await x.step()).toEqual(['approve-conclusion']);
+    expect(f.calls.map((c) => c.op)).toEqual(['comment', 'decide']);
+    // No comment was posted: there is nothing to judge.
+    expect(x.record.approveCommentNoEffect).toBe('n/a');
   });
 
   it('approves at once without a real Issue (T11b)', async () => {
