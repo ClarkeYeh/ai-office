@@ -21,8 +21,11 @@ import type { OrcaHarness } from '../harness.js';
 import { composedShimOptions } from '../composed-shim-seam.js';
 import { requireValue } from '../contract-live-cli.js';
 import { GitRemoteScm } from '../scm-gitremote/index.js';
-import { PENDING_LINE, nonceState } from '../../joint/scenario/m5-mainline.js';
-import { INTEGRATOR_SCOPE_FALLBACK } from '../../joint/scenario/template.js';
+import {
+  INTEGRATOR_SCOPE_FALLBACK,
+  PENDING_LINE,
+  nonceState,
+} from './review-nonce.js';
 import {
   count,
   duplicatedFacts,

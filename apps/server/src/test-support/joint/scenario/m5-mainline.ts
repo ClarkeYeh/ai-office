@@ -15,6 +15,14 @@
  *   (§28 item 4, N9).
  */
 import type { WorkItemDraft } from '@ai-office/contracts/events';
+// The nonce helpers live with the M2 implement scenario (test-support/orca),
+// which joint may import; orca never imports joint (M5_PLAN §1.3).
+export {
+  PENDING_LINE,
+  reviewedLine,
+  lastLine,
+  nonceState,
+} from '../../orca/t17/review-nonce.js';
 
 export const SCENARIO_ID = 'm5-mainline';
 export const TEMPLATE_ID = 'feature-to-pr';
@@ -45,27 +53,6 @@ export const ONCALL_KEY = 'core';
 
 /** The owner's answer to the code-name escalation; recorded only as a boolean. */
 export const CODE_NAME = 'Birch';
-
-export const PENDING_LINE = 'Reviewed in PR #pending';
-export const reviewedLine = (pr: number): string => `Reviewed in PR #${pr}`;
-
-/** The last non-empty line of a README, or `undefined` for an empty file. */
-export const lastLine = (text: string): string | undefined =>
-  text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .at(-1);
-
-/** T10/T11b: the nonce verdict for one README head (§2.2.3 judgement). */
-export function nonceState(
-  readme: string,
-  pr: number,
-): 'pending' | 'correct' | 'other' {
-  const line = lastLine(readme);
-  if (line === PENDING_LINE) return 'pending';
-  return line === reviewedLine(pr) ? 'correct' : 'other';
-}
 
 /** Per-run directory tag: the UTC minute, so merged runs never collide. */
 export function mainlineTag(now: Date): string {
