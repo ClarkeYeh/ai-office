@@ -139,7 +139,14 @@ export class RecordingFetch {
       headers = this.normalizer.headers(response.headers);
       normalized = this.normalizer.value(data);
     } catch (error) {
-      const leak = error instanceof TapeLeakError ? error : new TapeLeakError();
+      // FX-TAPEDIAG: the response itself was withheld; label only where.
+      const leak =
+        error instanceof TapeLeakError && error.label
+          ? error
+          : new TapeLeakError(
+              undefined,
+              'recordings/response body or header/capture scan',
+            );
       this.leak ??= leak;
       this.withheldResponses++;
       // Only a fixed placeholder enters memory destined for persistence.

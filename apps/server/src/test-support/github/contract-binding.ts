@@ -4,7 +4,12 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect } from 'vitest';
-import { TapeNormalizer, assertTapeSafe } from './tape-normalization.js';
+import {
+  TapeLeakError,
+  TapeNormalizer,
+  assertTapeSafe,
+  diagnoseTapeLeak,
+} from './tape-normalization.js';
 import { PersistenceFailures } from './persistence-failures.js';
 import type { ScmPort } from '../../ports/scm.js';
 import type { Clock } from '../../ports/services.js';
@@ -243,14 +248,23 @@ export function githubContract(
                 );
               recorder.assertNoLeak();
               await mkdir(directory, { recursive: true });
-              const value = new TapeNormalizer().value<Tape>({
+              const raw: Tape = {
                 format: 2,
                 clockReads: time.reads,
                 source: 'live',
                 startedAt,
                 pushes,
                 recordings: recorder.recordings,
-              });
+              };
+              let value: Tape;
+              try {
+                value = new TapeNormalizer().value(raw);
+              } catch (error) {
+                // FX-TAPEDIAG: name where the normalizer refused, never what.
+                if (error instanceof TapeLeakError && !error.label)
+                  throw new TapeLeakError(undefined, diagnoseTapeLeak(raw));
+                throw error;
+              }
               const serialized = JSON.stringify(value, null, 2) + '\n';
               assertTapeSafe(value);
               await writeFile(path, serialized, { flag: 'wx', mode: 0o600 });
