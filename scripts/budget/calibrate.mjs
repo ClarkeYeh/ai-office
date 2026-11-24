@@ -1,6 +1,7 @@
 // Budget recalibration (M5 §4.3, review B6). Reads exported event JSON and a
 // baseline template, recommends budgets (only up), and checks the criteria:
-//   1. replaying each run with enforcement on and the new values gives 0 budget.*;
+//   1. replaying each run with enforcement on and the new values gives 0 budget.*
+//      (holds by construction: every level is floored at its largest run × 1.1);
 //   2. the workflow budget is at least 1.5× every accepted run's total (each
 //      --events export is an accepted run), so it holds for any n;
 //   3. crossing each threshold, then its hard limit, raises exactly one alert each.
@@ -18,11 +19,13 @@ import { replayRun, runsFromExport, thresholdMechanism } from './replay.mjs';
  * @typedef {import('./baseline.mjs').Baseline} Baseline
  * @typedef {{ tokens: number[], turns: number[] }} Series
  * @typedef {{ runs: number, stages: Record<string, Series>, perItem: Record<string, Series>, itemShare: Record<string, Series>, workflow: number[] }} Samples
- * @typedef {{ level: string, metric: 'tokens' | 'turns', n: number, stat: 'p90' | 'max', measured?: number, old: number, computed?: number, value: number, headroom?: number, loose: boolean }} Row
+ * @typedef {{ level: string, metric: 'tokens' | 'turns', n: number, stat: 'p90' | 'max', measured?: number, old: number, computed?: number, runFloor?: number, value: number, headroom?: number, loose: boolean }} Row
  */
 
 export const FACTOR = 1.5;
 export const STEP = { tokens: 50_000, turns: 10 };
+/** Coordinator ruling (deviates from §4.3): no accepted run may reach its budget. */
+export const RUN_FLOOR = 1.1;
 export const LOOSE = 10;
 export const MIN_WORKFLOW_HEADROOM = 1.5;
 
@@ -150,8 +153,11 @@ export function samplesFromRuns(runs) {
 }
 
 /**
- * new = max(old, roundUp(stat × 1.5 × scale)); never lower. Headroom = new ÷ measured stat.
- * stat is nearest-rank p90, except the workflow level, which uses the max.
+ * new = max(old, roundUp(stat × 1.5 × scale), roundUp(max(measured) × 1.1)); never
+ * lower. The p90 rule stays primary; the run floor (coordinator ruling, beyond
+ * §4.3) keeps every accepted run under its budget, so criterion 1 holds by
+ * construction. stat is nearest-rank p90, except the workflow level, which uses
+ * the max. Headroom = new ÷ measured stat.
  * @param {string} level @param {'tokens' | 'turns'} metric @param {number} old
  * @param {number[]} computedFrom @param {number[]} measured @param {number} [scale]
  * @param {'p90' | 'max'} [stat]
@@ -172,7 +178,12 @@ function row(
     basis === undefined
       ? undefined
       : roundUp(basis * FACTOR * scale, STEP[metric]);
-  const value = Math.max(old, computed ?? old);
+  const largest = max(measured);
+  const runFloor =
+    largest === undefined || largest === 0
+      ? undefined
+      : roundUp(largest * RUN_FLOOR, STEP[metric]);
+  const value = Math.max(old, computed ?? old, runFloor ?? old);
   const measuredP90 = pick(measured);
   const headroom =
     measuredP90 === undefined || measuredP90 === 0
@@ -186,6 +197,7 @@ function row(
     ...(measuredP90 === undefined ? {} : { measured: measuredP90 }),
     old,
     ...(computed === undefined ? {} : { computed }),
+    ...(runFloor === undefined ? {} : { runFloor }),
     value,
     ...(headroom === undefined ? {} : { headroom }),
     loose: headroom !== undefined && headroom > LOOSE,
@@ -425,11 +437,11 @@ export function formatReport(report) {
   const lines = [
     `Budget calibration (runs n=${report.runs}; small-scale samples, read n per level)`,
     '',
-    '| level | metric | n | measured | old | ×1.5 rounded | new | headroom |',
-    '|---|---|---|---|---|---|---|---|',
+    '| level | metric | n | measured | old | ×1.5 rounded | max×1.1 rounded | new | headroom |',
+    '|---|---|---|---|---|---|---|---|---|',
     ...report.rows.map(
       (r) =>
-        `| ${r.level} | ${r.metric} | ${r.n} | ${r.stat} ${num(r.measured)} | ${num(r.old)} | ${num(r.computed)} | ${num(r.value)}${r.value > r.old ? ' (raised)' : ''} | ${ratio(r.headroom)}${r.loose ? ' loose' : ''} |`,
+        `| ${r.level} | ${r.metric} | ${r.n} | ${r.stat} ${num(r.measured)} | ${num(r.old)} | ${num(r.computed)} | ${num(r.runFloor)} | ${num(r.value)}${r.value > r.old ? ' (raised)' : ''} | ${ratio(r.headroom)}${r.loose ? ' loose' : ''} |`,
     ),
     '',
     `Criterion 1 (replay, enforcement on, new values → 0 budget.*): ${verdict(report.criteria.replay.ok)}`,
@@ -457,7 +469,7 @@ export function formatReport(report) {
       ? ['', 'Notes:', ...report.notes.map((n) => `  ${n}`)]
       : []),
     '',
-    'Suggested template values (only up; hardLimitMultiplier unchanged):',
+    'Suggested template values (only up; p90 × 1.5, floored at every accepted run × 1.1; hardLimitMultiplier unchanged):',
     report.snippet,
   ];
   return lines.join('\n');

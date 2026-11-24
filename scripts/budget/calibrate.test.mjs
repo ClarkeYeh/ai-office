@@ -596,11 +596,10 @@ test('CLI: reads an export file and exits by the criteria', () => {
   }
 });
 
-test('criterion 2 holds for any n: the workflow budget covers the largest accepted run', () => {
+test('criteria 1 and 2 hold for any n: an outlier run lifts its levels (coordinator ruling)', () => {
   const baseline = template();
   baseline.budgets.workflow = { tokens: 100_000 };
-  // The meeting stage keeps the p90 rule, so an outlier run can still trip it.
-  baseline.budgets.stages.meeting = { tokens: 100_000, maxTurns: 80 };
+  baseline.budgets.stages.meeting = { tokens: 100_000, maxTurns: 10 };
   const exports = Array.from({ length: 10 }, (_, i) => ({
     name: `run-${i}`,
     json: syntheticExport([
@@ -609,32 +608,56 @@ test('criterion 2 holds for any n: the workflow budget covers the largest accept
         stageId: 'meeting',
         purpose: 'facilitator',
         tokens: [i === 9 ? 280_000 : 100_000],
+        turns: [i === 9 ? 47 : 12],
       },
     ]),
   }));
   const report = calibrate({ exports, baseline });
-  // p90 of the ten runs is 100,000; the max is 280,000 → × 1.5 → 450,000.
+  // Workflow: max 280,000 × 1.5 → 450,000 (criterion 2 per accepted run).
   const workflow = rowOf(report, 'workflow', 'tokens');
   assert.deepEqual(
     [workflow.n, workflow.stat, workflow.measured, workflow.value],
     [10, 'max', 280_000, 450_000],
   );
-  assert.equal(report.criteria.workflowHeadroom.ok, true);
   assert.equal(
     Math.min(
       ...report.criteria.workflowHeadroom.runs.map((r) => r.ratio ?? 0),
     ).toFixed(2),
     '1.61',
   );
-  assert.equal(rowOf(report, 'meeting', 'tokens').value, 150_000);
+  // Meeting: p90 100,000 × 1.5 → 150,000 alone would let run-9 (280,000)
+  // through; the run floor 280,000 × 1.1 → 350,000 wins. Turns: p90 12 → 20,
+  // floor 47 × 1.1 → 60.
+  const tokens = rowOf(report, 'meeting', 'tokens');
   assert.deepEqual(
-    report.criteria.replay.runs.filter((r) => !r.ok).map((r) => r.run),
-    ['run-9'],
+    [tokens.measured, tokens.computed, tokens.runFloor, tokens.value],
+    [100_000, 150_000, 350_000, 350_000],
   );
-  assert.equal(report.ok, false);
+  const turns = rowOf(report, 'meeting', 'turns');
+  assert.deepEqual([turns.computed, turns.runFloor, turns.value], [20, 60, 60]);
+  assert.deepEqual(
+    report.criteria.replay.runs.map((r) => r.budgetEvents),
+    Array(10).fill(0),
+  );
+  assert.equal(report.ok, true);
   assert.match(
     formatReport(report),
-    /run-9: 1 budget\.\* events\n {4}budget\.exceeded stage tokens meeting: 280000 ≥ 150000/,
+    /\| meeting \| tokens \| 10 \| p90 100,000 \| 100,000 \| 150,000 \| 350,000 \| 350,000 \(raised\) \|/,
+  );
+  // Without the floor, the same values fail criterion 1 on run-9 only.
+  /** @type {typeof report.budgets} */
+  const p90Only = JSON.parse(JSON.stringify(report.budgets));
+  p90Only.stages.meeting = { tokens: 150_000, maxTurns: 20 };
+  const hitsFor = (/** @type {number} */ index) => {
+    const [run] = runsFromExport(exports[index]?.json);
+    assert.ok(run);
+    return replayRun(run.events, { budgets: p90Only, enforce: true }).hits;
+  };
+  assert.equal(hitsFor(0).length, 0);
+  const outlier = hitsFor(9);
+  assert.ok(outlier.length > 0);
+  assert.ok(
+    outlier.every((h) => h.scope === 'stage' && h.stageId === 'meeting'),
   );
 });
 
