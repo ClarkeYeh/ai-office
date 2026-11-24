@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { RepoView } from '@ai-office/contracts/api';
-import { t, type MessageKey } from '../../../shared/lib/i18n/index.js';
+import { t, tCode, type MessageKey } from '../../../shared/lib/i18n/index.js';
 import { Banner, Button, Field, PixelFrame } from '../../../shared/ui/index.js';
 import styles from './repos.module.css';
 
@@ -107,6 +107,19 @@ export function RepoList({
                 <dt>{t('repos.owner')}</dt>
                 <dd>{repo.ownerLogin}</dd>
               </dl>
+              {!!repo.warnings?.length && (
+                <Banner
+                  data-testid={`repo-warnings-${repo.repoId}`}
+                  aria-label={t('repos.warnings')}
+                >
+                  <h3>{t('repos.warnings')}</h3>
+                  <ul>
+                    {repo.warnings.map((warning, index) => (
+                      <li key={index}>{tCode('repoWarning', warning)}</li>
+                    ))}
+                  </ul>
+                </Banner>
+              )}
               {!!repo.issues.length && (
                 <Banner tone="error">
                   <h3>{t('repos.checks')}</h3>
