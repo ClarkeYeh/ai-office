@@ -47,8 +47,8 @@ alias ai-office="node $PWD/apps/cli/dist/main.js"
 ai-office start
 ```
 
-`ai-office start` starts the backend on local port 4319 and opens a one-time
-login link in your browser. In the UI, register a repository, then start a
+`ai-office start` starts the backend on `http://127.0.0.1:4319` (the port is
+configurable) and opens a one-time login link in your browser. In the UI, register a repository, then start a
 workflow from the built-in `feature-to-pr` template. See
 [Usage](guide/usage.md).
 

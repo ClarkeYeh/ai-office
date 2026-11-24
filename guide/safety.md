@@ -12,7 +12,7 @@ and what data is kept.
   credentials.
 - **Other GitHub users** are not trusted. Nothing they write on GitHub
   influences a workflow.
-- **The network**: the backend listens only on the loopback interface.
+- **The network**: the backend listens only on `127.0.0.1`.
 
 ## Decisions happen only in AI Office
 

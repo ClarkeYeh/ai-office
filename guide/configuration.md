@@ -83,15 +83,15 @@ workerBranches = "delete-on-complete"
 
 ### server
 
-| Key           | Default | Meaning                                                                                                    |
-| ------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
-| `server.port` | `4319`  | Local port (loopback only). `ai-office start --port <n>` overrides it for one run (`0` picks a free port). |
+| Key           | Default | Meaning                                                                                                                                    |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `server.port` | `4319`  | Port on `127.0.0.1` (the UI is at `http://127.0.0.1:4319`). `ai-office start --port <n>` overrides it for one run (`0` picks a free port). |
 
 ### orca
 
 | Key                      | Default              | Meaning                                                                                                                                                                                             |
 | ------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `orca.bin`               | `"orca"`             | `"orca"` searches the absolute entries of `PATH`, then the binary inside the Orca app bundle in `/Applications`. Otherwise an absolute path.                                                        |
+| `orca.bin`               | `"orca"`             | `"orca"` searches the absolute entries of `PATH`, then `/Applications/Orca.app/Contents/Resources/bin/orca`. Otherwise an absolute path.                                                            |
 | `orca.homeDir`           | `""`                 | Absolute path of the folder workspace holding the shim terminal. Empty means `<dataDir>/orca-home`. You must register it in Orca yourself ([Prerequisites](prerequisites.md#the-orca-home-folder)). |
 | `orca.supportedRange`    | `">=1.4.259 <1.5"`   | Orca versions treated as verified. Must have the form `>=x.y.z <x.y[.z]`. Below: refuse to start. Above: `unverified`.                                                                              |
 | `orca.shimLocation`      | `"folder-workspace"` | `folder-workspace` or `repo-main-worktree` (fallback: shim in the repository's main worktree).                                                                                                      |

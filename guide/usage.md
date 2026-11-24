@@ -10,10 +10,17 @@ ai-office start [--port <n>] [--no-open] [--break-lock]
 
 `start` launches the backend as a child process and waits until it is ready.
 Production startup checks Orca, the shim terminal and your GitHub identity, and
-finishes recovery from the previous run. Then the backend prints an
-`AI Office listening on …` line with the runtime and GitHub owner, and an
-`Open …/auth/bootstrap?code=…` line with a one-time login link, which `start`
-opens in your browser.
+finishes recovery from the previous run. Then `start` prints
+
+```text
+AI Office listening on http://127.0.0.1:4319 (runtime: orca, scm: github <owner>)
+Open http://127.0.0.1:4319/auth/bootstrap?code=<one-time-code>
+```
+
+and opens the second line's link in your browser. The UI then lives at
+`http://127.0.0.1:4319` (or the port from `server.port` / `--port`). Use
+`127.0.0.1` rather than `localhost`, so the session cookie is set for the same
+address.
 
 | Flag           | Effect                                                                                                                                           |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -31,7 +38,7 @@ If startup fails, the backend's reason is printed above
 `AI Office backend exited during startup.`; see
 [Troubleshooting](troubleshooting.md#startup-refusals).
 
-The backend listens only on the loopback interface. The UI is in Traditional Chinese
+The backend listens only on `127.0.0.1`. The UI is in Traditional Chinese
 (zh-TW).
 
 ## Log in again
@@ -57,7 +64,7 @@ skip the browser. `--home` selects another data directory; the default is
 
 ## Register a repository
 
-Open **Repos** (`/repos`) and enter the absolute local path of the
+Open **Repos** (`http://127.0.0.1:4319/repos`) and enter the absolute local path of the
 repository's main worktree. The repository must already be added to Orca
 ([Prerequisites](prerequisites.md#repositories-in-orca)). The backend works out
 the GitHub `owner/name` from `origin` and checks the repository settings.

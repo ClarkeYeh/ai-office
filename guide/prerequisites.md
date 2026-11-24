@@ -18,7 +18,7 @@ AI Office starts and supervises agents through Orca's orchestration CLI.
   to `unverified` when it changes. Only output that no longer matches the
   expected shape (`runtime_contract_mismatch`) pauses dispatch.
 - The Orca app must be running. AI Office finds the `orca` binary on `PATH` or
-  inside the Orca app bundle in `/Applications`; set `orca.bin` to an
+  at `/Applications/Orca.app/Contents/Resources/bin/orca`; set `orca.bin` to an
   absolute path otherwise ([Configuration](configuration.md#orca)).
 
 ### The orca-home folder
