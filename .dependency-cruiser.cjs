@@ -71,6 +71,7 @@ const config = {
         dependencyTypesNot: ['core'],
         pathNot: [
           '^apps/server/src/test-support/(joint|orca|github)/',
+          '^apps/server/src/adapters/runtime-fake/scenarios/m5-mainline-data\\.ts$',
           '^packages/',
           '(^|/)node_modules/',
         ],
