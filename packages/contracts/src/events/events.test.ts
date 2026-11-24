@@ -2,7 +2,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import {
   AgentSubmissionSchema as SubmissionFromAgentPath,
+  CONTROL_TOKEN_PREFIX,
   exitCodeForHttpStatus,
+  LocalBootstrapCodeResponseSchema,
   RuntimeInfoSchema,
   SubmissionResponseSchema,
 } from '../agent-submission/index.js';
@@ -1535,5 +1537,119 @@ describe('M3-CP1 contract additions', () => {
       GateContentSchema.safeParse({ ...legacy, prClosedAt: 'yesterday' })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('M5-CP1 contract additions', () => {
+  const started = payloadExamples['workflow.started'].valid as {
+    limits: object;
+  };
+  const withLimits = (limits: object) => ({
+    ...started,
+    limits: { ...started.limits, ...limits },
+  });
+
+  test('cleanup-failed is a warning anomaly kind; legacy kinds still parse', () => {
+    const schema = EVENT_PAYLOAD_SCHEMAS['anomaly.detected'];
+    for (const kind of ['cleanup-failed', 'unmanaged-close', 'policy-hit']) {
+      const payload = {
+        kind,
+        severity: 'warning',
+        summary: 'x',
+        commandId: 'c1',
+      };
+      expect(schema.parse(payload)).toEqual(payload);
+    }
+    expect(AnomalyKindSchema.safeParse('cleanup_failed').success).toBe(false);
+  });
+
+  test('workflow.started snapshots workerBranchRetention, and older events still parse', () => {
+    const schema = EVENT_PAYLOAD_SCHEMAS['workflow.started'];
+    for (const workerBranchRetention of ['delete-on-complete', 'keep']) {
+      const full = withLimits({
+        spawnStallMs: 600000,
+        budgetEnforcement: 'on',
+        workerBranchRetention,
+      });
+      expect(schema.parse(full)).toEqual(full);
+    }
+    // Events written before M5-CP1 carry no workerBranchRetention.
+    const legacy = withLimits({
+      spawnStallMs: 600000,
+      budgetEnforcement: 'on',
+    });
+    expect(schema.parse(legacy)).toEqual(legacy);
+    expect(schema.parse(started)).toEqual(started);
+    expect(
+      DomainEventSchema.safeParse(event('workflow.started', legacy)).success,
+    ).toBe(true);
+    for (const workerBranchRetention of ['delete', 'off', true, null])
+      expect(
+        schema.safeParse(withLimits({ workerBranchRetention })).success,
+      ).toBe(false);
+  });
+
+  test('runtime.spawnAgent results take an optional workspace; older results still parse', () => {
+    const legacy = { kind: 'runtime.spawnAgent', result: { agent: 'ag1' } };
+    const full = {
+      kind: 'runtime.spawnAgent',
+      result: { agent: 'ag1', workspace: 'ws1' },
+    };
+    expect(CommandResultSchema.parse(legacy)).toEqual(legacy);
+    expect(CommandResultSchema.parse(full)).toEqual(full);
+    const succeeded = EVENT_PAYLOAD_SCHEMAS['command.succeeded'];
+    for (const result of [legacy.result, full.result])
+      expect(
+        DomainEventSchema.safeParse(
+          event('command.succeeded', {
+            commandId: 'c1',
+            kind: 'runtime.spawnAgent',
+            result,
+          }),
+        ).success,
+      ).toBe(true);
+    expect(succeeded.parse(payloadExamples['command.succeeded'].valid)).toEqual(
+      payloadExamples['command.succeeded'].valid,
+    );
+    for (const workspace of ['', 7, null])
+      expect(
+        CommandResultSchema.safeParse({
+          kind: 'runtime.spawnAgent',
+          result: { agent: 'ag1', workspace },
+        }).success,
+      ).toBe(false);
+  });
+
+  test('policy hits add aio-open; legacy rules still parse', () => {
+    for (const rule of ['aio-open', 'gh-pr-create', 'orca-dispatch']) {
+      const hit = { rule, severity: 'high', messageId: 'm1' };
+      expect(PolicyHitSchema.parse(hit)).toEqual(hit);
+    }
+    expect(
+      PolicyHitSchema.safeParse({
+        rule: 'aio_open',
+        severity: 'high',
+        messageId: 'm1',
+      }).success,
+    ).toBe(false);
+    const violation = EVENT_PAYLOAD_SCHEMAS['seat.policy_violation'];
+    const legacy = payloadExamples['seat.policy_violation'].valid;
+    expect(violation.parse(legacy)).toEqual(legacy);
+  });
+
+  test('local bootstrap code responses carry code and expiresAt; the control token prefix is aio_ctl_', () => {
+    expect(CONTROL_TOKEN_PREFIX).toBe('aio_ctl_');
+    const response = { code: 'aio_bootstrap_x', expiresAt: at };
+    expect(LocalBootstrapCodeResponseSchema.parse(response)).toEqual(response);
+    for (const invalid of [
+      { code: '', expiresAt: at },
+      { code: 'c' },
+      { expiresAt: at },
+      { code: 'c', expiresAt: 'in a minute' },
+      { code: 'c', expiresAt: 60 },
+    ])
+      expect(LocalBootstrapCodeResponseSchema.safeParse(invalid).success).toBe(
+        false,
+      );
   });
 });

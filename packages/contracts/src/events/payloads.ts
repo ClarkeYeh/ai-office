@@ -48,6 +48,11 @@ export const WorkflowLimitsSchema = z.object({
   spawnStallMs: positiveInt.optional(),
   /** Snapshot of `[budget] enforcement` (S25, §10.1); absent in older events, read as `'on'`. */
   budgetEnforcement: z.enum(['on', 'off']).optional(),
+  /**
+   * Snapshot of `retention.workerBranches` (M5 §4.2); absent in older events,
+   * read as "no automatic cleanup" so replays are unchanged.
+   */
+  workerBranchRetention: z.enum(['delete-on-complete', 'keep']).optional(),
 });
 export const WorkflowStartedPayloadSchema = z.object({
   templateSnapshot: WorkflowTemplateSchema,
@@ -635,6 +640,8 @@ export const AnomalyKindSchema = z.enum([
   'merge-base-changed',
   'integration-branch-moved',
   'unmanaged-close',
+  // M5 §4.2: a cleanup command failed; warning only, never pauses.
+  'cleanup-failed',
 ]);
 export const AnomalyDetectedPayloadSchema = z.object({
   kind: AnomalyKindSchema,

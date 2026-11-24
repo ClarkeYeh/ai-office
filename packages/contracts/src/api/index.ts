@@ -43,6 +43,8 @@ export const API_ERRORS = {
   validation_failed: { status: 400, category: 'validation' },
   unauthorized: { status: 401, category: 'auth' },
   bootstrap_code_invalid: { status: 401, category: 'auth' },
+  control_token_invalid: { status: 401, category: 'auth' },
+  bootstrap_rate_limited: { status: 429, category: 'rate_limited' },
   forbidden_origin: { status: 403, category: 'auth' },
   forbidden_host: { status: 403, category: 'auth' },
   not_found: { status: 404, category: 'permanent' },

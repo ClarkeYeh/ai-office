@@ -1,5 +1,6 @@
 import type {
   AttemptState,
+  CommandResult,
   EventPayload,
   OndemandPurpose,
   PolicyHit,
@@ -26,10 +27,7 @@ export type ApprovedWorkItem =
 export type WorkItemDraft = EventPayload<'workitem.proposed'>['items'][number];
 export type TimerPayload = EventPayload<'timer.scheduled'>['payload'];
 export type CommandIssued = EventPayload<'command.issued'>;
-export type CommandResult = Omit<
-  EventPayload<'command.succeeded'>,
-  'commandId'
->;
+export type { CommandResult };
 export type ErrorInfo = EventPayload<'command.failed'>['error'];
 
 export type WorkflowStatus = 'running' | 'completed' | 'failed' | 'cancelled';
