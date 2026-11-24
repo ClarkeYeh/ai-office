@@ -80,12 +80,10 @@ export const collectCleanup = (
   for (const item of Object.values(state.workItems))
     if (item.branch) branches.add(item.branch);
   return [
-    ...[...workspaces].map(
-      (workspace): CleanupTarget => ({
-        resource: ['workspace', workspace],
-        command: { kind: 'runtime.disposeWorkspace', args: { workspace } },
-      }),
-    ),
+    ...[...workspaces].map((workspace): CleanupTarget => ({
+      resource: ['workspace', workspace],
+      command: { kind: 'runtime.disposeWorkspace', args: { workspace } },
+    })),
     ...[...branches]
       .filter(
         (name) =>
@@ -93,15 +91,13 @@ export const collectCleanup = (
           name !== workflow.integrationBranch &&
           name !== workflow.repo.defaultBranch,
       )
-      .map(
-        (name): CleanupTarget => ({
-          resource: ['branch', name],
-          command: {
-            kind: 'scm.deleteBranch',
-            args: { repo: workflow.repo.github, name },
-          },
-        }),
-      ),
+      .map((name): CleanupTarget => ({
+        resource: ['branch', name],
+        command: {
+          kind: 'scm.deleteBranch',
+          args: { repo: workflow.repo.github, name },
+        },
+      })),
   ];
 };
 
