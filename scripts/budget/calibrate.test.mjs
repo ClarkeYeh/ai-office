@@ -259,25 +259,26 @@ test('M3-T17 export: values unchanged, headroom reported, all criteria hold', ()
   });
   assert.deepEqual(report.budgets, template().budgets);
   const meeting = rowOf(report, 'meeting', 'tokens');
-  assert.equal(meeting.p90, 179_200);
+  assert.equal(meeting.measured, 179_200);
   assert.equal(meeting.computed, 300_000);
   assert.equal(meeting.headroom?.toFixed(2), '1.67');
   assert.equal(meeting.loose, false);
   const implement = rowOf(report, 'implement', 'tokens');
-  assert.equal(implement.p90, 100_300);
+  assert.equal(implement.measured, 100_300);
   // Item B 40,300 + half the merge queue's 33,800 → 57,200 × 1.5 × 6.
   assert.equal(implement.computed, 550_000);
   assert.equal(implement.loose, true);
   const perItem = rowOf(report, 'implement.perItem', 'tokens');
   assert.deepEqual(
-    [perItem.n, perItem.p90, perItem.computed],
+    [perItem.n, perItem.measured, perItem.computed],
     [2, 40_300, 100_000],
   );
   assert.equal(perItem.loose, false);
   const perItemTurns = rowOf(report, 'implement.perItem', 'turns');
   assert.deepEqual([perItemTurns.n, perItemTurns.value], [0, 120]);
   assert.equal(perItemTurns.headroom, undefined);
-  assert.equal(rowOf(report, 'workflow', 'tokens').p90, 333_100);
+  assert.equal(rowOf(report, 'workflow', 'tokens').stat, 'max');
+  assert.equal(rowOf(report, 'workflow', 'tokens').measured, 333_100);
   assert.equal(report.criteria.replay.runs[0]?.budgetEvents, 0);
   assert.equal(
     report.criteria.workflowHeadroom.runs[0]?.ratio?.toFixed(2),
@@ -286,7 +287,7 @@ test('M3-T17 export: values unchanged, headroom reported, all criteria hold', ()
   assert.equal(report.criteria.thresholds.checks.length, 10);
   assert.equal(report.ok, true);
   const text = formatReport(report);
-  assert.match(text, /\| implement \| tokens \| 1 \| 100,300 .* loose \|/);
+  assert.match(text, /\| implement \| tokens \| 1 \| p90 100,300 .* loose \|/);
   assert.match(text, /Criterion 1 .*: PASS/);
   assert.match(text, /workflowBudget: \{ tokens: 3000000 \}/);
 });
@@ -595,9 +596,11 @@ test('CLI: reads an export file and exits by the criteria', () => {
   }
 });
 
-test('p90 below the largest run: criteria 1 and 2 report that run', () => {
+test('criterion 2 holds for any n: the workflow budget covers the largest accepted run', () => {
   const baseline = template();
   baseline.budgets.workflow = { tokens: 100_000 };
+  // The meeting stage keeps the p90 rule, so an outlier run can still trip it.
+  baseline.budgets.stages.meeting = { tokens: 100_000, maxTurns: 80 };
   const exports = Array.from({ length: 10 }, (_, i) => ({
     name: `run-${i}`,
     json: syntheticExport([
@@ -610,11 +613,20 @@ test('p90 below the largest run: criteria 1 and 2 report that run', () => {
     ]),
   }));
   const report = calibrate({ exports, baseline });
-  assert.equal(report.budgets.workflow?.tokens, 150_000);
-  assert.equal(
-    report.criteria.workflowHeadroom.runs.filter((r) => !r.ok).length,
-    1,
+  // p90 of the ten runs is 100,000; the max is 280,000 → × 1.5 → 450,000.
+  const workflow = rowOf(report, 'workflow', 'tokens');
+  assert.deepEqual(
+    [workflow.n, workflow.stat, workflow.measured, workflow.value],
+    [10, 'max', 280_000, 450_000],
   );
+  assert.equal(report.criteria.workflowHeadroom.ok, true);
+  assert.equal(
+    Math.min(
+      ...report.criteria.workflowHeadroom.runs.map((r) => r.ratio ?? 0),
+    ).toFixed(2),
+    '1.61',
+  );
+  assert.equal(rowOf(report, 'meeting', 'tokens').value, 150_000);
   assert.deepEqual(
     report.criteria.replay.runs.filter((r) => !r.ok).map((r) => r.run),
     ['run-9'],
@@ -622,6 +634,85 @@ test('p90 below the largest run: criteria 1 and 2 report that run', () => {
   assert.equal(report.ok, false);
   assert.match(
     formatReport(report),
-    /run-9: 1 budget\.\* events\n {4}budget\.exceeded workflow tokens: 280000 ≥ 150000/,
+    /run-9: 1 budget\.\* events\n {4}budget\.exceeded stage tokens meeting: 280000 ≥ 150000/,
   );
+});
+
+test('baseline reader is strict about the baseline keys', () => {
+  const ok = [
+    'apiVersion: ai-office/v1alpha1',
+    'defaults:',
+    '  budget: { hardLimitMultiplier: 2 }',
+    '  workflowBudget: { tokens: 900 }',
+    'stages:',
+    '  - id: meeting',
+    '    kind: meeting',
+    '    budget: { tokens: 300, maxTurns: 8 } # comment',
+    '    gate:',
+    '      { id: g, title: t }',
+    '  - id: implement',
+    '    kind: implement',
+    '    maxParallel: 3',
+    '    budget: { tokens: 600, perItem: { tokens: 200 } }',
+  ];
+  assert.deepEqual(parseBaseline(ok.join('\n')).budgets, {
+    stages: {
+      meeting: { tokens: 300, maxTurns: 8 },
+      implement: { tokens: 600, perItem: { tokens: 200 } },
+    },
+    workflow: { tokens: 900 },
+    hardLimitMultiplier: 2,
+  });
+  /** @param {number} line @param {string} text */
+  const swap = (line, text) =>
+    ok.map((l, i) => (i === line ? text : l)).join('\n');
+  const cases = [
+    [swap(0, 'extra: 1'), /unexpected top-level key extra/],
+    [
+      swap(2, '  budget: { hardLimitMultiplier: 2, tokens: 5 }'),
+      /unexpected key tokens/,
+    ],
+    [swap(2, '  budget: { hardLimitMultiplier: 0.5 }'), /≥ 1/],
+    [swap(2, '  budget:'), /single-line flow mapping/],
+    [swap(3, '  workflowBudget: { tokens: 9.5 }'), /positive integer/],
+    [
+      swap(7, '    budget: { tokens: 300, maxturns: 8 }'),
+      /unexpected key maxturns/,
+    ],
+    [swap(7, '    budget: { maxTurns: 8 }'), /missing tokens/],
+    [
+      swap(7, '    budget: { tokens: 300, tokens: 400 }'),
+      /Duplicate key tokens/,
+    ],
+    [swap(7, '    budget: { tokens: lots }'), /positive integer/],
+    [swap(7, '    budget: { tokens: 300 } extra'), /Malformed/],
+    [swap(9, '      budget: { tokens: 1 }'), /unexpected budget here/],
+    [swap(9, '    maxTurns: 5'), /unexpected maxTurns here/],
+    [swap(12, '    maxParallel: 0'), /positive integer/],
+    [swap(12, '    role: engineer'), /maxParallel belongs to implement/],
+    [swap(6, '    kind: meetings'), /unknown kind meetings/],
+    [swap(10, '  - id: meeting'), /duplicate stage meeting/],
+    [swap(13, '    perItem: { tokens: 200 }'), /unexpected perItem here/],
+    [swap(12, '    tokens: 3'), /unexpected tokens here/],
+    [
+      swap(6, '    kind: meeting\n    maxParallel: 2'),
+      /maxParallel belongs to implement/,
+    ],
+    [ok.join('\n') + '\n    budget: { tokens: 1 }', /duplicate budget/],
+    [
+      ok.join('\n') + '\nroles:\n  lead:\n    budget: { tokens: 1 }',
+      /unexpected budget here/,
+    ],
+    [ok.join('\n').replace('    kind: meeting\n', ''), /meeting has no kind/],
+    [
+      ok.join('\n').replace('  budget: { hardLimitMultiplier: 2 }\n', ''),
+      /no defaults.budget/,
+    ],
+    [ok.join('\n').replace('    kind', '\tkind'), /tabs/],
+  ];
+  for (const [yaml, error] of cases)
+    assert.throws(
+      () => parseBaseline(/** @type {string} */ (yaml)),
+      /** @type {RegExp} */ (error),
+    );
 });

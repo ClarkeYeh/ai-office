@@ -1,7 +1,8 @@
 // Budget recalibration (M5 §4.3, review B6). Reads exported event JSON and a
 // baseline template, recommends budgets (only up), and checks the criteria:
 //   1. replaying each run with enforcement on and the new values gives 0 budget.*;
-//   2. the workflow budget is at least 1.5× each run's usage;
+//   2. the workflow budget is at least 1.5× every accepted run's total (each
+//      --events export is an accepted run), so it holds for any n;
 //   3. crossing each threshold, then its hard limit, raises exactly one alert each.
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -17,7 +18,7 @@ import { replayRun, runsFromExport, thresholdMechanism } from './replay.mjs';
  * @typedef {import('./baseline.mjs').Baseline} Baseline
  * @typedef {{ tokens: number[], turns: number[] }} Series
  * @typedef {{ runs: number, stages: Record<string, Series>, perItem: Record<string, Series>, itemShare: Record<string, Series>, workflow: number[] }} Samples
- * @typedef {{ level: string, metric: 'tokens' | 'turns', n: number, p90?: number, old: number, computed?: number, value: number, headroom?: number, loose: boolean }} Row
+ * @typedef {{ level: string, metric: 'tokens' | 'turns', n: number, stat: 'p90' | 'max', measured?: number, old: number, computed?: number, value: number, headroom?: number, loose: boolean }} Row
  */
 
 export const FACTOR = 1.5;
@@ -31,6 +32,10 @@ export function p90(values) {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.ceil(0.9 * sorted.length) - 1];
 }
+
+/** Largest value; undefined for an empty sample. @param {number[]} values */
+export const max = (values) =>
+  values.length === 0 ? undefined : Math.max(...values);
 
 /** @param {number} value @param {number} step */
 export const roundUp = (value, step) => Math.ceil(value / step) * step;
@@ -145,19 +150,30 @@ export function samplesFromRuns(runs) {
 }
 
 /**
- * new = max(old, roundUp(p90 × 1.5 × scale)); never lower. Headroom = new ÷ measured p90.
+ * new = max(old, roundUp(stat × 1.5 × scale)); never lower. Headroom = new ÷ measured stat.
+ * stat is nearest-rank p90, except the workflow level, which uses the max.
  * @param {string} level @param {'tokens' | 'turns'} metric @param {number} old
  * @param {number[]} computedFrom @param {number[]} measured @param {number} [scale]
+ * @param {'p90' | 'max'} [stat]
  * @returns {Row}
  */
-function row(level, metric, old, computedFrom, measured, scale = 1) {
-  const basis = p90(computedFrom);
+function row(
+  level,
+  metric,
+  old,
+  computedFrom,
+  measured,
+  scale = 1,
+  stat = 'p90',
+) {
+  const pick = stat === 'max' ? max : p90;
+  const basis = pick(computedFrom);
   const computed =
     basis === undefined
       ? undefined
       : roundUp(basis * FACTOR * scale, STEP[metric]);
   const value = Math.max(old, computed ?? old);
-  const measuredP90 = p90(measured);
+  const measuredP90 = pick(measured);
   const headroom =
     measuredP90 === undefined || measuredP90 === 0
       ? undefined
@@ -166,7 +182,8 @@ function row(level, metric, old, computedFrom, measured, scale = 1) {
     level,
     metric,
     n: measured.length,
-    ...(measuredP90 === undefined ? {} : { p90: measuredP90 }),
+    stat,
+    ...(measuredP90 === undefined ? {} : { measured: measuredP90 }),
     old,
     ...(computed === undefined ? {} : { computed }),
     value,
@@ -278,6 +295,9 @@ export function recommend(samples, baseline) {
       baseline.budgets.workflow.tokens,
       samples.workflow,
       samples.workflow,
+      1,
+      // Criterion 2 is per accepted run, so the workflow rule uses the largest run.
+      'max',
     );
     rows.push(workflow);
     budgets.workflow = { tokens: workflow.value };
@@ -405,11 +425,11 @@ export function formatReport(report) {
   const lines = [
     `Budget calibration (runs n=${report.runs}; small-scale samples, read n per level)`,
     '',
-    '| level | metric | n | p90 | old | p90×1.5 rounded | new | headroom |',
+    '| level | metric | n | measured | old | ×1.5 rounded | new | headroom |',
     '|---|---|---|---|---|---|---|---|',
     ...report.rows.map(
       (r) =>
-        `| ${r.level} | ${r.metric} | ${r.n} | ${num(r.p90)} | ${num(r.old)} | ${num(r.computed)} | ${num(r.value)}${r.value > r.old ? ' (raised)' : ''} | ${ratio(r.headroom)}${r.loose ? ' loose' : ''} |`,
+        `| ${r.level} | ${r.metric} | ${r.n} | ${r.stat} ${num(r.measured)} | ${num(r.old)} | ${num(r.computed)} | ${num(r.value)}${r.value > r.old ? ' (raised)' : ''} | ${ratio(r.headroom)}${r.loose ? ' loose' : ''} |`,
     ),
     '',
     `Criterion 1 (replay, enforcement on, new values → 0 budget.*): ${verdict(report.criteria.replay.ok)}`,
@@ -423,7 +443,7 @@ export function formatReport(report) {
           )
           .join(''),
     ),
-    `Criterion 2 (workflow budget ≥ ${MIN_WORKFLOW_HEADROOM}× run usage): ${verdict(report.criteria.workflowHeadroom.ok)}`,
+    `Criterion 2 (workflow budget ≥ ${MIN_WORKFLOW_HEADROOM}× every accepted run): ${verdict(report.criteria.workflowHeadroom.ok)}`,
     ...report.criteria.workflowHeadroom.runs.map(
       (h) =>
         `  ${h.run}: ${num(h.budget)} / ${num(h.used)} = ${ratio(h.ratio)}`,
