@@ -24,6 +24,8 @@ export interface BackendProcess {
   readonly bootstrapUrl: string;
   kill9(): Promise<void>;
   stop(): Promise<void>;
+  /** M5-T7: resolves when the process has exited (by any signal). */
+  readonly exited: Promise<void>;
 }
 
 export async function startBackendProcess(options: {
@@ -32,8 +34,20 @@ export async function startBackendProcess(options: {
   /** First start only: ledgers the shim the backend creates. */
   effects?: ComposedEffects;
   logName: string;
+  /** M5-T7: another built child entry speaking the same IPC protocol. */
+  entry?: string;
+  /** M5-T7: extra variables on top of the minimal environment. */
+  env?: Record<string, string>;
+  /** M5-T7: other IPC messages (for example an SCM bridge). */
+  onMessage?: (
+    message: { type: string; [k: string]: unknown },
+    child: ChildProcess,
+  ) => void;
+  /** M5-T7: `advanced` keeps Dates and Errors across IPC. */
+  serialization?: 'json' | 'advanced';
 }): Promise<BackendProcess> {
-  await access(CHILD_ENTRY).catch(() => {
+  const entry = options.entry ?? CHILD_ENTRY;
+  await access(entry).catch(() => {
     throw new Error('Run `pnpm -r build` first: T17 child backend not built');
   });
   const home = process.env.HOME;
@@ -41,17 +55,25 @@ export async function startBackendProcess(options: {
   const log = createWriteStream(join(options.home, options.logName), {
     mode: 0o600,
   });
-  const child: ChildProcess = spawn(process.execPath, [CHILD_ENTRY], {
+  const child: ChildProcess = spawn(process.execPath, [entry], {
     // §27 "gh/git usable when launched from the GUI": no shell PATH, no tokens.
     env: {
       PATH: '/usr/bin:/bin',
       HOME: home,
       AI_OFFICE_HOME: options.home,
       AIO_T17_ORCA_HOME: options.orcaHome,
+      ...options.env,
     },
     cwd: options.home,
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+    ...(options.serialization ? { serialization: options.serialization } : {}),
   });
+  if (options.onMessage) {
+    const relay = options.onMessage;
+    child.on('message', (m: { type: string; [k: string]: unknown }) =>
+      relay(m, child),
+    );
+  }
   child.stdout!.pipe(log);
   child.stderr!.pipe(log);
   const exited = new Promise<void>((done) => child.once('exit', () => done()));
@@ -85,6 +107,7 @@ export async function startBackendProcess(options: {
   return {
     pid: child.pid!,
     ...ready,
+    exited,
     async kill9() {
       child.kill('SIGKILL');
       await exited;
