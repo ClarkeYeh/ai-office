@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Json } from '../../orca/t17/checks.js';
 import type { RestartRecord } from '../restart.js';
 import {
+  latencyBreakdown,
   readyWithReconcileMs,
   segmentSemantics,
   windowAssertions,
@@ -162,6 +163,30 @@ describe('rehearsal window judgement', () => {
         'gate.opened design stage',
       ],
       commands: ['runtime.spawnAgent', 'scm.ensureBranch'],
+    });
+  });
+
+  it('splits runtime lag at the restarts', () => {
+    const at = (ms: number) => new Date(ms).toISOString();
+    const runtime = (occurred: number, recorded: number) => ({
+      source: 'runtime',
+      occurredAt: at(occurred),
+      recordedAt: at(recorded),
+    });
+    const log = [
+      runtime(1_000, 1_100),
+      runtime(2_000, 2_200),
+      // Happened before the kill at 5 s, recorded after the restart was ready.
+      runtime(4_900, 9_000),
+      runtime(9_500, 9_600),
+      { source: 'scm', occurredAt: at(0), recordedAt: at(60_000) },
+    ];
+    expect(
+      latencyBreakdown(log, [{ killedAt: 5_000, readyAt: 8_000 }]),
+    ).toEqual({
+      all: { count: 4, p95Ms: 4_100, worstMs: 4_100 },
+      acrossRestart: { count: 1, p95Ms: 4_100, worstMs: 4_100 },
+      excludingRestart: { count: 3, p95Ms: 200, worstMs: 200 },
     });
   });
 });

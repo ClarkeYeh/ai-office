@@ -121,6 +121,10 @@ realGithubSuite('M5-T11 rehearsal (live spike, fake runtime)', () => {
                 windows: report.windows,
                 scmCalls: report.scmCalls,
                 checker: report.checker?.summary,
+                latency: report.latency,
+                notPassing: report.checker?.rows.filter(
+                  (r) => r.verdict !== 'pass',
+                ),
                 minutesTotal: report.minutesTotal,
               },
             }),

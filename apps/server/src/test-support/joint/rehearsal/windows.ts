@@ -155,3 +155,46 @@ export function segmentSemantics(events: Json[], killSeq: number) {
   return { flow, commands };
 }
 export type SegmentSemantics = ReturnType<typeof segmentSemantics>;
+
+/** §24 realtime target, as the T10 checker's `nf.latency` judges it. */
+export const REALTIME_P95_MS = 3_000;
+
+/**
+ * Lag (`recordedAt − occurredAt`) of runtime-observed events, split into the
+ * ones that happened before a restart was ready but were recorded after its
+ * kill (they wait out the downtime by construction) and the rest.
+ */
+export function latencyBreakdown(
+  events: Json[],
+  restarts: { killedAt: number; readyAt: number }[],
+) {
+  const lags = events
+    .filter((e) => e.source === 'runtime')
+    .map((e) => ({
+      occurred: Date.parse(String(e.occurredAt ?? '')),
+      recorded: Date.parse(String(e.recordedAt ?? '')),
+    }))
+    .filter((x) => Number.isFinite(x.occurred) && Number.isFinite(x.recorded))
+    .map((x) => ({
+      lag: x.recorded - x.occurred,
+      across: restarts.some(
+        (r) => x.occurred < r.readyAt && x.recorded >= r.killedAt,
+      ),
+    }));
+  const stats = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return {
+      count: sorted.length,
+      p95Ms: sorted.length
+        ? sorted[Math.ceil(sorted.length * 0.95) - 1]!
+        : null,
+      worstMs: sorted.at(-1) ?? null,
+    };
+  };
+  return {
+    all: stats(lags.map((x) => x.lag)),
+    acrossRestart: stats(lags.filter((x) => x.across).map((x) => x.lag)),
+    excludingRestart: stats(lags.filter((x) => !x.across).map((x) => x.lag)),
+  };
+}
+export type LatencyBreakdown = ReturnType<typeof latencyBreakdown>;

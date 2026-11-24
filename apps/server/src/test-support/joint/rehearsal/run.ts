@@ -45,10 +45,13 @@ import { bootstrapCookie, cookieSession } from '../session.js';
 import { PauseGate, type PauseHit } from './pause.js';
 import { REHEARSAL_REPO, frozenMarker, type WorldPush } from './protocol.js';
 import {
+  latencyBreakdown,
+  REALTIME_P95_MS,
   readyWithReconcileMs,
   segmentSemantics,
   windowAssertions,
   windowCommand,
+  type LatencyBreakdown,
   type SegmentSemantics,
   type WindowEvidence,
   type WindowRow,
@@ -87,7 +90,14 @@ export interface RehearsalBinding {
 export type RehearsalJudge = (
   events: Json[],
   facts: Record<string, unknown>,
-) => { rows: { id: string; verdict: 'pass' | 'fail' | 'na' }[] };
+) => {
+  rows: {
+    id: string;
+    verdict: 'pass' | 'fail' | 'na';
+    /** Log pointers and fact names only (no bodies). */
+    evidence?: string[];
+  }[];
+};
 
 /** Checker rows the rehearsal cannot judge, with the reason (never hides a pass). */
 export const REHEARSAL_NA: Record<string, string> = {
@@ -129,8 +139,16 @@ export interface RehearsalReport {
   owner: OwnerPolicyExecutor['record'];
   /** SCM port calls the backend made, by method. */
   scmCalls: Record<string, number>;
+  /** Runtime-event lag, split at the two restarts (checker `nf.latency`). */
+  latency?: LatencyBreakdown;
   checker?: {
-    rows: { id: string; verdict: string; reason?: string; checker?: string }[];
+    rows: {
+      id: string;
+      verdict: string;
+      reason?: string;
+      checker?: string;
+      evidence?: string[];
+    }[];
     summary: Record<string, number>;
   };
   failed: string[];
@@ -514,11 +532,37 @@ export async function runRehearsal(
             }
           : {}),
       };
+      const latency = latencyBreakdown(
+        log,
+        evidence.map((w) => ({
+          killedAt: w.restart.readyAt - w.restart.downtimeMs,
+          readyAt: w.restart.readyAt,
+        })),
+      );
+      report.latency = latency;
+      // Events that happened before a restart was ready wait out the downtime
+      // by construction; n/a only when the rest still meets the target.
+      const p95 = latency.excludingRestart.p95Ms;
+      const na: Record<string, string> = {
+        ...REHEARSAL_NA,
+        ...(p95 !== null && p95 < REALTIME_P95_MS
+          ? {
+              'nf.latency': `the drill's two downtimes delay ${latency.acrossRestart.count} runtime events by construction (worst ${latency.acrossRestart.worstMs} ms); the other ${latency.excludingRestart.count} have p95 ${p95} ms < ${REALTIME_P95_MS} ms`,
+            }
+          : {}),
+      };
       const rows = options.judge(log, facts).rows.map((r) => {
-        const reason = REHEARSAL_NA[r.id];
+        const reason = na[r.id];
+        const evidence = r.evidence ? { evidence: r.evidence.slice(0, 5) } : {};
         return reason === undefined || r.verdict === 'pass'
-          ? { id: r.id, verdict: r.verdict }
-          : { id: r.id, verdict: 'na' as const, reason, checker: r.verdict };
+          ? { id: r.id, verdict: r.verdict, ...evidence }
+          : {
+              id: r.id,
+              verdict: 'na' as const,
+              reason,
+              checker: r.verdict,
+              ...evidence,
+            };
       });
       const summary: Record<string, number> = { pass: 0, fail: 0, na: 0 };
       for (const r of rows) summary[r.verdict] = (summary[r.verdict] ?? 0) + 1;
