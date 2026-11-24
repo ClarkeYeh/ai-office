@@ -101,7 +101,7 @@ export function createDataDirectories(dataDir: string): void {
     '/data/specs',
     '/logs',
     '/cli-cwd',
-    '/orca-home',
+    ...(readSettings(dataDir).orca.homeDir === '' ? ['/orca-home'] : []),
   ]) {
     mkdirSync(`${dataDir}${subdir}`, { recursive: true, mode: 0o700 });
   }
