@@ -54,19 +54,21 @@ function scan(
       if (entry.name.endsWith('.json')) {
         try {
           const value: unknown = JSON.parse(text);
-          if (
-            resolve(path).startsWith(resolve('fixtures/m5') + sep) &&
-            hasLongNaturalText(value)
-          )
-            failures++;
+          // B4 masked joint exports: fixtures/m5/** and its one web copy
+          // (M5-T17), which keeps the export envelope and command/timer events.
+          const b4 =
+            resolve(path).startsWith(resolve('fixtures/m5') + sep) ||
+            resolve(path) === resolve('fixtures/web/m5-joint.events.json');
+          if (b4 && hasLongNaturalText(value)) failures++;
           if (/\/(?:Users|home)\/[^/\s"]+/.test(JSON.stringify(value)))
             failures++;
           if (
+            !b4 &&
             entry.name.endsWith('.events.json') &&
             resolve(dirname(path)) === resolve('fixtures/web')
           ) {
             if (!safeWebEvents(value, redactor)) failures++;
-          } else if (resolve(path).startsWith(resolve('fixtures/m5') + sep)) {
+          } else if (b4) {
             // Event fixtures preserve counters, including token-named fields.
             // Do not apply the generic body summarizer to B4 placeholders.
             const safe = (item: unknown): boolean => {
