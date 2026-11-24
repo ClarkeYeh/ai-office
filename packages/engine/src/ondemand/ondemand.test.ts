@@ -235,6 +235,7 @@ describe('on-demand engine', () => {
     const gate = sim.eventsOf('gate.opened').at(-1)!.payload;
     expect(gate).toMatchObject({
       kind: 'exception',
+      stageId: 'implement',
       exceptionKind: 'merge-review-failed',
       content: { itemKey: 'A' },
     });
@@ -333,6 +334,14 @@ describe('on-demand engine', () => {
     ask(sim, 'q1');
     sim.advance(20 * MINUTE_MS);
     expect(sim.state.questions.q1!.status).toBe('escalated');
+    expect(Object.values(sim.state.gates)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          exceptionKind: 'question-escalation',
+          stageId: 'implement',
+        }),
+      ]),
+    );
     expect(
       sim
         .eventsOf('message.nudge')
@@ -445,6 +454,7 @@ it('continues reviewing other PRs while a conflict exception gate is open', () =
     },
   });
   expect(sim.eventsOf('gate.opened').at(-1)?.payload).toMatchObject({
+    stageId: 'implement',
     exceptionKind: 'merge-blocked',
   });
   expect(instance(sim).current).toBe('B');

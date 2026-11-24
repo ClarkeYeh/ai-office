@@ -261,6 +261,7 @@ describe('wrap-up and final PR', () => {
     const gate = Object.values(sim.state.gates)[0]!;
     expect(gate).toMatchObject({
       kind: 'exception',
+      stageId: 'integrate',
       exceptionKind: 'decision-request',
     });
     sim.dispatch({
@@ -298,6 +299,7 @@ describe('wrap-up and final PR', () => {
     sim.dispatch({ type: 'StartStage', stageId: 'integrate' });
     expect(sim.eventsOf('seat.spawned')).toHaveLength(0);
     expect(sim.eventsOf('gate.opened')[0]?.payload).toMatchObject({
+      stageId: 'integrate',
       exceptionKind: 'stage-violation',
     });
   });

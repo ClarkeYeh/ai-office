@@ -437,6 +437,116 @@ describe('cancel drain', () => {
 });
 
 describe('exception and pause handling', () => {
+  it.each(['anomaly', 'hijacked'] as const)(
+    '%s belongs to the latest reached stage while its gate is open',
+    (kind) => {
+      const sim = setup('integrate');
+      for (const stage of Object.values(sim.state.stages))
+        if (stage.status !== 'pending') stage.attempt = 1;
+      sim.state.stages.integrate!.status = 'awaiting_gate';
+      if (kind === 'anomaly')
+        sim.inject('anomaly.detected', {
+          kind: 'unknown-object',
+          severity: 'high',
+          summary: 'Unexpected object',
+        });
+      else
+        sim.inject('runtime.identity_hijacked', {
+          run: 'session-1',
+          coordinatorHandle: 'other',
+          consumerGeneration: 1,
+        });
+      expect(Object.values(sim.state.gates)).toEqual([
+        expect.objectContaining({ exceptionKind: kind, stageId: 'integrate' }),
+      ]);
+    },
+  );
+
+  it('an attempt anomaly retains its stage after the workflow advances', () => {
+    const sim = setup('breakdown');
+    agent(sim, 'planner', 'planner', 'breakdown');
+    sim.state.stages.breakdown!.status = 'done';
+    sim.state.stages.implement!.status = 'running';
+    sim.inject('anomaly.detected', {
+      kind: 'policy-hit',
+      severity: 'high',
+      summary: 'Policy violation',
+      attemptId: 'planner',
+    });
+    expect(Object.values(sim.state.gates)[0]).toMatchObject({
+      exceptionKind: 'anomaly',
+      stageId: 'breakdown',
+    });
+  });
+
+  it.each(['event', 'command'] as const)(
+    'an anomaly uses its %s stage before the currently running stage',
+    (source) => {
+      const sim = setup('breakdown');
+      agent(sim, 'planner', 'planner', 'breakdown');
+      sim.state.stages.breakdown!.status = 'done';
+      sim.state.stages.implement!.status = 'running';
+      sim.state.commands['old-send'] = {
+        id: 'old-send',
+        attemptId: 'planner',
+        issuedAt: sim.clock,
+        status: 'succeeded',
+        issued: {
+          commandId: 'old-send',
+          kind: 'runtime.send',
+          args: { agent: 'agent:planner', subject: 'Plan', body: 'Plan' },
+        },
+      };
+      const ctx = context(sim, 'anomaly.detected', {
+        kind: 'unknown-object',
+        severity: 'high',
+        summary: 'Unexpected object',
+        ...(source === 'command' ? { commandId: 'old-send' } : {}),
+      });
+      if (source === 'event') ctx.event.stageId = 'breakdown';
+      expect(exceptionsPolicy(ctx)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            command: expect.objectContaining({
+              type: 'OpenGate',
+              gate: expect.objectContaining({ stageId: 'breakdown' }),
+            }),
+          }),
+        ]),
+      );
+    },
+  );
+
+  it.each([
+    'budget-exceeded',
+    'budget-hard-limit',
+    'item-budget-exceeded',
+    'item-budget-hard-limit',
+  ] as const)('%s belongs to its triggering stage', (kind) => {
+    const sim = setup();
+    agent(sim, 'a');
+    const item = kind.startsWith('item-');
+    sim.inject(
+      kind.endsWith('hard-limit') ? 'budget.hard_limit' : 'budget.exceeded',
+      {
+        ...(item
+          ? {
+              scope: 'item' as const,
+              stageId: 'implement',
+              itemKey: 'a',
+              attemptId: 'a',
+            }
+          : { scope: 'stage' as const, stageId: 'implement', stageAttempt: 1 }),
+        metric: 'tokens',
+        used: 100,
+        budget: 100,
+        threshold: 100,
+      },
+    );
+    expect(Object.values(sim.state.gates)).toEqual([
+      expect.objectContaining({ exceptionKind: kind, stageId: 'implement' }),
+    ]);
+  });
   it('never automatically reclaims; resumes only after an authorized successful reclaim', () => {
     const sim = setup('implement', (e, s) =>
       e.command.kind === 'runtime.reclaimSession'

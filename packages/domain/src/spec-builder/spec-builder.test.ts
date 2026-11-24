@@ -396,6 +396,42 @@ describe('inputs', () => {
 });
 
 describe('variants', () => {
+  test('planner lists distinct template agents and recommends selective overrides', async () => {
+    const state = richState();
+    const text = ok(state, REQUESTS['planner']!).text;
+    expect(text).toContain(
+      'Available agent kinds in this template: `claude-code`, `codex`.',
+    );
+    expect(text).toContain(
+      'Fill optional `agent` only when an item clearly fits',
+    );
+    expect(text).toContain("otherwise omit it to use the role's default agent");
+    const template = structuredClone(state.workflow!.template);
+    for (const role of Object.values(template.roles)) role.agent = 'codex';
+    const single = ok(
+      { ...state, workflow: { ...state.workflow!, template } },
+      REQUESTS['planner']!,
+    ).text;
+    expect(single).toContain(
+      'Available agent kinds in this template: `codex`.',
+    );
+    await expect(single).toMatchFileSnapshot(
+      '__snapshots__/planner-single-agent.txt',
+    );
+  });
+
+  test.each([
+    'facilitator',
+    'participant',
+    'planner',
+    'oncall',
+    'merge-queue',
+    'integrator',
+  ])('%s retries an unreachable backend for about five minutes', (name) => {
+    expect(ok(stateFor(name), REQUESTS[name]!).text).toContain(
+      'Wait 30 seconds and run the same command again, at most 10 times (about 5 minutes).',
+    );
+  });
   test('reruns carry the feedback; tech decisions can be optional', () => {
     const state = richState();
     const template = structuredClone(state.workflow!.template);

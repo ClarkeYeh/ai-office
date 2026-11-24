@@ -46,6 +46,8 @@ Roles a work item may use (implementation default: `engineer`):
 - `engineer` (default agent `codex`)
 - `integrator` (default agent `claude-code`)
 
+Available agent kinds in this template: `claude-code`, `codex`.
+
 Up to 3 items run in parallel; each worker has 45 minutes.
 
 ## 4. Workspace and allowed side effects
@@ -93,10 +95,10 @@ AIO_JSON
 - Exit 0: accepted; stdout is `{"status":"accepted","submissionId":…}`.
 - Exit 2: schema error; stdout is `{"issues":[{"path":…,"code":…,"message":…}]}`. Fix every listed issue and submit again.
 - Exit 3: identity or state error (for example the gate is already open or this kind is not allowed now), or the backend failed to process the submission (`submission_failed` with a `requestId`). Unless a note below says otherwise, do not retry the same submission; quote the error in your `worker_done` report.
-- Exit 4: the AI Office backend is unreachable. Wait 30 seconds and run the same command again, at most 5 times.
+- Exit 4: the AI Office backend is unreachable. Wait 30 seconds and run the same command again, at most 10 times (about 5 minutes).
 - Submitting the same kind again before the stage gate opens replaces your earlier submission.
 - `key`: unique, letters, digits, `-` and `_` only (it becomes part of a branch name).
-- `role`: one of the roles listed above. `agent` (`claude-code` or `codex`) is optional and defaults to the role's agent.
+- `role`: one of the roles listed above. Fill optional `agent` only when an item clearly fits one of the available agent kinds listed above; otherwise omit it to use the role's default agent.
 - `deps`: keys of items that must be done first; no cycles.
 - `acceptance`: concrete, checkable criteria. Size each item so one worker can finish it in time without touching the same files as a parallel item.
 
