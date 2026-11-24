@@ -71,6 +71,11 @@ const config = {
         dependencyTypesNot: ['core'],
         pathNot: [
           '^apps/server/src/test-support/(joint|orca|github)/',
+          // M5-T7 amendment (coordinator-authorized): the ports and the
+          // composition root, which test-support/orca already reaches; never
+          // adapters directly.
+          '^apps/server/src/ports/',
+          '^apps/server/src/main\\.ts$',
           '^packages/',
           '(^|/)node_modules/',
         ],

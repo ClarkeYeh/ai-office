@@ -60,7 +60,6 @@ import {
   openSessionStatus,
   readControlToken,
   runInbox,
-  runtimeCursorLastSeq,
 } from './observe.js';
 import { OwnerPolicyExecutor, type OwnerPort } from './owner-policy.js';
 import { RestartControl, RestartTrigger, type TriggerName } from './restart.js';
@@ -645,7 +644,6 @@ async function drill(
       .filter((r) => r.kind === 'shim')
       .map((r) => r.id);
     const inbox = orcaRun ? await runInbox(h, orcaRun) : undefined;
-    const cursor = runtimeCursorLastSeq(mode.home);
     const worktrees = (await h.scan())
       .filter((r) => r.kind === 'worktree')
       .map((r) => r.name);
@@ -671,7 +669,6 @@ async function drill(
       scm: await mode.scmFacts(log),
       orca: {
         ...(inbox ? { inbox } : {}),
-        ...(cursor === undefined ? {} : { runtimeCursorLastSeq: cursor }),
         ...(control.record
           ? { shimHandles: { before: shimsBefore, after: shimsAfter } }
           : {}),

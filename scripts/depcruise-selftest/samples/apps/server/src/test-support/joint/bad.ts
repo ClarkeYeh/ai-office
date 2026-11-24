@@ -1,1 +1,1 @@
-import '../../main.js';
+import '../../adapters/scm-fake/index.js';

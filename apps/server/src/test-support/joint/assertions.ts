@@ -44,7 +44,6 @@ export interface RestartEvidence {
     inbox?: { id: string; sequence: number }[];
     /** Inbox ids recorded as non-event classifications. */
     classified?: string[];
-    runtimeCursorLastSeq?: number;
     shimHandles?: { before: string[]; after: string[] };
     runs?: number;
     /** Our worktree names (by name and marker); duplicates fail #12. */
@@ -341,28 +340,38 @@ export function a6MailboxExactlyOnce(x: RestartEvidence): AssertionResult {
   );
 }
 
-/** #7 runtime cursor caught up with the inbox; no repeated `gh:*` externalKey. */
+/**
+ * #7 ingest cursors, read from the event log (the harness never opens the
+ * backend's sqlite): the API log has no repeated or out-of-order seq, the
+ * newest inbox message (highest Orca sequence) was ingested or classified —
+ * so the runtime cursor reached the end of the inbox — and no `gh:*`
+ * externalKey repeats.
+ */
 export function a7IngestCursor(x: RestartEvidence): AssertionResult {
   const gh = new Map<string, number>();
   for (const e of x.events)
     if (typeof e.externalKey === 'string' && e.externalKey.startsWith('gh:'))
       gh.set(e.externalKey, (gh.get(e.externalKey) ?? 0) + 1);
-  const maxInbox = x.orca?.inbox?.length
-    ? Math.max(...x.orca.inbox.map((m) => m.sequence))
+  let outOfOrder = 0;
+  for (let i = 1; i < x.events.length; i++)
+    if (seqOf(x.events[i]!) <= seqOf(x.events[i - 1]!)) outOfOrder++;
+  const inbox = x.orca?.inbox;
+  const newest = inbox?.length
+    ? inbox.reduce((a, b) => (b.sequence > a.sequence ? b : a))
     : undefined;
-  const cursor = x.orca?.runtimeCursorLastSeq;
+  const newestIngested =
+    newest === undefined
+      ? undefined
+      : x.events.some((e) => e.externalKey === `orca:msg:${newest.id}`) ||
+        (x.orca?.classified ?? []).includes(newest.id);
   return verdict(
     7,
     'ingest cursors',
-    [
-      cursor === undefined || maxInbox === undefined
-        ? undefined
-        : cursor >= maxInbox,
-      [...gh.values()].every((n) => n === 1),
-    ],
+    [outOfOrder === 0, newestIngested, [...gh.values()].every((n) => n === 1)],
     {
-      runtimeCursorLastSeq: cursor ?? null,
-      inboxMaxSequence: maxInbox ?? null,
+      seqOutOfOrderOrRepeated: outOfOrder,
+      inboxMaxSequence: newest?.sequence ?? null,
+      newestInboxIngested: newestIngested ?? null,
       repeatedGhKeys: [...gh.values()].filter((n) => n > 1).length,
     },
   );

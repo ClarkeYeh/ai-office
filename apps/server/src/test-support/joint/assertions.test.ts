@@ -124,7 +124,6 @@ function healthy(): RestartEvidence {
         { id: 'm2', sequence: 5 },
       ],
       classified: ['m2'],
-      runtimeCursorLastSeq: 5,
       shimHandles: { before: ['shim1'], after: ['shim1'] },
       runs: 1,
       worktreeNames: ['aio-x-core', 'aio-x-sub'],
@@ -280,7 +279,7 @@ describe('each row fails on its own defect', () => {
 
   it('#7 a lagging runtime cursor or a repeated gh: key', () => {
     const x = healthy();
-    x.orca!.runtimeCursorLastSeq = 4;
+    x.orca!.classified = []; // the newest inbox message (m2) never landed
     expect(a7IngestCursor(x).status).toBe('fail');
     const y = healthy();
     push(y, 'pr.status', {}, { externalKey: 'gh:pr:7:1' });

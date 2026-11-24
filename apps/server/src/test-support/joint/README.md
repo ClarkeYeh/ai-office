@@ -36,9 +36,10 @@ T8's `m5-mainline` text (`scenario/`).
   client that reconnects with `Last-Event-ID` and records every seq.
 - `sampler.ts`: health sampler every 30 s (CLI calls per minute, adapter call
   counts, rate-limit remaining). Numbers only.
-- `observe.ts`: live readers for the assertions (lock ownership, runtime
-  ingest cursor, the run's inbox, control token, `ai-office open --print`,
-  gateway resend counts). Each one fails soft to `n/a`.
+- `observe.ts`: live readers for the assertions (lock ownership, the run's
+  inbox, control token, `ai-office open --print`, the prevent-sleep child).
+  Each one fails soft to `n/a`. The backend's sqlite is never opened: #7
+  reads ingest continuity from the event log and the inbox.
 - `export-run.ts`: the B4 step. Raw events go only to a private directory
   outside the repo (0700/0600); the masked export comes from T0's
   `export/` (`exportJointEvents`).

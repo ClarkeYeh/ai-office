@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   RESTART_BUDGET,
   RestartControl,
+  RestartExitTimeout,
   RestartRefused,
   RestartTrigger,
   type ControlledBackend,
@@ -251,6 +252,31 @@ describe('RestartControl (fake processes)', () => {
     const record = await control.killAndRestart('K', 1);
     expect(record.readyMs).toBeGreaterThan(RESTART_BUDGET.readyWithinMs);
     expect(record.withinBudget).toBe(false);
+  });
+
+  it('fails loudly when the killed backend never exits, and stop() still reaps it', async () => {
+    const w = world();
+    let stopped = 0;
+    const control = new RestartControl({
+      home: '/h',
+      start: async () => ({
+        ...(await w.start()),
+        exited: new Promise(() => undefined), // survives SIGKILL
+        stop: async () => {
+          stopped++;
+        },
+      }),
+      ops: w.ops,
+      exitTimeoutMs: 20,
+    });
+    const first = await control.start();
+    await expect(control.killAndRestart('K', 1)).rejects.toBeInstanceOf(
+      RestartExitTimeout,
+    );
+    expect(w.starts).toEqual([first.pid]); // no restart on top of a survivor
+    expect(control.hasKilled).toBe(true); // and never a second kill
+    await control.stop();
+    expect(stopped).toBe(1);
   });
 
   it('stop() stops the current backend; start() twice is refused', async () => {

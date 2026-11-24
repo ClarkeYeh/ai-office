@@ -23,6 +23,8 @@ export const RESTART_BUDGET = {
   readyWithinMs: 60_000,
   /** Kill → ready. */
   downtimeMaxMs: 90_000,
+  /** SIGKILL → the killed process is observed gone; beyond it the drill fails. */
+  exitWithinMs: 30_000,
 } as const;
 
 /**
@@ -143,6 +145,9 @@ export interface RestartRecord {
 
 export class RestartRefused extends Error {}
 
+/** The killed backend never exited: a harness failure, never retried. */
+export class RestartExitTimeout extends Error {}
+
 /**
  * Owns the pid ledger of backends it started and the single kill. `start`
  * relaunches on the same home and port; the control only ever signals a pid
@@ -161,6 +166,8 @@ export class RestartControl {
       ops?: ProcessOps;
       /** Polls of runtime.json while waiting for the old holder to vanish. */
       pollMs?: number;
+      /** Bound on the killed process's exit (default `RESTART_BUDGET.exitWithinMs`). */
+      exitTimeoutMs?: number;
     },
   ) {}
 
@@ -216,7 +223,22 @@ export class RestartControl {
     this.killed = true;
     const killedAt = this.ops.now();
     this.ops.kill(runtimePid, 'SIGKILL');
-    await backend.exited;
+    // Bounded: a process that survives SIGKILL fails the drill loudly; the
+    // old backend stays current so `stop()` (the run's cleanup) still reaps it.
+    let timer: NodeJS.Timeout | undefined;
+    const gone = await Promise.race([
+      backend.exited.then(() => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(
+          () => resolve(false),
+          this.options.exitTimeoutMs ?? RESTART_BUDGET.exitWithinMs,
+        );
+      }),
+    ]).finally(() => clearTimeout(timer));
+    if (!gone)
+      throw new RestartExitTimeout(
+        `Joint harness: killed backend ${runtimePid} did not exit within ${this.options.exitTimeoutMs ?? RESTART_BUDGET.exitWithinMs} ms`,
+      );
     this.current = undefined;
     const restartAt = this.ops.now();
     const next = await this.launch();

@@ -1,7 +1,8 @@
 /**
  * M5-T7 live observations feeding the restart assertions: lock ownership,
- * the runtime ingest cursor, the run's inbox (Orca level A), the control
- * token (B7) and the `ai-office open --print` session.
+ * the run's inbox (Orca level A), the control token (B7), the
+ * `ai-office open --print` session and the prevent-sleep child. The backend's
+ * sqlite is never opened: ingest continuity comes from the event log (#7).
  * Every reader fails soft to `undefined` (the assertion part becomes `n/a`);
  * nothing read here is logged — only counts, statuses and booleans leave.
  */
@@ -10,7 +11,6 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import Database from 'better-sqlite3';
 import type { OrcaHarness } from '../orca/harness.js';
 import { CLI_ENTRY } from '../orca/production-cli.js';
 import type { Json } from '../orca/t17/checks.js';
@@ -36,29 +36,6 @@ export async function holdsLock(path: string): Promise<boolean> {
     return (JSON.parse(text) as { pid?: unknown }).pid === process.pid;
   } catch {
     return false;
-  }
-}
-
-/** Highest runtime `lastSeq` in the backend's ingest cursors (read-only). */
-export function runtimeCursorLastSeq(home: string): number | undefined {
-  let db: Database.Database | undefined;
-  try {
-    db = new Database(join(home, 'data', 'ai-office.sqlite'), {
-      readonly: true,
-      fileMustExist: true,
-    });
-    const rows = db
-      .prepare('SELECT source, value_json FROM ingest_cursors')
-      .all() as { source: string; value_json: string }[];
-    const seqs = rows
-      .filter((r) => r.source.startsWith('runtime'))
-      .map((r) => (JSON.parse(r.value_json) as Json)?.lastSeq)
-      .filter((n): n is number => typeof n === 'number');
-    return seqs.length ? Math.max(...seqs) : undefined;
-  } catch {
-    return undefined;
-  } finally {
-    db?.close();
   }
 }
 
