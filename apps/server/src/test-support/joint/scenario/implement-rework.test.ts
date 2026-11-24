@@ -1,3 +1,4 @@
+import { parse } from 'yaml';
 import { describe, expect, test } from 'vitest';
 import { ITEMS, TEST_TEMPLATE } from '../../orca/t17/implement-scenario.js';
 import { mainlineRun } from './binding.js';
@@ -45,7 +46,10 @@ describe('m5-mainline bindings', () => {
       finalPrMerge,
     });
     expect(run.requirement).toContain('m5/202611241530/');
-    expect(run.templates['feature-to-pr.yaml']).toContain(
+    const template = parse(run.templates['feature-to-pr.yaml']!) as {
+      roles: Record<string, { scope?: string }>;
+    };
+    expect(template.roles.integrator!.scope).toContain(
       INTEGRATOR_SCOPE_FALLBACK,
     );
   });
