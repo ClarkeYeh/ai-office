@@ -614,7 +614,7 @@ export async function drill(
           );
           if (old !== undefined) evidence.files.oldControlTokenStatus = old;
         }
-        report.restart = { ...record, readyAt: undefined };
+        report.restart = record;
         await save();
         continue;
       }
@@ -656,7 +656,26 @@ export async function drill(
       await delay(mode.pollMs);
     }
 
-    log = await events(live, id);
+    // Let in-flight commands settle before the export (T11b live finding:
+    // the post-completion auto-cleanup was still running), bounded.
+    const settleDeadline = Date.now() + 120_000;
+    for (;;) {
+      log = await events(live, id);
+      const ended = new Set(
+        log
+          .filter(
+            (e) =>
+              e.type === 'command.succeeded' || e.type === 'command.failed',
+          )
+          .map((e) => e.payload.commandId),
+      );
+      const pending = log.filter(
+        (e) => e.type === 'command.issued' && !ended.has(e.payload.commandId),
+      ).length;
+      report.pendingAtExport = pending;
+      if (pending === 0 || Date.now() > settleDeadline) break;
+      await delay(1_000);
+    }
     const shimsAfter = await side.shims();
     const inbox = orcaRun ? await side.inbox(orcaRun) : undefined;
     const worktrees = await side.worktrees();

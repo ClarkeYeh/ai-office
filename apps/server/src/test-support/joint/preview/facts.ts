@@ -6,7 +6,12 @@
  * counts and booleans only.
  */
 import type { Json } from '../../orca/t17/office.js';
-import { lastLine, PENDING_LINE, reviewedLine } from '../scenario/index.js';
+import {
+  CONFLICT_KEYS,
+  lastLine,
+  PENDING_LINE,
+  reviewedLine,
+} from '../scenario/index.js';
 
 /** One git invocation in the spike clone; rejects on a non-zero exit. */
 export type Git = (args: string[]) => Promise<string>;
@@ -158,4 +163,55 @@ export async function markerCounts(
     out[id] = match ? 1 + (match.duplicates ?? 0) : 0;
   }
   return out;
+}
+
+/**
+ * §2.2.2 in the scm-gitremote world, which never reports `mergeable` (always
+ * null; T11b live finding): of mul and sub, the PR merged second either got a
+ * two-parent merge of the first merge into its worker branch (path A: the
+ * backend merge's second parent has the first merge as a parent) or a
+ * rework-request (path B). `null` when neither shows.
+ */
+export async function conflictEquivalent(
+  git: Git,
+  log: Json[],
+): Promise<{
+  pr: number;
+  item: string;
+  path: 'A' | 'B' | null;
+  twoParentMerge: boolean;
+} | null> {
+  const merged = of(log, 'workitem.merged').filter((e) =>
+    (CONFLICT_KEYS as readonly string[]).includes(e.payload.itemKey),
+  );
+  if (merged.length < 2) return null;
+  const [first, second] = merged as [Json, Json];
+  const pr = Number(second.payload.pr);
+  const finalHead = (
+    await git(['rev-parse', `${second.payload.mergeCommitSha}^2`]).catch(
+      () => '',
+    )
+  ).trim();
+  const parents = finalHead
+    ? (
+        await git(['rev-list', '--parents', '-n', '1', finalHead]).catch(
+          () => '',
+        )
+      )
+        .trim()
+        .split(' ')
+        .slice(1)
+    : [];
+  const twoParentMerge =
+    parents.length === 2 &&
+    parents.includes(String(first.payload.mergeCommitSha));
+  const reworked = of(log, 'workitem.rework_requested').some(
+    (e) => Number(e.payload.pr) === pr,
+  );
+  return {
+    pr,
+    item: String(second.payload.itemKey),
+    path: twoParentMerge ? 'A' : reworked ? 'B' : null,
+    twoParentMerge,
+  };
 }

@@ -18,6 +18,7 @@ import {
   a16Locks,
   a17InFlightSubmission,
   inFlightAtKill,
+  repeatedSendsAfterNudges,
   restartAssertions,
   type RestartEvidence,
 } from './assertions.js';
@@ -320,6 +321,57 @@ describe('each row fails on its own defect', () => {
     expect(
       a9Timers(z, { heldQuestionAttempt: 'w-name', settleSeq: 16 }).status,
     ).toBe('fail');
+  });
+
+  it('#5 a nudge-issued follow-up is not a repeat (T11b live finding)', () => {
+    const x = healthy();
+    const send = {
+      commandId: 's1',
+      kind: 'runtime.send',
+      args: { subject: 'mul' },
+    };
+    push(x, 'command.issued', send, { attemptId: 'mq' });
+    push(x, 'message.nudge', {
+      attemptId: 'mq',
+      reason: 'review-timeout',
+      subject: 'mul',
+    });
+    push(
+      x,
+      'command.issued',
+      { ...send, commandId: 's2' },
+      { attemptId: 'mq' },
+    );
+    expect(repeatedSendsAfterNudges(x.events)).toEqual([]);
+    expect(a5NoDuplicateSpawnSend(x).status).toBe('pass');
+    push(
+      x,
+      'command.issued',
+      { ...send, commandId: 's3' },
+      { attemptId: 'mq' },
+    );
+    expect(a5NoDuplicateSpawnSend(x).status).toBe('fail');
+  });
+
+  it('#9 counts only nudges within the downtime window by recorded time', () => {
+    const x = healthy();
+    const readyAt = Date.parse('2026-11-24T06:00:00.000Z');
+    x.restart = { ...record, readyAt, downtimeMs: 8_000 };
+    const at = (ms: number) => new Date(readyAt + ms).toISOString();
+    push(
+      x,
+      'message.nudge',
+      { attemptId: 'mq', reason: 'review-timeout' },
+      { recordedAt: at(10 * 60_000) },
+    );
+    expect(a9Timers(x).status).toBe('pass'); // a later, legitimate timeout
+    push(
+      x,
+      'message.nudge',
+      { attemptId: 'w', reason: 'item-timeout' },
+      { recordedAt: at(5_000) },
+    );
+    expect(a9Timers(x).status).toBe('fail');
   });
 
   it('#10 an anomaly gate after the kill', () => {

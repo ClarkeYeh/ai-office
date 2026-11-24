@@ -274,6 +274,26 @@ export function a4NoDuplicateCreate(x: RestartEvidence): AssertionResult {
   );
 }
 
+/**
+ * Repeated follow-ups (T17 `repeatedSends`), minus the send a nudge itself
+ * issues: a `message.nudge` for the same attempt and subject is a new turn,
+ * not a resend (T11b live finding: review-timeout nudge → send).
+ */
+export function repeatedSendsAfterNudges(events: Json[]): string[] {
+  const nudged = new Set<string>();
+  const kept: Json[] = [];
+  for (const e of events) {
+    if (e.type === 'message.nudge')
+      nudged.add(`${e.payload.attemptId}|${e.payload.subject}`);
+    if (e.type === 'command.issued' && e.payload.kind === 'runtime.send') {
+      const key = `${e.attemptId}|${e.payload.args?.subject}`;
+      if (nudged.delete(key)) continue;
+    }
+    kept.push(e);
+  }
+  return repeatedSends(kept);
+}
+
 /** #5 no repeated spawn or send; our dispatches never `agent.unmanaged`. */
 export function a5NoDuplicateSpawnSend(x: RestartEvidence): AssertionResult {
   const spawns = new Map<string, number>();
@@ -287,7 +307,7 @@ export function a5NoDuplicateSpawnSend(x: RestartEvidence): AssertionResult {
   const unmanagedOurs = of(x.events, 'agent.unmanaged').filter((e) =>
     ours.has(String(e.payload.dispatch)),
   ).length;
-  const repeated = repeatedSends(x.events).length;
+  const repeated = repeatedSendsAfterNudges(x.events).length;
   return verdict(
     5,
     'no duplicate spawn or send',
@@ -425,15 +445,36 @@ const TIMEOUT_REASONS = new Set([
  */
 export function a9Timers(
   x: RestartEvidence,
-  options: { settleSeq?: number; heldQuestionAttempt?: string } = {},
+  options: {
+    settleSeq?: number;
+    heldQuestionAttempt?: string;
+    /** After readiness, how long a stale timer may still surface (default 60 s). */
+    graceMs?: number;
+  } = {},
 ): AssertionResult {
   if (x.killSeq === undefined)
     return verdict(9, 'no timer fired by the downtime', [undefined], {
       window: null,
     });
+  // The downtime window: from the kill to readiness plus a grace period, by
+  // recorded time when the restart record has it (a later, legitimate
+  // timeout — e.g. a slow review started after the restart — is not this
+  // row's concern); otherwise by seq.
+  const r = x.restart;
+  const killAt =
+    r && Number.isFinite(r.readyAt) && r.readyAt > 0
+      ? r.readyAt - r.downtimeMs
+      : undefined;
+  const until =
+    killAt !== undefined ? r!.readyAt + (options.graceMs ?? 60_000) : undefined;
   const from = x.killSeq;
   const to = options.settleSeq ?? Number.MAX_SAFE_INTEGER;
-  const window = x.events.filter((e) => seqOf(e) > from && seqOf(e) <= to);
+  const window = x.events.filter((e) => {
+    if (seqOf(e) <= from || seqOf(e) > to) return false;
+    if (until === undefined) return true;
+    const at = Date.parse(String(e.recordedAt ?? ''));
+    return !Number.isFinite(at) || at <= until;
+  });
   const nudges = window.filter(
     (e) => e.type === 'message.nudge' && TIMEOUT_REASONS.has(e.payload.reason),
   ).length;

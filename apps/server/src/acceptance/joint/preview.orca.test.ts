@@ -10,6 +10,7 @@ import { realOrcaSuite } from '../../test-support/orca/gating.js';
 import { runHarnessCli } from '../../test-support/orca/runner.js';
 import { judgeAcceptance } from '../../test-support/joint/run.js';
 import { behaviours } from '../../test-support/joint/preview/report.js';
+import { PREVIEW_NA } from '../../test-support/joint/preview/mode.js';
 import type { Json } from '../../test-support/orca/t17/checks.js';
 
 /*
@@ -65,16 +66,14 @@ realOrcaSuite('M5-T11b real-agent preview', { agents: true }, () => {
         masked,
         parseFacts(await read('.facts.json')),
       );
-      const acceptance = judgeAcceptance(checked, {
-        'nf.approve-comment':
-          'no GitHub Issue in the scm-gitremote world (live: T12)',
-      });
+      const acceptance = judgeAcceptance(checked, PREVIEW_NA);
       const verdicts = behaviours({
         log: raw,
         report,
         rows: Object.fromEntries(acceptance.rows.map((r) => [r.id, r.verdict])),
         conflictEvidence:
           checked.rows.find((r) => r.id === 'v01.conflict')?.evidence ?? [],
+        conflictEquivalent: report.conflictEquivalent ?? null,
         ...(typeof report.testsPass === 'boolean'
           ? { testsPass: report.testsPass }
           : {}),

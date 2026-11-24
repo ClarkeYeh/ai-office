@@ -18,7 +18,7 @@ import { promisify } from 'node:util';
 import type { OrcaHarness } from '../../orca/harness.js';
 import { GITHUB_LOCK, ORCA_LOCK } from '../observe.js';
 import { drill, holdLock, jointPathsFromEnv } from '../run.js';
-import { integrationBranch } from './facts.js';
+import { conflictEquivalent, integrationBranch } from './facts.js';
 import { previewMode } from './mode.js';
 import { killSide, usageLedger } from './report.js';
 import type { Json } from '../../orca/t17/checks.js';
@@ -78,6 +78,7 @@ async function finalChecks(
     JSON.stringify(usageLedger(log, mode.tag), null, 2),
     { mode: 0o600 },
   );
+  out.conflictEquivalent = await conflictEquivalent(mode.git, log);
   const branch = integrationBranch(log);
   if (!branch) return out;
   await mode.fetch().catch(() => undefined);

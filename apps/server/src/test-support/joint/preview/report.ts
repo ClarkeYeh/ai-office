@@ -73,6 +73,8 @@ interface Inputs {
   rows: Record<string, 'pass' | 'fail' | 'na'>;
   /** The checker's `v01.conflict` evidence lines (path A/B/C). */
   conflictEvidence?: string[];
+  /** scm-gitremote equivalent when the checker row is n/a (no `mergeable`). */
+  conflictEquivalent?: { path: 'A' | 'B' | null; item: string } | null;
   /** `node --test m5/<tag>` on the final integration head. */
   testsPass?: boolean;
   /** calc.mjs on the final integration head exports add, mul and sub. */
@@ -87,9 +89,11 @@ export function behaviours(x: Inputs): Behaviour[] {
     x.report.killed === true &&
     assertions.length > 0 &&
     assertions.every((a) => a.status !== 'fail');
-  const conflictPath = /path ([ABC])/.exec(
-    (x.conflictEvidence ?? []).join(' '),
-  )?.[1];
+  const conflictPath =
+    /path ([ABC])/.exec((x.conflictEvidence ?? []).join(' '))?.[1] ??
+    (x.rows['v01.conflict'] === 'na'
+      ? (x.conflictEquivalent?.path ?? undefined)
+      : undefined);
   const conflictPr = new Set(
     of(x.log, 'pr.status')
       .filter((e) => e.payload.mergeable === false)
@@ -124,15 +128,20 @@ export function behaviours(x: Inputs): Behaviour[] {
       id: 'conflict-handled',
       level: 'must',
       ok:
-        x.rows['v01.conflict'] === 'pass' &&
+        (x.rows['v01.conflict'] === 'pass' ||
+          (x.rows['v01.conflict'] === 'na' && conflictPath !== undefined)) &&
         x.bothOps === true &&
         x.testsPass === true,
       evidence: {
         checker: x.rows['v01.conflict'] ?? null,
         path: conflictPath ?? null,
-        conflictOnMulOrSub: conflictItems.some((k) =>
-          (CONFLICT_KEYS as readonly string[]).includes(k),
-        ),
+        conflictOnMulOrSub:
+          conflictItems.some((k) =>
+            (CONFLICT_KEYS as readonly string[]).includes(k),
+          ) ||
+          (CONFLICT_KEYS as readonly string[]).includes(
+            x.conflictEquivalent?.item ?? '',
+          ),
         bothOps: x.bothOps ?? null,
         testsPass: x.testsPass ?? null,
       },

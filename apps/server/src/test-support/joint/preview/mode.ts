@@ -46,6 +46,14 @@ const READS = new Set([
   'listReviewComments',
 ]);
 
+/** Checker rows the scm-gitremote world cannot judge, with the reason. */
+export const PREVIEW_NA: Record<string, string> = {
+  'nf.approve-comment':
+    'no GitHub Issue in the scm-gitremote world (live: T12)',
+  'v01.conflict':
+    'scm-gitremote never reports mergeable (always null); judged by the git equivalent (conflictEquivalent: path A two-parent merge or path B rework)',
+};
+
 export interface PreviewMode extends Mode {
   /** The run's tag and requirement (T8 binding, world `gitremote`). */
   tag: string;
@@ -114,10 +122,7 @@ export async function previewMode(h: OrcaHarness): Promise<PreviewMode> {
     sampleLocks: true,
     preventSleepChild: true,
     // The conclusion lives in the stand-in's memory: no owner /approve comment.
-    checkerNa: {
-      'nf.approve-comment':
-        'no GitHub Issue in the scm-gitremote world (live: T12)',
-    },
+    checkerNa: PREVIEW_NA,
     home: dir,
     launcher: previewLauncher({
       home: dir,

@@ -8,6 +8,7 @@ import type { Json } from '../../orca/t17/checks.js';
 import { PENDING_LINE, reviewedLine } from '../scenario/index.js';
 import {
   ancestry,
+  conflictEquivalent,
   conflictFacts,
   firstParents,
   markerCounts,
@@ -144,6 +145,16 @@ describe('gitremote-equivalent facts', () => {
     expect(await conflictFacts(w.git, w.log)).toEqual([
       { pr: 13, twoParentMerge: true },
     ]);
+  });
+
+  it('finds the conflict without mergeable statuses (gitremote never reports them)', async () => {
+    const log = w.log.filter((e) => e.type !== 'pr.status');
+    expect(await conflictEquivalent(w.git, log)).toEqual({
+      pr: 13,
+      item: 'sub',
+      path: 'A',
+      twoParentMerge: true,
+    });
   });
 
   it('proves the #pending rework from the README heads and the merge parent', async () => {
