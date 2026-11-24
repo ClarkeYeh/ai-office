@@ -3,6 +3,12 @@ import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRedactor } from '@ai-office/redaction';
+
+// Docs may name the local backend and the apps they install; only the host part is
+// exempted, so paths, queries and every other host, IP or email are still scanned.
+const LOOPBACK =
+  /(?<![\w.@-])(?:https?:\/\/)?(?:127\.0\.0\.1|localhost)(?::\d{1,5})?(?![\w-]|\.[\w-])/g;
+const APP_NAMES = /(?<![\w.@-])Orca\.app(?![\w-]|\.[\w-])/g;
 /** @param {string} root */
 export function checkDocs(root = process.cwd()) {
   if (
@@ -36,7 +42,9 @@ export function checkDocs(root = process.cwd()) {
       ...text.matchAll(/^\s*\[[^\]]+\]:\s*(<[^>]*>|\S+)/gm),
       ...text.matchAll(/(?:href|src)=["']([^"']+)["']/g),
     ];
-    let scanText = text;
+    let scanText = text
+      .replace(LOOPBACK, '<loopback>')
+      .replace(APP_NAMES, '<app>');
     for (const match of targets) {
       const url = (match[1] ?? '').replace(/^<|>$/g, '');
       if (/^https:\/\//i.test(url) && redactor.maskText(url) === url)

@@ -41,3 +41,39 @@ for (const scenario of [
     }
   });
 }
+
+const loopbackDocs = [
+  'Open http://127.0.0.1:4319/auth/bootstrap?code=<code> in a browser.',
+  'The backend listens on `127.0.0.1` (default port 4319).',
+  'Visit http://localhost:4319/workflows/<id>/timeline or localhost.',
+  'Look in `/Applications/Orca.app/Contents/Resources/bin/orca`.',
+];
+const unsafeDocs = [
+  'Open http://10.0.0.5:4319/ instead.',
+  'The backend at 192.168.1.20 answers.',
+  'See http://build.internal:8080/status for details.',
+  'Mail someone@example.com for access.',
+  'Ask admin@localhost for access.',
+  'Try http://localhost.attacker.example/x too.',
+  'Open http://127.0.0.1:4319/x?t=aio_ctl_synthetic_secret now.',
+];
+for (const { name, sources, safe } of [
+  { name: 'loopback and app names pass', sources: loopbackDocs, safe: true },
+  { name: 'other hosts, IPs and emails fail', sources: unsafeDocs, safe: false },
+]) {
+  test(`public docs: ${name}`, () => {
+    for (const source of sources) {
+      const root = mkdtempSync(join(tmpdir(), 'aio-docs-'));
+      try {
+        execFileSync('git', ['init', '-q', root]);
+        mkdirSync(join(root, 'guide'));
+        writeFileSync(join(root, 'guide/usage.md'), source);
+        writeFileSync(join(root, 'README.md'), 'Public.');
+        if (safe) checkDocs(root);
+        else assert.throws(() => checkDocs(root), source);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    }
+  });
+}
