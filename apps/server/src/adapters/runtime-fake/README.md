@@ -66,10 +66,10 @@ pending auto-release. Stop/release/lost cancel pending actions. Done leaves the
 terminal alive; without keepOpen it releases 120 seconds after the done time.
 `activeAgents()` includes done workers whose terminals are still alive.
 
-`runDue` still drains to completion, but an agent's `submit` step runs alongside
-the other agents. A merge-request waits for its merge, which takes seconds with
-real GitHub, so only that agent's later steps wait for it (M5-FX-ORCA-OBS, after
-the T11 nf.latency bursts).
+`runDue` still drains to completion, but an agent's `submit` and `push` steps run
+alongside the other agents. A merge-request waits for its merge and a push goes to the SCM,
+which take seconds with real GitHub, so only that agent's later steps wait for
+them (M5-FX-ORCA-OBS, M5-FX-LATENCY, after the T11 nf.latency bursts).
 
 The injected submitter receives the typed submission, terminal handle, pane key,
 and the single unique `aio_seat_...` token parsed from the spawn prompt. It can

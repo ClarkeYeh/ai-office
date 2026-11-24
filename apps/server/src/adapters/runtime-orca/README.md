@@ -146,3 +146,14 @@ the approved test repository; this worker uses replay Exec tests only.
   signature is unchanged; other agents every 30 s. Under limiter pressure these
   stretch to 30 s and 120 s. Ten such workers stay under 120 CLI calls per
   minute (unit-tested).
+- **Status latency (M5-FX-LATENCY):** a status event is stamped when observed,
+  but the batch is appended only after the rest of `observe()`. The
+  `worker-show` probes used to run one after another, followed by the
+  transcript reads (each an Orca process), so T11b's `seat.status` p95 was
+  3.4 s.
+  - Probes and reads now run together, bounded by the CLI scheduler's
+    concurrency. A batch costs about its slowest call instead of the sum.
+  - Event order in the batch is unchanged: statuses first, then transcript
+    output.
+  - SCM work never delays runtime observation: separate timers and queues,
+    and asynchronous I/O (tested in `application/observation`).
