@@ -97,7 +97,17 @@ describe('M5-T11 rehearsal CI twin (scm-fake, two exact kill windows)', () => {
       home: join(base, 'home'),
       judge: (events, facts) => checkAcceptance(events, parseFacts(facts)),
     });
-
+    console.info(
+      JSON.stringify({
+        scmCalls: report.scmCalls,
+        windows: report.windows.map((w) => ({
+          window: w.window,
+          readyWithReconcileMs: w.readyWithReconcileMs,
+          objects: w.objects,
+        })),
+        checker: report.checker?.summary,
+      }),
+    );
     expect(report.failed).toEqual([]);
     expect(report.windows.map((w) => w.window)).toEqual(['P1', 'P2']);
     for (const w of report.windows) {

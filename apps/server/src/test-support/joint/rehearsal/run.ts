@@ -103,6 +103,8 @@ export const REHEARSAL_NA: Record<string, string> = {
     'the fake runtime pushes one new file per commit (GitPusher), so mul/sub never conflict textually; T9 judges the conflict paths',
   'v01.usage': 'the fake runtime reports no token usage in a child backend',
   'x.engine-replay': 'optional; not implemented by T10',
+  'v01.gates':
+    "the final PR targets the spike's main and is never merged (G-D), so its gate stays open; the two decision gates are checked from the owner record (owner.decision-gates)",
 };
 
 export interface RehearsalWindowReport {
@@ -343,6 +345,12 @@ export async function runRehearsal(
           },
         );
       },
+      async questionItem(questionId) {
+        const questions = ((await live.call('GET', '/api/v1/questions')).body
+          ?.questions ?? []) as Json[];
+        const q = questions.find((x) => x.questionId === questionId);
+        return typeof q?.itemKey === 'string' ? q.itemKey : undefined;
+      },
       answer: (questionId, body) =>
         live.call(
           'POST',
@@ -476,6 +484,11 @@ export async function runRehearsal(
     );
     if (!report.finalGateOpened) report.failed.push('final-gate');
     if (owner.record.handOffs.length) report.failed.push('owner.hand-off');
+    if (
+      owner.record.conclusionApproved < 1 ||
+      owner.record.splitApproved + owner.record.splitRevised < 1
+    )
+      report.failed.push('owner.decision-gates');
 
     if (options.judge) {
       const first = log.find((e) => e.type === 'workitem.merged')?.payload
