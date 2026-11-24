@@ -183,7 +183,8 @@ AI_OFFICE_HOME=~/aio-fake ai-office start --dev --fake mainline --port 0
 ```
 
 `pnpm dev:office` scenarios: `demo` (default), `mainline`, `parallel`,
-`trouble`, `load-10`, `stall`. `demo` merges the simulated final PR by itself
+`trouble`, `load-10`, `stall`. A simulated repository is registered
+automatically; start a workflow as usual. `demo` merges the simulated final PR by itself
 after 8 seconds; `--auto-merge-final <seconds>` sets that delay (`0` waits for
 you). The backend also knows `github-mainline`.
 

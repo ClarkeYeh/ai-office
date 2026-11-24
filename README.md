@@ -28,9 +28,11 @@ pnpm build
 pnpm dev:office --fake demo --open
 ```
 
-A browser opens on the office. The `demo` scenario walks a workflow through its
-gates and merges the simulated final PR by itself after a few seconds. Press
-Ctrl-C to stop. See [Usage](guide/usage.md#fake-mode) for the other scenarios.
+A browser opens AI Office with a simulated repository already registered.
+Choose **New workflow**, pick the `demo` template and enter any requirement.
+Simulated agents meet, split the work and implement it while you decide the
+gates; the simulated final PR merges by itself a few seconds after its gate
+opens. Press Ctrl-C to stop. See [Usage](guide/usage.md#fake-mode) for the other scenarios.
 
 ## Quick start (production)
 
