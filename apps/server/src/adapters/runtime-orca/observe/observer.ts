@@ -134,6 +134,25 @@ const READ_CONCURRENCY = 4;
  * by `sequence` at startup, after `identity_restored` and after a check receipt
  * reads `absent`, so exactly-once never depends on receipts.
  */
+/**
+ * A message in a question's thread is an answer when it is our own reply
+ * (`aio:<tag>` first line, `runtime.answer`) or comes from anyone but the
+ * run handle. Orca 1.4.272 posts its own "decide it yourself" notice into the
+ * thread from `run:<id>` as soon as a worker asks while the coordinator has no
+ * running agent (always true for the shim); that notice is not an answer, so
+ * the question keeps the agent in `waiting_input` (M5-T11b).
+ */
+export function isAnswer(
+  message: {
+    from_handle?: string | null | undefined;
+    body?: string | null | undefined;
+  },
+  run: string,
+): boolean {
+  if (markerToken(message.body ?? '') !== undefined) return true;
+  return message.from_handle !== `run:${run}`;
+}
+
 export class OrcaObserver {
   private readonly sessions = new Map<string, SessionState>();
   private readonly now: () => number;
@@ -817,9 +836,25 @@ export class OrcaObserver {
         await this.recover(b, inbox.error);
         continue;
       }
-      const threads = new Set(inbox.data.messages.map((m) => m.thread_id));
+      const threads = new Set(
+        inbox.data.messages
+          .filter((m) => isAnswer(m, b.run))
+          .map((m) => m.thread_id),
+      );
       b.p.questions = b.p.questions.filter((q) => !threads.has(q.id));
     }
+  }
+
+  /**
+   * How long a live agent's transcript may go unread when its worker-list
+   * signature does not change: Orca 1.4.272 leaves `evidence.lastObservedAt`
+   * empty, so a long turn never changed the signature and its activity was
+   * read only at the next state change (M5-T11b: up to 22 min late).
+   * Pressure (the 120 calls/min limiter) stretches it, never removes it.
+   */
+  private rereadMs(state: AgentState, pressured: boolean): number {
+    const live = ['working', 'waiting_input', 'starting'].includes(state);
+    return live ? (pressured ? 30_000 : 15_000) : pressured ? 120_000 : 30_000;
   }
 
   private async workerStep(b: Batch): Promise<void> {
@@ -925,7 +960,12 @@ export class OrcaObserver {
       if (state !== previous)
         this.emitState(b, agent, worker, state, questions);
       const sig = activitySignature(worker);
-      if (st.readSig.get(worker.dispatchId) !== sig)
+      const unreadFor =
+        this.now() - (st.readAt.get(worker.dispatchId) ?? -Infinity);
+      if (
+        st.readSig.get(worker.dispatchId) !== sig ||
+        (state !== 'stopped' && unreadFor >= this.rereadMs(state, pressured))
+      )
         reads.push({ agent, worker });
     }
     st.active = active || p.held.length > 0;

@@ -1129,6 +1129,47 @@ describe('transactions and lifecycle', () => {
     // Transient failures belong to the breaker and leave the outcome as is.
     expect(reports).toEqual(['invalid_pagination', undefined]);
   });
+  it('runtime ingest never waits on a slow SCM poll (M5-T11 nf.latency)', async () => {
+    const h = await setup();
+    h.loop.start();
+    // A GitHub poll that takes far longer than the runtime cadence (5 s+).
+    let releaseScm!: () => void;
+    vi.spyOn(h.scm, 'poll').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseScm = () => resolve({ events: [], cursor: 'scm-1' as never });
+        }),
+    );
+    const timer = (kind: string) =>
+      [...h.timers.values()].find((t) => t.id.includes(kind))!;
+    const fire = (kind: string) => {
+      const t = timer(kind);
+      h.timers.delete(t.id);
+      return h.loop.onTimer(t);
+    };
+    const scmPoll = fire('scm'); // stays in flight
+    const statuses = () =>
+      h.store
+        .read({ workflowId: WORKFLOW_ID })
+        .filter((e) => e.type === 'seat.status').length;
+    const before = statuses();
+    for (const state of ['working', 'waiting_input', 'working'] as const) {
+      h.setEvents([
+        {
+          type: 'agent.status',
+          agent,
+          externalKey: `orca:status:${state}:${statuses()}`,
+          occurredAt: h.clock.now().toISOString(),
+          state,
+        },
+      ]);
+      await fire('runtime'); // completes while the SCM poll is still pending
+    }
+    expect(h.observe).toHaveBeenCalledTimes(3);
+    expect(statuses()).toBe(before + 3);
+    releaseScm();
+    await scmPoll;
+  });
   it('schedules one runtime loop per session, continues paused, slows final-PR polls, and stops on completion', async () => {
     const h = await setup();
     h.loop.start();
