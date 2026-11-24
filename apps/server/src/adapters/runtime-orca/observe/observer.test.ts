@@ -1352,6 +1352,46 @@ describe('OrcaObserver: mapping', () => {
   });
 });
 
+describe('OrcaObserver: status latency (M5-FX-LATENCY)', () => {
+  it('runs probes and transcript reads together, so a status waits for one call, not the sum', async () => {
+    const r = await rig();
+    for (const d of ['ctx_a', 'ctx_b', 'ctx_c']) {
+      spawned(r, d);
+      r.world.transcripts.set(d, [
+        { id: `${d}-1`, role: 'assistant', text: 'hi' },
+      ]);
+    }
+    // Every worker-show and worker-read is an Orca process: ~40 ms here.
+    let inFlight = 0;
+    let peak = 0;
+    const respond = r.world.respond.bind(r.world);
+    r.world.respond = async (args) => {
+      const slow = args[1] === 'worker-show' || args[1] === 'worker-read';
+      if (!slow) return respond(args);
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((done) => setTimeout(done, 40));
+      inFlight--;
+      return respond(args);
+    };
+    const started = performance.now();
+    const first = await r.observe(null);
+    const elapsed = performance.now() - started;
+    // Three new agents: three probes and three reads in one batch.
+    expect(r.world.calls.filter((c) => c[1] === 'worker-show')).toHaveLength(3);
+    expect(r.world.calls.filter((c) => c[1] === 'worker-read')).toHaveLength(3);
+    expect(peak).toBeGreaterThanOrEqual(4);
+    // Sequential would be ≥ 3 × 40 (probes) + 40 (reads) = 160 ms.
+    expect(elapsed).toBeLessThan(140);
+    // Statuses still come first, then the transcript output.
+    const types = first.events.map((e) => e.type);
+    expect(types.lastIndexOf('agent.status')).toBeLessThan(
+      types.indexOf('agent.output'),
+    );
+    r.observer.close();
+  });
+});
+
 describe('OrcaObserver: CLI budget (SPEC §6.4)', () => {
   it('stays near 80 calls per minute with 10 active workers', async () => {
     const r = await rig();

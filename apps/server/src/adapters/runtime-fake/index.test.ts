@@ -247,6 +247,61 @@ describe('FakeRuntime scenarios and faults', () => {
       after.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
     ).toEqual([reviewer]);
   });
+  it('a slow push blocks only its own agent, not the others (M5-FX-LATENCY)', async () => {
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const f = await fixture({
+      // T11: the push goes through the SCM bridge to real GitHub (seconds).
+      onPush: () => slow,
+      scenario: {
+        roles: {
+          pusher: {
+            spawn: [
+              { type: 'push', afterMs: 10, branch: 'work', headSha: 'abcdef0' },
+              { type: 'done', afterMs: 30 },
+            ],
+          },
+          worker: { spawn: [{ type: 'done', afterMs: 20 }] },
+        },
+      },
+    });
+    const pusher = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      title: 'pusher',
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'p',
+        commandId: 'spawn-p',
+      },
+    });
+    const worker = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'w',
+        commandId: 'spawn-w',
+      },
+    });
+    f.clock.advance(10);
+    const pump = f.runtime.runDue(); // the push is now in flight
+    f.clock.advance(10);
+    await new Promise((r) => setTimeout(r, 60));
+    const during = await f.runtime.observe(f.session, null);
+    expect(
+      during.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([worker]);
+    f.clock.advance(30);
+    await new Promise((r) => setTimeout(r, 60));
+    const waiting = await f.runtime.observe(f.session, during.cursor);
+    expect(waiting.events.some((e) => e.type === 'agent.done')).toBe(false);
+    release();
+    await pump;
+    await f.runtime.runDue();
+    const after = await f.runtime.observe(f.session, waiting.cursor);
+    expect(
+      after.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([pusher]);
+  });
   it.each(['lost', 'degraded', 'duplicate', 'unmanaged', 'policy'] as const)(
     'injects %s using valid port events',
     async (fault) => {

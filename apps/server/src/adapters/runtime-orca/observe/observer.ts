@@ -912,6 +912,16 @@ export class OrcaObserver {
     }
     let active = false;
     const reads: { agent: AgentRef; worker: Worker }[] = [];
+    // Pass 1: states from worker-list; which agents need a worker-show probe.
+    const rows: {
+      agent: AgentRef;
+      worker: Worker;
+      previous: string | undefined;
+      questions: CursorPayload['questions'];
+      stopped: boolean;
+      state: AgentState;
+      probe: boolean;
+    }[] = [];
     for (const [agent, workers] of groups) {
       const worker = currentDispatch(workers);
       const previous = p.seen[agent];
@@ -923,7 +933,7 @@ export class OrcaObserver {
       const stopped =
         this.options.ledger.byDispatch(worker.dispatchId)?.stoppedByBackend ===
         true;
-      let state = workerState(
+      const state = workerState(
         worker,
         questions.length > 0 || st.agentWait.get(agent) === true,
         stopped,
@@ -944,21 +954,19 @@ export class OrcaObserver {
         st.agentWait.get(agent) === true &&
         this.now() - (st.probeTime.get(worker.dispatchId) ?? -Infinity) >=
           10_000;
-      if (
+      const probe =
         state !== 'exited' &&
         state !== 'stopped' &&
-        (stageChanged || state !== previous || stalled || recheck)
-      ) {
+        (stageChanged || state !== previous || stalled || recheck);
+      if (probe) {
         st.probedAt.set(worker.dispatchId, progress);
         st.probeTime.set(worker.dispatchId, this.now());
-        const waiting = await this.probe(b, agent, worker.dispatchId);
-        if (waiting !== undefined) {
-          st.agentWait.set(agent, waiting);
-          state = workerState(worker, questions.length > 0 || waiting, stopped);
-        }
       }
-      if (state !== previous)
-        this.emitState(b, agent, worker, state, questions);
+      rows.push({ agent, worker, previous, questions, stopped, state, probe });
+    }
+    // Transcript reads are decided from worker-list alone (a probe only turns
+    // `working` into `waiting_input`, which reads at the same cadence).
+    for (const { agent, worker, state } of rows) {
       const sig = activitySignature(worker);
       const unreadFor =
         this.now() - (st.readAt.get(worker.dispatchId) ?? -Infinity);
@@ -969,7 +977,32 @@ export class OrcaObserver {
         reads.push({ agent, worker });
     }
     st.active = active || p.held.length > 0;
-    await this.readTranscripts(b, reads, pressured);
+    // Pass 2: probes and transcript reads run together (the CLI scheduler
+    // bounds concurrency) instead of probe after probe, then read after read.
+    // Each is an Orca process, and a status is stamped when observed: T11b's
+    // seat.status p95 3.4 s was the rest of the batch (M5-FX-LATENCY).
+    // Reads collect into their own list so the batch keeps its order.
+    const transcript: Batch = { ...b, events: [] };
+    await Promise.all([
+      ...rows
+        .filter((row) => row.probe)
+        .map(async (row) => {
+          const waiting = await this.probe(b, row.agent, row.worker.dispatchId);
+          if (waiting === undefined) return;
+          st.agentWait.set(row.agent, waiting);
+          row.state = workerState(
+            row.worker,
+            row.questions.length > 0 || waiting,
+            row.stopped,
+          );
+        }),
+      this.readTranscripts(transcript, reads, pressured),
+    ]);
+    // Pass 3: statuses in worker-list order, then the transcript events.
+    for (const { agent, worker, previous, questions, state } of rows)
+      if (state !== previous)
+        this.emitState(b, agent, worker, state, questions);
+    b.events.push(...transcript.events);
   }
   private emitState(
     b: Batch,

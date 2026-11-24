@@ -461,10 +461,11 @@ export class FakeRuntime implements RuntimePort {
   private lagging: { at: number; resolve: () => void }[] = [];
   private executing: Scheduled | undefined;
   /**
-   * Submissions in flight, one per agent at most: an agent's `ai-office
-   * submit` blocks only its own turn. A merge-request waits for the merge, so
-   * awaiting it in the pump stalled every other agent behind slow SCM I/O
-   * (M5-T11 nf.latency: 5–9 s bursts with real GitHub).
+   * External steps in flight, one per agent at most: an agent's `ai-office
+   * submit` or `git push` blocks only its own turn. A merge-request waits for
+   * the merge, and a push (with its remote-head check) goes to the SCM;
+   * awaiting either in the pump stalled every other agent behind slow SCM I/O
+   * (M5-T11 nf.latency: 5–10 s bursts with real GitHub behind the bridge).
    */
   private readonly submitting = new Map<Agent, Scheduled>();
   constructor(private readonly options: FakeRuntimeOptions) {}
@@ -1204,7 +1205,7 @@ export class FakeRuntime implements RuntimePort {
             ['released', 'lost', 'stopped'].includes(job.agent.state)
           )
             continue;
-          if (job.action.type === 'submit') {
+          if (job.action.type === 'submit' || job.action.type === 'push') {
             // Runs alongside the other agents; its own later steps wait.
             this.submitting.set(job.agent, job);
             const done = this.execute(job)
