@@ -137,8 +137,13 @@ realGithubSuite('M5-T11 rehearsal (live spike, fake runtime)', () => {
             await rm(base, { recursive: true, force: true });
         }
       }
-      expect(report?.failed).toEqual([]);
-      if (report && process.env.AIO_GITHUB_RECORD === '1') {
+      // Segment 1 is recorded when the windows, flow and cleanup are clean;
+      // a checker row (e.g. nf.latency) does not change segment-1 semantics.
+      if (
+        report?.segment1 &&
+        report.failed.every((f) => f.startsWith('checker.')) &&
+        process.env.AIO_GITHUB_RECORD === '1'
+      ) {
         recorded.sanitize();
         await writeFile(
           rehearsalTracePath,
@@ -151,6 +156,7 @@ realGithubSuite('M5-T11 rehearsal (live spike, fake runtime)', () => {
         );
         await recorded.recorder.save(rehearsalHttpPath);
       }
+      expect(report?.failed).toEqual([]);
     },
     3_600_000,
   );
