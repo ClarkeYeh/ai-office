@@ -43,13 +43,12 @@ export interface AcceptanceReport {
 }
 
 /**
- * Equality across masking: `logged` comes from the log, which a B4 export may
- * have replaced by its deterministic placeholder; `raw` is a value the log
- * keeps verbatim or a fact the harness took from the raw run.
+ * Facts come from the raw run, but the B4 export placeholders allowlisted ids
+ * that fail its leak check (compound ids such as gate ids trip the entropy
+ * heuristic), so a fact id also matches its deterministic placeholder.
  */
-const same = (logged: unknown, raw: unknown) =>
-  logged === raw ||
-  (typeof raw === 'string' && logged === textPlaceholder(raw));
+const matchesFact = (logged: unknown, fact: string) =>
+  logged === fact || logged === textPlaceholder(fact);
 
 const ptr = (e: Ev, detail?: string | number) =>
   `#${e.seq} ${e.type}${detail === undefined ? '' : ' ' + detail}`;
@@ -461,12 +460,7 @@ function onCall(log: Log): AcceptanceRow {
   );
 }
 
-/**
- * Dependency keys as the log spells them. The B4 allowlist keeps
- * `items.*.dependsOn.*` but the payload field is `deps`, so a masked export
- * carries each dependency as the deterministic placeholder of its key.
- */
-const dependsOn = (item: Json): string[] => item.deps ?? item.dependsOn ?? [];
+const dependsOn = (item: Json): string[] => item.deps ?? [];
 
 function baseSha(log: Log, facts: AcceptanceFacts): AcceptanceRow {
   const approved = log.of('workitem.approved').at(-1);
@@ -484,14 +478,12 @@ function baseSha(log: Log, facts: AcceptanceFacts): AcceptanceRow {
       );
     for (const d of dispatches) {
       checked += 1;
-      const deps = dependsOn(item).map((dep) => {
-        const merge = merged
-          .filter((m) => same(dep, m.payload.itemKey) && m.seq < d.seq)
-          .at(-1);
-        // Name it by the approved key, which the export keeps.
-        const key = items.find((i) => same(dep, i.key))?.key ?? dep;
-        return { key: key as string, merge };
-      });
+      const deps = dependsOn(item).map((key) => ({
+        key,
+        merge: merged
+          .filter((m) => m.payload.itemKey === key && m.seq < d.seq)
+          .at(-1),
+      }));
       const missing = deps
         .filter((dep) => dep.merge === undefined)
         .map((dep) => dep.key);
@@ -749,7 +741,7 @@ function workerList(log: Log, facts: AcceptanceFacts): AcceptanceRow {
     );
   const problems: string[] = [];
   for (const gate of log.stageGates())
-    if (!observed.some((o) => same(gate.payload.gateId, o.gateId)))
+    if (!observed.some((o) => matchesFact(gate.payload.gateId, o.gateId)))
       problems.push(
         `${ptr(gate, gate.payload.stageKind)} has no worker-list observation`,
       );
