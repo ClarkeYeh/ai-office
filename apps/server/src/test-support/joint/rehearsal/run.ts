@@ -469,11 +469,13 @@ export async function runRehearsal(
               )
             : undefined;
       const rows = windowAssertions(log, w);
-      const { readyAt: _readyAt, ...restart } = w.restart;
+      // Epoch readiness stays out of the report (durations only).
+      const restart: Partial<WindowEvidence['restart']> = { ...w.restart };
+      delete restart.readyAt;
       report.windows.push({
         window: w.window,
         killSeq: w.killSeq,
-        restart,
+        restart: restart as RehearsalWindowReport['restart'],
         reconcileMs: w.reconcileMs ?? null,
         readyWithReconcileMs: readyWithReconcileMs(w) ?? null,
         objects: w.objects ?? null,
