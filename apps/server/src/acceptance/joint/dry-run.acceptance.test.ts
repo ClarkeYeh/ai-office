@@ -1,7 +1,12 @@
 import { mkdir, mkdtemp, readFile, readdir, stat } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  checkAcceptance,
+  parseFacts,
+} from '../../test-support/acceptance-check/index.js';
 import { DRY_RUN_NA, runDryRun } from '../../test-support/joint/dry-run.js';
 import type { Json } from '../../test-support/orca/t17/office.js';
 
@@ -26,7 +31,9 @@ describe('M5-T7 offline dry run (--dev --fake m5-mainline)', () => {
       report: join(base, 'report.json'),
       privateDir: join(base, 'exports'),
     };
-    const report = await runDryRun(home, paths);
+    const report = await runDryRun(home, paths, (events, facts) =>
+      checkAcceptance(events, parseFacts(facts)),
+    );
 
     expect(report.status).toBe('completed');
     // Exactly one kill: K at the first mul/sub mergePR, or K′ at the docs spawn.
@@ -81,6 +88,13 @@ describe('M5-T7 offline dry run (--dev --fake m5-mainline)', () => {
     const raw = files.find((f) => f.endsWith('.raw.events.json'))!;
     expect((await stat(join(paths.privateDir, raw))).mode & 0o777).toBe(0o600);
     expect(files.some((f) => f.endsWith('.masked.events.json'))).toBe(true);
+    // The facts snapshot is valid input for `pnpm acceptance:check`.
+    const factsFile = files.find((f) => f.endsWith('.facts.json'))!;
+    expect(() =>
+      parseFacts(
+        JSON.parse(readFileSync(join(paths.privateDir, factsFile), 'utf8')),
+      ),
+    ).not.toThrow();
     // Fake-world janitor: nothing we created is left after the owner cleanup
     // (Issues stay open by design; the planner's untracked fake scratch
     // worktree is the fake runtime's own and is only reported).

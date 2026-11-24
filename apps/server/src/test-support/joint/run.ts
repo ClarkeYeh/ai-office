@@ -41,11 +41,6 @@ import {
   requirement,
   TEMPLATE_ID,
 } from './scenario/index.js';
-import {
-  checkAcceptance,
-  type AcceptanceFacts,
-  type AcceptanceReport,
-} from '../acceptance-check/index.js';
 import { restartAssertions, type RestartEvidence } from './assertions.js';
 import {
   freePort,
@@ -113,6 +108,22 @@ async function holdLock(path: string): Promise<() => Promise<void>> {
 
 const TERMINAL = ['completed', 'failed', 'cancelled'];
 
+/**
+ * The T10 §24 checker, injected by the caller: joint may not import
+ * `acceptance-check` (depcruise), so the acceptance tests pass
+ * `(events, facts) => checkAcceptance(events, parseFacts(facts))`. Without
+ * one, the facts snapshot is still written for `pnpm acceptance:check`.
+ */
+export type CheckerFacts = Record<string, unknown>;
+export interface CheckerRow {
+  id: string;
+  verdict: 'pass' | 'fail' | 'na';
+}
+export type Judge = (
+  events: Json[],
+  facts: CheckerFacts,
+) => { rows: CheckerRow[] };
+
 export interface JudgedRow {
   id: string;
   verdict: 'pass' | 'fail' | 'na';
@@ -126,7 +137,7 @@ export interface JudgedRow {
  * (with the reason). A passing row always stays a pass.
  */
 export function judgeAcceptance(
-  report: AcceptanceReport,
+  report: { rows: CheckerRow[] },
   na: Record<string, string>,
 ): { rows: JudgedRow[]; summary: Record<JudgedRow['verdict'], number> } {
   const rows = report.rows.map((r): JudgedRow => {
@@ -207,7 +218,7 @@ export interface Mode {
   /** The backend keeps a prevent-sleep child for #14 (not in the fake runtime). */
   preventSleepChild: boolean;
   /** Mode-specific checker facts (the drill adds first-parent, markers, gates). */
-  checkerFacts?: (log: Json[]) => Promise<AcceptanceFacts>;
+  checkerFacts?: (log: Json[]) => Promise<CheckerFacts>;
   /** Checker rows this mode cannot judge, id → reason (never hides a pass). */
   checkerNa: Record<string, string>;
   /**
@@ -523,7 +534,11 @@ async function productionMode(h: OrcaHarness, github: Github): Promise<Mode> {
 }
 
 /** The shared control flow of both modes. */
-export async function drill(mode: Mode, paths: JointPaths): Promise<Json> {
+export async function drill(
+  mode: Mode,
+  paths: JointPaths,
+  judge?: Judge,
+): Promise<Json> {
   const side = mode.side;
   const tag = mainlineTag(new Date());
   const report: Json = { mode: mode.kind, tag, template: TEMPLATE_ID };
@@ -857,39 +872,44 @@ export async function drill(mode: Mode, paths: JointPaths): Promise<Json> {
     const masked = JSON.parse(
       await readFile(exported.maskedPaths[0]!, 'utf8'),
     ) as { events: Json[] };
-    const acceptance = judgeAcceptance(
-      checkAcceptance(masked.events, {
-        ...(await mode.checkerFacts?.(log)),
-        ...(full.scm?.integrationFirstParents
-          ? { integrationFirstParent: full.scm.integrationFirstParents }
-          : {}),
-        ...(full.scm?.markerCounts
-          ? {
-              markerScan: {
-                maxObjectsPerCommand: Math.max(
-                  0,
-                  ...Object.values(full.scm.markerCounts),
-                ),
-              },
-            }
-          : {}),
-        ...(stageGates.length && stageGates.every((g) => g.live !== undefined)
-          ? {
-              workerListAtStageGates: stageGates.map((g) => ({
-                gateId: g.gateId,
-                liveAgents: g.live!,
-              })),
-            }
-          : {}),
-        ...(typeof owner.record.approveCommentNoEffect === 'boolean'
-          ? {
-              approveCommentNoStateChange: owner.record.approveCommentNoEffect,
-            }
-          : {}),
-      }),
-      mode.checkerNa,
+    const facts: CheckerFacts = {
+      ...(await mode.checkerFacts?.(log)),
+      ...(full.scm?.integrationFirstParents
+        ? { integrationFirstParent: full.scm.integrationFirstParents }
+        : {}),
+      ...(full.scm?.markerCounts
+        ? {
+            markerScan: {
+              maxObjectsPerCommand: Math.max(
+                0,
+                ...Object.values(full.scm.markerCounts),
+              ),
+            },
+          }
+        : {}),
+      ...(stageGates.length && stageGates.every((g) => g.live !== undefined)
+        ? {
+            workerListAtStageGates: stageGates.map((g) => ({
+              gateId: g.gateId,
+              liveAgents: g.live!,
+            })),
+          }
+        : {}),
+      ...(typeof owner.record.approveCommentNoEffect === 'boolean'
+        ? {
+            approveCommentNoStateChange: owner.record.approveCommentNoEffect,
+          }
+        : {}),
+    };
+    // Facts are ids, SHAs, counts and booleans only (T10 parseFacts shape).
+    await writeFile(
+      join(paths.privateDir, `m5-joint-${mode.kind}-${tag}.facts.json`),
+      JSON.stringify(facts, null, 2),
+      { mode: 0o600 },
     );
-    report.acceptance = acceptance;
+    report.acceptance = judge
+      ? judgeAcceptance(judge(masked.events, facts), mode.checkerNa)
+      : 'not run in-process: pnpm acceptance:check <masked export> --github-facts <facts.json>';
     // The owner's cleanup of retained workspaces and branches (M2-T17 D9).
     const cleaned = await live.call(
       'POST',

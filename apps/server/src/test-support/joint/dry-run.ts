@@ -24,7 +24,13 @@ import {
   productionLauncher,
   writeTemplates,
 } from './backends.js';
-import { drill, type JointPaths, type Mode, type Side } from './run.js';
+import {
+  drill,
+  type JointPaths,
+  type Judge,
+  type Mode,
+  type Side,
+} from './run.js';
 
 /** Checker rows the standalone fake world cannot judge, with the reason. */
 export const DRY_RUN_NA: Record<string, string> = {
@@ -201,6 +207,7 @@ const fakeSide: Side = {
 export async function runDryRun(
   home: string,
   paths: JointPaths,
+  judge?: Judge,
 ): Promise<Json> {
   const port = await freePort();
   await writeFile(
@@ -282,5 +289,5 @@ export async function runDryRun(
     },
     dispose: async () => undefined,
   };
-  return drill(mode, paths);
+  return drill(mode, paths, judge);
 }
