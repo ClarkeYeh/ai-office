@@ -23,6 +23,11 @@ export interface OwnerPort {
   gateDetail(gateId: string): Promise<Json>;
   /** `POST /gates/{id}/decision` with `expectedVersion` (and the conclusion hash). */
   decide(gate: Json, body: Json): Promise<{ status: number }>;
+  /**
+   * The asking item of an escalated question (`GET /questions`): escalation
+   * gates carry the question id, not always the item key.
+   */
+  questionItem?: (questionId: string) => Promise<string | undefined>;
   /** `POST /questions/{id}/answer`. */
   answer(questionId: string, body: string): Promise<{ status: number }>;
   /**
@@ -91,12 +96,19 @@ export class OwnerPolicyExecutor {
       if (gate.status !== 'open') continue;
       const key = `${gate.gateId}@${gate.version}`;
       if (this.handled.has(key)) continue;
+      const questionId = gate.questionId ?? gate.content?.questionId;
+      const itemKey =
+        gate.content?.itemKey ??
+        (gate.exceptionKind === 'question-escalation' &&
+        typeof questionId === 'string'
+          ? await this.port.questionItem?.(questionId)
+          : undefined);
       const action = ownerAction(
         {
           kind: gate.kind,
           ...(gate.stageKind ? { stageKind: gate.stageKind } : {}),
           ...(gate.exceptionKind ? { exceptionKind: gate.exceptionKind } : {}),
-          ...(gate.content?.itemKey ? { itemKey: gate.content.itemKey } : {}),
+          ...(itemKey ? { itemKey } : {}),
         },
         {
           seen:
