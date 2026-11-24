@@ -686,9 +686,19 @@ export function a17InFlightSubmission(x: RestartEvidence): AssertionResult {
   const mergedAfter = after.filter(
     (e) => e.type === 'workitem.merged' && e.payload.itemKey === item,
   );
-  const outcome =
-    (reconciled && succeeded.length === 1 && succeededAfter === 1) ||
-    (item !== undefined && mergedAfter.length >= 1);
+  // The merge may already have settled when the kill landed (a fast stand-in,
+  // or a kill held back until the fake world is quiet): nothing was in flight,
+  // so the "outcome after the kill" part is n/a — the once-only parts still hold.
+  const settledBeforeKill = x.events.some(
+    (e) =>
+      (e.type === 'command.succeeded' || e.type === 'command.failed') &&
+      e.payload.commandId === commandId &&
+      seqOf(e) <= kill,
+  );
+  const outcome = settledBeforeKill
+    ? undefined
+    : (reconciled && succeeded.length === 1 && succeededAfter === 1) ||
+      (item !== undefined && mergedAfter.length >= 1);
   const shas = new Set(
     of(x.events, 'workitem.merged')
       .filter((e) => e.payload.itemKey === item)
@@ -711,6 +721,7 @@ export function a17InFlightSubmission(x: RestartEvidence): AssertionResult {
     ],
     {
       pr: Number.isSafeInteger(pr) ? pr : null,
+      inFlightAtKill: !settledBeforeKill,
       acceptedForPr: accepted.length,
       acceptedBeforeKill,
       reconciledAfterKill: reconciled,

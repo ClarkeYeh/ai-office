@@ -187,6 +187,22 @@ describe('escalated code-name question (held answer)', () => {
     expect(f.calls.filter((c) => c.op === 'answer')).toEqual([]);
   });
 
+  it('finds the asking item through the question when the gate lacks it', async () => {
+    const f = fakePort();
+    f.port.questionItem = async (questionId) =>
+      questionId === 'qn-question' ? 'name' : 'core';
+    const x = new OwnerPolicyExecutor(f.port, { tag: TAG, now: () => 0 });
+    x.restartReady(0);
+    f.add(
+      exception('qn', 'question-escalation', { questionId: 'qn-question' }),
+    );
+    expect(await x.step()).toEqual(['hold-answer']);
+    f.add(
+      exception('qc', 'question-escalation', { questionId: 'qc-question' }),
+    );
+    expect(await x.step()).toEqual(['hand-off']);
+  });
+
   it('hands off an escalation without a question id', async () => {
     const f = fakePort();
     f.add(

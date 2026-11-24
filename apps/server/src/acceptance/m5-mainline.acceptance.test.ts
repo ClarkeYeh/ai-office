@@ -23,6 +23,11 @@ import {
 } from '../test-support/joint/scenario/m5-mainline.js';
 import { mainlineTemplates } from '../test-support/joint/scenario/template.js';
 import {
+  checkAcceptance,
+  type AcceptanceFacts,
+} from '../test-support/acceptance-check/index.js';
+import { exportJointEvents } from '../test-support/joint/export/index.js';
+import {
   browser,
   closeAll,
   liveAttemptsAtStageGates,
@@ -34,9 +39,12 @@ import type { Browser, Json } from './test-support/harness.js';
 
 const repo = FAKE_REPO.github;
 const servers: RunningServer[] = [];
+/** Live fake agents whenever a stage gate was seen open (T10 worker-list fact). */
+const stageGateAgents = new Map<string, number>();
 afterEach(async () => {
   for (const server of servers.splice(0)) await server.close();
   await closeAll();
+  stageGateAgents.clear();
 });
 const of = (events: Json[], type: string, key?: string) =>
   events.filter(
@@ -207,6 +215,7 @@ async function boot(home: string, world?: FakeWorld, port = 0) {
   servers.push(server);
   return server;
 }
+const currentServer = () => servers.at(-1)!;
 async function prepare(home: string) {
   mkdirSync(join(home, 'templates'), { recursive: true });
   for (const [file, source] of Object.entries(await mainlineTemplates()))
@@ -273,6 +282,13 @@ async function drive(
             ).toBe(200);
           continue;
         }
+        stageGateAgents.set(
+          gate.gateId,
+          Math.max(
+            stageGateAgents.get(gate.gateId) ?? 0,
+            currentServer().fakeWorld!.runtime.activeAgents().length,
+          ),
+        );
         if (gate.stageKind === 'final-pr') continue;
         const path = `/api/v1/gates/${encodeURIComponent(gate.gateId)}`;
         const detail = (await ui.call('GET', path)).body;
@@ -372,6 +388,14 @@ async function resumedStream(
 }
 async function finish(server: RunningServer, ui: Browser, id: string) {
   await drive(ui, id, () => atFinal(ui, id));
+  // `drive` stops as the final-PR gate opens: observe it too (T10 worker-list).
+  for (const gate of (await ui.call('GET', '/api/v1/gates')).body
+    .gates as Json[])
+    if (gate.workflowId === id && gate.stageKind === 'final-pr')
+      stageGateAgents.set(
+        gate.gateId,
+        server.fakeWorld!.runtime.activeAgents().length,
+      );
   await usageSample(server, ui, id, 200);
   expect(server.fakeWorld!.runtime.activeAgents()).toEqual([]);
   const finalPr = server.runners.get(id)!.state.workflow!.finalPr!;
@@ -503,6 +527,111 @@ function assertMainline(
   expect(new Set(markers).size).toBe(markers.length);
 }
 
+/** Rows the fake world cannot judge (T10 `external` rows and the live-only /approve check). */
+const FAKE_WORLD_NA = [
+  'nf.cpu',
+  'nf.fps',
+  'nf.auth',
+  'nf.boundaries',
+  'nf.coverage',
+  'nf.approve-comment',
+  'x.engine-replay',
+];
+
+/**
+ * M5-T7 PART 2: the T10 §24 checker on this run, with the facts the fixture
+ * binding knows (first-parent history, ancestry, the #pending lines, the
+ * conflict merge, markers, live agents at stage gates). Every judgeable row
+ * passes, and the B4-masked export gets the same verdicts.
+ */
+function assertAcceptance(
+  events: Json[],
+  server: RunningServer,
+  f: ReturnType<typeof fixture>,
+) {
+  const scm = server.fakeWorld!.scm.snapshot().repos[0]![1];
+  const parents = new Map(scm.parents);
+  const ancestor = (sha: string, head: string): boolean =>
+    sha === head || (parents.get(head) ?? []).some((p) => ancestor(sha, p));
+  const merged = of(events, 'workitem.merged');
+  const firstParent: string[] = [];
+  let head = merged.at(-1)!.payload.mergeCommitSha as string;
+  const base = of(events, 'workitem.dispatched', 'core')[0]!.payload.baseSha;
+  while (head !== base) {
+    firstParent.unshift(head);
+    head = parents.get(head)![0]!;
+  }
+  const docsPr = of(events, 'workitem.merged', 'docs')[0]!.payload.pr as number;
+  const docsAgents = new Set(
+    Object.values(server.runners.get(events[0]!.workflowId)!.state.attempts)
+      .filter((a) => a.itemKey === 'docs' && a.purpose === 'worker')
+      .map((a) => a.agentRef),
+  );
+  const resolution = f.resolved[0]!;
+  const markers = new Map<string, number>();
+  for (const [, o] of scm.objects) {
+    const id = /ai-office:cmd=([^ ]+)/.exec(o.body)?.[1];
+    if (id) markers.set(id, (markers.get(id) ?? 0) + 1);
+  }
+  const facts: AcceptanceFacts = {
+    ancestry: of(events, 'workitem.dispatched')
+      .filter((d) => d.payload.baseSha)
+      .flatMap((d) =>
+        merged.map((m) => ({
+          baseSha: d.payload.baseSha as string,
+          commit: m.payload.mergeCommitSha as string,
+          isAncestor: ancestor(m.payload.mergeCommitSha, d.payload.baseSha),
+        })),
+      ),
+    rework: [
+      {
+        pr: docsPr,
+        firstHeadHasPending: f.docsWrites[0]?.line === PENDING_LINE,
+        finalHeadHasPrNumber:
+          f.docsWrites.at(-1)?.line === reviewedLine(docsPr),
+        lineByWorker: f.docsWrites.every((w) => docsAgents.has(w.agent)),
+      },
+    ],
+    conflict: [
+      {
+        pr: resolution.pr,
+        twoParentMerge:
+          JSON.stringify(parents.get(resolution.head)) ===
+          JSON.stringify([resolution.before, resolution.base]),
+      },
+    ],
+    integrationFirstParent: firstParent,
+    markerScan: { maxObjectsPerCommand: Math.max(...markers.values()) },
+    workerListAtStageGates: [...stageGateAgents].map(([gateId, n]) => ({
+      gateId,
+      liveAgents: n,
+    })),
+  };
+  const report = checkAcceptance(events, facts);
+  const verdicts = Object.fromEntries(
+    report.rows.map((r) => [r.id, r.verdict]),
+  );
+  for (const r of report.rows)
+    expect([r.id, r.verdict], r.evidence.join('; ')).toEqual([
+      r.id,
+      FAKE_WORLD_NA.includes(r.id) ? 'na' : 'pass',
+    ]);
+  const masked = exportJointEvents(events, {
+    exportedAt: '2026-11-24T00:00:00.000Z',
+    aiOfficeCommit: 'a'.repeat(40),
+    orcaVersion: '0.0.0',
+    requirements: [requirement(M5_FAKE_TAG)],
+  });
+  expect(
+    Object.fromEntries(
+      checkAcceptance(masked.events as Json[], facts).rows.map((r) => [
+        r.id,
+        r.verdict,
+      ]),
+    ),
+  ).toEqual(verdicts);
+}
+
 describe('M5-T9: offline m5-mainline', { timeout: 90_000 }, () => {
   it('routes questions, resolves mul/sub, reworks docs on the same PR, then explicitly merges the final PR', async () => {
     const home = tempHome();
@@ -513,6 +642,7 @@ describe('M5-T9: offline m5-mainline', { timeout: 90_000 }, () => {
     const id = await start(ui);
     const events = await finish(server, ui, id);
     assertMainline(events, server, f);
+    assertAcceptance(events, server, f);
   });
 
   it.each(['before-call', 'after-call'] as const)(
@@ -570,6 +700,7 @@ describe('M5-T9: offline m5-mainline', { timeout: 90_000 }, () => {
       ui = await browser(server);
       const events = await finish(server, ui, id);
       assertMainline(events, server, f);
+      assertAcceptance(events, server, f);
       for (const pendingCommand of pending) {
         const commandId = pendingCommand.payload.commandId;
         expect(

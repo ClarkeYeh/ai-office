@@ -612,26 +612,46 @@ function rework(log: Log, facts: AcceptanceFacts): AcceptanceRow {
   );
 }
 
+/**
+ * §2.2.2. SCM-observed state is judged from the PR's own status history, not
+ * from the global ingest seq: polls can deliver a PR's statuses after the
+ * backend already merged it (scm-github stamps them with the PR's
+ * `updated_at` at poll time, so their time cannot order them either). A
+ * conflict is handled when the PR's history shows `mergeable:false` and the
+ * backend recorded `workitem.merged` for that PR (any seq) — the PR's later
+ * `merged` status, or a merge ingested after the false status, confirms it.
+ * Live runs back path A with `facts.conflict` (the two-parent merge).
+ */
 function conflict(log: Log, facts: AcceptanceFacts): AcceptanceRow {
   const workers = log.workerPrs();
   const problems: string[] = [];
   const evidence: string[] = [];
-  const firstFalse = new Map<number, Ev>();
+  const history = new Map<number, Ev[]>();
   for (const e of log.of('pr.status'))
-    if (
-      e.payload.mergeable === false &&
-      workers.has(e.payload.pr) &&
-      !firstFalse.has(e.payload.pr)
-    )
-      firstFalse.set(e.payload.pr, e);
+    if (workers.has(e.payload.pr))
+      history.set(e.payload.pr, [...(history.get(e.payload.pr) ?? []), e]);
+  const firstFalse = new Map<number, Ev>();
+  for (const [pr, statuses] of history) {
+    const seen = statuses.find((e) => e.payload.mergeable === false);
+    if (seen) firstFalse.set(pr, seen);
+  }
   if (firstFalse.size === 0)
     problems.push('no worker PR reported mergeable:false');
   for (const [pr, seen] of firstFalse) {
     const itemKey = log.itemOfPr(pr);
-    const after = (e: Ev) => e.seq > seen.seq;
-    const merged = log
-      .of('workitem.merged')
-      .find((e) => e.payload.pr === pr && after(e));
+    const statuses = history.get(pr)!;
+    const scmMerged = statuses
+      .slice(statuses.indexOf(seen) + 1)
+      .find((e) => e.payload.state === 'merged');
+    const merged = log.of('workitem.merged').find((e) => e.payload.pr === pr);
+    // Status ingested after the merge: look for paths B and C from the PR's
+    // entry into the merge queue instead of from the (late) false status.
+    const lagged = merged !== undefined && merged.seq < seen.seq;
+    const from = lagged
+      ? (log.of('workitem.merge_queued').find((e) => e.payload.pr === pr)
+          ?.seq ?? 0)
+      : seen.seq;
+    const after = (e: Ev) => e.seq > from;
     const mergeCommands = new Set(
       log
         .mergePrCommands()
@@ -664,7 +684,17 @@ function conflict(log: Log, facts: AcceptanceFacts): AcceptanceRow {
     const path = pathC ? 'C' : pathB ? 'B' : 'A';
     const label = `PR #${pr}${itemKey === undefined ? '' : ` (${itemKey})`}: path ${path}`;
     if (merged === undefined) {
-      problems.push(`${label} never merged after ${ptr(seen)}`);
+      problems.push(
+        scmMerged
+          ? `${label} merged (${ptr(scmMerged)}) without a backend workitem.merged`
+          : `${label} never merged after ${ptr(seen)}`,
+      );
+      continue;
+    }
+    if (lagged && scmMerged === undefined) {
+      problems.push(
+        `${label}: ${ptr(merged)} precedes ${ptr(seen)} and the PR history shows no later merge`,
+      );
       continue;
     }
     const fact = facts.conflict?.find((f) => f.pr === pr);
@@ -672,6 +702,9 @@ function conflict(log: Log, facts: AcceptanceFacts): AcceptanceRow {
       problems.push(`${label}: facts.conflict shows no two-parent merge`);
     evidence.push(
       `${label}, ${ptr(seen, 'mergeable=false')} → ${pathC ? ptr(pathC) + ' → ' : pathB ? ptr(pathB) + ' → ' : ''}${ptr(merged)}` +
+        (lagged
+          ? ` (status ingested after the merge; PR history: ${ptr(scmMerged!, 'merged')})`
+          : '') +
         (path === 'A'
           ? fact
             ? ' (facts.conflict)'

@@ -309,6 +309,59 @@ describe('§24 acceptance checker (M5-T10)', () => {
     ).toMatch(/path C/);
   });
 
+  describe('conflict from the PR status history (M5-T7b)', () => {
+    const conflictRow = (events: Json[]) =>
+      checkAcceptance(events).rows.find((r) => r.id === 'v01.conflict')!;
+    const renumber = (events: Json[]) =>
+      events.forEach((e, i) => (e.seq = i + 1));
+    /** Moves sub's false status (plus a merged status) after the backend merge. */
+    function lagged() {
+      const { events } = syntheticMainline();
+      const seen = find(events, 'pr.status', (p) => p.mergeable === false);
+      events.splice(events.indexOf(seen), 1);
+      const merged = find(
+        events,
+        'workitem.merged',
+        (p) => p.itemKey === 'sub',
+      );
+      const at = events.indexOf(merged) + 2;
+      events.splice(at, 0, seen, {
+        ...seen,
+        id: '01M5EXTRA0000000000000LAG01',
+        externalKey: 'gh:pr:12:2',
+        payload: { ...seen.payload, state: 'merged', mergeable: null },
+      });
+      renumber(events);
+      return events;
+    }
+
+    it('accepts a lagged pr.status batch delivered after the merge', () => {
+      const row = conflictRow(lagged());
+      expect(row.verdict).toBe('pass');
+      expect(row.evidence.join()).toMatch(/status ingested after the merge/);
+    });
+
+    it('fails a PR that never reported mergeable:false', () => {
+      const { events } = syntheticMainline();
+      drop(events, 'pr.status', (p) => p.mergeable === false);
+      expect(conflictRow(events).verdict).toBe('fail');
+    });
+
+    it('fails a PR merged on the SCM side without a backend workitem.merged', () => {
+      const events = lagged();
+      drop(events, 'workitem.merged', (p) => p.itemKey === 'sub');
+      const row = conflictRow(events);
+      expect(row.verdict).toBe('fail');
+      expect(row.evidence.join()).toMatch(/without a backend workitem.merged/);
+    });
+
+    it('fails a lagged false status when the PR history never shows the merge', () => {
+      const events = lagged();
+      drop(events, 'pr.status', (p) => p.pr === 12 && p.state === 'merged');
+      expect(conflictRow(events).verdict).toBe('fail');
+    });
+  });
+
   it('accepts a bare array or the export envelope and refuses malformed input', () => {
     const { events } = syntheticMainline();
     expect(eventsOf(events)).toBe(events);
