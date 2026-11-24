@@ -6,12 +6,27 @@ function commands(source: string): string[][] {
   let words: string[] = [],
     word = '',
     quote = '';
+  const heredocs: { delimiter: string; tabs: boolean }[] = [];
   const flush = () => {
     if (word) words.push(word);
     word = '';
   };
   for (let i = 0; i < source.length; i++) {
     const c = source[i]!;
+    if (!quote && c === '<' && source[i + 1] === '<' && source[i + 2] !== '<') {
+      const match = /^<<(-)?[ \t]*(?:'([^']+)'|"([^"]+)"|([\w]+))/.exec(
+        source.slice(i),
+      );
+      if (match) {
+        flush();
+        heredocs.push({
+          delimiter: match[2] ?? match[3] ?? match[4]!,
+          tabs: !!match[1],
+        });
+        i += match[0].length - 1;
+        continue;
+      }
+    }
     if (c === '\\' && quote !== "'") {
       const next = source[++i];
       if (next !== undefined && next !== '\n') word += next;
@@ -23,6 +38,19 @@ function commands(source: string): string[][] {
       flush();
       if (words.length) result.push(words);
       words = [];
+      if (c === '\n') {
+        for (const { delimiter, tabs } of heredocs.splice(0)) {
+          let start = i + 1;
+          while (start < source.length) {
+            const end = source.indexOf('\n', start);
+            const stop = end < 0 ? source.length : end;
+            const line = source.slice(start, stop);
+            i = stop;
+            if ((tabs ? line.replace(/^\t+/, '') : line) === delimiter) break;
+            start = stop + 1;
+          }
+        }
+      }
     } else if (/\s/.test(c)) flush();
     else word += c;
   }
@@ -102,6 +130,42 @@ function apiWriteRule(args: string[]): PolicyHit['rule'] | undefined {
     return 'gh-issue-create';
 }
 
+/** Distinguish a search pattern/script from the paths a read command opens. */
+function readsControlFile(
+  executable: string | undefined,
+  args: readonly string[],
+): boolean {
+  const direct = ['cat', 'head', 'tail', 'less', 'more', 'dd'];
+  if (direct.includes(executable ?? ''))
+    return args.some((arg) => /\/data\/control\.token$/.test(arg));
+  if (!['grep', 'rg', 'sed', 'awk'].includes(executable ?? '')) return false;
+  let pattern = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (['-e', '--regexp', '--expression'].includes(arg)) {
+      pattern = true;
+      i++;
+      continue;
+    }
+    if (arg.startsWith('--regexp=') || arg.startsWith('--expression=')) {
+      pattern = true;
+      continue;
+    }
+    if (['-f', '--file'].includes(arg)) {
+      pattern = true;
+      if (/\/data\/control\.token$/.test(args[++i] ?? '')) return true;
+      continue;
+    }
+    if (arg.startsWith('-')) continue;
+    if (!pattern) {
+      pattern = true;
+      continue;
+    }
+    if (/\/data\/control\.token$/.test(arg)) return true;
+  }
+  return false;
+}
+
 export function policyRules(
   source: string,
   defaultBranch: string,
@@ -122,6 +186,14 @@ export function policyRules(
     if (executable === 'cd' || executable === 'pushd' || executable === 'popd')
       currentBranch = undefined;
     const [group, action] = words;
+    if (
+      (executable === 'ai-office' && group === 'open') ||
+      (executable === 'node' &&
+        /(?:^|\/)cli\/dist\/main\.js$/.test(group ?? '') &&
+        action === 'open') ||
+      readsControlFile(executable, words)
+    )
+      hits.add('aio-open');
     if (executable === 'orca') {
       if (group === 'orchestration') {
         if (['worker-start', 'dispatch', 'run-create'].includes(action ?? ''))

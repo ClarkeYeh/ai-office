@@ -1,3 +1,4 @@
+import { openOffice } from '../test-support/open.js';
 import { expect, test } from '@playwright/test';
 import { useOffice } from '../test-support/index.js';
 
@@ -73,4 +74,25 @@ test('the API and dev-fake controls refuse requests without a session', async ({
     { data: { number: 1 }, headers: { origin: office().url } },
   );
   expect(merge.status()).toBe(401);
+});
+
+test('ai-office open logs in again after the browser session is invalidated', async ({
+  page,
+  context,
+}) => {
+  await context.clearCookies();
+  await page.goto(office().url);
+  await expect(page.getByTestId('auth-required')).toBeVisible();
+  await expect(page.getByTestId('auth-required')).toContainText(
+    'ai-office open',
+  );
+  await page.goto(await openOffice(office().home)).catch(() => {
+    throw new Error('Fresh login navigation failed');
+  });
+  await expect(page.getByTestId('home-link')).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+  expect(page.url()).not.toContain('code=');
+  expect(
+    (await page.request.get(office().url + '/api/v1/health')).status(),
+  ).toBe(200);
 });

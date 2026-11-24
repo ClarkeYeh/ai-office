@@ -81,6 +81,7 @@ Never run any of these commands, directly or through a script or alias. AI Offic
 - `gh issue create`
 - `gh issue comment`
 - `gh label`
+- `ai-office open (including node …/cli/dist/main.js open); never read data/control.token`
 - `git push` to the default branch `main`, including force pushes and pushes through another remote or refspec
 - `git push` to the integration branch `ai-office/ab12-add-dark-mode-toggle` in any form
 
