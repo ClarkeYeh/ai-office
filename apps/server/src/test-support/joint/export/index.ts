@@ -6,6 +6,48 @@ export function textPlaceholder(text: string): string {
   return `‹text len=${text.length} sha=${createHash('sha256').update(text).digest('hex').slice(0, 12)}›`;
 }
 
+/**
+ * Opaque local ids the public fixture must not carry (coordinator ruling for
+ * M5-T17): Orca run, dispatch and message ids and every UUID (Orca request,
+ * repo and workspace ids, vendor agent sessions, vendor message ids), also
+ * inside composite strings such as `orca:tx:ctx_…:<uuid>:seat.activity`.
+ */
+export const OPAQUE_ID =
+  /(?<![A-Za-z0-9])(?:(run|ctx|msg)_([A-Za-z0-9]+)|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![A-Za-z0-9])/gi;
+
+/** The pseudonyms `pseudonymizer` hands out; never a real id. */
+export const PSEUDONYM =
+  /^(?:(?:run|ctx|msg)_0*[1-9][0-9]*|00000000-0000-4000-8000-[0-9]{12})$/;
+
+/**
+ * Deterministic within one export: the n-th distinct id of a kind becomes the
+ * n-th pseudonym, so equal ids stay equal and links survive. Lengths are kept
+ * (placeholders report `len=`), and a UUID stays UUID-shaped.
+ */
+export function pseudonymizer(): (text: string) => string {
+  const seen = new Map<string, string>();
+  const counts = new Map<string, number>();
+  const next = (kind: string) => {
+    const n = (counts.get(kind) ?? 0) + 1;
+    counts.set(kind, n);
+    return n;
+  };
+  return (text) =>
+    text.replace(OPAQUE_ID, (id, prefix?: string, rest?: string) => {
+      const key = prefix ? id : id.toLowerCase();
+      let alias = seen.get(key);
+      if (alias === undefined) {
+        const kind = prefix?.toLowerCase() ?? 'uuid';
+        const n = String(next(kind));
+        alias = prefix
+          ? `${prefix}_${n.padStart(rest!.length, '0')}`
+          : `00000000-0000-4000-8000-${n.padStart(12, '0')}`;
+        seen.set(key, alias);
+      }
+      return alias;
+    });
+}
+
 // Paths are exact (array indexes use *). Merely naming an unknown field "id"
 // cannot promote its value into the allowlist. Free-text paths never appear here.
 const envelope = [
@@ -287,6 +329,8 @@ export function exportJointEvents(
     0;
   const epoch = Date.parse('2000-01-01T00:00:00.000Z');
   const requirements = new Set(options.requirements ?? []);
+  // Before the allowlist, so placeholders hash the pseudonymized text too.
+  const pseudonymize = pseudonymizer();
   const safe = (value: string) =>
     redactor.maskText(value) === value &&
     !/aio_ctl_|\/(Users|home)\//.test(value);
@@ -306,15 +350,16 @@ export function exportJointEvents(
             Number.isFinite(Date.parse(value))
           )
             return new Date(epoch + Date.parse(value) - origin).toISOString();
+          const text = pseudonymize(value);
           if (
-            safe(value) &&
+            safe(text) &&
             allowed.has(path) &&
             (path === 'payload.requirement'
-              ? requirements.has(value)
-              : /^[A-Za-z0-9_./:#@+-]+$/.test(value))
+              ? requirements.has(text)
+              : /^[A-Za-z0-9_./:#@+-]+$/.test(text))
           )
-            return value;
-          return textPlaceholder(value);
+            return text;
+          return textPlaceholder(text);
         }
         if (Array.isArray(value))
           return value.map((item) => visit(item, path + '.*'));

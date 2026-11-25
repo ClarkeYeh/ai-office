@@ -5,7 +5,10 @@ import {
 } from '@ai-office/contracts/events';
 import {
   EVENT_STRING_ALLOWLIST,
+  OPAQUE_ID,
+  PSEUDONYM,
   exportJointEvents,
+  pseudonymizer,
   textPlaceholder,
 } from './index.js';
 const metadata = {
@@ -198,4 +201,103 @@ it('keeps work-item dependency keys and still placeholders unknown fields', () =
         ],
       },
     });
+});
+
+describe('opaque local ids (public fixture ruling, M5-T17)', () => {
+  // Synthetic ids in the real shapes: Orca run / dispatch / message ids,
+  // vendor message ids and UUIDs.
+  const run = 'run_a1b2c3d4e5f6';
+  const ctx = 'ctx_6bedc4cc570a';
+  const ctx2 = 'ctx_0c90a6853ea1';
+  const msg = 'msg_862b6965929c';
+  const vendorMsg = 'msg_01AbCdEfGhIjKlMnOpQrStUv';
+  const uuid = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+  const session = '9C4F1D2A-7B3E-4C5D-8E6F-0A1B2C3D4E5F';
+  const events = [
+    {
+      type: 'workflow.started',
+      externalKey: `orca:run:${run}`,
+      payload: { repo: { orcaRepoId: uuid } },
+    },
+    {
+      type: 'command.issued',
+      payload: {
+        commandId: `cmd:${msg}`,
+        orcaRequestId: session.toLowerCase(),
+        args: { session: run, agent: ctx, workspace: { workspace: uuid } },
+      },
+    },
+    {
+      type: 'seat.activity',
+      externalKey: `orca:tx:${ctx}:${uuid}:seat.activity`,
+      payload: { activity: [{ messageId: vendorMsg, text: `see ${ctx2}` }] },
+    },
+    {
+      type: 'seat.status',
+      externalKey: `orca:exited:${ctx2}`,
+      payload: { attemptId: 'a1', state: 'exited' },
+    },
+    {
+      type: 'submission.accepted',
+      externalKey: `orca:msg:${msg}`,
+      payload: { agentSession: { provider: 'claude-code', id: session } },
+    },
+  ];
+  const result = exportJointEvents(events, metadata);
+  const text = JSON.stringify(result);
+
+  it('leaves none of the ids, and every id-shaped string is a pseudonym', () => {
+    for (const id of [run, ctx, ctx2, msg, vendorMsg, uuid, session])
+      expect(text.toLowerCase()).not.toContain(id.toLowerCase());
+    const found = [...text.matchAll(OPAQUE_ID)].map((m) => m[0]);
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.filter((id) => !PSEUDONYM.test(id))).toEqual([]);
+  });
+
+  it('is consistent: equal ids stay equal (case-insensitive UUIDs), distinct ids stay distinct', () => {
+    const [started, command, activity, status, accepted] = result.events as {
+      externalKey?: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test probe
+      payload: any;
+    }[];
+    const repoId = started!.payload.repo.orcaRepoId as string;
+    expect(repoId).toBe('00000000-0000-4000-8000-000000000001');
+    expect(command!.payload.args.workspace.workspace).toBe(repoId);
+    expect(activity!.externalKey).toBe(
+      `orca:tx:${command!.payload.args.agent}:${repoId}:seat.activity`,
+    );
+    expect(started!.externalKey).toBe(
+      `orca:run:${command!.payload.args.session}`,
+    );
+    expect(command!.payload.args.session).toBe('run_000000000001');
+    expect(command!.payload.args.agent).toBe('ctx_000000000001');
+    expect(status!.externalKey).toBe('orca:exited:ctx_000000000002');
+    expect(command!.payload.commandId).toBe('cmd:msg_000000000001');
+    expect(accepted!.externalKey).toBe('orca:msg:msg_000000000001');
+    expect(accepted!.payload.agentSession.id).toBe(
+      command!.payload.orcaRequestId,
+    );
+    // Paths off the allowlist still become placeholders, hashed after
+    // pseudonymizing, so not even the hash links back to the real id.
+    expect(activity!.payload.activity[0].messageId).toBe(
+      textPlaceholder('msg_' + '2'.padStart(vendorMsg.length - 4, '0')),
+    );
+    expect(activity!.payload.activity[0].text).toBe(
+      textPlaceholder('see ctx_000000000002'),
+    );
+  });
+
+  it('is deterministic per export and keeps lengths', () => {
+    expect(exportJointEvents(events, metadata)).toEqual(result);
+    const alias = pseudonymizer();
+    for (const id of [run, ctx, vendorMsg, uuid]) {
+      expect(alias(id)).toHaveLength(id.length);
+      expect(alias(id)).toMatch(PSEUDONYM);
+    }
+    expect(alias(`x ${run} y`)).toBe(`x ${alias(run)} y`);
+    // Not ids: prefixes inside words, and other words with underscores.
+    expect(alias('xrun_abc mymsg_1 ctx_ run-1')).toBe(
+      'xrun_abc mymsg_1 ctx_ run-1',
+    );
+  });
 });

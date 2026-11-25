@@ -72,9 +72,16 @@ event, and zero tokens without `AIO_T17_ALLOW_ZERO_TOKENS`, both fail.
 `apps/web/src/test-support/office/m5-joint.test.ts` folds the masked
 `fixtures/web/m5-joint.events.json` with the real projection and checks seat
 poses, needs, board, gate headers, usage, and replay = live fold (semantics
-only). Until T12 replaces it, the fixture is the masked export of the dry run
-above. To swap: T12 writes its masked export to that path and sets
-`M5_JOINT_RESTART_SEQ` in `m5-joint.ts` to its `restart.triggerSeq`.
+only). The fixture is T12's production run (1812 events, the same file as
+`fixtures/m5/joint.events.json`), re-masked offline from the private raw
+export with `exportJointEvents`, which also pseudonymizes Orca run, dispatch
+and message ids and every UUID (consistently, so links survive);
+`fixtures:scan` rejects any real one. `M5_JOINT_RESTART_SEQ` is 1012, the
+first event after the restart (K at 991). The recording keeps the run's
+duplicate `seat.activity` re-emissions. About 5 s locally.
+
+Live run, 2026-11-25 05:14Z, against the T12 production backend (restart seq
+1012): 4/4 passed in 3.3 s.
 
 ## Scale (§24): `pnpm e2e:fps` on the M5 head
 

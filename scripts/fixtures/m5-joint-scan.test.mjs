@@ -86,6 +86,29 @@ test('m5-joint: an email fails', () => {
   );
 });
 
+test('m5-joint: real Orca ids and UUIDs fail, the masker pseudonyms pass', () => {
+  for (const by of [
+    'orca:tx:ctx_6bedc4cc570a:x:seat.activity',
+    'run_a1b2c3d4e5f6',
+    'msg_01AbCdEfGhIjKlMnOpQrStUv',
+    '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+  ])
+    assert.equal(
+      scan({ 'fixtures/web/m5-joint.events.json': b4({ by }) }),
+      1,
+      by,
+    );
+  assert.equal(
+    scan({
+      'fixtures/web/m5-joint.events.json': b4({
+        by: 'orca:tx:ctx_000000000001:00000000-0000-4000-8000-000000000001:seat.activity',
+        run: 'run_000000000002',
+      }),
+    }),
+    0,
+  );
+});
+
 test('other web fixtures keep the web rule: the same B4 file fails', () => {
   assert.equal(scan({ 'fixtures/web/other.events.json': b4() }), 1);
 });
