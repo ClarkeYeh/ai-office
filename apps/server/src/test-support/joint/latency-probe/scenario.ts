@@ -204,7 +204,8 @@ async function probe(
     workspace = await runtime.prepareWorkspace({
       session,
       repo,
-      baseBranch: 'main',
+      // The runtime takes a SHA or `origin/<fetchBranch>` as the base.
+      baseBranch: 'origin/main',
       fetchBranch: 'main',
       name: `aio-${shortId}-probe`,
       branch: `ai-office/${shortId}/probe`,
