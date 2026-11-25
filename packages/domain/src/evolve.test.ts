@@ -534,6 +534,52 @@ describe('meeting and submission events', () => {
 });
 
 describe('message and on-call events', () => {
+  test('T12: sends and answers are turns; done records its turn', () => {
+    const harness = meeting();
+    const status = (state: 'done' | 'working') =>
+      eventDraft('seat.status', { attemptId: 'att-1', state });
+    applyAll(harness, status('working'), status('done'));
+    expect(harness.state.attempts['att-1']).toMatchObject({ doneTurn: 0 });
+    applyAll(
+      harness,
+      eventDraft(
+        'command.issued',
+        {
+          commandId: 'send-1',
+          kind: 'runtime.send',
+          args: { agent: 'agent-1', subject: 's', body: 'b' },
+        },
+        { attemptId: 'att-1' },
+      ),
+      // An unrelated attempt's command never counts here.
+      eventDraft('command.issued', {
+        commandId: 'send-2',
+        kind: 'runtime.send',
+        args: { agent: 'agent-2', subject: 's', body: 'b' },
+      }),
+    );
+    expect(harness.state.attempts['att-1']?.turns).toBe(1);
+    applyAll(
+      harness,
+      status('working'),
+      status('done'),
+      eventDraft('message.question', {
+        questionId: 'q-9',
+        attemptId: 'att-1',
+        body: 'b',
+      }),
+      // The on-call answer carries no attemptId: its question names it.
+      eventDraft('command.issued', {
+        commandId: 'answer-1',
+        kind: 'runtime.answer',
+        args: { question: 'q-9', body: 'a' },
+      }),
+    );
+    expect(harness.state.attempts['att-1']).toMatchObject({
+      turns: 2,
+      doneTurn: 1,
+    });
+  });
   test('question lifecycle', () => {
     const harness = meeting();
     applyAll(

@@ -77,7 +77,11 @@ type Scheduled = {
   order: number;
   agent: Agent;
   generation: number;
-  action: ScenarioStep | { type: 'auto-release' } | { type: 'idle' };
+  action:
+    | ScenarioStep
+    | { type: 'auto-release' }
+    | { type: 'idle' }
+    | { type: 'stale-working' };
   /** Turn scripts (spawn/send/answer) versus external `enqueue()` stimuli. */
   source: 'script' | 'external';
 };
@@ -1382,6 +1386,15 @@ export class FakeRuntime implements RuntimePort {
             ? {}
             : { filesModified: action.filesModified }),
         });
+        if (action.staleWorkingAfterMs !== undefined)
+          this.scheduled.push({
+            at: at + action.staleWorkingAfterMs,
+            order: ++this.sequence,
+            agent: a,
+            generation: a.generation,
+            action: { type: 'stale-working' },
+            source: 'script',
+          });
         if (action.idleAfterMs !== undefined)
           this.scheduled.push({
             at: at + action.idleAfterMs,
@@ -1406,6 +1419,10 @@ export class FakeRuntime implements RuntimePort {
         break;
       case 'idle':
         emit({ type: 'agent.status', agent: a.ref, state: 'idle' });
+        break;
+      case 'stale-working':
+        // A reading only: the agent itself stays done (no new turn).
+        emit({ type: 'agent.status', agent: a.ref, state: 'working' });
         break;
       case 'rate-limited':
         emit({

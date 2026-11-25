@@ -1,7 +1,7 @@
 import type { MeetingCommand } from '../commands.js';
 import { accept, reject } from '../errors.js';
 import type { DecideResult } from '../errors.js';
-import type { WorkflowState } from '../state/index.js';
+import { isTurnDone, type WorkflowState } from '../state/index.js';
 import { draft, failed, isDomainError, runningWorkflow } from './support.js';
 
 /** Validated, replayable meeting protocol transitions; no engine-owned mutable state. */
@@ -190,7 +190,8 @@ export const decideMeeting = (
       round.attemptIds.some(
         (id) =>
           !absent.includes(id) &&
-          (!round.statements[id] || state.attempts[id]?.state !== 'done'),
+          (!round.statements[id] ||
+            !(state.attempts[id] && isTurnDone(state.attempts[id]))),
       )
     )
       return reject(

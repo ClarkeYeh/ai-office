@@ -140,6 +140,13 @@ export type Attempt = EventPayload<'seat.spawned'> & {
   rateLimited?: AttemptRateLimit;
   /** S26: rate-limit windows, the open one last; excluded from item wallclock time. */
   rateLimitWindows?: { from: string; to?: string }[];
+  /**
+   * T12: turns the backend gave this attempt after its spawn (each issued
+   * `runtime.send` / `runtime.answer`); absent means none.
+   */
+  turns?: number;
+  /** T12: the `turns` value when the attempt last reported `done`. */
+  doneTurn?: number;
 };
 
 export type AttemptRateLimit = NonNullable<

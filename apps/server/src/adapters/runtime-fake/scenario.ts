@@ -26,6 +26,12 @@ export type ScenarioAction =
        * reports it `idle` this many ms after worker_done. Off when absent.
        */
       idleAfterMs?: number;
+      /**
+       * Real Orca (M5-T12): the finished turn's stage can still read
+       * `working` this many ms after worker_done, with no new turn. Off when
+       * absent; combine with `idleAfterMs` for done → working → idle.
+       */
+      staleWorkingAfterMs?: number;
     }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }

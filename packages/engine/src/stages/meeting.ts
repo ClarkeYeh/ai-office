@@ -1,6 +1,6 @@
 import { seatIdFor } from '@ai-office/contracts/events';
 import type { Conclusion } from '@ai-office/contracts/events';
-import { bodyHash, scmTitle } from '@ai-office/domain';
+import { bodyHash, isTurnDone, scmTitle } from '@ai-office/domain';
 import type { Attempt, SpecRequest, WorkflowState } from '@ai-office/domain';
 import { releaseAttempt, stopAttempt } from '../agents.js';
 import { commandId, metaFor, sessionRef } from '../context.js';
@@ -15,6 +15,13 @@ import { cancelTimer, MINUTE_MS, schedule } from '../timers.js';
 import type { StageModule } from './types.js';
 
 /** Stable ids include the stage attempt, so a rejection never reuses an old command. */
+/**
+ * T12: barriers latch each participant's `done` for its current turn, so a
+ * stale post-done `working` / `idle` reading cannot un-meet them.
+ */
+const latched = (attempt: Attempt | undefined): boolean =>
+  attempt !== undefined && isTurnDone(attempt);
+
 export const stageCommandId = (
   ctx: ReactContext,
   stageId: string,
@@ -447,10 +454,10 @@ const reactMeeting: StageModule['react'] = (ctx) => {
       : effects;
   if (
     !participants.length &&
-    lead.state === 'done' &&
+    isTurnDone(lead) &&
     (wake ||
       !(
-        ctx.before.attempts[lead.attemptId]?.state === 'done' &&
+        latched(ctx.before.attempts[lead.attemptId]) &&
         submitted(ctx.before, ctx.before.attempts[lead.attemptId], 'agenda')
       ))
   )
@@ -467,11 +474,11 @@ const reactMeeting: StageModule['react'] = (ctx) => {
   if (!round) {
     if (
       participants.length === config.participants.length &&
-      participants.every((a) => a.state === 'done' && a.agentRef) &&
+      participants.every((a) => isTurnDone(a) && a.agentRef) &&
       (wake ||
         !participants.every(
           (a) =>
-            ctx.before.attempts[a.attemptId]?.state === 'done' &&
+            latched(ctx.before.attempts[a.attemptId]) &&
             ctx.before.attempts[a.attemptId]?.agentRef,
         ))
     )
@@ -554,7 +561,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
   }
   if (!round.completed) {
     const ready = (a: Attempt) =>
-      !!round.statements[a.attemptId] && a.state === 'done';
+      !!round.statements[a.attemptId] && isTurnDone(a);
     const absent = participants.filter(
       (a) => a.released || a.state === 'exited',
     );
@@ -568,7 +575,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
             prior &&
             (prior.released ||
               prior.state === 'exited' ||
-              (prior.state === 'done' && previous?.statements[a.attemptId]))
+              (isTurnDone(prior) && previous?.statements[a.attemptId]))
           );
         })
       )
@@ -702,7 +709,7 @@ const reactMeeting: StageModule['react'] = (ctx) => {
           5 * MINUTE_MS,
         )
       : effects;
-  if (lead.state !== 'done' && !meeting.concluded) return effects;
+  if (!isTurnDone(lead) && !meeting.concluded) return effects;
   if (!meeting.concluded)
     return [
       internal({

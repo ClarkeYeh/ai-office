@@ -291,6 +291,47 @@ describe('runtime ingestion', () => {
       degraded: true,
     });
   });
+  it('keeps done through stale working/idle readings until the backend gives a new turn (T12)', async () => {
+    const h = await setup();
+    const status = (key: string, state: 'working' | 'idle') => ({
+      type: 'agent.status' as const,
+      agent,
+      externalKey: key,
+      occurredAt: START,
+      state,
+    });
+    h.setEvents([
+      status('working-1', 'working'),
+      {
+        type: 'agent.done',
+        agent,
+        externalKey: 'done-1',
+        occurredAt: START,
+        outcome: 'success',
+      },
+    ]);
+    await h.loop.pollRuntime(h.runner, session);
+    // T12 rerun #2: pm done → working → idle with no new turn.
+    h.setEvents([status('stale-working', 'working'), status('idle-1', 'idle')]);
+    await h.loop.pollRuntime(h.runner, session);
+    expect(h.runner.state.attempts['att-1']?.state).toBe('done');
+    // A send is a new turn: its `working` is real.
+    await h.runner.append([
+      draft(
+        'command.issued',
+        {
+          commandId: 'round-1-send',
+          orcaRequestId: h.ids.orcaRequestId('round-1-send'),
+          kind: 'runtime.send',
+          args: { agent, subject: 'Meeting round 1', body: 'Speak' },
+        },
+        { attemptId: 'att-1', stageId: 'meeting' },
+      ),
+    ]);
+    h.setEvents([status('working-2', 'working')]);
+    await h.loop.pollRuntime(h.runner, session);
+    expect(h.runner.state.attempts['att-1']?.state).toBe('working');
+  });
   it('maps provider rate-limit evidence to seat.status rateLimited, keeping the first since (S26)', async () => {
     const h = await setup();
     const later = new Date(Date.parse(START) + 60_000).toISOString();

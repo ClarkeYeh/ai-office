@@ -115,7 +115,16 @@ export function ingestRuntime(
         // right after worker_done. Idle never downgrades done; only a new turn
         // (working / waiting_input) or exit/lost does, so the engine's `done`
         // checks (meeting rounds, conclusion, planning, items) stay true.
-        if (event.state === 'idle' && attempt.state === 'done') break;
+        // T12: and only a turn the backend gave (a send or answer issued after
+        // the done, §7.1): Orca can still show the finished turn's `working`
+        // stage after worker_done (pm: done → working → idle).
+        if (
+          attempt.state === 'done' &&
+          (event.state === 'idle' ||
+            ((event.state === 'working' || event.state === 'waiting_input') &&
+              attempt.doneTurn === (attempt.turns ?? 0)))
+        )
+          break;
         batch.add(
           'seat.status',
           {
