@@ -123,5 +123,3 @@ the API, and you merge the final PR into the default branch on GitHub.
 
 AI Office checks these when you register a repository and again on every
 production start.
-
-<!-- TODO(M5 final): add anything the real-scale run (M5-T12) shows is missing. -->

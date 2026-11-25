@@ -15,7 +15,12 @@ GitHub holds the issues and PRs; every decision stays with you, in AI Office.
 **v0.1, early.** AI Office is a personal open-source project. It runs locally
 on macOS, for one user, against repositories you own. Expect rough edges.
 
-<!-- TODO(M5 final): update after the real-scale joint run (M5-T12) and the v0.1 tag. -->
+The full flow, from meeting to final PR, has been run end to end against real
+Orca, GitHub, Claude Code and Codex at the scale of a small feature with
+several work items. Known problems from those runs and their fixes are in
+[Troubleshooting](guide/troubleshooting.md).
+
+<!-- TODO(M5 final): mention the v0.1 tag once it exists. -->
 
 ## Try it in five minutes (fake mode)
 
@@ -63,11 +68,10 @@ workflow from the built-in `feature-to-pr` template. See
 | [Safety](guide/safety.md)                   | What agents can and cannot do, residual risks, data        |
 | [Troubleshooting](guide/troubleshooting.md) | Startup refusals and runtime problems                      |
 | [Development](guide/development.md)         | Contributing, checks, tests, fixtures                      |
+| [Dogfooding](guide/dogfooding.md)           | Developing AI Office with AI Office, after v0.1            |
 
-Dogfooding (developing AI Office with AI Office) gets its own runbook,
-`guide/dogfooding.md`.
-
-<!-- TODO(M5-T18): link guide/dogfooding.md once it exists. -->
+After v0.1, AI Office is developed with AI Office itself; see the
+[dogfooding plan](guide/dogfooding.md).
 
 ## Acknowledgements
 

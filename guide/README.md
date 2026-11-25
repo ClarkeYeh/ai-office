@@ -14,7 +14,5 @@
    runtime problems.
 7. [Development](development.md): working on AI Office itself.
 
-Dogfooding (developing AI Office with AI Office) has its own runbook,
-`dogfooding.md`, added separately.
-
-<!-- TODO(M5-T18): turn the dogfooding mention into a link once the file exists. -->
+8. [Dogfooding](dogfooding.md): the plan for developing AI Office with AI
+   Office itself, after v0.1.

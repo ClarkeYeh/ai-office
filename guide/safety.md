@@ -88,8 +88,7 @@ detection) for:
   implementation;
 - starting other agents, or taking over the backend's Orca run (`run-use`);
 - stopping or releasing workers;
-- reading the local control token used by `ai-office open` (pending, with
-  `open`).
+- reading the local control token used by `ai-office open`.
 
 A high-severity hit stops that agent at once and opens an anomaly gate. You
 choose "this was me, continue" or abort. Detection happens after the fact.

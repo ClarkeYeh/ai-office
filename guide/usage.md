@@ -57,11 +57,6 @@ skip the browser. `--home` selects another data directory; the default is
 `AI_OFFICE_HOME`, then `~/.ai-office`. If no running backend can be verified,
 `open` tells you to run `ai-office start`.
 
-> **Pending:** `ai-office open` is in review. Until it merges, stop the backend
-> and run `ai-office start` again to get a new link.
-
-<!-- TODO(M5-T6): remove the pending note after merge. -->
-
 ## Register a repository
 
 Open **Repos** (`http://127.0.0.1:4319/repos`) and enter the absolute local path of the
@@ -157,11 +152,6 @@ on GitHub.
   Use it after a cancel, with `keep`, or to retry after `cleanup-failed`.
 
 The integration branch and the default branch are never deleted.
-
-> **Pending:** automatic cleanup, `keep` and `cleanup-failed` are in review.
-> Until they merge, use manual cleanup.
-
-<!-- TODO(M5-T3): remove the pending note after merge. -->
 
 ## Cancel
 
