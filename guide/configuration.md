@@ -111,7 +111,8 @@ workerBranches = "delete-on-complete"
 On a subscription plan, where tokens are not billed per use, `off` is a
 reasonable choice. Each workflow records the setting at its start.
 
-<!-- TODO(M5-T13): add calibrated budget numbers and guidance from the real-scale run. -->
+The budget values themselves are set per stage in the template; see
+[Template budgets](#template-budgets).
 
 ### usage
 
@@ -198,4 +199,69 @@ yours. To pick it up, rename or delete your `templates/feature-to-pr.yaml` and
 restart; the new built-in is copied in. Then reapply your edits. The source is
 `packages/templates/feature-to-pr.yaml` in the checkout.
 
-<!-- TODO(M5 final): template upgrade notes for v0.1 changes (budgets from M5-T13). -->
+For v0.1 the only change to the built-in `feature-to-pr` template is the
+meeting stage's `maxTurns`, raised from 80 to 120 (see below). A copy made
+before that keeps 80. A meeting that runs long may then open a budget exception
+gate. Either take the new built-in as described above, or change that one value
+in your copy:
+
+```yaml
+budget: { tokens: 300000, maxTurns: 120 } # stages[id=meeting]
+```
+
+### Template budgets
+
+Each stage has a token budget and, except the implement stage, a turn budget.
+The implement stage also has a per-item budget (per attempt) and the workflow
+has an overall token budget. Crossing a budget opens an exception gate.
+Reaching `hardLimitMultiplier` (2) times the budget stops the agents. With
+`budget.enforcement = "off"` nothing is enforced.
+
+The built-in values were calibrated on a real-scale run: production mode, real
+Orca, GitHub, Claude Code and Codex, a five-item feature, 92 minutes end to end.
+That run used **522,513 tokens and 220 turns** in total.
+
+| Level               | Budget (tokens / turns) | Measured in the run | Headroom (tokens / turns) |
+| ------------------- | ----------------------- | ------------------- | ------------------------- |
+| meeting             | 300,000 / **120**       | 173,594 / 76        | 1.73× / 1.58×             |
+| breakdown           | 200,000 / 40            | 31,921 / 5          | 6.27× / 8.00×             |
+| implement (stage)   | 1,800,000 / –           | 280,282 / –         | 6.42× / –                 |
+| implement, per item | 400,000 / 120           | p90 41,235 / p90 23 | 9.70× / 5.22×             |
+| integrate           | 200,000 / 60            | 36,716 / 8          | 5.45× / 7.50×             |
+| workflow            | 3,000,000 / –           | 522,513 / –         | 5.74× / –                 |
+
+The meeting stage was the only tight one: it used 76 of the earlier 80 turns,
+so `maxTurns` went up to 120. Every other value stayed at its earlier default,
+with 1.6× to 9.7× headroom. Implement-stage usage includes the merge queue and
+the on-call lead. Tokens count `usage.budgetFormula` (cache reads excluded by
+default).
+
+#### Recalibrating
+
+Values only ever go up. For stage, per-item and turn budgets:
+
+```text
+new = max(old, roundUp(p90 × 1.5), roundUp(largest run × 1.1))
+```
+
+The workflow budget is `max(old, roundUp(largest run × 1.5))`. Tokens round up
+to 50,000 and turns to 10. The implement stage's budget is the per-item share's
+p90 × 1.5 × `maxParallel` × 2. A per-item share is an item's own usage plus an
+equal part of the stage's merge-queue and on-call usage.
+
+`pnpm budget:calibrate` applies this rule to exported workflow events and
+checks three things:
+
+- replaying each run with the new values raises no budget events;
+- the workflow budget is at least 1.5× every run;
+- each threshold alerts exactly once, then its hard limit once.
+
+```sh
+pnpm budget:calibrate --events <export.json> [--events <export.json> …] [--baseline <template.yaml>] [--json]
+```
+
+`--baseline` defaults to the built-in template. Each `--events` file counts as
+one accepted run. v0.1 has no export button: the masked event exports come
+from the maintainer's live joint-run harness
+(`apps/server/src/test-support/joint/`). The tool only proposes values; copy
+them into your template by hand.
