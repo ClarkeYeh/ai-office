@@ -79,6 +79,19 @@ export const canTransitionAttempt = (
 export const isAttemptAlive = (attempt: Attempt): boolean =>
   !attempt.released && attempt.state !== 'exited' && attempt.state !== 'lost';
 
+/**
+ * T12 latch: the attempt reported `done` for its current turn, and the backend
+ * has given it no new turn since (§7.1: only a new turn returns `done` to
+ * work). A later stale `working` / `idle` reading cannot undo it; exit, loss,
+ * error or release do.
+ */
+export const isTurnDone = (attempt: Attempt): boolean =>
+  attempt.state === 'done' ||
+  (attempt.doneTurn !== undefined &&
+    attempt.doneTurn === (attempt.turns ?? 0) &&
+    !attempt.released &&
+    ['working', 'waiting_input', 'idle'].includes(attempt.state));
+
 export const liveAttempts = (state: WorkflowState): Attempt[] =>
   Object.values(state.attempts).filter(isAttemptAlive);
 

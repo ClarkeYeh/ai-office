@@ -1,4 +1,4 @@
-import { bodyHash, replay } from '@ai-office/domain';
+import { bodyHash, isTurnDone, replay } from '@ai-office/domain';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { pausingWorld, Simulator } from '../test-support/simulator.js';
@@ -398,4 +398,102 @@ it('caps conclusion Issue titles from a long template name', () => {
     sim.issued.find((c) => c.command.kind === 'scm.createIssue')?.command,
   ).toMatchObject({ args: { title: 'a'.repeat(119) + '…' } });
   expect(sim.rejections).toEqual([]);
+});
+
+describe('T12: done latches for the current turn', () => {
+  const role = (sim: Simulator, name: string) =>
+    Object.values(sim.state.attempts).find((a) => a.role === name)!;
+  const status = (
+    sim: Simulator,
+    name: string,
+    state: 'done' | 'working' | 'idle' | 'waiting_input',
+  ) =>
+    sim.dispatch({
+      type: 'ObserveAttemptStatus',
+      attemptId: role(sim, name).attemptId,
+      state,
+    });
+  /** Members' observations held back so the test sequences them. */
+  const holding = (
+    roles: string[],
+    hold: (subject: string | undefined) => boolean,
+  ) => {
+    const world = scenario({ early: true });
+    return new Simulator({
+      world: (issued, current) => {
+        const reply = world(issued, current);
+        const attempt = current.state.attempts[issued.attemptId ?? ''];
+        const subject =
+          issued.command.kind === 'runtime.send'
+            ? issued.command.args.subject
+            : undefined;
+        return reply &&
+          attempt &&
+          roles.includes(attempt.role) &&
+          (issued.command.kind === 'runtime.spawnAgent' ||
+            issued.command.kind === 'runtime.send') &&
+          hold(subject)
+          ? { ...reply, observe: [] }
+          : reply;
+      },
+    }).dispatch(startWorkflow());
+  };
+
+  it('starts round 1 when a ready member flickers working → idle before the last one is done', () => {
+    const sim = holding(['pm', 'engineer'], (subject) => subject === undefined);
+    status(sim, 'pm', 'done');
+    // Stale readings of pm's finished prep turn: no new turn was given.
+    status(sim, 'pm', 'working');
+    status(sim, 'pm', 'idle');
+    expect(isTurnDone(role(sim, 'pm'))).toBe(true);
+    expect(sim.eventsOf('meeting.round_started')).toHaveLength(0);
+    status(sim, 'engineer', 'done');
+    expect(sim.rejections).toEqual([]);
+    expect(sim.eventsOf('meeting.round_started')).toHaveLength(1);
+  });
+
+  it('completes a round when a member that already spoke flickers before the last statement', () => {
+    const sim = holding(
+      ['engineer'],
+      (subject) => subject === 'Meeting round 1',
+    );
+    expect(sim.eventsOf('meeting.round_started')).toHaveLength(1);
+    status(sim, 'pm', 'working');
+    status(sim, 'pm', 'idle');
+    const engineer = role(sim, 'engineer');
+    sim.dispatch({
+      type: 'AcceptSubmission',
+      attemptId: engineer.attemptId,
+      submissionId: 'engineer-round-1',
+      artifactId: 'engineer-round-1-artifact',
+      submission: {
+        kind: 'statement',
+        payload: {
+          round: 1,
+          position: 'Proceed',
+          arguments: ['Feasible'],
+          concerns: [],
+          readyToConclude: true,
+        },
+      },
+    });
+    status(sim, 'engineer', 'done');
+    expect(sim.rejections).toEqual([]);
+    expect(sim.eventsOf('meeting.round_completed')[0]?.payload).toMatchObject({
+      round: 1,
+      absentAttemptIds: [],
+    });
+  });
+
+  it('a real new turn after done still shows working and un-latches done', () => {
+    const sim = holding(['pm', 'engineer'], () => true);
+    status(sim, 'pm', 'done');
+    status(sim, 'engineer', 'done');
+    // Round 1 sends are new turns: pm's prep done no longer counts.
+    expect(sim.eventsOf('meeting.round_started')).toHaveLength(1);
+    status(sim, 'pm', 'working');
+    expect(role(sim, 'pm').state).toBe('working');
+    expect(isTurnDone(role(sim, 'pm'))).toBe(false);
+    expect(sim.eventsOf('meeting.round_completed')).toHaveLength(0);
+  });
 });
