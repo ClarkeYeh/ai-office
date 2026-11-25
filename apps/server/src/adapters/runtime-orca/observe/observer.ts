@@ -72,6 +72,11 @@ export interface OrcaObserverOptions {
   /** `lastActivity` stall before a rate-limit `worker-show` probe. */
   stallMs?: number;
   wait?: (ms: number) => Promise<void>;
+  /**
+   * FX-STATUS-LATENCY: a session has news (its long poll returned), so the
+   * caller should observe it now rather than at the next tick.
+   */
+  onWake?: (session: string) => void;
 }
 type Outcome =
   { ok: true; result: CheckResult } | { ok: false; error: unknown };
@@ -197,7 +202,11 @@ export class OrcaObserver {
       if (owned) await this.checkStep(batch);
       if (st.backfill) await this.backfill(batch);
       this.applyAnswered(batch);
-      await this.workerStep(batch);
+      // FX-STATUS-LATENCY: mail (worker_done, questions) goes out now; the
+      // worker-list runs in the next pass, which the wake starts at once.
+      if (batch.events.length && st.started) {
+        batch.commit.push(() => this.options.onWake?.(session));
+      } else await this.workerStep(batch);
     } catch (error) {
       // SPEC §11.5: on a throw the caller retries with the same cursor.
       for (const action of batch.rollback) action();
@@ -507,7 +516,12 @@ export class OrcaObserver {
         ({ result }): Outcome => ({ ok: true, result: result as CheckResult }),
         (error: unknown): Outcome => ({ ok: false, error }),
       )
-      .then((outcome) => (inflight.settled = outcome));
+      .then((outcome) => {
+        inflight.settled = outcome;
+        // Mail (worker_done, questions) is ingested now, not at the next tick.
+        if (!controller.signal.aborted) this.options.onWake?.(run);
+        return outcome;
+      });
     return inflight;
   }
   private async receipt(
@@ -864,6 +878,8 @@ export class OrcaObserver {
     if (this.now() - st.listedAt < interval) return;
     st.listedAt = this.now();
     await this.refreshAnswers(b);
+    // A status is as old as the list call that showed it, CLI time included.
+    const listedAt = this.now();
     const listed = await this.listWorkers(b);
     if (!listed.ok) return this.recover(b, listed.error);
     const groups = new Map<AgentRef, Worker[]>();
@@ -1001,7 +1017,7 @@ export class OrcaObserver {
     // Pass 3: statuses in worker-list order, then the transcript events.
     for (const { agent, worker, previous, questions, state } of rows)
       if (state !== previous)
-        this.emitState(b, agent, worker, state, questions);
+        this.emitState(b, agent, worker, state, questions, listedAt);
     b.events.push(...transcript.events);
   }
   private emitState(
@@ -1010,8 +1026,9 @@ export class OrcaObserver {
     worker: Worker,
     state: AgentState,
     questions: CursorPayload['questions'],
+    observedAt: number,
   ): void {
-    const base = { agent, occurredAt: this.iso() };
+    const base = { agent, occurredAt: new Date(observedAt).toISOString() };
     b.p.seen[agent] = state;
     if (state === 'exited') {
       this.clearQuestions(b, agent);

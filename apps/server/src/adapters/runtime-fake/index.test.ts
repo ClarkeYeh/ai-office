@@ -348,6 +348,31 @@ describe('FakeRuntime scenarios and faults', () => {
         });
     },
   );
+  it('wakes its observer when a session has news, until unsubscribed (FX-STATUS-LATENCY)', async () => {
+    const f = await fixture();
+    const woke: string[] = [];
+    const stop = f.runtime.onWake((session) => woke.push(session));
+    await f.runtime.spawnAgent(f.spawnRequest);
+    const { events } = await f.runtime.observe(f.session, null);
+    expect(events.length).toBeGreaterThan(0);
+    expect(woke.length).toBeGreaterThan(0);
+    expect(new Set(woke)).toEqual(new Set([f.session]));
+    stop();
+    woke.length = 0;
+    f.runtime.setConnected(true);
+    await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      title: 'second',
+      workspace: {
+        kind: 'new-worktree',
+        baseBranch: 'integration',
+        name: 'w2',
+        branch: 'w2',
+      },
+      correlation: { workflowId: 'wf', attemptId: 'a2', commandId: 'spawn-2' },
+    });
+    expect(woke).toEqual([]);
+  });
   it('disconnect is transient with no side effect and health tracks availability', async () => {
     const f = await fixture();
     f.runtime.setConnected(false);

@@ -40,6 +40,8 @@ export const DRY_RUN_NA: Record<string, string> = {
   'nf.boundaries': 'covered by the CI DoD',
   'nf.coverage': 'covered by the CI DoD',
   'nf.approve-comment': 'no GitHub Issue in the fake world (live: T12)',
+  'nf.activity-latency':
+    'the fake runtime reports no transcript output (live: T11b, T12)',
   'v01.worker-list':
     'no Orca worker-list offline; nf.stage-gate-agents judges the same invariant from events',
   'v01.conflict':

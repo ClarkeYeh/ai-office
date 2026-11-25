@@ -188,6 +188,8 @@ export interface StartOptions {
      */
     persistFakeWorld?: boolean;
     onShimCreated?: (handle: string) => void | Promise<void>;
+    /** FX-STATUS-LATENCY probe: the composed Orca runtime, for direct turns. */
+    onRuntime?: (runtime: RuntimePort) => void;
   };
   /** Dev hybrid only: an existing, owner-approved Orca folder workspace. */
   orcaHome?: string;
@@ -1210,6 +1212,7 @@ async function compose(
       options,
     );
     runtime = orca.runtime;
+    options.testOnly?.onRuntime?.(runtime);
     if (options.dev !== true)
       github = await composeGithub(
         settings,

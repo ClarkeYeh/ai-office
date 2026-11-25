@@ -59,9 +59,18 @@ const BREAKS: Record<string, Break[]> = {
   'nf.latency': [
     (events) => {
       for (const e of events)
-        if (e.source === 'runtime')
+        if (e.source === 'runtime' && e.type === 'seat.status')
           e.recordedAt = new Date(
             Date.parse(e.occurredAt) + 5000,
+          ).toISOString();
+    },
+  ],
+  'nf.activity-latency': [
+    (events) => {
+      for (const e of events)
+        if (e.source === 'runtime' && e.type === 'seat.activity')
+          e.recordedAt = new Date(
+            Date.parse(e.occurredAt) + 20_000,
           ).toISOString();
     },
   ],
@@ -229,7 +238,7 @@ describe('§24 acceptance checker (M5-T10)', () => {
         r.id,
         EXTERNAL.includes(r.id) ? 'na' : 'pass',
       ]);
-    expect(report.summary).toEqual({ pass: 17, fail: 0, na: 6 });
+    expect(report.summary).toEqual({ pass: 18, fail: 0, na: 6 });
     expect(Object.keys(BREAKS).sort()).toEqual(
       report.rows
         .map((r) => r.id)
@@ -399,6 +408,6 @@ describe('§24 acceptance checker (M5-T10)', () => {
     expect(text).toMatch(
       /^ {4}FAIL facts\.approveCommentNoStateChange = false$/m,
     );
-    expect(text.split('\n').at(-1)).toBe('16 ✅  1 ❌  6 N/A');
+    expect(text.split('\n').at(-1)).toBe('17 ✅  1 ❌  6 N/A');
   });
 });
