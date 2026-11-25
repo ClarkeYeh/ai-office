@@ -35,6 +35,12 @@ export type ScenarioAction =
     }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
+  /**
+   * Real Orca (M5-T12): a keep-open seat's next dispatch re-reads the same
+   * transcript, reporting every earlier output again (same messageId and
+   * time, new externalKey).
+   */
+  | { type: 'replay-transcript' }
   | { type: 'lost' }
   | {
       type: 'rate-limited';

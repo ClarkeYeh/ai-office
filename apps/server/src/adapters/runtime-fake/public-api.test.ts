@@ -28,6 +28,8 @@ type ScenarioAction =
     }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
+  /** M5-T12 (FX-ACTIVITY-DUP): optional, additive. */
+  | { type: 'replay-transcript' }
   | { type: 'lost' }
   | {
       type: 'rate-limited';

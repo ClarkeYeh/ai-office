@@ -141,18 +141,26 @@ export function ingestRuntime(
         break;
       case 'agent.output': {
         const { activity, policyHits } = redactor.toActivity(event);
+        // FX-ACTIVITY-DUP (T12): one transcript message is one fact per
+        // attempt. Orca keys output by dispatch, and a keep-open seat gets a
+        // new dispatch per turn on the same transcript, so earlier messages
+        // came back under new keys; key them like turns, by message id.
+        const message = {
+          ...event,
+          externalKey: `tx:${attemptId}:${event.messageId}`,
+        };
         if (activity.length)
           batch.add(
             'seat.activity',
             { attemptId, activity },
-            event,
+            message,
             'runtime',
             attempt,
           );
         if (policyHits.length)
           batch.anomaly(
             { kind: 'policy-hits', attemptId, hits: policyHits },
-            event,
+            message,
             'runtime',
           );
         if (event.role === 'assistant')

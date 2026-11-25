@@ -160,3 +160,20 @@ it('injects lost responses after creation and delays only lists, retaining direc
     { number: 44 },
   ]);
 });
+
+it('allows reading the repository activity (T12 identity check) but never writing it', async () => {
+  const ledger = new Ledger('/unused', emptyLedger(id));
+  const network = vi.fn<typeof fetch>(async () => json([]));
+  const fetch = guardedFetch(network, ledger, async () => {});
+  const response = await fetch(`${API}${ROOT}/activity?per_page=100`);
+  expect(await response.json()).toEqual([]);
+  expect(network).toHaveBeenCalledTimes(1);
+  for (const method of ['POST', 'PATCH', 'PUT', 'DELETE'])
+    await expect(
+      fetch(`${API}${ROOT}/activity`, { method, body: '{}' }),
+    ).rejects.toThrow();
+  await expect(fetch(`${API}${ROOT}/activity/extra`)).rejects.toThrow(
+    'Read endpoint not allowed',
+  );
+  expect(network).toHaveBeenCalledTimes(1);
+});
