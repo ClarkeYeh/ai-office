@@ -1,3 +1,4 @@
+import { RUNTIME_MIN_GAP_MS } from '../../../ports/runtime.js';
 import type { z } from 'zod';
 import { PortError } from '../../../ports/errors.js';
 import type {
@@ -204,7 +205,8 @@ export class OrcaObserver {
       this.applyAnswered(batch);
       // FX-STATUS-LATENCY: mail (worker_done, questions) goes out now; the
       // worker-list runs in the next pass, which the wake starts at once.
-      if (batch.events.length && st.started) {
+      // A due list still runs, so continuous mail never starves it.
+      if (batch.events.length && st.started && !this.listDue(st)) {
         batch.commit.push(() => this.options.onWake?.(session));
       } else await this.workerStep(batch);
     } catch (error) {
@@ -871,11 +873,21 @@ export class OrcaObserver {
     return live ? (pressured ? 30_000 : 15_000) : pressured ? 120_000 : 30_000;
   }
 
+  /**
+   * The worker-list cadence: 2 s while agents are active (4 s pressured, 10 s
+   * idle). Passes run at a fixed rate from their start, so a list may come
+   * due a few ms after a pass begins; the tolerance (the loop's minimum gap)
+   * keeps 2 s from turning into alternating 2 s / 4 s.
+   */
+  private listDue(st: SessionState): boolean {
+    const pressured = this.options.pressured?.() ?? false;
+    const interval = st.active ? (pressured ? 4_000 : 2_000) : 10_000;
+    return this.now() - st.listedAt >= interval - RUNTIME_MIN_GAP_MS;
+  }
   private async workerStep(b: Batch): Promise<void> {
     const { st, p } = b;
     const pressured = this.options.pressured?.() ?? false;
-    const interval = st.active ? (pressured ? 4_000 : 2_000) : 10_000;
-    if (this.now() - st.listedAt < interval) return;
+    if (!this.listDue(st)) return;
     st.listedAt = this.now();
     await this.refreshAnswers(b);
     // A status is as old as the list call that showed it, CLI time included.

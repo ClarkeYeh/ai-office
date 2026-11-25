@@ -1483,11 +1483,49 @@ describe('OrcaObserver: status latency (FX-STATUS-LATENCY)', () => {
     expect(at).toBeLessThanOrEqual(before + 100);
   });
 
+  it('lists every 2 s despite pass jitter, within the minimum-gap tolerance', async () => {
+    const r = await rig();
+    spawned(r, 'ctx_a');
+    const t0 = r.clock.now;
+    const first = await r.observe(null);
+    // A fixed-rate pass can start a few ms before the 2 s mark.
+    r.clock.now = t0 + 1_990;
+    let from = r.requests.length;
+    const second = await r.observe(first.cursor);
+    expect(lists(r, from)).toBe(1);
+    // Well before the mark it still waits.
+    r.clock.now = t0 + 1_990 + 1_500;
+    from = r.requests.length;
+    await r.observe(second.cursor);
+    expect(lists(r, from)).toBe(0);
+  });
+
+  it('never starves the worker-list under continuous mail', async () => {
+    const r = await rig();
+    const task = spawned(r, 'ctx_a');
+    let { cursor } = await r.observe(null);
+    const from = r.requests.length;
+    for (let i = 0; i < 4; i++) {
+      // Every pass has mail (the rig advances 2.5 s per pass).
+      r.world.post({
+        id: `msg_${i}`,
+        type: 'question',
+        dispatch: 'ctx_a',
+        task,
+      });
+      ({ cursor } = await r.observe(cursor));
+    }
+    // Each pass was due a list: mail went out and the list still ran.
+    expect(lists(r, from)).toBe(4);
+  });
+
   it('wakes the caller when the long poll returns, and returns mail before the next worker-list', async () => {
     const woke: string[] = [];
     const r = await rig({ onWake: (s) => woke.push(s) });
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
+    // The mail arrives well before the next list is due.
+    r.clock.now -= 2_000;
     woke.length = 0;
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
     const from = r.requests.length;
