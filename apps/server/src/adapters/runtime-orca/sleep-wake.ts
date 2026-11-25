@@ -96,6 +96,8 @@ export function withSleepWake(runtime: RuntimePort, options: SleepWakeOptions) {
       await runtime.answer(...args);
       observer.markAnswered(args[0]);
     },
+    /** FX-STATUS-CADENCE: createOrcaRuntime's commands reach the live observer. */
+    expectChange: () => observer.expectChange(),
     stopObservation,
     async openSession(req: Parameters<RuntimePort['openSession']>[0]) {
       const session = await runtime.openSession(req);

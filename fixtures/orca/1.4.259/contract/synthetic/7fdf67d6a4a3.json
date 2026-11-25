@@ -324,6 +324,33 @@
       "argv": [
         "orca",
         "orchestration",
+        "worker-read",
+        "--dispatch",
+        "ctx_1",
+        "--source",
+        "transcript",
+        "--limit",
+        "200",
+        "--full",
+        "--json"
+      ],
+      "exitCode": 0,
+      "response": {
+        "ok": true,
+        "result": {
+          "source": "transcript",
+          "cursor": "0",
+          "contentComplete": true
+        }
+      },
+      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
+    },
+    {
+      "orcaVersion": "1.4.259",
+      "recordedAt": "2026-11-18T00:00:00Z",
+      "argv": [
+        "orca",
+        "orchestration",
         "worker-show",
         "--dispatch",
         "ctx_1",
@@ -344,33 +371,6 @@
           "observation": {
             "agentWait": null
           }
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
-        "worker-read",
-        "--dispatch",
-        "ctx_1",
-        "--source",
-        "transcript",
-        "--limit",
-        "200",
-        "--full",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "source": "transcript",
-          "cursor": "0",
-          "contentComplete": true
         }
       },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
@@ -500,61 +500,6 @@
             }
           ],
           "timedOut": false
-        },
-        "_meta": {
-          "runtimeId": "00000000-0000-4000-8000-00000000001b"
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
-        "inbox",
-        "--full",
-        "--limit",
-        "50",
-        "--terminal",
-        "run:run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "id": "00000000-0000-4000-8000-00000000002b",
-        "ok": true,
-        "result": {
-          "messages": [
-            {
-              "id": "msg_4",
-              "type": "escalation",
-              "sequence": 4,
-              "created_at": "2026-11-18T06:00:02.000Z",
-              "payload": "{\"dispatchId\":\"ctx_1\",\"taskId\":\"task_1\"}",
-              "body": "<redacted length=19 sha256=0443976d359b2bc7ab37665b8f4a0b9d0f63f9af1fd5927f042d79097a08d567>",
-              "read": true
-            },
-            {
-              "id": "msg_3",
-              "type": "escalation",
-              "sequence": 3,
-              "created_at": "2026-11-18T06:00:00.000Z",
-              "payload": "{\"dispatchId\":\"ctx_1\",\"taskId\":\"task_1\"}",
-              "body": "<redacted length=19 sha256=0443976d359b2bc7ab37665b8f4a0b9d0f63f9af1fd5927f042d79097a08d567>",
-              "read": true
-            },
-            {
-              "id": "msg_2",
-              "type": "question",
-              "sequence": 2,
-              "created_at": "2026-11-18T06:00:00.000Z",
-              "payload": "{\"dispatchId\":\"ctx_1\",\"taskId\":\"task_1\"}",
-              "body": "<redacted length=19 sha256=0443976d359b2bc7ab37665b8f4a0b9d0f63f9af1fd5927f042d79097a08d567>",
-              "read": true
-            }
-          ]
         },
         "_meta": {
           "runtimeId": "00000000-0000-4000-8000-00000000001b"

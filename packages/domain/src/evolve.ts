@@ -639,6 +639,10 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
           ...omit(attempt, 'waitingSince'),
           state: p.state,
           ...(p.state === 'done' ? { doneTurn: attempt.turns ?? 0 } : {}),
+          ...(event.source === 'runtime' &&
+          (p.state === 'working' || p.state === 'waiting_input')
+            ? { turnSeen: attempt.turns ?? 0 }
+            : {}),
           ...(p.state === 'waiting_input'
             ? {
                 waitingSince:

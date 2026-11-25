@@ -39,7 +39,12 @@ const exec = promisify(execFile);
 
 export const assertClean = true;
 
-const TURNS = Number(process.env.AIO_PROBE_TURNS ?? '5');
+/** 2 by default; 4 (2 Claude + 2 Codex) for the T12-scale probe. */
+const AGENTS = Number(process.env.AIO_PROBE_AGENTS ?? '2');
+if (![2, 4].includes(AGENTS))
+  throw new Error('AIO_PROBE_AGENTS must be 2 or 4');
+/** Enough turns for ≥ 60 status changes (about 2.5 per agent and turn). */
+const TURNS = Number(process.env.AIO_PROBE_TURNS ?? (AGENTS >= 4 ? '8' : '14'));
 const TURN_TIMEOUT_MS = 4 * 60_000;
 const INTERVAL_MS = 2_000;
 
@@ -48,8 +53,9 @@ const PROMPT = (role: string) =>
     `You are the ${role} seat of an AI Office latency probe.`,
     'Do not read, create or change any file and run no commands other than',
     'your Orca orchestration reporting command. For every message you get,',
-    'report worker_done at once with a one-line body ("turn N ok"), then',
-    'end your turn and wait for the next message.',
+    'first write (in your reply, not a file) the first eight prime numbers,',
+    'then report worker_done with a one-line body ("turn N ok"), then end',
+    'your turn and wait for the next message.',
   ].join(' ');
 
 /** Numbers and enums only: no bodies, transcript blocks or paths. */
@@ -61,10 +67,27 @@ const record = (e: RuntimeEvent, recordedAt: string) => ({
   recordedAt,
 });
 
-/** Live `orca … orchestration` CLI processes (the CPU proxy next to calls/min). */
+/**
+ * Live Orca CLI processes (the CPU proxy next to calls/min). The `orca`
+ * launcher is a bash script that execs the app's Electron binary as node
+ * with the CLI script, so count processes running from the app bundle with a
+ * CLI subcommand, never the launcher path or the app's own GUI processes.
+ */
+export function countOrcaCli(psCommands: string, bin: string): number {
+  const app = bin.includes('/Contents/')
+    ? bin.slice(0, bin.indexOf('/Contents/') + '/Contents/'.length)
+    : bin;
+  return psCommands
+    .split('\n')
+    .filter(
+      (l) =>
+        l.includes(app) &&
+        /\s(orchestration|terminal|worktree|repo|status)(\s|$)/.test(l),
+    ).length;
+}
 async function orcaProcesses(bin: string): Promise<number> {
   const { stdout } = await exec('ps', ['-axo', 'command']);
-  return stdout.split('\n').filter((l) => l.startsWith(bin)).length;
+  return countOrcaCli(stdout, bin);
 }
 
 export async function run(h: OrcaHarness): Promise<void> {
@@ -183,10 +206,21 @@ async function probe(
 
   // CPU proxies, sampled while the probe runs.
   const cli: number[] = [];
+  const commands = new Map<string, { calls: number; p95Ms: number }>();
   const procs: number[] = [];
   const sampler = setInterval(() => {
     void runtime.health().then(
-      (health) => cli.push(health.cliCallsPerMinute ?? 0),
+      (health) => {
+        cli.push(health.cliCallsPerMinute ?? 0);
+        // Peak calls/min and CLI p95 per Orca subcommand.
+        for (const [command, m] of Object.entries(health.cliCommands ?? {})) {
+          const seen = commands.get(command);
+          commands.set(command, {
+            calls: Math.max(seen?.calls ?? 0, m.calls),
+            p95Ms: Math.max(seen?.p95Ms ?? 0, m.p95Ms),
+          });
+        }
+      },
       () => undefined,
     );
     void orcaProcesses(bin).then(
@@ -211,10 +245,12 @@ async function probe(
       branch: `ai-office/${shortId}/probe`,
       correlation: correlation('workspace'),
     });
-    for (const [agent, role] of [
-      ['claude-code', 'claude'],
-      ['codex', 'codex'],
-    ] as const)
+    const seats = Array.from({ length: AGENTS }, (_, i) =>
+      i % 2 === 0
+        ? (['claude-code', `claude-${i / 2 + 1}`] as const)
+        : (['codex', `codex-${(i + 1) / 2}`] as const),
+    );
+    for (const [agent, role] of seats)
       agents.push(
         await runtime.spawnAgent({
           session,
@@ -277,7 +313,10 @@ async function probe(
     turns,
     events: recorded.length,
     ...verdict,
+    agents: AGENTS,
+    stateSampleOk: verdict.state.n >= 60,
     cliCallsPerMinute: { peak: Math.max(0, ...cli), samples: cli.length },
+    cliCommands: Object.fromEntries(commands),
     orcaProcesses: { peak: Math.max(0, ...procs), samples: procs.length },
   };
   await writeFile(

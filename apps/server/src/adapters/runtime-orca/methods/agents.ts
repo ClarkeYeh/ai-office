@@ -482,10 +482,13 @@ export class Agents {
       : await this.entry(agent);
     this.c.options.state.write(`orca:send-target:${id}`, entry);
     const ledger = this.c.options.ledger;
-    const rows = await this.workers(entry.run);
-    const row = rows.find((w) => w.dispatchId === entry.dispatch);
-    if (!entry.keepOpen && row?.terminalState === 'released')
-      throw guard('dispatch_released');
+    // Only a worker without keep-open can be released under us; a kept-open
+    // one needs no worker-list per send (FX-STATUS-CADENCE).
+    if (!entry.keepOpen) {
+      const rows = await this.workers(entry.run);
+      const row = rows.find((w) => w.dispatchId === entry.dispatch);
+      if (row?.terminalState === 'released') throw guard('dispatch_released');
+    }
     this.c.options.state.write(`orca:kind:${id}`, 'runtime.send');
     ledger.pending({
       commandId: id,
