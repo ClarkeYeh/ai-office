@@ -22,9 +22,9 @@ defaults:
   integrationBranch: 'ai-office/{shortId}-{slug}'
   maxReruns: 2 # 關卡退回後重跑同一階段的上限
   budget: { hardLimitMultiplier: 2 } # 硬上限＝階段預算 × 倍數
-  # 預算依 M2 實測（§10.2 公式）校準：新值＝max(原預設, p90 × 1.5 進位到 5 萬；回合數進位到 10)，實測只會調高、不會調低。
-  # 樣本是小型驗收情境（2 個工作項目），各值都需 M3／M5 以真實規模的工作再校準。
-  workflowBudget: { tokens: 3000000 } # 選填：整個流程的上限。實測 n=3：p90 288,858 → 450,000，維持原值；M3／M5 再校準
+  # 預算依實測校準（pnpm budget:calibrate）：新值＝max(原值, p90 × 1.5, 最大一次實跑 × 1.1)，token 進位到 5 萬、回合數進位到 10；
+  # 流程上限取最大一次實跑 × 1.5。只調高、不調低。M2 以小型驗收（2 個工作項目）校準；M5-T12 以真實規模（5 個工作項目）再校準。
+  workflowBudget: { tokens: 3000000 } # 選填：整個流程的上限。T12 實測 n=1：522,513 × 1.5 → 800,000，維持原值（餘裕 5.74×）
 stages:
   - id: meeting
     kind: meeting
@@ -32,7 +32,7 @@ stages:
     participants: [pm, architect, engineer]
     maxRounds: 2
     timeouts: { roundMin: 15, stageMin: 60 }
-    budget: { tokens: 300000, maxTurns: 80 } # 實測 n=6：p90 152,728 → 250,000（維持原值）；51 回合 → 80（調高）；M3／M5 再校準
+    budget: { tokens: 300000, maxTurns: 120 } # T12 實測 n=1：173,594 → 300,000（維持原值）；76 回合 → 120（調高）
     conclusion: { requireTechDecisions: true }
     gate: { id: conclusion, title: 結論定案, optional: true } # optional：啟動時可關閉
   - id: breakdown
@@ -40,7 +40,7 @@ stages:
     owner: lead
     from: meeting
     timeouts: { stageMin: 30 }
-    budget: { tokens: 200000, maxTurns: 40 } # 實測 n=6：p90 24,643／4 回合 → 50,000／10，維持原值；M3／M5 再校準
+    budget: { tokens: 200000, maxTurns: 40 } # T12 實測 n=1：31,921／5 回合 → 50,000／10，維持原值
     gate:
       {
         id: task-split,
@@ -54,8 +54,8 @@ stages:
     from: breakdown
     maxParallel: 3 # 範圍：單一 workflow
     timeouts: { itemMin: 45 }
-    # 含合併佇列與值班用量。實測 n=3（每次 2 項）：每項 p90 72,952 × 1.5 × 6 項（maxParallel × 2）→ 700,000；
-    # perItem 以 attempt 計，實測 n=9：p90 29,983／16.5 回合 → 50,000／30。皆維持原值；M3／M5 再校準
+    # 含合併佇列與值班用量。T12 實測（5 項，階段合計 280,282）：每項 p90 62,815 × 1.5 × 6 項（maxParallel × 2）→ 600,000；
+    # perItem 以 attempt 計，T12 實測 n=6：p90 41,235／23 回合 → 100,000／40。皆維持原值
     budget: { tokens: 1800000, perItem: { tokens: 400000, maxTurns: 120 } }
     onCall: { role: lead, questionTimeoutMin: 10 } # 值班主 agent（§7.5），預算計入本階段
     mergeQueue: { role: integrator, reviewTimeoutMin: 20, maxRework: 2 } # 合併佇列整合者（§7.4a、§7.5）
@@ -64,7 +64,7 @@ stages:
     kind: integrate # 收尾：整體驗證、fix-forward、整合報告（§7.4b）
     owner: integrator
     timeouts: { stageMin: 30 }
-    budget: { tokens: 200000, maxTurns: 60 } # 合併已在實作階段完成；實測 n=3：p90 27,801／7 回合 → 50,000／20，維持原值；M3／M5 再校準
+    budget: { tokens: 200000, maxTurns: 60 } # 合併已在實作階段完成；T12 實測 n=1：36,716／8 回合 → 100,000／20，維持原值
   - id: final-pr
     kind: final-pr
     maxRevisions: 2

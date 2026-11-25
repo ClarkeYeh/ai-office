@@ -506,7 +506,7 @@ test('baseline: reads the built-in template and renders the same values', () => 
   const baseline = template();
   assert.deepEqual(baseline.budgets, {
     stages: {
-      meeting: { tokens: 300_000, maxTurns: 80 },
+      meeting: { tokens: 300_000, maxTurns: 120 },
       breakdown: { tokens: 200_000, maxTurns: 40 },
       implement: {
         tokens: 1_800_000,
