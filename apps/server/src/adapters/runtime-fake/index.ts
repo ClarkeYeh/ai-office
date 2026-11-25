@@ -717,6 +717,12 @@ export class FakeRuntime implements RuntimePort {
     if (['released', 'stopped', 'lost'].includes(agent.state))
       throw fail('agent_not_live');
   }
+  private readonly wakeListeners = new Set<(session: SessionRef) => void>();
+  /** Like runtime-orca's long poll: news for a session is observed at once. */
+  onWake(listener: (session: SessionRef) => void): () => void {
+    this.wakeListeners.add(listener);
+    return () => void this.wakeListeners.delete(listener);
+  }
   private emit(session: SessionRef, body: EventBody, at = this.now()): void {
     const event = {
       ...structuredClone(body),
@@ -726,7 +732,10 @@ export class FakeRuntime implements RuntimePort {
     const pending =
       'agent' in body ? this.pendingSpawns.get(body.agent) : undefined;
     if (pending) pending.events.push(event);
-    else this.session(session).push(event);
+    else {
+      this.session(session).push(event);
+      for (const listener of this.wakeListeners) listener(session);
+    }
   }
   private trigger(
     agent: Agent,

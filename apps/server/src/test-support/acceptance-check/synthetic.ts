@@ -49,6 +49,26 @@ export function syntheticMainline(): {
       { attemptId, state: 'working' },
       { source: 'runtime', externalKey: `orca:${attemptId}:working` },
     );
+    push(
+      'seat.activity',
+      {
+        attemptId,
+        activity: [
+          {
+            messageId: `${attemptId}/m1`,
+            category: 'other',
+            inputLen: 0,
+            outputLen: 1,
+          },
+        ],
+      },
+      { source: 'runtime', externalKey: `tx:${attemptId}:m1:seat.activity` },
+    );
+    push(
+      'usage.turns',
+      { attemptId, turns: 1 },
+      { source: 'runtime', externalKey: `turn:${attemptId}:m1` },
+    );
   };
   const release = (attemptId: string) =>
     push('seat.released', { attemptId, removeWorkspace: true });

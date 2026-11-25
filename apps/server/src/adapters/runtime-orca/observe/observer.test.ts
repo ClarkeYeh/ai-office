@@ -313,6 +313,9 @@ async function rig(
   extra: {
     ownsCommand?: (commandId: string) => boolean;
     pressured?: () => boolean;
+    onWake?: (session: string) => void;
+    /** Simulated CLI time per `orchestration <command>`. */
+    latencyMs?: Record<string, number>;
   } = {},
   world = new World(),
   state = memory(),
@@ -340,6 +343,7 @@ async function rig(
     exec: {
       run: async (request) => {
         requests.push(request);
+        clock.now += extra.latencyMs?.[request.args.slice(0, 2).join(' ')] ?? 0;
         // Strip the CLI-appended identity/output flags for the world model.
         const stdout = await world.respond(request.args);
         return { stdout, exitCode: 0 };
@@ -366,7 +370,9 @@ async function rig(
       },
       now: () => clock.now,
       observeWaitMs: 30,
-      ...extra,
+      ...(extra.ownsCommand ? { ownsCommand: extra.ownsCommand } : {}),
+      ...(extra.pressured ? { pressured: extra.pressured } : {}),
+      ...(extra.onWake ? { onWake: extra.onWake } : {}),
     });
   const r: Rig = {
     world,
@@ -404,6 +410,17 @@ const ofType = <T extends RuntimeEvent['type']>(
   events.filter(
     (e): e is Extract<RuntimeEvent, { type: T }> => e.type === type,
   );
+
+/**
+ * FX-STATUS-LATENCY: a pass that consumed mail returns it at once; the
+ * worker-list (and the statuses it derives) follows in the next pass.
+ */
+async function mailThenList(r: Rig, cursor: RuntimeCursor | null) {
+  const mail = await r.observe(cursor);
+  r.clock.now += 2_000;
+  const list = await r.observe(mail.cursor);
+  return { events: [...mail.events, ...list.events], cursor: list.cursor };
+}
 
 describe('OrcaObserver: batches and cursors', () => {
   let r: Rig;
@@ -1030,7 +1047,7 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     expect(ofType(asked.events, 'agent.status')).toEqual([
       expect.objectContaining({
         state: 'waiting_input',
@@ -1059,7 +1076,7 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     expect(ofType(asked.events, 'agent.status')).toEqual([
       expect.objectContaining({ state: 'waiting_input' }),
     ]);
@@ -1102,7 +1119,7 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     r.world.mail.push({
       id: 'msg_r',
       type: 'status',
@@ -1123,7 +1140,7 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     r.observer.markAnswered(questionRef('msg_q'));
     const working = await r.observe(asked.cursor);
     // Live shape (run inbox seq 954): sent from the worker's terminal handle,
@@ -1176,7 +1193,7 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     r.observer.markAnswered(questionRef('msg_q'));
     const next = await r.observe(asked.cursor);
     expect(ofType(next.events, 'agent.status')).toEqual([
@@ -1447,5 +1464,45 @@ describe('OrcaObserver: CLI budget (SPEC §6.4)', () => {
       for (let k = 1; k < times.length; k++)
         expect(times[k]! - times[k - 1]!).toBeLessThanOrEqual(16_000);
     }
+  });
+});
+
+describe('OrcaObserver: status latency (FX-STATUS-LATENCY)', () => {
+  const lists = (r: Rig, from: number) =>
+    r.requests.slice(from).filter((q) => q.args[1] === 'worker-list').length;
+
+  it('stamps a worker-list status with the list call start, its CLI time included', async () => {
+    const r = await rig({ latencyMs: { 'orchestration worker-list': 1_200 } });
+    spawned(r, 'ctx_a');
+    const before = r.clock.now;
+    const { events } = await r.observe(null);
+    const status = ofType(events, 'agent.status')[0]!;
+    const at = Date.parse(status.occurredAt);
+    // Before the 1.2 s list call returned, not when the batch was assembled.
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(before + 100);
+  });
+
+  it('wakes the caller when the long poll returns, and returns mail before the next worker-list', async () => {
+    const woke: string[] = [];
+    const r = await rig({ onWake: (s) => woke.push(s) });
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    woke.length = 0;
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const from = r.requests.length;
+    const mail = await r.observe(first.cursor);
+    // The question goes out now; no worker-list waits in front of it.
+    expect(ofType(mail.events, 'agent.question')).toHaveLength(1);
+    expect(lists(r, from)).toBe(0);
+    // Once from the long poll's return, once for the deferred worker-list.
+    expect(woke.filter((s) => s === session).length).toBeGreaterThanOrEqual(2);
+    // The woken pass lists and derives waiting_input.
+    r.clock.now += 2_000;
+    const next = await r.observe(mail.cursor);
+    expect(lists(r, from)).toBe(1);
+    expect(ofType(next.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'waiting_input' }),
+    ]);
   });
 });

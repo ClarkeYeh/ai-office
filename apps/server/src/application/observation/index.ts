@@ -1,6 +1,10 @@
 import type { EventPayload } from '@ai-office/contracts/events';
 import type { Attempt } from '@ai-office/domain';
-import type { RuntimePort } from '../../ports/runtime.js';
+import {
+  RUNTIME_MIN_GAP_MS,
+  runtimeDelayMs,
+  type RuntimePort,
+} from '../../ports/runtime.js';
 import type { ScmPort } from '../../ports/scm.js';
 import { PortError } from '../../ports/errors.js';
 import type { UsageLocateRef, UsagePort } from '../../ports/usage.js';
@@ -57,6 +61,7 @@ export interface ObservationLoopDeps {
    */
   onScmPoll?: (failureCode: string | undefined) => Promise<void>;
 }
+export { RUNTIME_MIN_GAP_MS };
 /** Mirrors HealthMonitor's ScmPace (§12.2). */
 export type ScmPace = 'normal' | 'slow' | 'critical';
 /** SCM cadence while the rate limit is low (§12.2). */
@@ -82,7 +87,11 @@ export class ObservationLoop {
   private readonly queues = new Map<string, Promise<unknown>>();
   private readonly jobs = new Map<string, Job>();
   private readonly running = new Set<string>();
+  /** Runtime jobs a wake asked to run again at once (FX-STATUS-LATENCY). */
+  private readonly soon = new Set<string>();
+  private readonly startedAt = new Map<string, number>();
   private unsubscribe: Unsubscribe | undefined;
+  private unwake: (() => void) | undefined;
   constructor(private readonly deps: ObservationLoopDeps) {
     this.formula = budgetFormula(deps.budgetFormula ?? DEFAULT_BUDGET_FORMULA);
     for (const interval of [
@@ -98,11 +107,14 @@ export class ObservationLoop {
     this.unsubscribe = this.deps.store.subscribe(() =>
       queueMicrotask(() => this.refresh()),
     );
+    this.unwake = this.deps.runtime.onWake?.((session) => this.wake(session));
     this.refresh();
   }
   stop(): void {
     this.unsubscribe?.();
     this.unsubscribe = undefined;
+    this.unwake?.();
+    this.unwake = undefined;
     for (const id of this.jobs.keys()) this.deps.scheduler.cancel(id);
     this.jobs.clear();
   }
@@ -137,6 +149,8 @@ export class ObservationLoop {
       if (!desired.has(id)) {
         this.deps.scheduler.cancel(id);
         this.jobs.delete(id);
+        this.soon.delete(id);
+        this.startedAt.delete(id);
       }
     for (const [id, job] of desired)
       if (!this.jobs.has(id) && !this.running.has(id)) {
@@ -145,7 +159,7 @@ export class ObservationLoop {
           job.kind === 'scm'
             ? this.scmInterval(job.runner)
             : job.kind === 'runtime'
-              ? (this.deps.runtimeIntervalMs ?? 2000)
+              ? this.runtimeDelay(id)
               : (this.deps.usageIntervalMs ?? 3000);
         this.deps.scheduler.schedule({
           id,
@@ -161,6 +175,7 @@ export class ObservationLoop {
     if (!job || this.running.has(timer.id)) return;
     this.jobs.delete(timer.id);
     this.running.add(timer.id);
+    this.startedAt.set(timer.id, this.deps.clock.now().getTime());
     try {
       if (job.kind === 'runtime')
         await this.pollRuntime(job.runner, job.session);
@@ -192,6 +207,35 @@ export class ObservationLoop {
       this.running.delete(timer.id);
       this.refresh();
     }
+  }
+  /**
+   * FX-STATUS-LATENCY: runtime passes run at a fixed rate from each pass's
+   * start (not 2 s after it ends), and at once after a wake. The observer
+   * still lists workers at most every 2 s (4 s pressured, 10 s idle), so a
+   * pass that is due no list costs no CLI call.
+   */
+  private runtimeDelay(id: string): number {
+    return runtimeDelayMs({
+      woken: this.soon.delete(id),
+      intervalMs: this.deps.runtimeIntervalMs ?? 2000,
+      startedAt: this.startedAt.get(id),
+      now: this.deps.clock.now().getTime(),
+    });
+  }
+  /** The runtime has news for a session (mail arrived, reads deferred). */
+  private wake(session: SessionRef): void {
+    for (const id of [...this.jobs.keys(), ...this.running]) {
+      const [, kind, scope] = JSON.parse(
+        id.slice(OBSERVATION_TIMER_PREFIX.length),
+      ) as [string, string, string];
+      if (kind !== 'runtime' || scope !== session) continue;
+      this.soon.add(id);
+      // A running pass reschedules itself at once; a waiting one moves up.
+      if (this.running.has(id)) continue;
+      this.deps.scheduler.cancel(id);
+      this.jobs.delete(id);
+    }
+    this.refresh();
   }
   private async reportScmPoll(code: string | undefined): Promise<void> {
     try {

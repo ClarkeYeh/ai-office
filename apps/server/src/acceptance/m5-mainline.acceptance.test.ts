@@ -535,6 +535,8 @@ const FAKE_WORLD_NA = [
   'nf.boundaries',
   'nf.coverage',
   'nf.approve-comment',
+  // The fake runtime reports no transcript output (live: T11b, T12).
+  'nf.activity-latency',
   'x.engine-replay',
 ];
 

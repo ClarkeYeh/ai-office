@@ -72,6 +72,12 @@ export interface RuntimePort {
     | { status: 'pending' | 'absent' }
     | { status: 'completed'; result: CommandResult }
   >;
+  /**
+   * Optional (FX-STATUS-LATENCY): the runtime signals that a session has
+   * news, e.g. mail arrived on its long poll, so the caller observes it now
+   * instead of at the next tick. Returns an unsubscribe.
+   */
+  onWake?(listener: (session: SessionRef) => void): () => void;
   /** Search durable aio: markers even after request receipts were pruned. */
   findCommandByMarker(commandId: string): Promise<CommandResult | null>;
   /** Find by deterministic name; reject a mismatching aio: comment. */
@@ -166,3 +172,24 @@ export type RuntimeCapabilities = {
   callerChosenRequestId: boolean; // Orca：true（--retry-request 第一次即可帶自產 UUID）
 };
 // SessionRef / AgentRef / WorkspaceRef / QuestionRef / RuntimeCursor 皆為 opaque（branded string 或 JSON），application 不解讀
+
+/** Smallest gap between runtime passes, so a slow pass never spins. */
+export const RUNTIME_MIN_GAP_MS = 250;
+/**
+ * The runtime pass cadence (FX-STATUS-LATENCY), shared with the live latency
+ * probe: at once after a wake, else a fixed rate from the previous pass's
+ * start, never closer than the minimum gap.
+ */
+export function runtimeDelayMs(pass: {
+  woken: boolean;
+  intervalMs: number;
+  startedAt: number | undefined;
+  now: number;
+}): number {
+  if (pass.woken) return 0;
+  if (pass.startedAt === undefined) return pass.intervalMs;
+  return Math.max(
+    RUNTIME_MIN_GAP_MS,
+    pass.intervalMs - (pass.now - pass.startedAt),
+  );
+}

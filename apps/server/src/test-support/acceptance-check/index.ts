@@ -146,31 +146,91 @@ class Log {
 
 // --- non-functional ---------------------------------------------------------
 
-function latency(log: Log): AcceptanceRow {
-  const title = 'Realtime: p95 < 3 s';
-  const lags = log.events
-    .filter((e) => e.source === 'runtime')
+/** recordedAt − occurredAt of the selected events, ascending. */
+function lags(log: Log, pick: (e: Ev) => boolean) {
+  return log.events
+    .filter(pick)
     .map((e) => ({
       e,
       lag: Date.parse(e.recordedAt ?? '') - Date.parse(e.occurredAt ?? ''),
     }))
     .filter((x) => Number.isFinite(x.lag))
     .sort((a, b) => a.lag - b.lag);
-  if (lags.length === 0)
-    return row('nf.latency', 'non-functional', title, 'na', [
-      'no runtime-observed events with occurredAt and recordedAt',
-    ]);
-  const p95 = lags[Math.ceil(lags.length * 0.95) - 1]!;
-  const worst = lags[lags.length - 1]!;
+}
+const quantile = (sorted: { lag: number }[], q: number) =>
+  sorted[Math.ceil(sorted.length * q) - 1]!.lag;
+const describeLags = (label: string, sorted: { e: Ev; lag: number }[]) =>
+  sorted.length === 0
+    ? `${label}: none`
+    : `${label}: p50 ${quantile(sorted, 0.5)} ms, p95 ${quantile(sorted, 0.95)} ms, worst ${ptr(sorted.at(-1)!.e)} ${sorted.at(-1)!.lag} ms over ${sorted.length}`;
+function p95Row(
+  id: string,
+  title: string,
+  sorted: { e: Ev; lag: number }[],
+  limitMs: number,
+  what: string,
+  context: string[],
+): AcceptanceRow {
+  if (sorted.length === 0)
+    return row(id, 'non-functional', title, 'na', [`no ${what}`, ...context]);
+  const p95 = quantile(sorted, 0.95);
   return judged(
-    'nf.latency',
+    id,
     'non-functional',
     title,
-    p95.lag < 3000 ? [] : [`backend p95 ${p95.lag} ms ≥ 3000 ms`],
+    p95 < limitMs ? [] : [`backend p95 ${p95} ms ≥ ${limitMs} ms`],
     [
-      `backend recordedAt − occurredAt p95 ${p95.lag} ms over ${lags.length} runtime events (worst ${ptr(worst.e)} ${worst.lag} ms)`,
+      describeLags(`backend recordedAt − occurredAt (${what})`, sorted),
+      ...context,
+    ],
+  );
+}
+
+const runtime = (e: Ev) => e.source === 'runtime';
+/**
+ * SPEC §24 即時性 (realtime): "Orca 狀態變化到畫面更新 p95 < 3 秒（狀態由 2 秒
+ * worker-list 提供、訊息由 long-poll 提供）": state from worker-list and
+ * long-poll mail only (FX-STATUS-LATENCY). Transcript-derived events have
+ * their own row; usage and PR status are reported, not judged.
+ */
+function latency(log: Log): AcceptanceRow {
+  return p95Row(
+    'nf.latency',
+    'Realtime: state and messages p95 < 3 s (§24)',
+    lags(
+      log,
+      (e) =>
+        runtime(e) &&
+        (e.type === 'seat.status' || e.type.startsWith('message.')),
+    ),
+    3000,
+    'runtime seat.status / message.* events',
+    [
+      describeLags(
+        'info: usage.tokens',
+        lags(log, (e) => e.type === 'usage.tokens'),
+      ),
+      describeLags(
+        'info: pr.status',
+        lags(log, (e) => e.type === 'pr.status'),
+      ),
       'frontend apply delay: T17',
     ],
+  );
+}
+/** Transcript-derived activity and turns (FX-STATUS-LATENCY): p95 < 15 s. */
+function activityLatency(log: Log): AcceptanceRow {
+  return p95Row(
+    'nf.activity-latency',
+    'Activity: transcript-derived seat.activity / usage.turns p95 < 15 s',
+    lags(
+      log,
+      (e) =>
+        runtime(e) && (e.type === 'seat.activity' || e.type === 'usage.turns'),
+    ),
+    15_000,
+    'runtime seat.activity / usage.turns events',
+    [],
   );
 }
 
@@ -909,6 +969,7 @@ export function checkAcceptance(
   const log = new Log(rawEvents);
   const rows = [
     latency(log),
+    activityLatency(log),
     external(
       'nf.cpu',
       'non-functional',

@@ -17,6 +17,7 @@ import {
   QuestionRefSchema,
   RuntimeCursorSchema,
   SessionRefSchema,
+  type SessionRef,
 } from '../../ports/refs.js';
 import type { RuntimePort } from '../../ports/runtime.js';
 import { PortError } from '../../ports/errors.js';
@@ -35,6 +36,7 @@ import type { RunnerReact } from '../runner/workflow-runner.js';
 import {
   ObservationLoop,
   OBSERVATION_TIMER_PREFIX,
+  RUNTIME_MIN_GAP_MS,
   SCM_SLOW_INTERVAL_MS,
 } from './index.js';
 import { budgetFormula } from './usage.js';
@@ -1275,6 +1277,56 @@ describe('transactions and lifecycle', () => {
     await flush();
     expect(h.timers.size).toBe(0);
     h.loop.stop();
+  });
+  it('runs runtime passes at a fixed rate, at once after a wake, and never back-to-back (FX-STATUS-LATENCY)', async () => {
+    const h = await setup();
+    let wake: ((s: SessionRef) => void) | undefined;
+    let duration = 0;
+    const observe = vi.fn(async () => {
+      h.clock.advance(duration);
+      return { events: [], cursor: RuntimeCursorSchema.parse('cursor-1') };
+    });
+    const runtime = {
+      observe,
+      onWake: (listener: (s: SessionRef) => void) => {
+        wake = listener;
+        return () => void (wake = undefined);
+      },
+    } as unknown as RuntimePort;
+    const loop = new ObservationLoop({ ...h.deps, runtime });
+    cleanups.push(() => loop.stop());
+    const runtimeTimer = () =>
+      [...h.timers.values()].find((t) => t.id.includes('"runtime"'))!;
+    const due = () =>
+      Date.parse(runtimeTimer().fireAt) - h.clock.now().getTime();
+    const run = async () => {
+      const timer = runtimeTimer();
+      h.timers.delete(timer.id);
+      await loop.onTimer(timer);
+    };
+    loop.start();
+    expect(due()).toBe(2000);
+    // A wake (mail arrived on the long poll) moves the next pass up to now.
+    wake!(session);
+    expect(due()).toBe(0);
+    // Fixed rate: a 600 ms pass is followed 1400 ms later, not 2000.
+    duration = 600;
+    await run();
+    expect(due()).toBe(1400);
+    // A pass longer than the interval still leaves the minimum gap.
+    duration = 2600;
+    await run();
+    expect(due()).toBe(RUNTIME_MIN_GAP_MS);
+    // A wake during a pass makes the next one start at once.
+    duration = 0;
+    observe.mockImplementationOnce(async () => {
+      wake!(session);
+      return { events: [], cursor: RuntimeCursorSchema.parse('cursor-1') };
+    });
+    await run();
+    expect(due()).toBe(0);
+    loop.stop();
+    expect(wake).toBeUndefined();
   });
   it('slows SCM polls at a low rate limit and polls only the final PR or a merge in flight when critical (§12.2)', async () => {
     const h = await setup();

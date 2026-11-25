@@ -42,7 +42,7 @@ test('all judged rows pass on the export envelope with facts', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /^✅ v01\.rework — /m);
   assert.match(result.stdout, /^N\/A nf\.cpu — /m);
-  assert.match(result.stdout, /^17 ✅ {2}0 ❌ {2}6 N\/A$/m);
+  assert.match(result.stdout, /^18 ✅ {2}0 ❌ {2}6 N\/A$/m);
 });
 
 test('a ❌ row exits 1; --json prints the report', () => {

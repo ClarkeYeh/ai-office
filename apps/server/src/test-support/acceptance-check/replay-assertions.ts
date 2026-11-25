@@ -15,6 +15,8 @@ export function expectMaskedParity(events: Json[]) {
 }
 export const COMMON = {
   'nf.latency': 'pass',
+  // The fake mainline emits no transcript output.
+  'nf.activity-latency': 'na',
   'nf.cpu': 'na',
   'nf.fps': 'na',
   'nf.reliability': 'pass',
