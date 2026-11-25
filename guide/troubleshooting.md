@@ -4,8 +4,6 @@ Start with the backend's own message: `ai-office start` prints it just before
 `AI Office backend exited during startup.`. Daily logs are in
 `<dataDir>/logs/`. Banners in the UI name unhealthy components.
 
-<!-- TODO(M5 final): add the real problems met in the joint runs (M5-T11, T11b, T12). -->
-
 ## Startup refusals
 
 | Message (abridged)                                                      | Cause                                                                               | Fix                                                                                      |
@@ -48,6 +46,49 @@ ai-office start --break-lock
 Never use `--break-lock` while another backend is really running on the same
 data directory: two backends would dispatch the same work twice.
 
+### A stray old backend blocks startup
+
+An old backend that was never stopped (a terminal closed without Ctrl-C, an
+earlier `AI_OFFICE_HOME`) keeps its lock and its port. The new start then
+reports `AI Office is already running (pid N, …)`, or exits during startup
+because port 4319 is in use. Find the old process, check that it really is an
+old AI Office backend, and stop it:
+
+```sh
+lsof -nP -iTCP:4319 -sTCP:LISTEN   # who holds the port (use your port)
+ps -p <pid> -o pid=,command=       # confirm it is apps/server/dist/main.js
+kill <pid>                         # SIGTERM: the backend shuts down cleanly
+```
+
+Then run `ai-office start` again. Use `--break-lock` only when the pid in the
+message no longer exists ([above](#ai-office-is-already-running)). Agents keep
+running while no backend is up; the new backend reconciles with them
+([After a backend restart](#after-a-backend-restart)).
+
+### Wrong Node.js version
+
+`brew upgrade` can move the default `node` to version 26. That build can fail
+before running anything, with `dyld: Library not loaded: …/libsimdjson…`, and
+the repository pins Node.js 24 anyway. Use the pinned major version:
+
+```sh
+brew install node@24
+export PATH="$(brew --prefix node@24)/bin:$PATH"   # add to your shell profile
+node --version                                       # v24.x
+pnpm install --frozen-lockfile && pnpm build
+```
+
+A version manager that reads `.nvmrc` or `.node-version` works too.
+
+### The `gh` account is not the owner
+
+`scm_login_mismatch` at start, or `paused{auth}` later, means the active `gh`
+account is not the repository owner. For this project's own repositories the
+owner is `ClarkeYeh`; elsewhere it is whoever owns the registered
+repositories (or `github.expectedLogin`). Check with `gh auth status` and
+switch yourself with `gh auth switch -u <owner>`. AI Office never switches
+accounts.
+
 ## A repository cannot start workflows (`repo_not_ready`)
 
 Merge commits are disabled on the repository. Enable **Allow merge commits** in
@@ -77,8 +118,8 @@ supported Orca version until AI Office is updated.
 ## Session expired or login link rejected
 
 The login link works once, within 60 seconds. A session lasts 30 days. Run
-`ai-office open` for a new link, or restart with `ai-office start`.
-([Usage](usage.md#log-in-again); `open` is pending review.)
+`ai-office open` for a new link, or restart with `ai-office start`
+([Usage](usage.md#log-in-again)).
 
 `ai-office open` reports `Cannot verify a running AI Office instance` when no
 backend runs for that data directory. Check `--home` / `AI_OFFICE_HOME`, or
@@ -91,11 +132,39 @@ the backend replays its event store, re-arms timers and reconciles with Orca and
 GitHub before it serves anything. Agents whose submissions failed while the
 backend was down retry them on their own. Nothing needs to be redone by hand.
 
-## Sleep
+## Sleep, heat and power
 
-With `orca.preventSleep = true` (default) the Mac stays awake while a workflow
-runs, but closing the lid still sleeps it. After a wake the backend notices
-the gap, re-checks Orca and continues. Timers resume with their remaining time.
+With `orca.preventSleep = true` (default) the backend holds `caffeinate -i`
+while a workflow runs, so the Mac does not idle-sleep. That is not enough on
+its own for a long run:
+
+- **Keep the lid open.** Closing it still sleeps the Mac, and every agent stops
+  with it.
+- **Stay on AC power.** On battery, low-power mode and battery sleep can still
+  suspend the machine, and agents slow down.
+- **Watch the heat.** Several agents at once keep the CPU busy for hours. A
+  hot Mac throttles, and stages take noticeably longer (a timeout nudge may
+  follow). Give it airflow; do not run it on a soft surface.
+
+After a wake the backend notices the gap, re-checks Orca and continues. Timers
+resume with their remaining time.
+
+## "Worker stopped" and "waiting" notices
+
+Orca prints notices of its own in agent terminals and in its UI, such as a
+worker being stopped or an agent waiting. They are benign: an agent that has
+submitted its result is stopped on purpose, and an agent between turns waits.
+AI Office decides from its own state, not from these notices; Orca's automatic
+notices are never taken as an answer to a question. Act only on what the AI
+Office UI shows (gates, questions, banners).
+
+## Merge-queue agent idle after a restart
+
+After a backend restart, the merge-queue agent (the `integrator` in the
+built-in template) can sit idle with worker PRs waiting. No action is needed:
+when `reviewTimeoutMin` (20 minutes in the built-in template) passes, the
+backend nudges it with a review-timeout reminder and it picks the queue up
+again. The nudge shows on the workflow's **Timeline**.
 
 ## Cleanup failed and leftover worktrees
 
@@ -107,10 +176,6 @@ on GitHub by hand; only delete branches under `ai-office/<id>/`.
 
 Worktrees left from an old workflow without automatic cleanup: press
 **Cleanup** on that workflow.
-
-(`cleanup-failed` and automatic cleanup are pending review.)
-
-<!-- TODO(M5-T3): drop the pending remark after merge. -->
 
 ## Codex warning `codex_env_filtered`
 

@@ -17,7 +17,7 @@ history. Fake and development runs always use their own directory.
 | `data/ai-office.sqlite`    | Event store and read models                                           |
 | `data/.lock`               | Single-instance lock (`{pid, startedAt}`)                             |
 | `data/specs/`              | Per-attempt agent instructions (mode 0600, deleted when attempts end) |
-| `data/control.token`       | Local control token for `ai-office open` (mode 0600; pending)         |
+| `data/control.token`       | Local control token for `ai-office open` (mode 0600)                  |
 | `runtime.json`             | `{port, pid, startedAt}` of the running backend, for the CLI          |
 | `logs/server-YYYYMMDD.log` | Daily logs, kept 14 days                                              |
 | `cli-cwd/`                 | Working directory for `orca` and `gh` subprocesses                    |
@@ -26,11 +26,7 @@ history. Fake and development runs always use their own directory.
 Directories are created with mode 0700. Only one backend may use a data
 directory at a time.
 
-> **Pending:** `data/control.token` comes with `ai-office open` (in review).
-> Another pending change stops creating `orca-home/` when `orca.homeDir` points
-> elsewhere.
-
-<!-- TODO(M5-T5/T6): remove the pending note after merge. -->
+`orca-home/` is created only while `orca.homeDir` is empty.
 
 ## `config.toml`
 
@@ -161,13 +157,6 @@ Every subprocess otherwise sees only `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`,
 
 The integration branch and the default branch are never deleted. Each workflow
 records the setting at its start.
-
-> **Pending:** the automatic cleanup on completion, the `keep` value and the
-> `cleanup-failed` warning are in review. Until they merge, only
-> `"delete-on-complete"` is accepted and cleanup is manual
-> ([Usage](usage.md#cleanup)).
-
-<!-- TODO(M5-T3): remove the pending note after merge. -->
 
 ## Environment variables
 

@@ -6,7 +6,9 @@ AI Office is installed from source. There is no npm package or binary release.
 
 - macOS. Production mode depends on Orca, which AI Office drives on macOS.
   Fake mode (see [Usage](usage.md#fake-mode)) needs only Node.js and pnpm.
-- Node.js 24 or newer. The repository pins 24 in `.nvmrc` and `.node-version`.
+- Node.js 24. The repository pins 24 in `.nvmrc` and `.node-version`. Homebrew's
+  default `node` may be newer and broken; install `node@24` instead
+  ([Troubleshooting](troubleshooting.md#wrong-nodejs-version)).
 - pnpm 10.34.9, the version pinned in `packageManager`. If you do not have it:
 
   ```sh
@@ -57,10 +59,7 @@ Commands:
 | `ai-office open`   | you         | Get a new login link for a running backend ([Usage](usage.md#log-in-again)) |
 | `ai-office submit` | agents      | Structured submissions from agents to the backend; not for humans           |
 
-> **Pending:** `ai-office open` is in review and not yet merged.
-> `ai-office --version` (version and commit) arrives with the v0.1 release.
-
-<!-- TODO(M5-T6/T19): drop the pending note once `open` and `--version` are merged. -->
+To see which version you run, use `git log -1 --oneline` in the checkout.
 
 ## Update
 
