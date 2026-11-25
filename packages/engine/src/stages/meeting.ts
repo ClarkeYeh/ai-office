@@ -146,11 +146,12 @@ export const remind = (
   payload: Parameters<typeof schedule>[1],
   delay: number,
 ): Effect[] => {
+  // `round 1` → `round-1`: the id is an external marker; the text stays readable.
   const id = stageCommandId(
     ctx,
     attempt.stageId,
     'nudge',
-    turn,
+    turn.trim().replace(/\s+/g, '-'),
     attempt.attemptId,
   );
   if (!attempt.agentRef || ctx.state.commands[id]) return [];

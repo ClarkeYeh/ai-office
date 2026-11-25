@@ -352,6 +352,26 @@ export function runtimePortContract(
         f.runtime.spawnAgent({ ...f.spawnRequest, title: 'different' }),
       ).rejects.toMatchObject({ category: 'bug', code: 'request_mismatch' });
     });
+    it('refuses marked commands whose ID would break the aio: marker (T12)', async () => {
+      const refused = {
+        category: 'guard',
+        code: 'invalid_command_marker',
+      };
+      await expect(
+        f.runtime.spawnAgent({
+          ...f.spawnRequest,
+          correlation: { workflowId: 'wf', commandId: 'spawn 1' },
+        }),
+      ).rejects.toMatchObject(refused);
+      const a = await f.runtime.spawnAgent(f.spawnRequest);
+      await expect(
+        f.runtime.send(a, {
+          subject: 'Required turn output',
+          body: 'Complete round 1',
+          correlation: { workflowId: 'wf', commandId: 'wf/nudge/round 1/a' },
+        }),
+      ).rejects.toMatchObject(refused);
+    });
     it('stop and release are idempotent; stopping never fabricates worker_done', async () => {
       const a = await f.runtime.spawnAgent(f.spawnRequest);
       await f.runtime.stop(a);

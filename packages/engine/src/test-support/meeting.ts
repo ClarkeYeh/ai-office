@@ -47,7 +47,7 @@ const items: AgentSubmission = {
     ],
   },
 };
-interface Scenario {
+export interface Scenario {
   early?: boolean;
   absent?: string[];
   missingConclusion?: boolean;
