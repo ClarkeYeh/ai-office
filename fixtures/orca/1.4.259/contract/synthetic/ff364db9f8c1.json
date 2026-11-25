@@ -181,33 +181,6 @@
       "argv": [
         "orca",
         "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_1",
-              "status": "dispatched",
-              "title": "aio:a04afb368a4946b0 Contract"
-            }
-          ]
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
         "worker-stop",
         "--dispatch",
         "ctx_1",
@@ -280,33 +253,6 @@
         },
         "_meta": {
           "runtimeId": "00000000-0000-4000-8000-00000000001b"
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_1",
-              "status": "dispatched",
-              "title": "aio:a04afb368a4946b0 Contract"
-            }
-          ]
         }
       },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
@@ -563,33 +509,6 @@
       "argv": [
         "orca",
         "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_1",
-              "status": "dispatched",
-              "title": "aio:a04afb368a4946b0 Contract"
-            }
-          ]
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
         "worker-release",
         "--dispatch",
         "ctx_1",
@@ -662,33 +581,6 @@
         },
         "_meta": {
           "runtimeId": "00000000-0000-4000-8000-00000000001b"
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_1",
-              "status": "dispatched",
-              "title": "aio:a04afb368a4946b0 Contract"
-            }
-          ]
         }
       },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
@@ -879,33 +771,6 @@
         },
         "_meta": {
           "runtimeId": "00000000-0000-4000-8000-00000000001b"
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_1",
-              "status": "dispatched",
-              "title": "aio:a04afb368a4946b0 Contract"
-            }
-          ]
         }
       },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"

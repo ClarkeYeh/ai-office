@@ -260,7 +260,8 @@ describe('rate limit, priority, metrics', () => {
     for (let minute = 0; minute < 60; minute++) {
       const jobs = Array.from({ length: 10 }, () =>
         Array.from({ length: 11 }, () =>
-          scheduler.schedule('worker-read', async () => {
+          // The whole window is the critical lane's; bulk has its own test.
+          scheduler.schedule('worker-list', async () => {
             started.push(Date.now());
           }),
         ),
@@ -524,7 +525,7 @@ it('delays call 121 until the oldest start leaves the sliding window', async () 
   const scheduler = new CliScheduler();
   const work = vi.fn(async () => {});
   const calls = Array.from({ length: 121 }, () =>
-    scheduler.schedule('worker-read', work),
+    scheduler.schedule('worker-list', work),
   );
   await vi.advanceTimersByTimeAsync(59_999);
   expect(work).toHaveBeenCalledTimes(120);
@@ -532,6 +533,89 @@ it('delays call 121 until the oldest start leaves the sliding window', async () 
   await Promise.all(calls);
   expect(work).toHaveBeenCalledTimes(121);
   scheduler.close();
+});
+
+describe('priority lane (FX-CLI-BUDGET)', () => {
+  it('keeps a reserved share and a slot for the critical lane', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const scheduler = new CliScheduler(120, 4);
+    const work = vi.fn(async () => {});
+    const bulk = Array.from({ length: 100 }, () =>
+      scheduler.schedule('worker-read', work),
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    // Bulk stops at 120 − 40 per minute…
+    expect(work).toHaveBeenCalledTimes(80);
+    // …and the status list still starts at once.
+    const list = vi.fn(async () => {});
+    await scheduler.schedule('worker-list', list);
+    expect(list).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await Promise.all(bulk);
+    expect(work).toHaveBeenCalledTimes(100);
+    scheduler.close();
+  });
+  it('a startup burst of 5 spawns never delays a due status list by more than 1 s', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const scheduler = new CliScheduler(120, 4);
+    const busy = (ms: number) => () =>
+      new Promise<void>((resolve) => setTimeout(resolve, ms));
+    // Five spawns at once: worktree show, worker-start (~4 s), task-list,
+    // plus the first transcript reads of every new worker.
+    const burst = Array.from({ length: 5 }, async () => {
+      await scheduler.schedule('bulk', busy(200));
+      await scheduler.schedule('mutate', busy(4_000));
+      await scheduler.schedule('bulk', busy(200));
+    });
+    const reads = Array.from({ length: 20 }, () =>
+      scheduler.schedule('worker-read', busy(300)),
+    );
+    // The status list is due every 2 s; record how late each one starts.
+    const delays: number[] = [];
+    const lists: Promise<void>[] = [];
+    for (let due = 0; due <= 60_000; due += 2_000)
+      setTimeout(() => {
+        lists.push(
+          scheduler.schedule('worker-list', async () => {
+            delays.push(Date.now() - due);
+            await busy(700)();
+          }),
+        );
+      }, due);
+    await vi.advanceTimersByTimeAsync(62_000);
+    await Promise.all([...burst, ...reads, ...lists]);
+    expect(delays).toHaveLength(31);
+    expect(Math.max(...delays)).toBeLessThanOrEqual(1_000);
+    scheduler.close();
+  });
+  it('never lets bulk calls occupy the last slot', async () => {
+    const scheduler = new CliScheduler(120, 3);
+    const releases: (() => void)[] = [];
+    const slow = () =>
+      new Promise<void>((resolve) => {
+        releases.push(resolve);
+      });
+    const reads = Array.from({ length: 5 }, () =>
+      scheduler.schedule('bulk', slow),
+    );
+    await Promise.resolve();
+    expect(releases).toHaveLength(2);
+    const list = vi.fn(async () => {});
+    await scheduler.schedule('worker-list', list);
+    expect(list).toHaveBeenCalledOnce();
+    // Release the reads (and those that start after them) until all ran.
+    let released = 0;
+    while (released < 5) {
+      await new Promise((r) => setTimeout(r, 0));
+      const batch = releases.splice(0);
+      released += batch.length;
+      batch.forEach((release) => release());
+    }
+    await Promise.all(reads);
+    scheduler.close();
+  });
 });
 
 it('rejects mutation commands disguised as reads', async () => {

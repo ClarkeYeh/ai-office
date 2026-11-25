@@ -1722,6 +1722,25 @@ describe('OrcaObserver: CLI budget on the production cadence (FX-STATUS-CADENCE)
     120_000,
   );
 
+  it('shows an agent going idle without worker_done at the next 2 s list (SPEC §24)', async () => {
+    const r = await rig();
+    spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    expect(ofType(first.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'working' }),
+    ]);
+    // No mail: the turn just ends. A working agent keeps the 2 s list, so the
+    // very next pass (the rig steps 2.5 s) shows it.
+    r.world.workers[0]!.activity = 'idle';
+    r.world.workers[0]!.workerState = 'succeeded';
+    const lists = r.world.count('orchestration worker-list');
+    const next = await r.observe(first.cursor);
+    expect(r.world.count('orchestration worker-list')).toBe(lists + 1);
+    expect(ofType(next.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'idle' }),
+    ]);
+  });
+
   it('lists idle agents every 10 s, and every 2 s for 10 s after the backend acts', async () => {
     const r = await rig();
     spawned(r, 'ctx_a');

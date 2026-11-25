@@ -45,7 +45,9 @@ if (![2, 4].includes(AGENTS))
   throw new Error('AIO_PROBE_AGENTS must be 2 or 4');
 /** Enough turns for ≥ 60 status changes (about 2.5 per agent and turn). */
 const TURNS = Number(process.env.AIO_PROBE_TURNS ?? (AGENTS >= 4 ? '8' : '14'));
-const TURN_TIMEOUT_MS = 4 * 60_000;
+const TURN_TIMEOUT_MS = 8 * 60_000;
+/** One nudge per agent and turn after this long without output or done. */
+const NUDGE_AFTER_MS = 3 * 60_000;
 const INTERVAL_MS = 2_000;
 
 const PROMPT = (role: string) =>
@@ -84,6 +86,19 @@ export function countOrcaCli(psCommands: string, bin: string): number {
         l.includes(app) &&
         /\s(orchestration|terminal|worktree|repo|status)(\s|$)/.test(l),
     ).length;
+}
+/**
+ * The honest bound for a list-derived transition: it was detected within one
+ * list interval of the change; the interval follows from worker-list
+ * calls per minute (peak, so the shortest observed interval).
+ */
+export function listBound(list: { calls: number } | undefined) {
+  if (!list || list.calls === 0) return null;
+  return {
+    worstCaseListIntervalMs: Math.round(60_000 / list.calls),
+    meaning:
+      'a list-derived transition was detected within this long of the change, plus its recorded lag',
+  };
 }
 async function orcaProcesses(bin: string): Promise<number> {
   const { stdout } = await exec('ps', ['-axo', 'command']);
@@ -161,6 +176,8 @@ async function probe(
 
   // The observation pump: the production cadence and wake, nothing else.
   const recorded: RecordedEvent[] = [];
+  /** Last time each agent produced any event (output, status, done). */
+  const heard = new Map<AgentRef, number>();
   const done = new Map<AgentRef, number>();
   let cursor: RuntimeCursor | null = null;
   let stopped = false;
@@ -185,6 +202,7 @@ async function probe(
         });
         if (e.type === 'agent.done')
           done.set(e.agent, (done.get(e.agent) ?? 0) + 1);
+        if ('agent' in e) heard.set(e.agent, Date.now());
       }
       cursor = result.cursor;
       const wait = runtimeDelayMs({
@@ -232,7 +250,7 @@ async function probe(
   const agents: AgentRef[] = [];
   let workspace:
     Awaited<ReturnType<RuntimePort['prepareWorkspace']>> | undefined;
-  const turns: { turn: number; ok: boolean; ms: number }[] = [];
+  const turns: { turn: number; ok: boolean; ms: number; nudged: number }[] = [];
   const startedAt = Date.now();
   try {
     workspace = await runtime.prepareWorkspace({
@@ -269,7 +287,9 @@ async function probe(
     // Turn 0 is the spawn itself; then tiny follow-up turns.
     for (let turn = 0; turn <= TURNS; turn++) {
       const t0 = Date.now();
-      const want = turn + 1;
+      // Counted against this turn's start: a nudged agent may report twice.
+      const base = new Map(agents.map((a) => [a, done.get(a) ?? 0]));
+      const finished = (a: AgentRef) => (done.get(a) ?? 0) > base.get(a)!;
       if (turn > 0)
         for (const [i, agent] of agents.entries())
           await runtime.send(agent, {
@@ -277,13 +297,28 @@ async function probe(
             body: `Turn ${turn}: report worker_done now ("turn ${turn} ok").`,
             correlation: correlation(`send/${turn}/${i}`),
           });
-      while (
-        agents.some((a) => (done.get(a) ?? 0) < want) &&
-        Date.now() - t0 < TURN_TIMEOUT_MS
-      )
+      const nudged = new Set<AgentRef>();
+      while (!agents.every(finished) && Date.now() - t0 < TURN_TIMEOUT_MS) {
         await delay(500);
-      const ok = agents.every((a) => (done.get(a) ?? 0) >= want);
-      turns.push({ turn, ok, ms: Date.now() - t0 });
+        // A hung agent gets one short nudge instead of killing the sample.
+        for (const [i, agent] of agents.entries())
+          if (
+            !finished(agent) &&
+            !nudged.has(agent) &&
+            Date.now() - Math.max(t0, heard.get(agent) ?? 0) >= NUDGE_AFTER_MS
+          ) {
+            nudged.add(agent);
+            await runtime
+              .send(agent, {
+                subject: 'please finish the turn',
+                body: `Please finish turn ${turn}: report worker_done now.`,
+                correlation: correlation(`nudge/${turn}/${i}`),
+              })
+              .catch(() => undefined);
+          }
+      }
+      const ok = agents.every(finished);
+      turns.push({ turn, ok, ms: Date.now() - t0, nudged: nudged.size });
       if (!ok) break;
     }
   } finally {
@@ -315,7 +350,16 @@ async function probe(
     ...verdict,
     agents: AGENTS,
     stateSampleOk: verdict.state.n >= 60,
-    cliCallsPerMinute: { peak: Math.max(0, ...cli), samples: cli.length },
+    cliCallsPerMinute: {
+      peak: Math.max(0, ...cli),
+      mean: cli.length
+        ? Math.round((cli.reduce((a, b) => a + b, 0) / cli.length) * 10) / 10
+        : null,
+      samples: cli.length,
+    },
+    // List-derived statuses are stamped at the list call that showed them;
+    // the change itself happened at most one list interval earlier.
+    listDerivedBound: listBound(commands.get('orchestration worker-list')),
     cliCommands: Object.fromEntries(commands),
     orcaProcesses: { peak: Math.max(0, ...procs), samples: procs.length },
   };

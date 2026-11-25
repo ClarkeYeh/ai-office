@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { countOrcaCli } from './scenario.js';
+import { countOrcaCli, listBound } from './scenario.js';
 
 const BIN = '/Applications/Orca.app/Contents/Resources/bin/orca';
 const APP = '/Applications/Orca.app/Contents';
@@ -15,4 +15,9 @@ it('counts the Electron/node children of the orca launcher, not the launcher or 
   ].join('\n');
   // The launcher `exec`s Electron, so a call is one process: the child.
   expect(countOrcaCli(ps, BIN)).toBe(3);
+});
+
+it('bounds list-derived transitions by the measured list interval', () => {
+  expect(listBound({ calls: 30 })?.worstCaseListIntervalMs).toBe(2_000);
+  expect(listBound(undefined)).toBeNull();
 });

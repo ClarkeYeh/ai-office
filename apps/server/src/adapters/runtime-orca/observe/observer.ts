@@ -749,7 +749,7 @@ export class OrcaObserver {
         b,
         'orchestration task-list',
         ['orchestration', 'task-list'],
-        { kind: 'read', priority: 'worker-list', run: b.run },
+        { kind: 'read', priority: 'bulk', run: b.run },
         TaskListSchema,
       );
       if (tasks.ok)
@@ -882,7 +882,7 @@ export class OrcaObserver {
         ['orchestration', 'inbox', '--full', '--limit', '20'],
         {
           kind: 'read',
-          priority: 'worker-list',
+          priority: 'bulk',
           mailbox: { kind: 'dispatch', id: dispatch },
         },
         InboxResultSchema,
@@ -1146,7 +1146,7 @@ export class OrcaObserver {
       b,
       'orchestration worker-show',
       ['orchestration', 'worker-show', '--dispatch', dispatch, '--full'],
-      { kind: 'read', priority: 'worker-list' },
+      { kind: 'read', priority: 'bulk' },
       WorkerShowSchema,
     );
     if (!shown.ok) {

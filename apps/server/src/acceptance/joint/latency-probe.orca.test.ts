@@ -34,6 +34,6 @@ realOrcaSuite('FX-STATUS-LATENCY live probe', { agents: true }, () => {
         ),
       ]);
     },
-    30 * 60_000,
+    90 * 60_000,
   );
 });

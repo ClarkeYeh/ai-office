@@ -254,27 +254,6 @@
     {
       "orcaVersion": "1.4.259",
       "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "worktree": {
-            "id": "wt_1",
-            "path": "/fixture/w1",
-            "branch": "refs/heads/ai-office/rework",
-            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "repoId": "repo_contract",
-            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "displayName": "rework-r1"
-          }
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
       "argv": [
         "orca",
         "orchestration",
@@ -399,33 +378,6 @@
       "argv": [
         "orca",
         "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_2",
-              "status": "dispatched",
-              "title": "aio:a7937b64b8caa58f Contract"
-            }
-          ]
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
         "worker-stop",
         "--dispatch",
         "ctx_2",
@@ -508,33 +460,6 @@
       "argv": [
         "orca",
         "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_2",
-              "status": "dispatched",
-              "title": "aio:a7937b64b8caa58f Contract"
-            }
-          ]
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
         "worker-release",
         "--dispatch",
         "ctx_2",
@@ -582,27 +507,6 @@
       "exitCode": 0,
       "response": "",
       "responseEncoding": "text",
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_1", "--json"],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "worktree": {
-            "id": "wt_1",
-            "path": "/fixture/w1",
-            "branch": "refs/heads/ai-office/rework",
-            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "repoId": "repo_contract",
-            "comment": "aio:847bdf596d3b8af2 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "displayName": "rework-r1"
-          }
-        }
-      },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
     },
     {
@@ -846,38 +750,6 @@
       "argv": [
         "orca",
         "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_2",
-              "status": "dispatched",
-              "title": "aio:a7937b64b8caa58f Contract"
-            },
-            {
-              "id": "task_3",
-              "status": "dispatched",
-              "title": "aio:16367aacb67a4a01 Contract"
-            }
-          ]
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
         "worker-stop",
         "--dispatch",
         "ctx_3",
@@ -979,38 +851,6 @@
         },
         "_meta": {
           "runtimeId": "00000000-0000-4000-8000-00000000001b"
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_2",
-              "status": "dispatched",
-              "title": "aio:a7937b64b8caa58f Contract"
-            },
-            {
-              "id": "task_3",
-              "status": "dispatched",
-              "title": "aio:16367aacb67a4a01 Contract"
-            }
-          ]
         }
       },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
@@ -1143,38 +983,6 @@
         },
         "_meta": {
           "runtimeId": "00000000-0000-4000-8000-00000000001b"
-        }
-      },
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": [
-        "orca",
-        "orchestration",
-        "task-list",
-        "--run",
-        "run_contract",
-        "--json"
-      ],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "runId": "run_contract",
-          "tasks": [
-            {
-              "id": "task_2",
-              "status": "dispatched",
-              "title": "aio:a7937b64b8caa58f Contract"
-            },
-            {
-              "id": "task_3",
-              "status": "dispatched",
-              "title": "aio:16367aacb67a4a01 Contract"
-            }
-          ]
         }
       },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
@@ -1511,27 +1319,6 @@
       "exitCode": 0,
       "response": "worktree /synthetic/existing\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/existing\u0000\u0000worktree /fixture/w4\u0000HEAD aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0000branch refs/heads/ai-office/rework\u0000\u0000",
       "responseEncoding": "text",
-      "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
-    },
-    {
-      "orcaVersion": "1.4.259",
-      "recordedAt": "2026-11-18T00:00:00Z",
-      "argv": ["orca", "worktree", "show", "--worktree", "id:wt_4", "--json"],
-      "exitCode": 0,
-      "response": {
-        "ok": true,
-        "result": {
-          "worktree": {
-            "id": "wt_4",
-            "path": "/fixture/w4",
-            "branch": "refs/heads/ai-office/rework",
-            "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "repoId": "repo_contract",
-            "comment": "aio:db77fd01af957221 base:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "displayName": "rework-r2"
-          }
-        }
-      },
       "stderrLines": "<redacted length=2 sha256=4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945>"
     },
     {
