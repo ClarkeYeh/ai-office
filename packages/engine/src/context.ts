@@ -21,11 +21,23 @@ export const metaFor = (ctx: ReactContext): CommandMeta => ({
   causationId: ctx.event.id,
 });
 
-/** Deterministic command id: `<workflowId>/<part>/<part>…`. */
+const markerSafe = (part: string): string =>
+  part.replace(
+    /[\s<>]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
+  );
+
+/**
+ * Deterministic command id: `<workflowId>/<part>/<part>…`. Command ids become
+ * external markers (Orca `aio:`, GitHub `<!-- ai-office:cmd= -->`), whose
+ * guards refuse whitespace and `<>`, so any such character in a part is
+ * percent-encoded rather than left to fail at the runtime.
+ */
 export const commandId = (
   ctx: Pick<ReactContext, 'workflowId'>,
   ...parts: (string | number)[]
-): string => [ctx.workflowId, ...parts].join('/');
+): string =>
+  [ctx.workflowId, ...parts.map((part) => markerSafe(String(part)))].join('/');
 
 /** The Orca session opened at workflow start, once its command succeeded. */
 export const sessionRef = (state: WorkflowState): string | undefined => {

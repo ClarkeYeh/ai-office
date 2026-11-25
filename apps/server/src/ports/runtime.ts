@@ -9,6 +9,7 @@ import type {
   RuntimeCursor,
 } from './refs.js';
 import type { RuntimeEvent } from './runtime-events.js';
+import { PortError } from './errors.js';
 export type RuntimeWarning =
   | 'codex_env_filtered'
   | 'shim_folder_fallback'
@@ -36,6 +37,20 @@ export type Correlation = {
   attemptId?: string;
   commandId: string;
 }; // commandId 會寫入外部標記 aio:<commandId>
+
+/**
+ * The external-marker rule every runtime enforces before a marked mutation
+ * (Orca writes `aio:<tag>` into whitespace-split text): no empty id and no
+ * whitespace. The fake applies it too, so CI catches ids Orca would refuse.
+ */
+export function assertMarkerCommandId(commandId: string): void {
+  if (!commandId || /\s/.test(commandId))
+    throw new PortError(
+      'guard',
+      'invalid_command_marker',
+      'Runtime safety check failed',
+    );
+}
 
 export type WorkspaceReq =
   | { kind: 'new-worktree'; baseBranch: string; name: string; branch: string } // Orca：worktree create --branch，再 worker-start --worktree path:

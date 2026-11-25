@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { CommandResult } from '@ai-office/contracts/events';
 import type { RepoRuntimeRef } from '../../../ports/refs.js';
+import { assertMarkerCommandId } from '../../../ports/runtime.js';
 import { PortError } from '../../../ports/errors.js';
 import type { IdGen, Logger } from '../../../ports/services.js';
 import type { OrcaCli, RunOptions } from '../cli/types.js';
@@ -9,7 +10,7 @@ import type { ShimCoordinatorIdentity } from '../coordinator-identity/shim.js';
 import type { GitCli } from '../git/index.js';
 import type { DispatchLedger } from '../ledger.js';
 import type { AdapterState } from '../state.js';
-import { contractMismatch, guard } from '../errors.js';
+import { contractMismatch } from '../errors.js';
 import { markerTag } from '../marker.js';
 
 export interface MethodOptions {
@@ -40,7 +41,7 @@ export function parse<T>(schema: z.ZodType<T>, input: unknown): T {
 export const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const marker = (id: string) => {
-  if (!id || /\s/.test(id)) throw guard('invalid_command_marker');
+  assertMarkerCommandId(id);
   return `aio:${markerTag(id)}`;
 };
 export const hasMarker = (value: string, id: string) =>

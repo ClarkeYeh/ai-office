@@ -59,6 +59,7 @@ import {
   runInbox,
 } from './observe.js';
 import { OwnerPolicyExecutor, type OwnerPort } from './owner-policy.js';
+import { ledgeredWrite } from './owner-write.js';
 import { RestartControl, RestartTrigger, type TriggerName } from './restart.js';
 import { HealthSampler } from './sampler.js';
 import { bootstrapCookie, cookieSession, HarnessStream } from './session.js';
@@ -286,8 +287,14 @@ export interface Mode {
   /** A file's content on the integration branch (booleans derive from it). */
   integrationFile(log: Json[], path: string): Promise<string | undefined>;
   onShortId(shortId: string): Promise<void>;
-  /** True when the owner's `/approve` comment was posted. */
-  ownerApproveComment?: (log: Json[]) => Promise<boolean>;
+  /**
+   * True when the owner's `/approve` comment was posted; `fresh` re-reads the
+   * event log (owner writes import backend objects first, see ledgeredWrite).
+   */
+  ownerApproveComment?: (
+    log: Json[],
+    fresh: () => Promise<Json[]>,
+  ) => Promise<boolean>;
   finalPr(
     gate: Json,
     log: Json[],
@@ -352,6 +359,21 @@ async function productionMode(h: OrcaHarness, github: Github): Promise<Mode> {
   const effects = await h.composedBackend(home);
   const owner = githubOwnerActions(github.api, github.ledger.data.runId);
   let imported = 0;
+  let scope: { workflowId: string; shortId: string } | undefined;
+  const register = async (log: Json[]) => {
+    if (!scope) throw new Error('No workflow to import objects for');
+    imported = Date.now();
+    await registerEvents(
+      github.ledger,
+      log.map((e) => ({
+        type: String(e.type),
+        workflowId: (e.workflowId ?? null) as string | null,
+        payload: e.payload as unknown,
+      })),
+      scope.workflowId,
+      scope.shortId,
+    );
+  };
   return {
     kind: 'production',
     side: orcaSide(h),
@@ -367,18 +389,9 @@ async function productionMode(h: OrcaHarness, github: Github): Promise<Mode> {
       await effects.settle();
     },
     async importObjects(log, workflowId, shortId, force = false) {
+      scope = { workflowId, shortId };
       if (!force && Date.now() - imported < 30_000) return;
-      imported = Date.now();
-      await registerEvents(
-        github.ledger,
-        log.map((e) => ({
-          type: String(e.type),
-          workflowId: (e.workflowId ?? null) as string | null,
-          payload: e.payload as unknown,
-        })),
-        workflowId,
-        shortId,
-      );
+      await register(log);
     },
     async integrationFile(log, path) {
       const integration = log.find((e) => e.type === 'workflow.started')
@@ -398,11 +411,13 @@ async function productionMode(h: OrcaHarness, github: Github): Promise<Mode> {
         await github.ledger.save();
       }
     },
-    async ownerApproveComment(log) {
+    async ownerApproveComment(log, fresh) {
       // Found by the conclusion gate's stage, not by creation order.
       const issue = conclusionIssue(log);
       if (issue === undefined) return false;
-      await owner.ownerComment(issue, 'approve', '/approve');
+      await ledgeredWrite(register, log, fresh, () =>
+        owner.ownerComment(issue, 'approve', '/approve'),
+      );
       return true;
     },
     async finalPr() {
@@ -585,7 +600,10 @@ export async function drill(
           { body },
         ),
       ...(mode.ownerApproveComment
-        ? { ownerApproveComment: () => mode.ownerApproveComment!(log) }
+        ? {
+            ownerApproveComment: () =>
+              mode.ownerApproveComment!(log, () => events(live, id)),
+          }
         : {}),
       handOff: (body) => status(body),
       async finalPr(gate) {

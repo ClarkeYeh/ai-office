@@ -17,7 +17,11 @@ import type {
 } from '../../ports/refs.js';
 import type { RuntimeEvent } from '../../ports/runtime-events.js';
 import type { Clock } from '../../ports/services.js';
-import type { RuntimePort, Correlation } from '../../ports/runtime.js';
+import {
+  assertMarkerCommandId,
+  type RuntimePort,
+  type Correlation,
+} from '../../ports/runtime.js';
 import type {
   RuntimeScenario,
   RoleBehavior,
@@ -83,6 +87,13 @@ type EventBody = RuntimeEvent extends infer E
     : never
   : never;
 type Delivery = Awaited<ReturnType<RuntimePort['observe']>>;
+const MARKED = new Set<string>([
+  'openSession',
+  'prepareWorkspace',
+  'spawnAgent',
+  'send',
+  'answer',
+]);
 type Operation =
   | 'openSession'
   | 'reclaimSession'
@@ -645,6 +656,8 @@ export class FakeRuntime implements RuntimePort {
     session: SessionRef | null,
     effect: () => T,
   ): T {
+    // The operations runtime-orca marks with `aio:<commandId>` (same guard).
+    if (MARKED.has(operation)) assertMarkerCommandId(correlation.commandId);
     this.before(operation);
     const signature = canonical({ operation, args });
     const previous = this.commands.get(correlation.commandId);
