@@ -1,7 +1,8 @@
 # Dogfooding: AI Office develops AI Office
 
-> **Status: draft.** Spots marked `TODO(T12)` are filled in after the M5 joint
-> run. Nothing in this runbook happens before v0.1 ships.
+> **Status: plan for after v0.1.** Nothing in this runbook happens before v0.1
+> ships. The pilot starts only after v0.1, and registering
+> `ClarkeYeh/ai-office` in AI Office is the owner's own action.
 
 "Dogfooding" means that milestones after v0.1 are run as AI Office workflows on
 this repository: worker PRs flow into an `ai-office/...` integration branch,
@@ -68,7 +69,8 @@ escalation takes effect.
 ### Settings to confirm (read-only)
 
 AI Office re-checks these on registration and on every production start. Before
-registering, confirm them by hand with GET requests only:
+registering, confirm them by hand with GET requests only. They were confirmed
+again after the M5 real-scale run, with the same results; nothing was changed.
 
 ```sh
 gh api repos/ClarkeYeh/ai-office --jq '{allow_merge_commit, default_branch}'
@@ -77,7 +79,7 @@ gh api repos/ClarkeYeh/ai-office/rules/branches/main
 gh api repos/ClarkeYeh/ai-office/rules/branches/ai-office/example
 ```
 
-| Check                  | Required                                                                                                                                | Observed during M5 prep                                                                                                                              |
+| Check                  | Required                                                                                                                                | Observed (M5 prep, re-confirmed after T12)                                                                                                           |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `allow_merge_commit`   | `true` (AI Office merges with the `merge` method; `false` blocks starting a workflow)                                                   | `true`                                                                                                                                               |
 | `main` ruleset         | Must not require approvals, or the owner must be able to bypass; otherwise the owner cannot merge their own final PR                    | One active ruleset on `refs/heads/main`: pull request required with 0 approvals, merge methods `merge`/`squash`/`rebase`, no force push, no deletion |
@@ -98,9 +100,12 @@ name must equal the `id`). `<dataDir>` is the data directory of the fixed
 installation described below. AI Office validates templates on every read and
 lists any validation errors in the UI.
 
-The stage layout and budgets follow the built-in `feature-to-pr` template.
-`TODO(T12)`: replace the budgets with the values recalibrated from the M5 joint
-run, and adjust the role scopes for any rule changes it surfaces.
+The stage layout and budgets follow the built-in `feature-to-pr` template,
+recalibrated on the M5 real-scale run: only the meeting's `maxTurns` went up,
+from 80 to 120 (that meeting used 76). Every other level kept its value, with
+1.6× to 9.7× headroom. The run used 522,513 tokens and 220 turns in total. See
+[Template budgets](configuration.md#template-budgets) for the numbers and the
+recalibration rule.
 
 ```yaml
 apiVersion: ai-office/v1alpha1
@@ -155,7 +160,7 @@ defaults:
   integrationBranch: 'ai-office/{shortId}-{slug}'
   maxReruns: 2
   budget: { hardLimitMultiplier: 2 }
-  workflowBudget: { tokens: 3000000 } # TODO(T12): recalibrated value
+  workflowBudget: { tokens: 3000000 } # T12: 522,513 used (5.74x)
 stages:
   - id: meeting
     kind: meeting
@@ -163,7 +168,7 @@ stages:
     participants: [pm, architect, engineer]
     maxRounds: 2
     timeouts: { roundMin: 15, stageMin: 60 }
-    budget: { tokens: 300000, maxTurns: 80 } # TODO(T12)
+    budget: { tokens: 300000, maxTurns: 120 } # T12: 173,594 / 76 turns
     conclusion: { requireTechDecisions: true }
     gate: { id: conclusion, title: Conclusion, optional: true }
   - id: breakdown
@@ -171,7 +176,7 @@ stages:
     owner: lead
     from: meeting
     timeouts: { stageMin: 30 }
-    budget: { tokens: 200000, maxTurns: 40 } # TODO(T12)
+    budget: { tokens: 200000, maxTurns: 40 } # T12: 31,921 / 5 turns
     gate:
       {
         id: task-split,
@@ -185,15 +190,16 @@ stages:
     from: breakdown
     maxParallel: 3
     timeouts: { itemMin: 45 }
-    budget: { tokens: 1800000, perItem: { tokens: 400000, maxTurns: 120 } } # TODO(T12)
+    # T12: stage 280,282; per item p90 41,235 / 23 turns
+    budget: { tokens: 1800000, perItem: { tokens: 400000, maxTurns: 120 } }
     onCall: { role: lead, questionTimeoutMin: 10 }
     mergeQueue: { role: integrator, reviewTimeoutMin: 20, maxRework: 2 }
     escalateOn: [unresolvable-conflict, ci-failed-twice]
   - id: integrate
     kind: integrate
     owner: integrator
-    timeouts: { stageMin: 30 } # TODO(T12): the full DoD may need more time
-    budget: { tokens: 200000, maxTurns: 60 } # TODO(T12)
+    timeouts: { stageMin: 30 } # raise if the full DoD outgrows it
+    budget: { tokens: 200000, maxTurns: 60 } # T12: 36,716 / 8 turns
   - id: final-pr
     kind: final-pr
     maxRevisions: 2
@@ -222,9 +228,19 @@ installation instead:
    pnpm install --frozen-lockfile && pnpm -r build
    ```
 
-2. Start AI Office from that checkout (`ai-office --version` must report
-   `0.1.0`). `TODO(T12)`: confirm the exact start command and flags once the
-   production restart drill has settled them.
+2. Start AI Office from that checkout, with no extra flags:
+
+   ```sh
+   alias ai-office="node $HOME/ai-office-v0.1.0/apps/cli/dist/main.js"
+   ai-office start
+   ```
+
+   Check that it is the fixed build with `git -C ~/ai-office-v0.1.0 describe
+--tags` (`v0.1.0`). To restart, stop it with Ctrl-C and run
+   `ai-office start` again. Agents keep running meanwhile, and the backend
+   reconciles with them on start. Use `ai-office open` for a new login link
+   without restarting.
+
 3. Register the working clone of `ClarkeYeh/ai-office` (not the v0.1.0 checkout)
    as the repository AI Office develops.
 4. Upgrading the running AI Office to a newer version is an explicit owner
@@ -247,9 +263,31 @@ flow end to end, up to the owner merging the final PR.
   need adjusting, and whether to switch. Record the decision before the next
   milestone starts.
 
-`TODO(T12)`: add the expected durations and usage per stage from the joint run,
-and any operational notes (restart behavior, known variance) the pilot should
-watch for.
+What to expect, from the M5 real-scale run (production mode, a five-item
+feature, n=1, so treat these as rough):
+
+| Measure                              | Result                               |
+| ------------------------------------ | ------------------------------------ |
+| End to end, start to final PR merged | 92 minutes                           |
+| Start to the final PR gate           | 32 minutes                           |
+| Usage                                | 522,513 tokens and 220 turns         |
+| Restart drill, backend downtime      | 11.7 seconds; the workflow continued |
+| Anomalies                            | 0                                    |
+| Owner actions on GitHub              | 1 hand-merge (the final PR)          |
+
+Usage per stage is in [Template budgets](configuration.md#template-budgets).
+
+Operational notes for the pilot:
+
+- **After a backend restart the merge queue can idle** for up to 20 minutes,
+  until the review-timeout nudge (`reviewTimeoutMin: 20`) wakes the
+  integrator. This is expected; nothing needs to be done.
+- **Live updates lag a little**: Orca state within about 3 seconds, transcript
+  activity within about 15 seconds ([Usage](usage.md#watch-the-office)).
+- Orca's own "Worker stopped" and "waiting" notices are benign
+  ([Troubleshooting](troubleshooting.md#worker-stopped-and-waiting-notices)).
+- Keep the Mac on AC power with the lid open
+  ([Troubleshooting](troubleshooting.md#sleep-heat-and-power)).
 
 ## Fallback
 

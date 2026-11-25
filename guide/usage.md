@@ -137,6 +137,16 @@ only in the AI Office UI.
 - **Gates** (`/gates/<id>`) and **questions** (`/questions/<id>`): open them
   from the banner or the workflow when a decision is waiting.
 
+The office updates live, but not instantly:
+
+- **Orca state and messages** (an agent starting, stopping, waiting or sending
+  a message): the target is within 3 seconds (p95).
+- **Activity derived from agent transcripts** (a seat's recent actions and tool
+  use): the target is within 15 seconds (p95). The real-scale run measured
+  12.5 seconds.
+
+A seat that looks a few seconds behind its Orca terminal is expected.
+
 ## Cleanup
 
 Each workflow leaves worktrees in Orca and `ai-office/<id>/...` worker branches
