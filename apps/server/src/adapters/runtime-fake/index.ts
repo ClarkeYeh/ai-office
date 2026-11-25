@@ -71,6 +71,8 @@ type Agent = {
   spec?: string;
   /** Optional D8 model: a release before this time is refused transiently. */
   stopSettlesAt?: number;
+  /** Output already reported, for `replay-transcript` (FX-ACTIVITY-DUP). */
+  transcript?: { body: EventBody; at: number }[];
 };
 type Scheduled = {
   at: number;
@@ -1276,6 +1278,10 @@ export class FakeRuntime implements RuntimePort {
     source,
   }: Scheduled): Promise<void> {
     const emit = (body: EventBody) => this.emit(a.session, body, at);
+    const output = (body: EventBody) => {
+      (a.transcript ??= []).push({ body: structuredClone(body), at });
+      emit(body);
+    };
     switch (action.type) {
       case 'submit': {
         const tokens = [
@@ -1450,7 +1456,7 @@ export class FakeRuntime implements RuntimePort {
         });
         break;
       case 'output':
-        emit({
+        output({
           type: 'agent.output',
           agent: a.ref,
           messageId: this.id('message'),
@@ -1458,8 +1464,14 @@ export class FakeRuntime implements RuntimePort {
           blocks: action.blocks,
         });
         break;
+      case 'replay-transcript':
+        // Same messages and times, new external keys (Orca: a new dispatch
+        // on the same transcript re-reads it).
+        for (const entry of a.transcript ?? [])
+          this.emit(a.session, entry.body, entry.at);
+        break;
       case 'policy':
-        emit({
+        output({
           type: 'agent.output',
           agent: a.ref,
           messageId: this.id('message'),

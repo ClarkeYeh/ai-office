@@ -291,6 +291,27 @@ describe('runtime ingestion', () => {
       degraded: true,
     });
   });
+  it('records a transcript message once though a new dispatch re-reads it under a new key (FX-ACTIVITY-DUP)', async () => {
+    const h = await setup();
+    const output = (externalKey: string) => ({
+      type: 'agent.output' as const,
+      agent,
+      externalKey,
+      occurredAt: START,
+      messageId: 'm-1',
+      role: 'assistant' as const,
+      blocks: [{ type: 'text' as const, text: 'Reviewing' }],
+    });
+    h.setEvents([output('orca:tx:ctx_a:m-1')]);
+    await h.loop.pollRuntime(h.runner, session);
+    // The next dispatch on the same transcript (and a later poll, as after a
+    // restart, which reloads keys from the store) reports m-1 again.
+    h.setEvents([output('orca:tx:ctx_b:m-1'), output('orca:tx:ctx_c:m-1')]);
+    await h.loop.pollRuntime(h.runner, session);
+    const events = h.store.read({ workflowId: WORKFLOW_ID });
+    expect(events.filter((e) => e.type === 'seat.activity')).toHaveLength(1);
+    expect(events.filter((e) => e.type === 'usage.turns')).toHaveLength(1);
+  });
   it('keeps done through stale working/idle readings until the backend gives a new turn (T12)', async () => {
     const h = await setup();
     const status = (key: string, state: 'working' | 'idle') => ({

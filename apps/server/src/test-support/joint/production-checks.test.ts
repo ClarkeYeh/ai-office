@@ -13,6 +13,10 @@ import {
   type GithubReads,
 } from './production-checks.js';
 import { holdFor } from './run.js';
+import { GithubApi } from '../github/api.js';
+import { Ledger, emptyLedger } from '../github/ledger.js';
+import { ROOT } from '../github/safety.js';
+import { guardedFetch } from '../github/transport.js';
 
 const NOREPLY = '1+ClarkeYeh@users.noreply.github.com';
 
@@ -102,6 +106,34 @@ describe('M5-T12 production checks', () => {
     });
     // The email is compared, never reported.
     expect(JSON.stringify(result)).not.toContain('noreply');
+  });
+
+  it('runs through the guarded transport, reads only (T12: /activity was refused)', async () => {
+    const reads = api();
+    const methods: string[] = [];
+    const network = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const request = new Request(input, init);
+      methods.push(request.method);
+      const url = new URL(request.url);
+      const path = url.pathname.slice(`${ROOT}`.length);
+      const listed = url.searchParams.has('page');
+      const data = listed
+        ? await reads.list(path)
+        : (await reads.request('GET', `${path}${url.search}`)).data;
+      return new Response(JSON.stringify(data ?? {}));
+    };
+    const guarded = new GithubApi(
+      guardedFetch(network, new Ledger('/unused', emptyLedger('a12b34c56d78'))),
+    );
+    const result = await identityChecks(guarded, log(), {
+      owner: 'ClarkeYeh',
+      noreplyEmail: NOREPLY,
+    });
+    expect(result.ok).toBe(true);
+    expect(new Set(methods)).toEqual(new Set(['GET']));
   });
 
   it.each([
