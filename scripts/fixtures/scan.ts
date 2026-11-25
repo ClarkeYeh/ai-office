@@ -21,6 +21,17 @@ export function hasLongNaturalText(value: unknown): boolean {
   return false;
 }
 
+// Public B4 fixtures carry only the masker's pseudonyms for Orca run, dispatch
+// and message ids and for UUIDs (`OPAQUE_ID` / `PSEUDONYM` in the server's
+// joint export masker), never the real ones.
+const OPAQUE_ID =
+  /(?<![A-Za-z0-9])(?:(?:run|ctx|msg)_[A-Za-z0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![A-Za-z0-9])/gi;
+const PSEUDONYM =
+  /^(?:(?:run|ctx|msg)_0*[1-9][0-9]*|00000000-0000-4000-8000-[0-9]{12})$/;
+export function hasOpaqueId(text: string): boolean {
+  return [...text.matchAll(OPAQUE_ID)].some(([id]) => !PSEUDONYM.test(id));
+}
+
 function scan(
   directory: string,
   redactor: ReturnType<typeof fixtureRedactor>,
@@ -60,6 +71,7 @@ function scan(
             resolve(path).startsWith(resolve('fixtures/m5') + sep) ||
             resolve(path) === resolve('fixtures/web/m5-joint.events.json');
           if (b4 && hasLongNaturalText(value)) failures++;
+          if (b4 && hasOpaqueId(JSON.stringify(value))) failures++;
           if (/\/(?:Users|home)\/[^/\s"]+/.test(JSON.stringify(value)))
             failures++;
           if (

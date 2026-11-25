@@ -33,8 +33,8 @@ function loadJointLog(
 
 // M5-T17 CI replay of the masked joint-run export (M5_PLAN §5 T17, §6.1).
 // Semantics only: seat poses, needs, board columns, gate headers and replay =
-// live fold. Every expectation is derived from the events themselves, so T12's
-// real export replaces the T9-derived placeholder without touching this file.
+// live fold. Every expectation is derived from the events themselves, so a new
+// export replaces the fixture without touching this file.
 
 const log = loadJointLog();
 const { events, models } = log;
@@ -102,7 +102,7 @@ describe('M5-T17 joint replay: fixtures/web/m5-joint.events.json', () => {
     expect(office(finalIndex).seats.filter((s) => s.needsYou)).toEqual([]);
   });
 
-  // ~1 s locally; headroom for the shared machine and coverage.
+  // ~4.5 s locally on 1812 events; headroom for the shared machine and coverage.
   test(
     'replay equals the live fold at every gate, every wait, around the restart and at the end',
     { timeout: 30_000 },

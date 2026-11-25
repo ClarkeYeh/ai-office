@@ -6,10 +6,11 @@ import {
 import { evolve, type ReadModel } from '@ai-office/projection';
 
 // M5-T17 (M5_PLAN §5, §6.2): the masked joint-run export as a web fixture.
-// T12 overwrites `fixtures/web/m5-joint.events.json` with the real masked
-// export and sets `M5_JOINT_RESTART_SEQ` from its private report
-// (`restart.triggerSeq`); nothing else changes. Until then both come from
-// T7's offline dry run on T9's `--dev --fake m5-mainline`.
+// `fixtures/web/m5-joint.events.json` is T12's production run (1812 events),
+// masked with T0's `exportJointEvents` (opaque Orca ids and UUIDs
+// pseudonymized); `M5_JOINT_RESTART_SEQ` is the first event after the
+// restart. It keeps the run's duplicate `seat.activity` re-emissions: that is
+// what was recorded.
 //
 // The export masks every string outside T0's allowlist (`‹text len= sha=›`,
 // including ids and timestamps), so events are not schema-checked here: the
@@ -20,8 +21,8 @@ export const M5_JOINT_FIXTURE = new URL(
   import.meta.url,
 );
 
-/** The seq of the K / K′ trigger the joint run killed the backend at. */
-export const M5_JOINT_RESTART_SEQ = 344;
+/** The first seq after the joint run's kill and restart (K at 991). */
+export const M5_JOINT_RESTART_SEQ = 1012;
 
 /** T0's free-text placeholder (`textPlaceholder` in the joint export). */
 export const PLACEHOLDER = /^‹text len=\d+ sha=[0-9a-f]{12}›$/;
