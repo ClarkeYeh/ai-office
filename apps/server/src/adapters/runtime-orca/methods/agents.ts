@@ -114,11 +114,23 @@ export class Agents {
   }
   async rebuild(run: string, settleCommand?: string) {
     const workers = await this.workers(run);
-    const tasks = await this.c.call(
-      ['orchestration', 'task-list'],
-      z.looseObject({ tasks: z.array(Task) }).refine(completeTaskList),
-      run,
-    );
+    // FX-CLI-BUDGET: the task list only names dispatches the ledger does not
+    // know yet; when every worker of the run is a started entry and no spawn
+    // is pending, the rebuild needs no task-list (one call per send saved).
+    const ledger = this.c.options.ledger;
+    const known =
+      settleCommand === undefined &&
+      !ledger.all().some((e) => e.run === run && e.state === 'pending') &&
+      workers
+        .filter((w) => w.runId === run)
+        .every((w) => ledger.byDispatch(w.dispatchId)?.state === 'started');
+    const tasks = known
+      ? { tasks: [] }
+      : await this.c.call(
+          ['orchestration', 'task-list'],
+          z.looseObject({ tasks: z.array(Task) }).refine(completeTaskList),
+          run,
+        );
     const visibleTasks = tasks.tasks.filter((task) => {
       const id = markerToken(task.title);
       return (
@@ -338,7 +350,8 @@ export class Agents {
       owns = true;
     }
     if (!workspace) throw guard('workspace_missing');
-    owns = owns || (await this.workspaces.preparedHere(workspace.id));
+    owns =
+      owns || (await this.workspaces.preparedHere(workspace.id, workspace));
     if (!isAbsolute(this.c.options.dataDir))
       throw guard('data_dir_must_be_absolute');
     const dir = join(this.c.options.dataDir, 'orca-specs');
@@ -482,10 +495,13 @@ export class Agents {
       : await this.entry(agent);
     this.c.options.state.write(`orca:send-target:${id}`, entry);
     const ledger = this.c.options.ledger;
-    const rows = await this.workers(entry.run);
-    const row = rows.find((w) => w.dispatchId === entry.dispatch);
-    if (!entry.keepOpen && row?.terminalState === 'released')
-      throw guard('dispatch_released');
+    // Only a worker without keep-open can be released under us; a kept-open
+    // one needs no worker-list per send (FX-STATUS-CADENCE).
+    if (!entry.keepOpen) {
+      const rows = await this.workers(entry.run);
+      const row = rows.find((w) => w.dispatchId === entry.dispatch);
+      if (row?.terminalState === 'released') throw guard('dispatch_released');
+    }
     this.c.options.state.write(`orca:kind:${id}`, 'runtime.send');
     ledger.pending({
       commandId: id,

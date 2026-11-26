@@ -125,6 +125,15 @@ export function ingestRuntime(
               attempt.doneTurn === (attempt.turns ?? 0)))
         )
           break;
+        // A new turn the backend issued is not yet shown working by the
+        // runtime: an `idle` now is a reading of the turn before (the
+        // idle-after-done flake: the finished turn's idle landed right after
+        // the engine's next send).
+        if (
+          event.state === 'idle' &&
+          (attempt.turns ?? 0) > (attempt.turnSeen ?? 0)
+        )
+          break;
         batch.add(
           'seat.status',
           {

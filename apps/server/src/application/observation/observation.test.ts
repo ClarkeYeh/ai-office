@@ -314,6 +314,64 @@ describe('runtime ingestion', () => {
     expect(events.filter((e) => e.type === 'seat.activity')).toHaveLength(1);
     expect(events.filter((e) => e.type === 'usage.turns')).toHaveLength(1);
   });
+  it("drops the finished turn's idle that lands after the next send, until the runtime shows that turn (idle-after-done flake)", async () => {
+    const h = await setup();
+    const status = (key: string, state: 'working' | 'idle') => ({
+      type: 'agent.status' as const,
+      agent,
+      externalKey: key,
+      occurredAt: START,
+      state,
+    });
+    h.setEvents([
+      status('working-1', 'working'),
+      {
+        type: 'agent.done',
+        agent,
+        externalKey: 'done-1',
+        occurredAt: START,
+        outcome: 'success',
+      },
+    ]);
+    await h.loop.pollRuntime(h.runner, session);
+    // The engine's next turn: the send, and its own `working`.
+    await h.runner.append([
+      draft(
+        'command.issued',
+        {
+          commandId: 'round-2-send',
+          orcaRequestId: h.ids.orcaRequestId('round-2-send'),
+          kind: 'runtime.send',
+          args: { agent, subject: 'Meeting round 2', body: 'Speak' },
+        },
+        { attemptId: 'att-1', stageId: 'meeting' },
+      ),
+      draft(
+        'seat.status',
+        { attemptId: 'att-1', state: 'working' },
+        {
+          attemptId: 'att-1',
+          stageId: 'meeting',
+          source: 'engine',
+          provenance: 'decided',
+        },
+      ),
+    ]);
+    // The previous turn's idle arrives just before the runtime's working.
+    h.setEvents([status('idle-1', 'idle'), status('working-2', 'working')]);
+    await h.loop.pollRuntime(h.runner, session);
+    const states = () =>
+      h.store
+        .read({ workflowId: WORKFLOW_ID })
+        .filter((e) => e.type === 'seat.status')
+        .map((e) => (e.payload as { state: string }).state);
+    expect(states()).not.toContain('idle');
+    expect(h.runner.state.attempts['att-1']?.state).toBe('working');
+    // Once the runtime showed the turn, an idle is real (no worker_done).
+    h.setEvents([status('idle-2', 'idle')]);
+    await h.loop.pollRuntime(h.runner, session);
+    expect(states().at(-1)).toBe('idle');
+  });
   it('keeps done through stale working/idle readings until the backend gives a new turn (T12)', async () => {
     const h = await setup();
     const status = (key: string, state: 'working' | 'idle') => ({

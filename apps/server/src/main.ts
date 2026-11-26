@@ -732,6 +732,7 @@ async function composeOrca(
       observe: (
         ...args: Parameters<RuntimePort['observe']>
       ): ReturnType<RuntimePort['observe']> => sleepRuntime.observe(...args),
+      expectChange: () => sleepRuntime.expectChange(),
     },
     version,
     metrics,

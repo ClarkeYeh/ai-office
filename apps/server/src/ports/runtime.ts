@@ -23,6 +23,8 @@ export type RuntimeHealth = {
   supportedRange?: string;
   shimLocation?: string;
   cliCallsPerMinute?: number;
+  /** Per Orca subcommand over the last minute (FX-STATUS-CADENCE probe). */
+  cliCommands?: Record<string, { calls: number; p50Ms: number; p95Ms: number }>;
   cpuSecondsPerMinute?: number;
   warnings?: RuntimeWarning[];
   available: boolean;

@@ -114,6 +114,7 @@ export async function orcaReplayFixture(
         await world.spawnEntered;
         return observer.observe(session, cursor);
       },
+      expectChange: () => observer.expectChange(),
     },
   });
   const session = sessionRef(RUN);

@@ -100,6 +100,11 @@ interface SessionState {
   answersAt: number;
   answered: Set<string>;
   readAt: Map<string, number>;
+  /**
+   * Last transcript read per agent: a kept-open worker's follow-up turn is a
+   * new dispatch on the same transcript (FX-STATUS-CADENCE).
+   */
+  agentReadAt: Map<string, number>;
   readSig: Map<string, string>;
   progressAt: Map<string, number>;
   probedAt: Map<string, number>;
@@ -111,6 +116,11 @@ interface SessionState {
   tasks: Map<string, string>;
   identity: RuntimeEvent[];
   active: boolean;
+  /** Until then the backend expects a change (it sent, answered, spawned…). */
+  expectUntil: number;
+  /** Check mail was ingested; `lastSeq` is learned at most every 30 s. */
+  learnSeq: boolean;
+  learnedAt: number;
 }
 type ObserveResult = { events: RuntimeEvent[]; cursor: RuntimeCursor };
 type Resolution =
@@ -133,6 +143,12 @@ interface Batch {
 }
 const MAX_INBOX = 2000;
 const READ_CONCURRENCY = 4;
+/** How long after a send/answer/spawn/stop the 2 s list stays on. */
+export const EXPECT_CHANGE_MS = 10_000;
+/** How often `lastSeq` is learned after check mail (FX-STATUS-CADENCE). */
+const LEARN_SEQ_MS = 30_000;
+/** Consumed mail ids kept in the cursor. */
+const CONSUMED_MAX = 200;
 
 /**
  * SPEC §6.4 / §11.5 observation: at-least-once retrieval with idempotent landing.
@@ -201,7 +217,11 @@ export class OrcaObserver {
       const owned = await this.identityStep(batch);
       await this.releaseHeld(batch);
       if (owned) await this.checkStep(batch);
-      if (st.backfill) await this.backfill(batch);
+      if (
+        st.backfill ||
+        (st.learnSeq && this.now() - st.learnedAt >= LEARN_SEQ_MS)
+      )
+        await this.backfill(batch);
       this.applyAnswered(batch);
       // FX-STATUS-LATENCY: mail (worker_done, questions) goes out now; the
       // worker-list runs in the next pass, which the wake starts at once.
@@ -221,6 +241,15 @@ export class OrcaObserver {
     return result;
   }
 
+  /**
+   * FX-STATUS-CADENCE: the backend just gave an agent work (send, answer,
+   * spawn) or took it away (stop, release); list at the active cadence for a
+   * while so the change shows within one list.
+   */
+  expectChange(windowMs = EXPECT_CHANGE_MS): void {
+    for (const st of this.sessions.values())
+      st.expectUntil = Math.max(st.expectUntil, this.now() + windowMs);
+  }
   /** T5 calls this after `reply`: the question stops counting as waiting input. */
   markAnswered(question: QuestionRef): void {
     for (const st of this.sessions.values()) st.answered.add(question);
@@ -256,6 +285,7 @@ export class OrcaObserver {
         answersAt: Number.NEGATIVE_INFINITY,
         answered: new Set(),
         readAt: new Map(),
+        agentReadAt: new Map(),
         readSig: new Map(),
         progressAt: new Map(),
         probedAt: new Map(),
@@ -267,6 +297,9 @@ export class OrcaObserver {
         tasks: new Map(),
         identity: [],
         active: true,
+        expectUntil: 0,
+        learnSeq: false,
+        learnedAt: Number.NEGATIVE_INFINITY,
       };
       this.sessions.set(session, st);
     }
@@ -477,8 +510,9 @@ export class OrcaObserver {
     for (const message of result.messages) await this.ingest(b, message);
     // A completed request id replays forever; chain to the next one.
     p.check.requestId = this.chain(st, id);
-    // Check messages have no sequence: learn lastSeq from the inbox.
-    if (result.messages.length) st.backfill = true;
+    // Check messages have no sequence: learn lastSeq from the inbox, at most
+    // every 30 s (FX-STATUS-CADENCE); `consumed` makes the re-read harmless.
+    if (result.messages.length) st.learnSeq = true;
   }
   /** Ids generated in this process were never issued before: no receipt lookup. */
   private chain(st: SessionState, previous: string): string {
@@ -577,14 +611,19 @@ export class OrcaObserver {
         .sort((x, y) => x.sequence - y.sequence);
       for (const message of fresh) await this.ingest(b, message);
       b.p.lastSeq = Math.max(b.p.lastSeq, ...fresh.map((m) => m.sequence));
-      b.commit.push(() => void (b.st.backfill = false));
+      b.commit.push(() => {
+        b.st.backfill = false;
+        b.st.learnSeq = false;
+        b.st.learnedAt = this.now();
+      });
       return;
     }
   }
 
   private async ingest(b: Batch, message: MailMessage): Promise<void> {
-    if (b.messages.has(message.id)) return;
+    if (b.messages.has(message.id) || b.p.consumed.includes(message.id)) return;
     b.messages.add(message.id);
+    b.p.consumed = [...b.p.consumed, message.id].slice(-CONSUMED_MAX);
     if (message.type === 'escalation') {
       // SPEC §6.4: never `error`, never resent; log and count only.
       this.escalations++;
@@ -710,7 +749,7 @@ export class OrcaObserver {
         b,
         'orchestration task-list',
         ['orchestration', 'task-list'],
-        { kind: 'read', priority: 'worker-list', run: b.run },
+        { kind: 'read', priority: 'bulk', run: b.run },
         TaskListSchema,
       );
       if (tasks.ok)
@@ -843,7 +882,7 @@ export class OrcaObserver {
         ['orchestration', 'inbox', '--full', '--limit', '20'],
         {
           kind: 'read',
-          priority: 'worker-list',
+          priority: 'bulk',
           mailbox: { kind: 'dispatch', id: dispatch },
         },
         InboxResultSchema,
@@ -881,7 +920,8 @@ export class OrcaObserver {
    */
   private listDue(st: SessionState): boolean {
     const pressured = this.options.pressured?.() ?? false;
-    const interval = st.active ? (pressured ? 4_000 : 2_000) : 10_000;
+    const moving = st.active || this.now() < st.expectUntil;
+    const interval = moving ? (pressured ? 4_000 : 2_000) : 10_000;
     return this.now() - st.listedAt >= interval - RUNTIME_MIN_GAP_MS;
   }
   private async workerStep(b: Batch): Promise<void> {
@@ -966,7 +1006,16 @@ export class OrcaObserver {
         questions.length > 0 || st.agentWait.get(agent) === true,
         stopped,
       );
-      if (state !== 'exited') active = true;
+      // FX-STATUS-CADENCE: only a moving agent needs the 2 s list; an idle or
+      // done one changes only after the backend acts (expectChange).
+      // A finished worker without keep-open is released by Orca itself after
+      // two minutes: list it at the active cadence too.
+      if (
+        ['working', 'starting', 'waiting_input'].includes(state) ||
+        (state === 'idle' &&
+          this.options.ledger.byDispatch(worker.dispatchId)?.keepOpen === false)
+      )
+        active = true;
       const progress = st.progressAt.get(worker.dispatchId) ?? this.now();
       if (!st.progressAt.has(worker.dispatchId))
         st.progressAt.set(worker.dispatchId, progress);
@@ -982,10 +1031,16 @@ export class OrcaObserver {
         st.agentWait.get(agent) === true &&
         this.now() - (st.probeTime.get(worker.dispatchId) ?? -Infinity) >=
           10_000;
+      // agentWait only matters for an agent that is (or may be) working: a
+      // turn that went idle or done has nothing to wait on (FX-STATUS-CADENCE).
+      const settled =
+        state === 'idle' || worker.projection.stage?.activity === 'done';
       const probe =
         state !== 'exited' &&
         state !== 'stopped' &&
-        (stageChanged || state !== previous || stalled || recheck);
+        (((stageChanged || state !== previous) && !settled) ||
+          stalled ||
+          recheck);
       if (probe) {
         st.probedAt.set(worker.dispatchId, progress);
         st.probeTime.set(worker.dispatchId, this.now());
@@ -994,15 +1049,27 @@ export class OrcaObserver {
     }
     // Transcript reads are decided from worker-list alone (a probe only turns
     // `working` into `waiting_input`, which reads at the same cadence).
-    for (const { agent, worker, state } of rows) {
+    for (const { agent, worker, state, previous } of rows) {
       const sig = activitySignature(worker);
       const unreadFor =
-        this.now() - (st.readAt.get(worker.dispatchId) ?? -Infinity);
-      if (
-        st.readSig.get(worker.dispatchId) !== sig ||
-        (state !== 'stopped' && unreadFor >= this.rereadMs(state, pressured))
-      )
-        reads.push({ agent, worker });
+        this.now() -
+        (st.readAt.get(worker.dispatchId) ??
+          st.agentReadAt.get(agent) ??
+          -Infinity);
+      const due =
+        state !== 'stopped' && unreadFor >= this.rereadMs(state, pressured);
+      // FX-STATUS-CADENCE: a turn that just started holds little more than
+      // our own message; its output is read by the live re-read timer or at
+      // the turn's end, not by the start itself.
+      const started =
+        state === 'working' &&
+        previous !== 'working' &&
+        (st.readAt.has(worker.dispatchId) || st.agentReadAt.has(agent));
+      const changed = st.readSig.get(worker.dispatchId) !== sig;
+      if ((changed && !started) || due) reads.push({ agent, worker });
+      // The skipped start is accounted for: the timer or the turn's end reads.
+      else if (changed)
+        b.commit.push(() => st.readSig.set(worker.dispatchId, sig));
     }
     st.active = active || p.held.length > 0;
     // Pass 2: probes and transcript reads run together (the CLI scheduler
@@ -1079,7 +1146,7 @@ export class OrcaObserver {
       b,
       'orchestration worker-show',
       ['orchestration', 'worker-show', '--dispatch', dispatch, '--full'],
-      { kind: 'read', priority: 'worker-list' },
+      { kind: 'read', priority: 'bulk' },
       WorkerShowSchema,
     );
     if (!shown.ok) {
@@ -1142,6 +1209,7 @@ export class OrcaObserver {
     const dispatch = worker.dispatchId;
     const { st, p } = b;
     st.readAt.set(dispatch, this.now());
+    st.agentReadAt.set(agent, this.now());
     const position = p.tx[dispatch];
     const read = await this.call(
       b,

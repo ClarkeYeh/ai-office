@@ -147,6 +147,12 @@ export type Attempt = EventPayload<'seat.spawned'> & {
   turns?: number;
   /** T12: the `turns` value when the attempt last reported `done`. */
   doneTurn?: number;
+  /**
+   * The `turns` value when the runtime last showed this attempt working or
+   * waiting: until it shows the new turn, a runtime `idle` is a reading of
+   * the turn before (idle-after-done flake, FX-CLI-BUDGET).
+   */
+  turnSeen?: number;
 };
 
 export type AttemptRateLimit = NonNullable<

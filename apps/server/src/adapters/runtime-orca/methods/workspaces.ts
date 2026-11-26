@@ -214,12 +214,14 @@ export class Workspaces {
         branchSha ?? sha,
       );
   }
-  async preparedHere(id: string): Promise<boolean> {
+  /** `shown`: the row the caller just read, so no second `worktree show`. */
+  async preparedHere(id: string, shown?: Worktree | null): Promise<boolean> {
     const proof = z
       .object({ commandId: text })
       .safeParse(this.c.options.state.read(`orca:prepared:${id}`));
     if (!proof.success) return false;
-    const w = await this.show(id);
+    const w =
+      shown !== undefined && shown?.id === id ? shown : await this.show(id);
     return w !== null && hasMarker(w.comment ?? '', proof.data.commandId);
   }
   async dispose(id: WorkspaceRef) {

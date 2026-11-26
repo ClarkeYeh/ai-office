@@ -70,7 +70,12 @@ export class Context {
       (args[0] === 'worktree' && ['create', 'rm'].includes(args[1]!));
     const opts: RunOptions = {
       kind: mutate ? 'mutate' : 'read',
-      priority: mutate ? 'mutate' : 'worker-list',
+      // FX-CLI-BUDGET: only the status list is a critical read.
+      priority: mutate
+        ? 'mutate'
+        : args[0] === 'orchestration' && args[1] === 'worker-list'
+          ? 'worker-list'
+          : 'bulk',
       ...(run ? { run } : {}),
       ...(commandId
         ? { requestId: this.options.ids.orcaRequestId(commandId) }

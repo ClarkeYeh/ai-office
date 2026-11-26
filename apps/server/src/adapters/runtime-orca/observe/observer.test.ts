@@ -16,6 +16,7 @@ import type { AdapterState } from '../state.js';
 import { decodeCursor, questionRef } from '../refs.js';
 import { CursorPayloadSchema, firstCheckId, nextCheckId } from './cursor.js';
 import { OrcaObserver } from './observer.js';
+import { runtimeDelayMs } from '../../../ports/runtime.js';
 
 const RUN = 'run_3d70ed17e5de';
 const SHIM = 'term_00000000-0000-4000-8000-000000000001';
@@ -452,8 +453,15 @@ describe('OrcaObserver: batches and cursors', () => {
     ]);
     const c = decodeCursor(third.cursor, CursorPayloadSchema);
     expect(c.check.requestId).toBe(nextCheckId(a.check.requestId));
-    // lastSeq comes from the inbox (check messages carry no sequence).
-    expect(c.lastSeq).toBe(r.world.seq);
+    // lastSeq comes from the inbox (check messages carry no sequence), learned
+    // at most every 30 s; the consumed id makes that re-read a no-op.
+    expect(c.consumed).toContain('msg_q1');
+    r.clock.now += 30_000;
+    const fourth = await r.observe(third.cursor);
+    expect(ofType(fourth.events, 'agent.question')).toEqual([]);
+    expect(decodeCursor(fourth.cursor, CursorPayloadSchema).lastSeq).toBe(
+      r.world.seq,
+    );
   });
 
   it('replays the same batch for the same cursor (memo of the last two)', async () => {
@@ -645,7 +653,10 @@ describe('OrcaObserver: mapping', () => {
     let cursor = (await r.observe(null)).cursor;
     r.world.post({ id: 'msg_e1', type: 'escalation', dispatch: 'ctx_a', task });
     r.world.post({ id: 'msg_e2', type: 'escalation', dispatch: 'ctx_a', task });
-    const batch = await r.observe(cursor);
+    // The first long poll returns e1; e2 comes with the next (woken) pass.
+    const first = await r.observe(cursor);
+    const batch = await r.observe(first.cursor);
+    batch.events.unshift(...first.events);
     cursor = batch.cursor;
     expect(batch.events.some((e) => e.type === 'agent.exited')).toBe(false);
     expect(
@@ -1163,7 +1174,10 @@ describe('OrcaObserver: mapping', () => {
         filesModified: 1,
       }),
     ]);
-    expect(decodeCursor(done.cursor, CursorPayloadSchema).lastSeq).toBe(
+    r.clock.now += 30_000;
+    const learned = await r.observe(done.cursor);
+    expect(ofType(learned.events, 'agent.done')).toEqual([]);
+    expect(decodeCursor(learned.cursor, CursorPayloadSchema).lastSeq).toBe(
       r.world.seq,
     );
   });
@@ -1542,5 +1556,206 @@ describe('OrcaObserver: status latency (FX-STATUS-LATENCY)', () => {
     expect(ofType(next.events, 'agent.status')).toEqual([
       expect.objectContaining({ state: 'waiting_input' }),
     ]);
+  });
+});
+
+/**
+ * FX-STATUS-CADENCE CLI budget: N keep-open agents, each given a turn (a
+ * send) every `turnMs`, working for the first ~half of it with a growing
+ * transcript, then worker_done mail. Observed on the production loop policy
+ * (fixed-rate 2 s passes, at once after a wake) for a simulated `minutes`,
+ * Orca 1.4.272 shape (`lastObservedAt` empty) unless `observedAt` moves it.
+ * CLI time: worker-list 700 ms and inbox 400 ms serially; probes and reads
+ * run concurrently, ~900 ms per pass that has any.
+ */
+async function simulateBudget(
+  agents: number,
+  options: {
+    minutes?: number;
+    turnMs?: number;
+    observedAt?: boolean;
+    /** Calls per runtime.send (2 before FX-STATUS-CADENCE: worker-list too). */
+    sendCalls?: number;
+  } = {},
+) {
+  const {
+    minutes = 10,
+    turnMs = 15_000,
+    observedAt = false,
+    sendCalls = 1,
+  } = options;
+  const woke: string[] = [];
+  const r = await rig({
+    onWake: (s) => woke.push(s),
+    latencyMs: {
+      'orchestration worker-list': 700,
+      'orchestration inbox': 400,
+    },
+  });
+  const tasks: string[] = [];
+  for (let i = 0; i < agents; i++) tasks.push(spawned(r, `ctx_${i}`));
+  const start = r.clock.now;
+  const end = start + minutes * 60_000;
+  const workMs = Math.round(turnMs * 0.55);
+  const offset = (i: number) => Math.round((i * turnMs) / agents);
+  let cursor: RuntimeCursor | null = null;
+  let next = start;
+  let lastTimeout = start;
+  let msg = 0;
+  const turns = new Map<number, number>();
+  const current = Array.from({ length: agents }, (_, i) => `ctx_${i}`);
+  let sends = 0;
+  const expect$ = () =>
+    (r.observer as unknown as { expectChange?: () => void }).expectChange?.();
+  const byCommand = new Map<string, number>();
+  const byPass = { tick: 0, wake: 0 };
+  let woken = false;
+  while (next < end) {
+    r.clock.now = Math.max(r.clock.now, next);
+    const t = r.clock.now - start;
+    for (let i = 0; i < agents; i++) {
+      const turn = Math.floor((t + offset(i)) / turnMs);
+      const phase = (t + offset(i)) % turnMs;
+      // A new turn is the backend's send: on a kept-open worker Orca starts a
+      // follow-up dispatch on the same transcript, and the resource moves.
+      if (turns.get(i) !== turn) {
+        if (turns.has(i)) {
+          const prev = current[i]!;
+          const next = `${prev.split('~')[0]}~${turn}`;
+          const cmd = `send-${i}-${turn}`;
+          r.ledger.pending({ commandId: cmd, run: RUN, keepOpen: true });
+          r.ledger.started(cmd, next, prev);
+          for (const row of r.world.workers)
+            if (row.dispatchId.split('~')[0] === next.split('~')[0])
+              row.owner = next;
+          r.world.workers.push({ dispatchId: next, taskId: tasks[i]! });
+          r.world.transcripts.set(next, [
+            ...(r.world.transcripts.get(prev) ?? []),
+          ]);
+          current[i] = next;
+          // runtime.send on a kept-open worker: the send itself.
+          byCommand.set('send', (byCommand.get('send') ?? 0) + sendCalls);
+          sends += sendCalls;
+        }
+        turns.set(i, turn);
+        expect$();
+      }
+      const w = r.world.workers.find((x) => x.dispatchId === current[i])!;
+      const working = phase < workMs;
+      w.activity = working ? 'working' : 'idle';
+      w.observedAt = observedAt && working ? r.clock.now : null;
+      if (working) {
+        const tx = r.world.transcripts.get(w.dispatchId) ?? [];
+        tx.push({ id: `m${++msg}`, role: 'assistant', text: 'ok' });
+        r.world.transcripts.set(w.dispatchId, tx);
+      }
+      const doneId = `done_${i}_${turn}`;
+      if (!working && !r.world.mail.some((m) => m.id === doneId))
+        r.world.post({
+          id: doneId,
+          type: 'worker_done',
+          dispatch: w.dispatchId,
+          task: tasks[i]!,
+          outcome: 'succeeded',
+        });
+    }
+    if (r.clock.now - lastTimeout >= 30_000) {
+      r.world.timeout();
+      lastTimeout = r.clock.now;
+    }
+    const kind = woken ? 'wake' : 'tick';
+    woke.length = 0;
+    const before = r.world.calls.length;
+    const startedAt = r.clock.now;
+    const result = await r.observer.observe(session, cursor);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    cursor = result.cursor;
+    const made = r.world.calls.slice(before);
+    if (made.some((c) => c[1] === 'worker-read' || c[1] === 'worker-show'))
+      r.clock.now += 900;
+    byPass[kind] += made.length;
+    for (const c of made) {
+      const key = c[1]!;
+      byCommand.set(key, (byCommand.get(key) ?? 0) + 1);
+    }
+    woken = woke.length > 0;
+    next =
+      r.clock.now +
+      runtimeDelayMs({
+        woken,
+        intervalMs: 2_000,
+        startedAt,
+        now: r.clock.now,
+      });
+  }
+  r.observer.close();
+  const total = [...byCommand.values()].reduce((a, b) => a + b, 0);
+  const rate = (v: number) => Math.round((v / minutes) * 10) / 10;
+  return {
+    perMinute: rate(total),
+    byCommand: Object.fromEntries([...byCommand].map(([k, v]) => [k, rate(v)])),
+    byPass: {
+      tick: rate(byPass.tick),
+      wake: rate(byPass.wake),
+      send: rate(sends),
+    },
+  };
+}
+
+describe('OrcaObserver: CLI budget on the production cadence (FX-STATUS-CADENCE)', () => {
+  // Calls per minute over a simulated 10 minutes. Before FX-STATUS-CADENCE
+  // the same loads measured 46.6 / 71.7 (60 s turns) and 86.5 / 193.7 (15 s
+  // turns, the live probe's pace) for 2 / 5 agents.
+  it.each([
+    { agents: 2, turnMs: 60_000, max: 50 },
+    { agents: 5, turnMs: 60_000, max: 70 },
+    { agents: 2, turnMs: 15_000, max: 62 },
+    { agents: 5, turnMs: 15_000, max: 122 },
+  ])(
+    '$agents agents taking a turn every $turnMs ms stay under $max calls/min',
+    async ({ agents, turnMs, max }) => {
+      const b = await simulateBudget(agents, { turnMs });
+      expect(b.perMinute, JSON.stringify(b)).toBeLessThanOrEqual(max);
+      // Turns, not passes, drive the rest: no inbox read per mail batch.
+      expect(b.byCommand['inbox'] ?? 0).toBeLessThanOrEqual(2.5);
+    },
+    120_000,
+  );
+
+  it('shows an agent going idle without worker_done at the next 2 s list (SPEC §24)', async () => {
+    const r = await rig();
+    spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    expect(ofType(first.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'working' }),
+    ]);
+    // No mail: the turn just ends. A working agent keeps the 2 s list, so the
+    // very next pass (the rig steps 2.5 s) shows it.
+    r.world.workers[0]!.activity = 'idle';
+    r.world.workers[0]!.workerState = 'succeeded';
+    const lists = r.world.count('orchestration worker-list');
+    const next = await r.observe(first.cursor);
+    expect(r.world.count('orchestration worker-list')).toBe(lists + 1);
+    expect(ofType(next.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'idle' }),
+    ]);
+  });
+
+  it('lists idle agents every 10 s, and every 2 s for 10 s after the backend acts', async () => {
+    const r = await rig();
+    spawned(r, 'ctx_a');
+    r.world.workers[0]!.activity = 'idle';
+    r.world.workers[0]!.workerState = 'succeeded';
+    let { cursor } = await r.observe(null);
+    const lists = () => r.world.count('orchestration worker-list');
+    const idleStart = lists();
+    // Idle: the rig advances 2.5 s per pass, so 8 passes are 20 s.
+    for (let i = 0; i < 8; i++) ({ cursor } = await r.observe(cursor));
+    expect(lists() - idleStart).toBe(2);
+    // A send: the next passes list every time (2 s cadence) for 10 s.
+    r.observer.expectChange();
+    const expected = lists();
+    for (let i = 0; i < 4; i++) ({ cursor } = await r.observe(cursor));
+    expect(lists() - expected).toBe(4);
   });
 });

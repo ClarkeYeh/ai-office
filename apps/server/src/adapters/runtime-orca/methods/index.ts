@@ -7,8 +7,13 @@ import { Workspaces } from './workspaces.js';
 import { Agents } from './agents.js';
 export type { MethodOptions } from './context.js';
 export interface OrcaRuntimeOptions extends MethodOptions {
-  /** T6/T10 supplies observe; methods share the same ledger and identity. */
-  observer: Pick<OrcaObserver, 'observe'>;
+  /**
+   * T6/T10 supplies observe; methods share the same ledger and identity.
+   * `expectChange` (FX-STATUS-CADENCE): after each command that gives or
+   * takes an agent's work, list at the active cadence until it shows.
+   */
+  observer: Pick<OrcaObserver, 'observe'> &
+    Partial<Pick<OrcaObserver, 'expectChange'>>;
   version: {
     check(force?: boolean): Promise<{
       version: string;
@@ -22,11 +27,20 @@ export interface OrcaRuntimeOptions extends MethodOptions {
     snapshot(): {
       completedCallsPerMinute: number;
       cpuSecondsPerMinute: number;
+      commands?: Record<
+        string,
+        { calls: number; p50Ms: number; p95Ms: number }
+      >;
     };
   };
   now?: () => number;
 }
 export function createOrcaRuntime(options: OrcaRuntimeOptions): RuntimePort {
+  const expecting = async <T>(work: Promise<T>): Promise<T> => {
+    const result = await work;
+    options.observer.expectChange?.();
+    return result;
+  };
   const c = new Context(options),
     ws = new Workspaces(c),
     agents = new Agents(c, ws);
@@ -83,6 +97,14 @@ export function createOrcaRuntime(options: OrcaRuntimeOptions): RuntimePort {
                 options.metrics.snapshot().completedCallsPerMinute,
               cpuSecondsPerMinute:
                 options.metrics.snapshot().cpuSecondsPerMinute,
+              cliCommands: Object.fromEntries(
+                Object.entries(options.metrics.snapshot().commands ?? {}).map(
+                  ([command, m]) => [
+                    command,
+                    { calls: m.calls, p50Ms: m.p50Ms, p95Ms: m.p95Ms },
+                  ],
+                ),
+              ),
             }
           : {}),
       };
@@ -129,17 +151,21 @@ export function createOrcaRuntime(options: OrcaRuntimeOptions): RuntimePort {
     inspectLocalRepo: (path) => ws.inspectRepo(path),
     async spawnAgent(req) {
       c.check(req.correlation.commandId, req);
-      return serial(req.correlation.commandId, () => agents.spawn(req));
+      return expecting(
+        serial(req.correlation.commandId, () => agents.spawn(req)),
+      );
     },
     spawnedWorkspace: (commandId) => agents.spawned(commandId),
     send: async (agent, msg) => {
       c.check(msg.correlation.commandId, { agent, msg });
-      return serial(msg.correlation.commandId, () => agents.send(agent, msg));
+      return expecting(
+        serial(msg.correlation.commandId, () => agents.send(agent, msg)),
+      );
     },
     answer: (question, body, correlation) =>
-      agents.answer(question, body, correlation),
-    stop: (agent) => agents.stop(agent),
-    release: (agent, opts) => agents.release(agent, opts),
+      expecting(agents.answer(question, body, correlation)),
+    stop: (agent) => expecting(agents.stop(agent)),
+    release: (agent, opts) => expecting(agents.release(agent, opts)),
     inspectRequest: (request, id) => agents.inspect(request, id),
     findCommandByMarker: (id) => agents.find(id),
     async findByCorrelation(_session, id) {
