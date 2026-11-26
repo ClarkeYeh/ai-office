@@ -1,6 +1,7 @@
 import { open, type OpenOptions } from './open/index.js';
 import { start, type StartOptions } from './start/index.js';
 import { submit, type CliResult, type SubmitOptions } from './submit.js';
+import { version } from './version.js';
 
 export async function runCli(
   args: readonly string[],
@@ -10,10 +11,11 @@ export async function runCli(
   if (command === 'submit') return submit(args.slice(1), options);
   if (command === 'open') return open(args.slice(1), options);
   if (command === 'start') return start(args.slice(1), options);
+  if (command === '--version' || command === '-v') return version();
   const help =
     command === undefined || command === '--help' || command === '-h';
   return {
     exitCode: help ? 0 : 1,
-    message: 'Usage: ai-office <submit|start|open>',
+    message: 'Usage: ai-office <submit|start|open> | --version',
   };
 }

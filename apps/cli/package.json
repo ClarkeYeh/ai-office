@@ -1,6 +1,6 @@
 {
   "name": "@ai-office/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && node ../../scripts/cli-build-info/index.mjs dist",
     "test": "pnpm --workspace-root exec vitest run --config vitest.config.ts --project @ai-office/cli"
   },
   "dependencies": {

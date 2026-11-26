@@ -23,6 +23,7 @@ For production mode you also need Orca, the agent CLIs and `gh`; see
 ```sh
 git clone https://github.com/ClarkeYeh/ai-office
 cd ai-office
+git checkout v0.1.0   # optional: the released version instead of main
 pnpm install --frozen-lockfile
 pnpm build
 ```
@@ -53,13 +54,17 @@ Do not copy `main.js` elsewhere.
 
 Commands:
 
-| Command            | Who uses it | Purpose                                                                     |
-| ------------------ | ----------- | --------------------------------------------------------------------------- |
-| `ai-office start`  | you         | Start the backend and open the UI ([Usage](usage.md#start-and-stop))        |
-| `ai-office open`   | you         | Get a new login link for a running backend ([Usage](usage.md#log-in-again)) |
-| `ai-office submit` | agents      | Structured submissions from agents to the backend; not for humans           |
+| Command               | Who uses it | Purpose                                                                     |
+| --------------------- | ----------- | --------------------------------------------------------------------------- |
+| `ai-office start`     | you         | Start the backend and open the UI ([Usage](usage.md#start-and-stop))        |
+| `ai-office open`      | you         | Get a new login link for a running backend ([Usage](usage.md#log-in-again)) |
+| `ai-office submit`    | agents      | Structured submissions from agents to the backend; not for humans           |
+| `ai-office --version` | you         | Print the version and the commit the build was made from (also `-v`)        |
 
-To see which version you run, use `git log -1 --oneline` in the checkout.
+To see which version you run, use `ai-office --version`. It prints the version
+and the short commit embedded by `pnpm build`, for example
+`ai-office 0.1.0 (commit 1a2b3c4)`. A build made without git prints
+`commit unknown`.
 
 ## Update
 

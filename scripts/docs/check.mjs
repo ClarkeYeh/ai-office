@@ -9,6 +9,9 @@ import { createRedactor } from '@ai-office/redaction';
 const LOOPBACK =
   /(?<![\w.@-])(?:https?:\/\/)?(?:127\.0\.0\.1|localhost)(?::\d{1,5})?(?![\w-]|\.[\w-])/g;
 const APP_NAMES = /(?<![\w.@-])Orca\.app(?![\w-]|\.[\w-])/g;
+// Heading anchors such as `#4-start-the-backend` trip the long-string entropy rule.
+// Only multi-word slugs with short words are exempted; a long single run is still scanned.
+const HEADING_ANCHOR = /#[a-z0-9]{1,19}(?:-[a-z0-9]{1,19})+$/;
 /** @param {string} root */
 export function checkDocs(root = process.cwd()) {
   if (
@@ -49,6 +52,11 @@ export function checkDocs(root = process.cwd()) {
       const url = (match[1] ?? '').replace(/^<|>$/g, '');
       if (/^https:\/\//i.test(url) && redactor.maskText(url) === url)
         scanText = scanText.replace(match[1] ?? '', '<public-link>');
+      else if (HEADING_ANCHOR.test(url))
+        scanText = scanText.replace(
+          match[1] ?? '',
+          url.replace(HEADING_ANCHOR, '#<anchor>'),
+        );
     }
     if (
       redactor.maskText(scanText) !== scanText ||

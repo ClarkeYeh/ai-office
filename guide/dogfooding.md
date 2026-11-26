@@ -235,11 +235,11 @@ installation instead:
    ai-office start
    ```
 
-   Check that it is the fixed build with `git -C ~/ai-office-v0.1.0 describe
---tags` (`v0.1.0`). To restart, stop it with Ctrl-C and run
-   `ai-office start` again. Agents keep running meanwhile, and the backend
-   reconciles with them on start. Use `ai-office open` for a new login link
-   without restarting.
+   Check that it is the fixed build with `ai-office --version`, which prints
+   `ai-office 0.1.0 (commit <sha>)` with the commit of the `v0.1.0` tag. To
+   restart, stop it with Ctrl-C and run `ai-office start` again. Agents keep
+   running meanwhile, and the backend reconciles with them on start. Use
+   `ai-office open` for a new login link without restarting.
 
 3. Register the working clone of `ClarkeYeh/ai-office` (not the v0.1.0 checkout)
    as the repository AI Office develops.
