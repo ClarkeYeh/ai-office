@@ -8,10 +8,15 @@ const order: CliPriority[] = [
   'worker-read',
   'bulk',
 ];
+// FX-TAIL: `identity` (shim ensure, the 30 s ownership `run-show`) is
+// critical too. Every observe pass awaits it before mail, and in the capped
+// bulk lane it could wait out a saturated minute, delaying both mail and the
+// hijack detection (§6.2: worst case 30 s plus one poll).
 const CRITICAL: ReadonlySet<CliPriority> = new Set([
   'mutate',
   'consume',
   'worker-list',
+  'identity',
 ]);
 /** Calls per minute only the critical lane may use (FX-CLI-BUDGET). */
 export const CRITICAL_RESERVE_PER_MINUTE = 40;

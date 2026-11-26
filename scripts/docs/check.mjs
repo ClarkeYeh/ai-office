@@ -12,6 +12,22 @@ const APP_NAMES = /(?<![\w.@-])Orca\.app(?![\w-]|\.[\w-])/g;
 // Heading anchors such as `#4-start-the-backend` trip the long-string entropy rule.
 // Only multi-word slugs with short words are exempted; a long single run is still scanned.
 const HEADING_ANCHOR = /#[a-z0-9]{1,19}(?:-[a-z0-9]{1,19})+$/;
+/**
+ * FX-TAIL: a heading slug is made of words: every run is letters only or a
+ * short number (`4`, `2026`), and at least one run has a letter outside hex
+ * (`start`). UUID-like anchors (`#550e8400-e29b-…`) and any run mixing digits
+ * and letters or a long digit run stay in the scan.
+ * @param {string} url
+ */
+export function headingAnchor(url) {
+  const slug = HEADING_ANCHOR.exec(url)?.[0];
+  if (!slug) return false;
+  const runs = slug.slice(1).split('-');
+  return (
+    runs.some((run) => /[g-z]/.test(run)) &&
+    runs.every((run) => /^[a-z]+$/.test(run) || /^\d{1,4}$/.test(run))
+  );
+}
 /** @param {string} root */
 export function checkDocs(root = process.cwd()) {
   if (
@@ -52,7 +68,7 @@ export function checkDocs(root = process.cwd()) {
       const url = (match[1] ?? '').replace(/^<|>$/g, '');
       if (/^https:\/\//i.test(url) && redactor.maskText(url) === url)
         scanText = scanText.replace(match[1] ?? '', '<public-link>');
-      else if (HEADING_ANCHOR.test(url))
+      else if (headingAnchor(url))
         scanText = scanText.replace(
           match[1] ?? '',
           url.replace(HEADING_ANCHOR, '#<anchor>'),

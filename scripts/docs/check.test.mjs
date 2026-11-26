@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { checkDocs } from './check.mjs';
+import { checkDocs, headingAnchor } from './check.mjs';
 for (const scenario of [
   'good',
   'broken',
@@ -82,11 +82,17 @@ const anchorDocs = [
   '[Run](usage.md#4-start-the-backend-and-open-the-office)',
   '[Step](#step-2-check-the-installed-version-and-commit)',
   '[Ref][r]\n\n[r]: usage.md#12-run-the-first-workflow-on-the-spike-repo',
+  // FX-TAIL: plain a–f words and short numbers are still slug words.
+  '[Add](#add-a-face-to-the-office-in-2026)',
 ];
 const anchorSecrets = [
   '[Run](usage.md#a1b2c3d4e5f6a7b8c9d0e1f2-start)',
   '[Run](usage.md#start-ghp_synthetic1234567890abcd)',
   'Text #4-start-the-backend aio_ctl_synthetic_secret',
+  // FX-TAIL: exempted by #214's shape alone; scanned (and flagged) now.
+  '[Run](usage.md#550e8400-e29b-41d4-a716-446655440000-start)',
+  '[Run](#k9f2q-8w4x7-r1m3p-6z5t8-h2n7q)',
+  '[Run](#ghp1234abcd-wxyz5678-qrst9012-mnop)',
 ];
 for (const { name, sources, safe } of [
   { name: 'long heading anchors with digits pass', sources: anchorDocs, safe: true },
@@ -109,3 +115,22 @@ for (const { name, sources, safe } of [
     }
   });
 }
+
+test('public docs: only word slugs skip the scan; UUID-like anchors do not (FX-TAIL)', () => {
+  for (const url of [
+    'usage.md#4-start-the-backend-and-open-the-office',
+    '#step-2-check-the-installed-version-and-commit',
+    '#add-a-face-to-the-office-in-2026',
+  ])
+    assert.equal(headingAnchor(url), true, url);
+  // A bare UUID is not a secret to the redactor, but it is never exempted.
+  for (const url of [
+    'usage.md#550e8400-e29b-41d4-a716-446655440000',
+    '#4f9a2c71-8e03-4b6d-9a15-c2e7f08b3d46',
+    '#550e8400-e29b-41d4-a716-446655440000-start',
+    '#add-face-bead',
+    '#12345-start',
+    '#v0-start',
+  ])
+    assert.equal(headingAnchor(url), false, url);
+});

@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { commandId } from './context.js';
 import { runMeeting, type Scenario } from './test-support/meeting.js';
@@ -12,6 +13,63 @@ describe('commandId', () => {
     );
     expect(commandId({ workflowId: 'wf' }, 'stage', 2, 'x:y-z')).toBe(
       'wf/stage/2/x:y-z',
+    );
+  });
+  it('pins existing ids without % (stable across the FX-TAIL change)', () => {
+    const wf = { workflowId: 'wf' };
+    expect(commandId(wf, 'nudge', 'round 1', 'a<b>')).toBe(
+      'wf/nudge/round%201/a%3Cb%3E',
+    );
+    expect(commandId(wf, 'stage', 2, 'x:y-z')).toBe('wf/stage/2/x:y-z');
+    expect(commandId(wf, 'nudge', 'round-1', 'pm')).toBe('wf/nudge/round-1/pm');
+    expect(commandId(wf, 'cleanup', 'a\tb\nc')).toBe('wf/cleanup/a%09b%0Ac');
+    expect(commandId(wf, 'a\u00a0b')).toBe('wf/a%A0b');
+  });
+  it('is injective: % is escaped first, wide whitespace as UTF-8 (FX-TAIL)', () => {
+    const wf = { workflowId: 'wf' };
+    // Before: the literal 'a%20b' and 'a b' were both 'a%20b'; U+2028 and
+    // ' 28' were both '%2028'.
+    expect(commandId(wf, 'a%20b')).toBe('wf/a%2520b');
+    expect(commandId(wf, 'a b')).toBe('wf/a%20b');
+    expect(commandId(wf, '\u2028')).toBe('wf/%E2%80%A8');
+    expect(commandId(wf, ' 28')).toBe('wf/%2028');
+    const part = fc.string({
+      unit: fc.constantFrom(
+        ...['a', 'A', '0', '2', '8', 'E', '-', ':', '%', ' ', '\t', '<', '>'],
+        ...['\u00a0', '\u0085', '\u2028', '\u3000'],
+      ),
+    });
+    fc.assert(
+      fc.property(part, part, (a, b) => {
+        const [x, y] = [a, b].map((p) => commandId(wf, p));
+        expect(x === y).toBe(a === b);
+        expect(x).toMatch(markerSafe);
+      }),
+    );
+  });
+  it('keeps ids without % or wide whitespace byte-identical to before', () => {
+    const previous = (p: string) =>
+      p.replace(
+        /[\s<>]/g,
+        (c) =>
+          `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
+      );
+    const unit = fc.oneof(
+      fc.constantFrom(' ', '\t', '\n', '<', '>', '\u00a0', '\u0085'),
+      fc.string({ minLength: 1, maxLength: 1 }),
+    );
+    fc.assert(
+      fc.property(
+        fc
+          .string({ unit })
+          .filter(
+            (p) =>
+              !/[%/]/.test(p) && [...p].every((c) => c.charCodeAt(0) <= 0xff),
+          ),
+        (p) => {
+          expect(commandId({ workflowId: 'wf' }, p)).toBe(`wf/${previous(p)}`);
+        },
+      ),
     );
   });
 });

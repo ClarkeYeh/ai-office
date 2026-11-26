@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import type { GateView } from '@ai-office/contracts/api';
@@ -65,6 +66,21 @@ const gateDetail = async (gateId: string) =>
       `/api/v1/gates/${encodeURIComponent(gateId)}`,
     )
   ).body;
+
+/** The domain's `bodyHash` (DP1): SHA-256 hex of the UTF-8 body, CRLF → LF. */
+const bodyHash = (body: string) =>
+  createHash('sha256').update(body.replace(/\r\n/g, '\n')).digest('hex');
+
+/**
+ * A GitHub edit reaches the gate only through the next SCM poll
+ * (`gate.content_updated`, version + 1). Wait for that state, never for time.
+ */
+const observedEdit = (gateId: string, body: string) =>
+  until(
+    () => gateDetail(gateId),
+    (detail) => detail.conclusion?.githubBodyHash === bodyHash(body),
+    'the GitHub edit to reach the gate',
+  );
 
 /** A gate open means the office is quiet: remember its seq for the replay check. */
 async function markGateSeq(): Promise<void> {
@@ -151,10 +167,12 @@ test('conclusion gate: GitHub edit shows in the diff, 409 refetches, approve sen
   )!;
   expect(issue?.number).toBeDefined();
   const body = (await gateDetail(gate.gateId)).conclusion!.githubBody!;
-  await office().fake.editIssueBody(
-    issue.number!,
-    `${body}\n\nOwner note: added on GitHub\n`,
-  );
+  const edited = `${body}\n\nOwner note: added on GitHub\n`;
+  await office().fake.editIssueBody(issue.number!, edited);
+  // I-12 flake (M5-FX-TAIL): the version read below and the page's version
+  // raced the poll that observes this edit; a late bump made the final approve
+  // a 409. Each edit is now observed before anything depends on the version.
+  const seen = await observedEdit(gate.gateId, edited);
 
   await office().login(page, `/workflows/${encodeURIComponent(workflowId)}`);
   // Needs (I-02): the open gate is listed and the stage strip links to it (I-03).
@@ -188,20 +206,18 @@ test('conclusion gate: GitHub edit shows in the diff, 409 refetches, approve sen
 
   // GitHub moves again after the page loaded: approving the version on screen
   // gets 409 gate_content_changed; the page says so and refetches.
-  const before = (await gateDetail(gate.gateId)).version;
-  await office().fake.editIssueBody(
-    issue.number!,
-    `${body}\n\nOwner note: added on GitHub\n\nSecond edit\n`,
-  );
+  const before = seen.version;
+  const second = `${edited}\nSecond edit\n`;
+  await office().fake.editIssueBody(issue.number!, second);
+  // The screen's body is the first edit: refused whether or not the poll has
+  // seen the second one yet (content changed, or version conflict).
   await page.getByTestId('gate-approve').click();
   await expect(page.getByTestId('gate-notice')).toBeVisible();
   expect((await gateDetail(gate.gateId)).status).toBe('open');
-  // The observed edit bumps the gate version; the page follows it.
-  const after = await until(
-    () => gateDetail(gate.gateId),
-    (detail) => detail.version > before,
-    'gate version after the GitHub edit',
-  );
+  // The observed edit bumps the gate version; the page follows it. After
+  // this nothing moves the gate, so the approve below sees a stable version.
+  const after = await observedEdit(gate.gateId, second);
+  expect(after.version).toBeGreaterThan(before);
   await expect(page.getByTestId('gate-fact-version')).toContainText(
     `v${after.version}`,
   );
