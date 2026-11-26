@@ -243,6 +243,14 @@ class World {
           })),
         });
       }
+      case 'orchestration run-show':
+        return ok({
+          run: {
+            id: flag(args, '--id'),
+            coordinator_handle: SHIM,
+            consumer_generation: 1,
+          },
+        });
       case 'orchestration worker-show':
         return ok({
           observation: {
@@ -317,6 +325,10 @@ async function rig(
     onWake?: (session: string) => void;
     /** Simulated CLI time per `orchestration <command>`. */
     latencyMs?: Record<string, number>;
+    /** Shared CLI limiter; default: a roomy one. */
+    scheduler?: CliScheduler;
+    /** checkOwnership reads `run-show` through the CLI, as the shim does. */
+    showOwnership?: boolean;
   } = {},
   world = new World(),
   state = memory(),
@@ -332,7 +344,7 @@ async function rig(
     bin: '/bin/orca',
     env: { PATH: '/bin', HOME: '/tmp/home' },
     cwdGuard: new CwdGuard(cliCwd, async () => []),
-    scheduler: new CliScheduler(1000, 8),
+    scheduler: extra.scheduler ?? new CliScheduler(1000, 8),
     identity: {
       argsFor: async (kind, run, context) => {
         if (kind === 'mutate') return ['--from', SHIM];
@@ -358,7 +370,17 @@ async function rig(
       ledger,
       identity: {
         ensure: async () => ({ handle: SHIM, restored: false }),
-        checkOwnership: async () => ownership.value,
+        checkOwnership: async (run) => {
+          if (extra.showOwnership)
+            await cli.run(
+              ['orchestration', 'run-show', '--id', run, '--full'],
+              {
+                kind: 'read',
+                priority: 'identity',
+              },
+            );
+          return ownership.value;
+        },
         drainEvents: () => identityEvents.splice(0),
       },
       logger: {
@@ -1478,6 +1500,47 @@ describe('OrcaObserver: CLI budget (SPEC §6.4)', () => {
       for (let k = 1; k < times.length; k++)
         expect(times[k]! - times[k - 1]!).toBeLessThanOrEqual(16_000);
     }
+  });
+});
+
+describe('OrcaObserver: identity check under a saturated bulk lane (FX-TAIL)', () => {
+  it('a pass consumes mail at once while bulk reads have used up their minute', async () => {
+    // The limiter's own clock stands still: bulk starts never age out.
+    const scheduler = new CliScheduler(120, 4, () => 0);
+    const r = await rig({ scheduler, showOwnership: true });
+    const task = spawned(r, 'ctx_a');
+    // An idle worker: no list (and so no bulk probe or read) is due next pass.
+    r.world.workers[0]!.activity = 'idle';
+    const first = await r.observe(null);
+    // Bulk uses its whole share (120 − 40 reserved) of the minute; the
+    // rest of these reads queue behind it…
+    let bulkRan = 0;
+    const bulk = Array.from({ length: 90 }, () =>
+      scheduler.schedule('bulk', async () => void bulkRan++).catch(() => {}),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const queued = 90 - bulkRan;
+    expect(queued).toBeGreaterThan(0);
+    // …then a question arrives: the pass's run-show must not wait for bulk.
+    const shows = r.world.count('orchestration run-show');
+    r.world.post({ id: 'msg_q1', type: 'question', dispatch: 'ctx_a', task });
+    const stalled = Symbol('stalled');
+    const result = await Promise.race([
+      r.observe(first.cursor),
+      new Promise<typeof stalled>((resolve) =>
+        setTimeout(() => resolve(stalled), 2_000),
+      ),
+    ]);
+    expect(result).not.toBe(stalled);
+    if (result === stalled) return;
+    expect(r.world.count('orchestration run-show')).toBe(shows + 1);
+    expect(ofType(result.events, 'agent.question')).toEqual([
+      expect.objectContaining({ agent: 'ctx_a', question: 'msg_q1' }),
+    ]);
+    expect(90 - bulkRan).toBe(queued);
+    r.observer.close();
+    scheduler.close();
+    await Promise.all(bulk);
   });
 });
 

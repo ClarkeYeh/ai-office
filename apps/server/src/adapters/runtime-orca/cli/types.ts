@@ -1,10 +1,11 @@
 import type { z } from 'zod';
 import type { CommandKind } from '../coordinator-identity/index.js';
 /**
- * `mutate`, `consume` and `worker-list` are the latency-critical lane (send
- * and answer, long poll and mail, the one status list); `identity`,
- * `worker-read` and `bulk` (probes, task-list, worktree show, other reads)
- * are the bulk lane, which yields when the budget is tight (FX-CLI-BUDGET).
+ * `mutate`, `consume`, `worker-list` and `identity` are the latency-critical
+ * lane (send and answer, long poll and mail, the one status list, the shim
+ * and ownership checks every pass awaits); `worker-read` and `bulk` (probes,
+ * task-list, worktree show, other reads) are the bulk lane, which yields when
+ * the budget is tight (FX-CLI-BUDGET, FX-TAIL).
  */
 export type CliPriority =
   'mutate' | 'consume' | 'worker-list' | 'identity' | 'worker-read' | 'bulk';

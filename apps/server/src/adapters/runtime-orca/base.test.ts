@@ -590,6 +590,24 @@ describe('priority lane (FX-CLI-BUDGET)', () => {
     expect(Math.max(...delays)).toBeLessThanOrEqual(1_000);
     scheduler.close();
   });
+  it('runs identity checks (shim ensure, ownership run-show) in the critical lane (FX-TAIL)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const scheduler = new CliScheduler(120, 4);
+    const work = vi.fn(async () => {});
+    const bulk = Array.from({ length: 100 }, () =>
+      scheduler.schedule('bulk', work),
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(work).toHaveBeenCalledTimes(80);
+    // The bulk minute is used up; the ownership check still starts at once.
+    const show = vi.fn(async () => {});
+    await scheduler.schedule('identity', show);
+    expect(show).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await Promise.all(bulk);
+    scheduler.close();
+  });
   it('never lets bulk calls occupy the last slot', async () => {
     const scheduler = new CliScheduler(120, 3);
     const releases: (() => void)[] = [];
