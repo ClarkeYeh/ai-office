@@ -300,7 +300,7 @@ it('records branches.get on a main whose commit carries a private email, then st
   replay.assertConsumed();
 });
 
-it('raises a leak the adapter maps to github_unavailable as a harness TapeLeakError and saves nothing', async () => {
+it('withholds a leak without turning it into a product error and refuses an incomplete tape', async () => {
   const { TapeLeakError } =
     await import('../../test-support/github/tape-normalization.js');
   const recorder = new RecordingFetch(spikeMain({ email: privateEmail }));
@@ -308,7 +308,9 @@ it('raises a leak the adapter maps to github_unavailable as a harness TapeLeakEr
     assembleContractScm({ ...offline, fetch: recorder.fetch }).inspectRepo(
       contractRepo,
     ),
-  ).rejects.toMatchObject({ code: 'github_unavailable' });
+  ).resolves.toMatchObject({ defaultBranchProtected: true });
+  expect(recorder.withheldResponses).toBe(1);
+  expect(JSON.stringify(recorder.recordings)).not.toContain(privateEmail);
   expect(() => recorder.assertNoLeak()).toThrow(TapeLeakError);
   const { mkdtemp, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');

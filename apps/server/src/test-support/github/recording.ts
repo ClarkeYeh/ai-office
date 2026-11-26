@@ -34,7 +34,16 @@ export interface Recording {
 export class GithubNormalizer {
   private readonly normalizer = new FixtureNormalizer(redactor);
   private readonly tape = new TapeNormalizer();
-  constructor(private readonly runId?: string) {}
+  constructor(
+    private readonly runId?: string,
+    private readonly replay = false,
+  ) {}
+  query(key: string, value: string): string {
+    // Replayed links carry fixture-safe cursors accepted by the adapter guard.
+    // Never assign identities to unexpected replay input: strict matching must
+    // reject an arbitrary cursor even when it is the first one encountered.
+    return this.tape.query(key, this.normalize(value), this.replay);
+  }
   normalize(text: string): string {
     return this.runId ? text.replaceAll(this.runId, '000000000001') : text;
   }
@@ -60,7 +69,13 @@ export class GithubNormalizer {
         )
         .map(([k, v]) => [
           k,
-          String(this.value(k === 'link' ? v.replaceAll(API, '') : v)),
+          String(
+            this.value(
+              k === 'link'
+                ? this.tape.value({ link: v.replaceAll(API, '') }).link
+                : v,
+            ),
+          ),
         ]),
     );
   }
@@ -83,17 +98,29 @@ async function signature(request: Request, normalizer: GithubNormalizer) {
     pathTemplate: pathTemplate(path),
     path,
     query: [...url.searchParams]
-      .map(([k, v]): [string, string] => [k, normalizer.normalize(v)])
+      .map(([k, v]): [string, string] => [k, normalizer.query(k, v)])
       .sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv)),
     requestBodySha256: hash(text),
   };
 }
+// Keep the raw response off enumerable Error fields and out of error reporters.
+const leakedResponses = new WeakMap<TapeLeakError, Response>();
+class RecordingLeak extends TapeLeakError {
+  constructor(
+    response: Response,
+    readonly leak: TapeLeakError,
+  ) {
+    super();
+    leakedResponses.set(this, response);
+  }
+}
 export class RecordingFetch {
   readonly recordings: Recording[] = [];
   private readonly normalizer: GithubNormalizer;
-  // The adapter maps any transport throw to github_unavailable, so the first
-  // leak is kept and raised again by save()/assertNoLeak() as a harness error.
+  // Never let recording policy become a product transport error.
+  // Incomplete tapes are refused at persistence after cleanup.
   private leak: TapeLeakError | undefined;
+  withheldResponses = 0;
   constructor(
     private readonly transport: typeof fetch,
     runId?: string,
@@ -101,6 +128,15 @@ export class RecordingFetch {
     this.normalizer = new GithubNormalizer(runId);
   }
   fetch: typeof fetch = async (input, init) => {
+    try {
+      return await this.capture(input, init);
+    } catch (error) {
+      if (!(error instanceof RecordingLeak)) throw error;
+      return leakedResponses.get(error)!;
+    }
+  };
+  /** Harness-only boundary for wrappers that replace withheld rows themselves. */
+  capture: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
     const sig = await signature(request, this.normalizer);
     const response = await this.transport(request);
@@ -118,9 +154,25 @@ export class RecordingFetch {
       headers = this.normalizer.headers(response.headers);
       normalized = this.normalizer.value(data);
     } catch (error) {
-      const leak = error instanceof TapeLeakError ? error : new TapeLeakError();
+      // FX-TAPEDIAG: the response itself was withheld; label only where.
+      const leak =
+        error instanceof TapeLeakError && error.label
+          ? error
+          : new TapeLeakError(
+              undefined,
+              'recordings/response body or header/capture scan',
+            );
       this.leak ??= leak;
-      throw leak;
+      this.withheldResponses++;
+      // Only a fixed placeholder enters memory destined for persistence.
+      this.recordings.push({
+        apiVersion: '2022-11-28',
+        ...sig,
+        status: response.status,
+        headers: {},
+        response: { withheld: 'tape leak scan' },
+      });
+      throw new RecordingLeak(response, leak);
     }
     this.recordings.push({
       apiVersion: '2022-11-28',
@@ -133,7 +185,10 @@ export class RecordingFetch {
   };
   /** For recorders that deliberately withhold a response after a leak. */
   acknowledge(error: unknown): void {
-    if (error === this.leak) this.leak = undefined;
+    if (error instanceof RecordingLeak && error.leak === this.leak) {
+      this.leak = undefined;
+      this.recordings.pop();
+    }
   }
   assertNoLeak(): void {
     if (this.leak) throw this.leak;
@@ -158,7 +213,7 @@ export class ReplayFetch {
     private readonly recordings: readonly Recording[],
     options: { runId?: string; bodies?: readonly string[] } = {},
   ) {
-    this.normalizer = new GithubNormalizer(options.runId);
+    this.normalizer = new GithubNormalizer(options.runId, true);
     this.runId = options.runId;
     for (const body of options.bodies ?? [])
       this.known.set(hash(this.normalizer.normalize(body)), body);

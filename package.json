@@ -1,5 +1,6 @@
 {
   "name": "ai-office",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.9",
@@ -39,7 +40,11 @@
     "test:github:e2e": "node scripts/github/run.mjs e2e",
     "github:record": "node scripts/github/run.mjs record",
     "github:janitor": "node scripts/github/run.mjs janitor",
-    "test:github:record": "node scripts/github/run.mjs record-contract"
+    "test:github:record": "node scripts/github/run.mjs record-contract",
+    "test:joint": "node -e \"if(process.env.CI!==undefined||['AIO_REAL_GITHUB','AIO_REAL_ORCA','AIO_REAL_AGENTS'].some(k=>process.env[k]!=='1')){console.error('Joint run requires all three live flags and CI unset');process.exit(1)}\" && vitest run --project @ai-office/server-github .joint.test.ts --maxWorkers=2",
+    "budget:calibrate": "node scripts/budget/calibrate.mjs",
+    "docs:check": "pnpm --filter @ai-office/redaction build && node scripts/docs/check.mjs",
+    "acceptance:check": "node scripts/acceptance/check.mjs"
   },
   "devDependencies": {
     "@ai-office/redaction": "workspace:*",

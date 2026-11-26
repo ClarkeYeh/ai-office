@@ -17,6 +17,7 @@ import {
   QuestionRefSchema,
   RuntimeCursorSchema,
   SessionRefSchema,
+  type SessionRef,
 } from '../../ports/refs.js';
 import type { RuntimePort } from '../../ports/runtime.js';
 import { PortError } from '../../ports/errors.js';
@@ -35,6 +36,7 @@ import type { RunnerReact } from '../runner/workflow-runner.js';
 import {
   ObservationLoop,
   OBSERVATION_TIMER_PREFIX,
+  RUNTIME_MIN_GAP_MS,
   SCM_SLOW_INTERVAL_MS,
 } from './index.js';
 import { budgetFormula } from './usage.js';
@@ -290,6 +292,126 @@ describe('runtime ingestion', () => {
       state: 'done',
       degraded: true,
     });
+  });
+  it('records a transcript message once though a new dispatch re-reads it under a new key (FX-ACTIVITY-DUP)', async () => {
+    const h = await setup();
+    const output = (externalKey: string) => ({
+      type: 'agent.output' as const,
+      agent,
+      externalKey,
+      occurredAt: START,
+      messageId: 'm-1',
+      role: 'assistant' as const,
+      blocks: [{ type: 'text' as const, text: 'Reviewing' }],
+    });
+    h.setEvents([output('orca:tx:ctx_a:m-1')]);
+    await h.loop.pollRuntime(h.runner, session);
+    // The next dispatch on the same transcript (and a later poll, as after a
+    // restart, which reloads keys from the store) reports m-1 again.
+    h.setEvents([output('orca:tx:ctx_b:m-1'), output('orca:tx:ctx_c:m-1')]);
+    await h.loop.pollRuntime(h.runner, session);
+    const events = h.store.read({ workflowId: WORKFLOW_ID });
+    expect(events.filter((e) => e.type === 'seat.activity')).toHaveLength(1);
+    expect(events.filter((e) => e.type === 'usage.turns')).toHaveLength(1);
+  });
+  it("drops the finished turn's idle that lands after the next send, until the runtime shows that turn (idle-after-done flake)", async () => {
+    const h = await setup();
+    const status = (key: string, state: 'working' | 'idle') => ({
+      type: 'agent.status' as const,
+      agent,
+      externalKey: key,
+      occurredAt: START,
+      state,
+    });
+    h.setEvents([
+      status('working-1', 'working'),
+      {
+        type: 'agent.done',
+        agent,
+        externalKey: 'done-1',
+        occurredAt: START,
+        outcome: 'success',
+      },
+    ]);
+    await h.loop.pollRuntime(h.runner, session);
+    // The engine's next turn: the send, and its own `working`.
+    await h.runner.append([
+      draft(
+        'command.issued',
+        {
+          commandId: 'round-2-send',
+          orcaRequestId: h.ids.orcaRequestId('round-2-send'),
+          kind: 'runtime.send',
+          args: { agent, subject: 'Meeting round 2', body: 'Speak' },
+        },
+        { attemptId: 'att-1', stageId: 'meeting' },
+      ),
+      draft(
+        'seat.status',
+        { attemptId: 'att-1', state: 'working' },
+        {
+          attemptId: 'att-1',
+          stageId: 'meeting',
+          source: 'engine',
+          provenance: 'decided',
+        },
+      ),
+    ]);
+    // The previous turn's idle arrives just before the runtime's working.
+    h.setEvents([status('idle-1', 'idle'), status('working-2', 'working')]);
+    await h.loop.pollRuntime(h.runner, session);
+    const states = () =>
+      h.store
+        .read({ workflowId: WORKFLOW_ID })
+        .filter((e) => e.type === 'seat.status')
+        .map((e) => (e.payload as { state: string }).state);
+    expect(states()).not.toContain('idle');
+    expect(h.runner.state.attempts['att-1']?.state).toBe('working');
+    // Once the runtime showed the turn, an idle is real (no worker_done).
+    h.setEvents([status('idle-2', 'idle')]);
+    await h.loop.pollRuntime(h.runner, session);
+    expect(states().at(-1)).toBe('idle');
+  });
+  it('keeps done through stale working/idle readings until the backend gives a new turn (T12)', async () => {
+    const h = await setup();
+    const status = (key: string, state: 'working' | 'idle') => ({
+      type: 'agent.status' as const,
+      agent,
+      externalKey: key,
+      occurredAt: START,
+      state,
+    });
+    h.setEvents([
+      status('working-1', 'working'),
+      {
+        type: 'agent.done',
+        agent,
+        externalKey: 'done-1',
+        occurredAt: START,
+        outcome: 'success',
+      },
+    ]);
+    await h.loop.pollRuntime(h.runner, session);
+    // T12 rerun #2: pm done → working → idle with no new turn.
+    h.setEvents([status('stale-working', 'working'), status('idle-1', 'idle')]);
+    await h.loop.pollRuntime(h.runner, session);
+    expect(h.runner.state.attempts['att-1']?.state).toBe('done');
+    // A send is a new turn: its `working` is real.
+    await h.runner.append([
+      draft(
+        'command.issued',
+        {
+          commandId: 'round-1-send',
+          orcaRequestId: h.ids.orcaRequestId('round-1-send'),
+          kind: 'runtime.send',
+          args: { agent, subject: 'Meeting round 1', body: 'Speak' },
+        },
+        { attemptId: 'att-1', stageId: 'meeting' },
+      ),
+    ]);
+    h.setEvents([status('working-2', 'working')]);
+    await h.loop.pollRuntime(h.runner, session);
+    expect(h.runner.state.attempts['att-1']?.state).toBe('working');
   });
   it('maps provider rate-limit evidence to seat.status rateLimited, keeping the first since (S26)', async () => {
     const h = await setup();
@@ -1129,6 +1251,47 @@ describe('transactions and lifecycle', () => {
     // Transient failures belong to the breaker and leave the outcome as is.
     expect(reports).toEqual(['invalid_pagination', undefined]);
   });
+  it('runtime ingest never waits on a slow SCM poll (M5-T11 nf.latency)', async () => {
+    const h = await setup();
+    h.loop.start();
+    // A GitHub poll that takes far longer than the runtime cadence (5 s+).
+    let releaseScm!: () => void;
+    vi.spyOn(h.scm, 'poll').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseScm = () => resolve({ events: [], cursor: 'scm-1' as never });
+        }),
+    );
+    const timer = (kind: string) =>
+      [...h.timers.values()].find((t) => t.id.includes(kind))!;
+    const fire = (kind: string) => {
+      const t = timer(kind);
+      h.timers.delete(t.id);
+      return h.loop.onTimer(t);
+    };
+    const scmPoll = fire('scm'); // stays in flight
+    const statuses = () =>
+      h.store
+        .read({ workflowId: WORKFLOW_ID })
+        .filter((e) => e.type === 'seat.status').length;
+    const before = statuses();
+    for (const state of ['working', 'waiting_input', 'working'] as const) {
+      h.setEvents([
+        {
+          type: 'agent.status',
+          agent,
+          externalKey: `orca:status:${state}:${statuses()}`,
+          occurredAt: h.clock.now().toISOString(),
+          state,
+        },
+      ]);
+      await fire('runtime'); // completes while the SCM poll is still pending
+    }
+    expect(h.observe).toHaveBeenCalledTimes(3);
+    expect(statuses()).toBe(before + 3);
+    releaseScm();
+    await scmPoll;
+  });
   it('schedules one runtime loop per session, continues paused, slows final-PR polls, and stops on completion', async () => {
     const h = await setup();
     h.loop.start();
@@ -1172,6 +1335,56 @@ describe('transactions and lifecycle', () => {
     await flush();
     expect(h.timers.size).toBe(0);
     h.loop.stop();
+  });
+  it('runs runtime passes at a fixed rate, at once after a wake, and never back-to-back (FX-STATUS-LATENCY)', async () => {
+    const h = await setup();
+    let wake: ((s: SessionRef) => void) | undefined;
+    let duration = 0;
+    const observe = vi.fn(async () => {
+      h.clock.advance(duration);
+      return { events: [], cursor: RuntimeCursorSchema.parse('cursor-1') };
+    });
+    const runtime = {
+      observe,
+      onWake: (listener: (s: SessionRef) => void) => {
+        wake = listener;
+        return () => void (wake = undefined);
+      },
+    } as unknown as RuntimePort;
+    const loop = new ObservationLoop({ ...h.deps, runtime });
+    cleanups.push(() => loop.stop());
+    const runtimeTimer = () =>
+      [...h.timers.values()].find((t) => t.id.includes('"runtime"'))!;
+    const due = () =>
+      Date.parse(runtimeTimer().fireAt) - h.clock.now().getTime();
+    const run = async () => {
+      const timer = runtimeTimer();
+      h.timers.delete(timer.id);
+      await loop.onTimer(timer);
+    };
+    loop.start();
+    expect(due()).toBe(2000);
+    // A wake (mail arrived on the long poll) moves the next pass up to now.
+    wake!(session);
+    expect(due()).toBe(0);
+    // Fixed rate: a 600 ms pass is followed 1400 ms later, not 2000.
+    duration = 600;
+    await run();
+    expect(due()).toBe(1400);
+    // A pass longer than the interval still leaves the minimum gap.
+    duration = 2600;
+    await run();
+    expect(due()).toBe(RUNTIME_MIN_GAP_MS);
+    // A wake during a pass makes the next one start at once.
+    duration = 0;
+    observe.mockImplementationOnce(async () => {
+      wake!(session);
+      return { events: [], cursor: RuntimeCursorSchema.parse('cursor-1') };
+    });
+    await run();
+    expect(due()).toBe(0);
+    loop.stop();
+    expect(wake).toBeUndefined();
   });
   it('slows SCM polls at a low rate limit and polls only the final PR or a merge in flight when critical (§12.2)', async () => {
     const h = await setup();

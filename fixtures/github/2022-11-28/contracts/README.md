@@ -103,3 +103,36 @@ segment still passes secret detection; empty segments, traversal and home paths
 are excluded. The exception is shared in behavior by the recorder and the
 GitHub fixture scanner, with a parity regression test. Production redaction and
 other fixture trees retain their existing rules.
+
+## M5-T16 poll re-record handoff
+
+The case `polls only changes and replays an uncommitted cursor` still needs
+an integrator live recording. The offline T16 worker does not fabricate a tape.
+The format-2 binding already records actual clock reads and strictly consumes
+HTTP signatures, clock reads, and pushes; the shared case asserts that polling
+an uncommitted cursor repeats the complete batch, then committing it yields no
+changes, and a subsequent body edit yields the changed hash.
+
+The integrator must use the guarded live project, outside CI, under the GitHub
+lock, with no concurrent live suite. To record only this case after deliberately
+moving any previous tape aside (writes remain exclusive):
+
+```sh
+AIO_REAL_GITHUB=1 AIO_GITHUB_RECORD=1 pnpm exec vitest run --project @ai-office/server-github apps/server/src/adapters/scm-github/live.github.test.ts -t 'polls only changes and replays an uncommitted cursor' --maxWorkers=2
+AIO_STRICT_REPLAY=1 pnpm exec vitest run apps/server/src/adapters/scm-github/contract.test.ts -t 'polls only changes and replays an uncommitted cursor' --maxWorkers=2
+pnpm fixtures:scan
+```
+
+The strict replay flag makes a missing tape fail rather than pass as pending.
+Require one passed case with no skips, zero cleanup leftovers and scan hits,
+zero withheld responses, and manual tape inspection before committing the
+recording. Normal CI picks up the committed tape through the existing contract
+suite and checks full consumption. Missing live evidence remains pending until
+the integrator completes this step.
+
+Recording leaks now return the real response to the adapter in memory and
+withhold the unsafe response behind a fixed placeholder. An incomplete contract
+tape is refused after cleanup; the suite lists every affected case and the total
+withheld response count, alongside safe refusal categories (leak scan, cleanup
+incomplete, or filesystem error code). Raw errors and leaked values are never
+included in these diagnostics.

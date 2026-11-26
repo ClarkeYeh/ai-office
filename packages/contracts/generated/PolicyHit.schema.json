@@ -15,7 +15,8 @@
         "gh-label",
         "gh-pr-create",
         "gh-pr-edit",
-        "gh-issue-create"
+        "gh-issue-create",
+        "aio-open"
       ]
     },
     "severity": {

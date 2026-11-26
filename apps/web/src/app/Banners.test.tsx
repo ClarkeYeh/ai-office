@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, test } from 'vitest';
 import { PauseReasonSchema } from '@ai-office/contracts/events';
 import type { HealthView } from '@ai-office/contracts/api';
-import { t, hasMessage } from '../shared/lib/i18n/index.js';
+import { t, tCode, hasMessage } from '../shared/lib/i18n/index.js';
 import { Banners } from './Banners.js';
 afterEach(cleanup);
 test.each(PauseReasonSchema.options)(
@@ -103,4 +103,35 @@ test('healthy production has no banners', () => {
   };
   render(<Banners health={health} connection="live" />);
   expect(screen.getByTestId('banners').textContent).toBe('');
+});
+
+test('renders translated SCM warnings with accessible labels and safe future codes', () => {
+  const health: HealthView = {
+    status: 'healthy',
+    runtime: { status: 'healthy', mode: 'orca', verified: true },
+    scm: {
+      status: 'healthy',
+      warnings: ['rate_limit_low', 'poll_failing:auth', 'toString', '<script>'],
+    },
+    store: { status: 'healthy' },
+    usage: { status: 'healthy', sources: [] },
+    adapters: [],
+  };
+  const { container, rerender } = render(<Banners health={health} />);
+  for (const warning of health.scm.warnings ?? []) {
+    const label = t('banner.scmWarning', {
+      warning: tCode('scmWarning', warning),
+    });
+    expect(screen.getByTestId(`scm-warning-${warning}`).textContent).toBe(
+      label,
+    );
+    expect(screen.getByLabelText(label)).toBeTruthy();
+  }
+  expect(container.querySelector('script')).toBeNull();
+  rerender(
+    <Banners
+      health={{ ...health, scm: { status: 'healthy', warnings: [] } }}
+    />,
+  );
+  expect(screen.queryAllByTestId(/^scm-warning-/)).toHaveLength(0);
 });

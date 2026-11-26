@@ -113,7 +113,12 @@ export function createBranchMethods(
     async compareBranch(repo, base, head) {
       try {
         if (base === head)
-          return { ahead: 0, headSha: await readRef(repo, head, true) };
+          return {
+            ahead: 0,
+            headSha: /^[a-f0-9]{40}$/i.test(head)
+              ? head
+              : await readRef(repo, head, true),
+          };
         const { data } = await deps.http.request(
           'branches.compare',
           { ...repoParams(repo), base, head },

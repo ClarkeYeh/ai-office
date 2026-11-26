@@ -5,6 +5,8 @@
     "validation_failed",
     "unauthorized",
     "bootstrap_code_invalid",
+    "control_token_invalid",
+    "bootstrap_rate_limited",
     "forbidden_origin",
     "forbidden_host",
     "not_found",

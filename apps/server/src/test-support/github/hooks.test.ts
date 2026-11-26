@@ -103,11 +103,56 @@ afterAll(() => {
     expect(report.numPassedTests).toBe(3);
     expect(report.numPendingTests).toBe(0);
     expect(result.stdout).toContain(
-      'Tape persistence failed for 2 case(s): first, second',
+      'Tape persistence failed for 2 case(s): first [unclassified persistence refusal], second [unclassified persistence refusal]',
     );
     expect(result.stdout + result.stderr).not.toContain(
       'private error must not be logged',
     );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}, 35_000);
+
+it('strict replay fails a missing poll tape instead of silently skipping it', async () => {
+  const dir = await mkdtemp(join(import.meta.dirname, 'hook-probe-'));
+  try {
+    const path = join(dir, 'strict.test.ts');
+    await writeFile(
+      path,
+      `import { vi } from 'vitest';
+vi.mock('node:fs', () => ({ existsSync: () => false }));
+import { githubContract } from '../contract-binding.js';
+githubContract('replay', () => { throw new Error('must not call adapter'); });
+`,
+    );
+    const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+    const result = spawnSync(
+      process.execPath,
+      [
+        join(root, 'node_modules/vitest/vitest.mjs'),
+        'run',
+        path,
+        '--project',
+        '@ai-office/server',
+        '-t',
+        'polls only changes and replays an uncommitted cursor',
+        '--maxWorkers=2',
+        '--reporter=json',
+      ],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 30_000,
+        env: { ...process.env, AIO_STRICT_REPLAY: '1' },
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('Missing required live contract recording');
+    expect(result.stdout).not.toContain('must not call adapter');
+    expect(
+      (JSON.parse(result.stdout) as { numFailedTests: number }).numFailedTests,
+    ).toBe(1);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

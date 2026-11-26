@@ -1,6 +1,6 @@
 import { GateBannerActions } from '../features/gates/index.js';
 import type { HealthView } from '@ai-office/contracts/api';
-import { hasMessage, t } from '../shared/lib/i18n/index.js';
+import { hasMessage, t, tCode } from '../shared/lib/i18n/index.js';
 import { Banner } from '../shared/ui/index.js';
 export interface BannersProps {
   pausedReasons?: readonly string[];
@@ -51,6 +51,17 @@ export function Banners({
               </Banner>
             ),
         )}
+      {health?.scm.warnings?.map((warning, index) => (
+        <Banner
+          key={`${index}-${warning}`}
+          data-testid={`scm-warning-${warning}`}
+          aria-label={t('banner.scmWarning', {
+            warning: tCode('scmWarning', warning),
+          })}
+        >
+          {t('banner.scmWarning', { warning: tCode('scmWarning', warning) })}
+        </Banner>
+      ))}
       {health?.runtime.warnings?.map((warning) => {
         const key = `runtimeWarning.${warning}`;
         return (

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RuntimePort } from '../ports/runtime.js';
-import type { AgentRef, SessionRef } from '../ports/refs.js';
+import type { AgentRef, SessionRef, WorkspaceRef } from '../ports/refs.js';
 import { RuntimeEventSchema } from '../ports/runtime-events.js';
 
 /** A fake or fixture-replay adapter supplies stimuli; all assertions use only RuntimePort. */
@@ -35,6 +35,10 @@ export type RuntimeContractFixture = {
       | 'rate-limited',
   ): void | Promise<void>;
   identity(agent: AgentRef): { terminalHandle: string; paneKey?: string };
+  detachWorkspace?(
+    workspace: WorkspaceRef,
+    shape: 'integrator' | 'worker' | 'unpushed',
+  ): void | Promise<void>;
   dispose?(): void | Promise<void>;
 };
 export function runtimePortContract(
@@ -298,6 +302,37 @@ export function runtimePortContract(
       expect(fresh.baseSha).toBe(f.reworkRequest.baseBranch);
       expect(await spawn('third', fresh.workspace)).toBeTruthy();
     });
+    for (const shape of ['integrator', 'worker', 'unpushed'] as const) {
+      it(`disposes detached HEAD: ${shape}`, async () => {
+        if (!f.detachWorkspace) return;
+        const request = {
+          ...f.prepareRequest,
+          branch:
+            shape === 'integrator'
+              ? 'ai-office/00000000000000000000000000/merge-1'
+              : f.prepareRequest.branch,
+        };
+        const workspace = await f.runtime.prepareWorkspace(request);
+        await f.detachWorkspace(workspace.workspace, shape);
+        if (shape === 'unpushed') {
+          await expect(
+            f.runtime.disposeWorkspace(workspace.workspace),
+          ).rejects.toMatchObject({
+            category: 'guard',
+            code: 'workspace_unpushed',
+          });
+          expect(await f.runtime.inspectWorkspace(workspace.workspace)).toEqual(
+            { clean: true, changedFiles: [] },
+          );
+        } else {
+          await f.runtime.disposeWorkspace(workspace.workspace);
+          await f.runtime.disposeWorkspace(workspace.workspace);
+          expect(await f.runtime.inspectWorkspace(workspace.workspace)).toEqual(
+            { clean: false, changedFiles: [] },
+          );
+        }
+      });
+    }
     it('replays spawn and finds its correlation without creating another agent', async () => {
       const a = await f.runtime.spawnAgent(f.spawnRequest);
       expect(await f.runtime.spawnAgent(structuredClone(f.spawnRequest))).toBe(
@@ -316,6 +351,26 @@ export function runtimePortContract(
       await expect(
         f.runtime.spawnAgent({ ...f.spawnRequest, title: 'different' }),
       ).rejects.toMatchObject({ category: 'bug', code: 'request_mismatch' });
+    });
+    it('refuses marked commands whose ID would break the aio: marker (T12)', async () => {
+      const refused = {
+        category: 'guard',
+        code: 'invalid_command_marker',
+      };
+      await expect(
+        f.runtime.spawnAgent({
+          ...f.spawnRequest,
+          correlation: { workflowId: 'wf', commandId: 'spawn 1' },
+        }),
+      ).rejects.toMatchObject(refused);
+      const a = await f.runtime.spawnAgent(f.spawnRequest);
+      await expect(
+        f.runtime.send(a, {
+          subject: 'Required turn output',
+          body: 'Complete round 1',
+          correlation: { workflowId: 'wf', commandId: 'wf/nudge/round 1/a' },
+        }),
+      ).rejects.toMatchObject(refused);
     });
     it('stop and release are idempotent; stopping never fabricates worker_done', async () => {
       const a = await f.runtime.spawnAgent(f.spawnRequest);

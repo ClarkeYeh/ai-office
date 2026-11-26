@@ -128,3 +128,32 @@ No public contracts or §8.4 registry names are added. Coordinator-approved scop
 extensions are the additive Git helpers and read-only `orchestration run-list`
 allowlist entry. The integrator must run CLI-only real-Orca workspace tests on
 the approved test repository; this worker uses replay Exec tests only.
+
+## Orca 1.4.272 observation notes (M5-FX-ORCA-OBS)
+
+- **Question notices:** when a worker asks while the run's coordinator terminal
+  has no running agent (always true for the shim), Orca 1.4.272 posts its own
+  "decide it yourself" `status` message into the question's thread from
+  `run:<id>`, in the same second.
+  - `refreshAnswers` now counts a thread message as an answer only when it is
+    our reply (`aio:<tag>` first line from `runtime.answer`) or comes from a
+    handle other than the run. The question keeps the agent in `waiting_input`
+    until AI Office answers.
+  - Recorded shape: `fixtures/orca/1.4.272/inbox.dispatch.question-notice.ok.json`.
+- **Transcript cadence:** 1.4.272 leaves `projection.evidence.lastObservedAt`
+  empty, so a long turn never changes the worker-list signature. A live agent
+  (`starting`, `working`, `waiting_input`) is now re-read every 15 s when its
+  signature is unchanged; other agents every 30 s. Under limiter pressure these
+  stretch to 30 s and 120 s. Ten such workers stay under 120 CLI calls per
+  minute (unit-tested).
+- **Status latency (M5-FX-LATENCY):** a status event is stamped when observed,
+  but the batch is appended only after the rest of `observe()`. The
+  `worker-show` probes used to run one after another, followed by the
+  transcript reads (each an Orca process), so T11b's `seat.status` p95 was
+  3.4 s.
+  - Probes and reads now run together, bounded by the CLI scheduler's
+    concurrency. A batch costs about its slowest call instead of the sum.
+  - Event order in the batch is unchanged: statuses first, then transcript
+    output.
+  - SCM work never delays runtime observation: separate timers and queues,
+    and asynchronous I/O (tested in `application/observation`).

@@ -15,6 +15,12 @@ export const CursorPayloadSchema = z.object({
   check: z.object({ requestId: z.uuid() }),
   /** Highest ingested inbox `sequence` (check messages carry none). */
   lastSeq: z.number().int().nonnegative(),
+  /**
+   * Ids of the last mail ingested (FX-STATUS-CADENCE): a later inbox read
+   * that returns it again is a no-op, so `lastSeq` need not be learned after
+   * every check batch.
+   */
+  consumed: z.array(z.string()).default([]),
   /** dispatch → worker-read transcript cursor. */
   tx: z.record(z.string(), z.string()),
   /** dispatch or agent → last emitted state key (`unmanaged` for foreign dispatches). */
@@ -71,6 +77,7 @@ export function initialPayload(run: string): CursorPayload {
     run,
     check: { requestId: firstCheckId(run) },
     lastSeq: 0,
+    consumed: [],
     tx: {},
     seen: {},
     questions: [],

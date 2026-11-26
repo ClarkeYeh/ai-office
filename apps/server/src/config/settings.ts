@@ -78,7 +78,7 @@ export const SettingsSchema = z.strictObject({
   retention: z
     .strictObject({
       workerBranches: z
-        .literal('delete-on-complete')
+        .enum(['delete-on-complete', 'keep'])
         .default('delete-on-complete'),
     })
     .prefault({}),
@@ -101,7 +101,7 @@ export function createDataDirectories(dataDir: string): void {
     '/data/specs',
     '/logs',
     '/cli-cwd',
-    '/orca-home',
+    ...(readSettings(dataDir).orca.homeDir === '' ? ['/orca-home'] : []),
   ]) {
     mkdirSync(`${dataDir}${subdir}`, { recursive: true, mode: 0o700 });
   }

@@ -31,7 +31,7 @@ const SERVER_VALUES = new Set([
   '--dev-origin',
 ]);
 
-function defaultOpen(url: string): void {
+export function defaultOpen(url: string): void {
   const [command, args] =
     process.platform === 'darwin'
       ? ['open', [url]]

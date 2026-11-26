@@ -10,7 +10,11 @@ const redactor = githubRefRedactor(
 /** A tape leak scan failure: a harness error, never a GitHub outcome. */
 export class TapeLeakError extends Error {
   override readonly name = 'TapeLeakError';
-  constructor(message = 'Tape leak scan failed') {
+  constructor(
+    message = 'Tape leak scan failed',
+    /** Safe location and rule labels only (M5-FX-TAPEDIAG); never values. */
+    readonly label?: string,
+  ) {
     super(message);
   }
 }
@@ -39,10 +43,45 @@ const serviceNoreply = (email: string): string | undefined =>
       ? GITHUB_NOREPLY
       : undefined;
 const EMAIL = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const TOKEN =
+  /\b(?:gh[a-z]_+[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|aio_seat_[A-Za-z0-9_-]+)/;
+const HOME = /\/(?:Users|home)\/|[A-Z]:\\Users\\/;
+const ALLOWED_EMAIL =
+  /^(?:noreply@github\.com|[A-Za-z0-9+_-]+@users\.noreply\.github\.com|[^@]+@example\.invalid)$/i;
 
 /** Per-tape identities; normalization is idempotent and never changes request hashes. */
 export class TapeNormalizer {
   private readonly nodes = new Map<string, string>();
+  private readonly cursors = new Map<string, string>();
+  /** Matches scm-github/http/pagination.ts; placeholders also pass its guard. */
+  query(key: string, value: string, replay = false): string {
+    assertNoSensitiveText(value);
+    if (
+      !['after', 'before'].includes(key) ||
+      !/^[A-Za-z0-9+/=_-]{1,512}$/.test(value) ||
+      /^CURSOR_[1-9]\d*$/.test(value) ||
+      replay
+    )
+      return value;
+    let mapped = this.cursors.get(value);
+    if (!mapped) {
+      mapped = `CURSOR_${this.cursors.size + 1}`;
+      this.cursors.set(value, mapped);
+    }
+    return mapped;
+  }
+  private link(value: string): string {
+    return value.replace(
+      /([?&])(after|before)=([^&>\s]*)/g,
+      (_, prefix: string, key: string, encoded: string) =>
+        prefix +
+        key +
+        '=' +
+        encodeURIComponent(
+          this.query(key, new URLSearchParams(`${key}=${encoded}`).get(key)!),
+        ),
+    );
+  }
   value<T>(value: T): T {
     const walk = (v: unknown, key = ''): unknown => {
       if (typeof v === 'string') {
@@ -60,6 +99,7 @@ export class TapeNormalizer {
           )
         )
           return v;
+        if (key === 'link') return this.link(v);
         if (publicRemote) return htmlRoot + '/__fixtures__/clone';
         if (
           /^(?:noreply@github\.com|[A-Za-z0-9+_-]+@users\.noreply\.github\.com)$/.test(
@@ -118,7 +158,16 @@ export class TapeNormalizer {
         }
         return v;
       }
-      if (Array.isArray(v)) return v.map((x) => walk(x));
+      if (Array.isArray(v))
+        return key === 'query'
+          ? v.map((entry) =>
+              Array.isArray(entry) &&
+              entry.length === 2 &&
+              entry.every((x) => typeof x === 'string')
+                ? [entry[0], this.query(entry[0]!, entry[1]!)]
+                : walk(entry),
+            )
+          : v.map((x) => walk(x));
       if (isRecord(v)) {
         const commit = isGitCommit(v);
         return Object.fromEntries(
@@ -143,29 +192,158 @@ export class TapeNormalizer {
   }
 }
 
-function assertNoSensitiveText(value: string): void {
+/** The sensitive-text rule a string trips, if any (same order as the scan). */
+function sensitiveRule(value: string): string | undefined {
   const text = value.replace(/%([a-f0-9]{2})/gi, (_, byte: string) =>
     String.fromCharCode(parseInt(byte, 16)),
   );
-  if (
-    /\b(?:gh[a-z]_+[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|aio_seat_[A-Za-z0-9_-]+)|\/(?:Users|home)\/|[A-Z]:\\Users\\|PRIVATE KEY/.test(
-      text,
-    )
-  )
-    throw new TapeLeakError();
-  for (const email of text.match(EMAIL) ?? []) {
-    if (
-      !/^(?:noreply@github\.com|[A-Za-z0-9+_-]+@users\.noreply\.github\.com|[^@]+@example\.invalid)$/i.test(
-        email,
-      )
-    )
-      throw new TapeLeakError();
+  if (TOKEN.test(text)) return 'token prefix';
+  if (HOME.test(text)) return 'home path';
+  if (/PRIVATE KEY/.test(text)) return 'private key';
+  if ((text.match(EMAIL) ?? []).some((email) => !ALLOWED_EMAIL.test(email)))
+    return 'email';
+  return undefined;
+}
+
+function assertNoSensitiveText(value: string): void {
+  if (sensitiveRule(value) !== undefined) throw new TapeLeakError();
+}
+
+// Masking rules of the base redactor, in its order (labels only).
+const MASK_RULES: readonly [string, RegExp][] = [
+  ['private key', /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----/],
+  ['url', /[a-z][a-z0-9+.-]*:\/\/[^/\s"<>]+/i],
+  ['token prefix', TOKEN],
+  ['email', /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i],
+  ['home path', HOME],
+  [
+    'domain',
+    /\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|org|net|edu|gov|mil|io|dev|app|ai|co|uk|tw|local|internal|lan)\b/i,
+  ],
+  ['ip address', /\b(?:\d{1,3}\.){3}\d{1,3}\b/],
+  [
+    'hostname',
+    /\b(?:localhost|[a-z0-9-]+-(?:MacBook|iMac|Mac|PC)(?:-[a-z0-9-]+)?)\b/i,
+  ],
+];
+const BODY_KEY =
+  /^(?:input|output|tool_?input|tool_?output|arguments|stdout|stderr|transcript|file_?contents?|command_?output|agent_?text|body|content|text)$/i;
+const SECRET_KEY =
+  /(?:password|secret|token|api[_-]?key|authorization|cookie|private[_-]?key)/i;
+const HOST_KEY = /^(?:host|hostname|host_name|machine|machineName)$/i;
+
+/** Which part of a tape a JSON path names: section and field kind only. */
+function where(path: readonly (string | number)[]): [string, string] {
+  const [top, , field] = path;
+  if (top === 'recordings') {
+    const kind =
+      field === 'path' || field === 'pathTemplate'
+        ? 'request path'
+        : field === 'query'
+          ? 'request query'
+          : field === 'headers'
+            ? 'response header'
+            : field === 'response'
+              ? 'response body'
+              : 'request metadata';
+    return ['recordings', kind];
   }
+  if (top === 'pushes')
+    return [
+      'pushes',
+      field === 'branch' || field === 'base'
+        ? 'push ref'
+        : field === 'sha'
+          ? 'push sha'
+          : 'push signature',
+    ];
+  if (top === 'clockReads') return ['clockReads', 'clock read'];
+  return ['other', 'envelope'];
+}
+
+/**
+ * M5-T16 / FX-TAPEDIAG: name the section, field kind and rule of the first
+ * leak in a tape (`recordings/request query/entropy`). Never a value, an
+ * offset or a hash of one, so refusals stay safe to print and report.
+ */
+export function diagnoseTapeLeak(value: unknown): string {
+  const label = (path: (string | number)[], rule: string, key: boolean) => {
+    const [section, kind] = where(path);
+    return `${section}/${kind}${key ? ' key' : ''}/${rule}`;
+  };
+  // Sensitive-text rules first: the normalizer and the envelope scan both apply them.
+  const sensitive = (
+    v: unknown,
+    path: (string | number)[],
+  ): string | undefined => {
+    if (typeof v === 'string') {
+      const rule = sensitiveRule(v);
+      return rule && label(path, rule, false);
+    }
+    if (Array.isArray(v)) {
+      for (const [i, x] of v.entries()) {
+        const found = sensitive(x, [...path, i]);
+        if (found) return found;
+      }
+      return undefined;
+    }
+    if (isRecord(v))
+      for (const [k, x] of Object.entries(v)) {
+        const rule = sensitiveRule(k);
+        if (rule) return label([...path, k], rule, true);
+        const found = sensitive(x, [...path, k]);
+        if (found) return found;
+      }
+    return undefined;
+  };
+  const first = sensitive(value, []);
+  if (first) return first;
+  // Then the first field the fixture redactor would change (its exemptions apply).
+  let sanitized: unknown;
+  try {
+    sanitized = redactor.sanitize(value);
+  } catch {
+    return 'other/envelope/key collision';
+  }
+  const textRule = (text: string) =>
+    MASK_RULES.find(([, rule]) => rule.test(text))?.[0] ?? 'entropy';
+  const diff = (
+    raw: unknown,
+    clean: unknown,
+    path: (string | number)[],
+  ): string | undefined => {
+    if (JSON.stringify(raw) === JSON.stringify(clean)) return undefined;
+    const key = path.at(-1);
+    if (typeof key === 'string' && isRecord(clean) === false) {
+      if (BODY_KEY.test(key)) return label(path, 'unsummarized body', false);
+      if (SECRET_KEY.test(key)) return label(path, 'secret field', false);
+      if (HOST_KEY.test(key)) return label(path, 'host field', false);
+    }
+    if (typeof raw === 'string') return label(path, textRule(raw), false);
+    if (Array.isArray(raw) && Array.isArray(clean)) {
+      for (const [i, x] of raw.entries()) {
+        const found = diff(x, clean[i], [...path, i]);
+        if (found) return found;
+      }
+    } else if (isRecord(raw) && isRecord(clean)) {
+      const cleanKeys = Object.keys(clean);
+      for (const [i, [k, x]] of Object.entries(raw).entries()) {
+        if (cleanKeys[i] !== k) return label([...path, k], textRule(k), true);
+        const found = diff(x, clean[k], [...path, k]);
+        if (found) return found;
+      }
+    }
+    return label(path, 'structure', false);
+  };
+  return diff(value, sanitized, []) ?? 'other/envelope/unclassified';
 }
 
 /** Check the complete normalized envelope, including structural request metadata. */
 export function assertTapeSafe(value: unknown): void {
   // Token and email checks always see concrete request paths too.
-  assertNoSensitiveText(JSON.stringify(value));
-  if (redactor.hasLeaks(value)) throw new TapeLeakError();
+  if (
+    sensitiveRule(JSON.stringify(value)) !== undefined ||
+    redactor.hasLeaks(value)
+  )
+    throw new TapeLeakError(undefined, diagnoseTapeLeak(value));
 }

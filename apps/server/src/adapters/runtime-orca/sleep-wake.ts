@@ -25,7 +25,16 @@ export interface SleepWakeOptions {
  */
 export function withSleepWake(runtime: RuntimePort, options: SleepWakeOptions) {
   const sessions = new Set<SessionRef>();
-  let observer = new OrcaObserver(options.observer);
+  const wakeListeners = new Set<(session: SessionRef) => void>();
+  // FX-STATUS-LATENCY: every observer (also after forceRecheck) wakes the loop.
+  const observerOptions: OrcaObserverOptions = {
+    ...options.observer,
+    onWake: (session) => {
+      options.observer.onWake?.(session);
+      for (const listener of wakeListeners) listener(session as SessionRef);
+    },
+  };
+  let observer = new OrcaObserver(observerOptions);
   let assertion: SleepAssertion | undefined;
   let stopped = false;
   let queue: Promise<unknown> = Promise.resolve();
@@ -79,10 +88,16 @@ export function withSleepWake(runtime: RuntimePort, options: SleepWakeOptions) {
   };
   return {
     ...runtime,
+    onWake(listener: (session: SessionRef) => void) {
+      wakeListeners.add(listener);
+      return () => void wakeListeners.delete(listener);
+    },
     async answer(...args: Parameters<RuntimePort['answer']>) {
       await runtime.answer(...args);
       observer.markAnswered(args[0]);
     },
+    /** FX-STATUS-CADENCE: createOrcaRuntime's commands reach the live observer. */
+    expectChange: () => observer.expectChange(),
     stopObservation,
     async openSession(req: Parameters<RuntimePort['openSession']>[0]) {
       const session = await runtime.openSession(req);
@@ -115,7 +130,7 @@ export function withSleepWake(runtime: RuntimePort, options: SleepWakeOptions) {
         // the previous batch was not committed. No spawn/send operation occurs.
         await observer.closeAndDrain();
         if (stopped) return;
-        observer = new OrcaObserver(options.observer);
+        observer = new OrcaObserver(observerOptions);
         await options.observer.identity.ensure({ force: true });
         for (const session of sessions)
           await options.observer.identity.checkOwnership(session, {

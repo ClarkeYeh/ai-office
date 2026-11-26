@@ -860,6 +860,63 @@ it('cleanup also disposes worktrees created inside spawnAgent and deletes their 
   );
 });
 
+it('cleanup reads a spawn-created worktree from the recorded result, without findWorkspace (M5 §4.2)', async () => {
+  const h = setup();
+  const r = await h.seed();
+  const started = r.state.workflow!;
+  const branch = `ai-office/${started.shortId}/planning`;
+  await r.append([
+    draft(h.clock, r.workflowId, 'command.issued', {
+      commandId: 'spawn-planner',
+      kind: 'runtime.spawnAgent',
+      orcaRequestId: '00000000-0000-4000-8000-000000000009',
+      args: {
+        session: 'session',
+        agent: 'claude-code',
+        title: 'planner',
+        specPath: '/spec.md',
+        specSha256: 'a'.repeat(64),
+        workspace: {
+          kind: 'new-worktree',
+          baseBranch: 'main',
+          name: `aio-${started.shortId}-planning`,
+          branch,
+        },
+        keepOpen: false,
+      },
+    }),
+    draft(h.clock, r.workflowId, 'command.succeeded', {
+      commandId: 'spawn-planner',
+      kind: 'runtime.spawnAgent',
+      result: { agent: 'agent-planner', workspace: 'ws-recorded' },
+    }),
+  ]);
+  const find = vi.fn(async () => null);
+  Object.assign(h.world.runtime, { findWorkspace: find });
+  await h.api.cancelWorkflow(r.workflowId);
+  await r.dispatch({
+    type: 'MarkCancelled',
+    meta: { source: 'user', occurredAt: h.clock.now().toISOString() },
+  });
+  await h.api.cleanupWorkflow(r.workflowId);
+  expect(find).not.toHaveBeenCalled();
+  expect(
+    h
+      .events()
+      .filter((e) => e.type === 'command.issued')
+      .map((e) => e.payload)
+      .filter(
+        (p) =>
+          p.kind === 'runtime.disposeWorkspace' ||
+          p.kind === 'scm.deleteBranch',
+      )
+      .map((p) => p.args),
+  ).toEqual([
+    { workspace: 'ws-recorded' },
+    { repo: started.repo.github, name: branch },
+  ]);
+});
+
 it('checks missing resources, unavailability, invalid answers and option choices', async () => {
   const h = setup();
   await expect(h.api.cancelWorkflow('missing')).rejects.toMatchObject({

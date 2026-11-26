@@ -1,5 +1,6 @@
 import type {
   AttemptState,
+  CommandResult,
   EventPayload,
   OndemandPurpose,
   PolicyHit,
@@ -26,10 +27,7 @@ export type ApprovedWorkItem =
 export type WorkItemDraft = EventPayload<'workitem.proposed'>['items'][number];
 export type TimerPayload = EventPayload<'timer.scheduled'>['payload'];
 export type CommandIssued = EventPayload<'command.issued'>;
-export type CommandResult = Omit<
-  EventPayload<'command.succeeded'>,
-  'commandId'
->;
+export type { CommandResult };
 export type ErrorInfo = EventPayload<'command.failed'>['error'];
 
 export type WorkflowStatus = 'running' | 'completed' | 'failed' | 'cancelled';
@@ -142,6 +140,19 @@ export type Attempt = EventPayload<'seat.spawned'> & {
   rateLimited?: AttemptRateLimit;
   /** S26: rate-limit windows, the open one last; excluded from item wallclock time. */
   rateLimitWindows?: { from: string; to?: string }[];
+  /**
+   * T12: turns the backend gave this attempt after its spawn (each issued
+   * `runtime.send` / `runtime.answer`); absent means none.
+   */
+  turns?: number;
+  /** T12: the `turns` value when the attempt last reported `done`. */
+  doneTurn?: number;
+  /**
+   * The `turns` value when the runtime last showed this attempt working or
+   * waiting: until it shows the new turn, a runtime `idle` is a reading of
+   * the turn before (idle-after-done flake, FX-CLI-BUDGET).
+   */
+  turnSeen?: number;
 };
 
 export type AttemptRateLimit = NonNullable<

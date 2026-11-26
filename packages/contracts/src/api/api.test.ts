@@ -611,6 +611,18 @@ describe('error response', () => {
       category: 'conflict',
     });
   });
+  test('M5-CP1 adds control_token_invalid and bootstrap_rate_limited', () => {
+    expect(API_ERRORS.control_token_invalid).toEqual({
+      status: 401,
+      category: 'auth',
+    });
+    expect(API_ERRORS.bootstrap_rate_limited).toEqual({
+      status: 429,
+      category: 'rate_limited',
+    });
+    for (const code of ['control_token_invalid', 'bootstrap_rate_limited'])
+      expect(API_ERROR_CODES).toContain(code);
+  });
 });
 
 test('accepted submissions survive workflow snapshot JSON round trips', () => {

@@ -17,7 +17,11 @@ import type {
 } from '../../ports/refs.js';
 import type { RuntimeEvent } from '../../ports/runtime-events.js';
 import type { Clock } from '../../ports/services.js';
-import type { RuntimePort, Correlation } from '../../ports/runtime.js';
+import {
+  assertMarkerCommandId,
+  type RuntimePort,
+  type Correlation,
+} from '../../ports/runtime.js';
 import type {
   RuntimeScenario,
   RoleBehavior,
@@ -67,13 +71,19 @@ type Agent = {
   spec?: string;
   /** Optional D8 model: a release before this time is refused transiently. */
   stopSettlesAt?: number;
+  /** Output already reported, for `replay-transcript` (FX-ACTIVITY-DUP). */
+  transcript?: { body: EventBody; at: number }[];
 };
 type Scheduled = {
   at: number;
   order: number;
   agent: Agent;
   generation: number;
-  action: ScenarioStep | { type: 'auto-release' } | { type: 'idle' };
+  action:
+    | ScenarioStep
+    | { type: 'auto-release' }
+    | { type: 'idle' }
+    | { type: 'stale-working' };
   /** Turn scripts (spawn/send/answer) versus external `enqueue()` stimuli. */
   source: 'script' | 'external';
 };
@@ -83,6 +93,13 @@ type EventBody = RuntimeEvent extends infer E
     : never
   : never;
 type Delivery = Awaited<ReturnType<RuntimePort['observe']>>;
+const MARKED = new Set<string>([
+  'openSession',
+  'prepareWorkspace',
+  'spawnAgent',
+  'send',
+  'answer',
+]);
 type Operation =
   | 'openSession'
   | 'reclaimSession'
@@ -192,6 +209,13 @@ export class FakeRuntime implements RuntimePort {
       ? { status: 'completed', result: structuredClone(result) }
       : { status: 'absent' };
   }
+  spawnedWorkspace(commandId: string): WorkspaceRef | undefined {
+    const marker = this.markers.get(commandId);
+    return marker?.kind === 'runtime.spawnAgent' &&
+      marker.result.workspace !== undefined
+      ? WorkspaceRefSchema.parse(marker.result.workspace)
+      : undefined;
+  }
   async findCommandByMarker(commandId: string): Promise<CommandResult | null> {
     this.before('findByCorrelation');
     return structuredClone(this.markers.get(commandId) ?? null);
@@ -298,7 +322,12 @@ export class FakeRuntime implements RuntimePort {
   /** Branch and base commit each workspace was created with (pushes target it). */
   private workspaceBranches = new Map<
     WorkspaceRef,
-    { branch: string; base?: string; repo?: RepoRuntimeRef }
+    {
+      branch: string;
+      base?: string;
+      repo?: RepoRuntimeRef;
+      detachedTip?: string;
+    }
   >();
   /** Simulated local git branches per repo (branch → tip); W1 occupancy derives from workspaces. */
   private localBranches = new Map<string, Map<string, string | undefined>>();
@@ -312,6 +341,7 @@ export class FakeRuntime implements RuntimePort {
     for (const [ws, entry] of this.workspaceBranches)
       if (
         this.workspaces.has(ws) &&
+        entry.detachedTip === undefined &&
         entry.branch === branch &&
         entry.repo !== undefined &&
         canonical(entry.repo) === canonical(repo)
@@ -376,15 +406,54 @@ export class FakeRuntime implements RuntimePort {
   }
   /** `worktree rm`; the adapter also deletes the branch it created (§6.5). */
   private removeWorkspace(ws: WorkspaceRef): void {
-    if (!this.workspaces.delete(ws)) return;
+    const workspace = this.workspaces.get(ws);
+    if (!workspace) return;
     const entry = this.workspaceBranches.get(ws);
+    if (entry?.detachedTip && entry.repo) {
+      const repo = entry.repo;
+      const pushed = (sha: string) =>
+        sha === entry.base ||
+        [...this.remoteBranches].some(([key, remote]) => {
+          const [repoId, path] = JSON.parse(key) as string[];
+          return (
+            repoId === repo.orcaRepoId &&
+            path === repo.localPath &&
+            remote.commits.has(sha)
+          );
+        });
+      if (!workspace.clean) throw fail('workspace_dirty');
+      const branchSha = this.local(repo).get(entry.branch);
+      if (!pushed(entry.detachedTip) || (branchSha && !pushed(branchSha)))
+        throw fail('workspace_unpushed');
+    }
+    this.workspaces.delete(ws);
     if (entry?.repo && !this.holder(entry.repo, entry.branch))
       this.local(entry.repo).delete(entry.branch);
+  }
+  /** Optional D1 stimulus: detached HEAD and the created branch have independent tips. */
+  detachWorkspace(
+    ws: WorkspaceRef,
+    shape: 'integrator' | 'worker' | 'unpushed',
+  ): void {
+    const entry = this.workspaceBranches.get(ws);
+    if (!entry?.repo || !this.workspaces.has(ws))
+      throw fail('unknown_workspace');
+    const tip = 'd'.repeat(40);
+    entry.detachedTip = tip;
+    if (shape === 'worker') this.local(entry.repo).set(entry.branch, tip);
+    if (shape !== 'unpushed')
+      this.setRemoteBranch(
+        entry.repo,
+        shape === 'worker' ? entry.branch : 'ai-office/other-worker',
+        tip,
+      );
   }
   /** The branch a workspace actually checked out, for W1 assertions. */
   workspaceBranch(ws: WorkspaceRef): string | null {
     return this.workspaces.has(ws)
-      ? (this.workspaceBranches.get(ws)?.branch ?? null)
+      ? this.workspaceBranches.get(ws)?.detachedTip
+        ? null
+        : (this.workspaceBranches.get(ws)?.branch ?? null)
       : null;
   }
   private commands = new Map<
@@ -408,12 +477,22 @@ export class FakeRuntime implements RuntimePort {
   /** Releases held by `releaseLagMs`, completed by `runDue` once due. */
   private lagging: { at: number; resolve: () => void }[] = [];
   private executing: Scheduled | undefined;
+  /**
+   * External steps in flight, one per agent at most: an agent's `ai-office
+   * submit` or `git push` blocks only its own turn. A merge-request waits for
+   * the merge, and a push (with its remote-head check) goes to the SCM;
+   * awaiting either in the pump stalled every other agent behind slow SCM I/O
+   * (M5-T11 nf.latency: 5–10 s bursts with real GitHub behind the bridge).
+   */
+  private readonly submitting = new Map<Agent, Scheduled>();
   constructor(private readonly options: FakeRuntimeOptions) {}
   /** JSON data only; behavior functions and spec credentials are reloaded locally. */
   snapshot() {
-    const jobs = this.executing
-      ? [this.executing, ...this.scheduled]
-      : this.scheduled;
+    const jobs = [
+      ...(this.executing ? [this.executing] : []),
+      ...this.submitting.values(),
+      ...this.scheduled,
+    ];
     return structuredClone({
       version: 1 as const,
       sequence: this.sequence,
@@ -471,6 +550,7 @@ export class FakeRuntime implements RuntimePort {
       throw new Error('Unsupported fake runtime snapshot version');
     if (
       this.pumping ||
+      this.submitting.size ||
       this.pendingDeliveries.size ||
       this.pendingSpawns.size ||
       this.lagging.length
@@ -582,6 +662,8 @@ export class FakeRuntime implements RuntimePort {
     session: SessionRef | null,
     effect: () => T,
   ): T {
+    // The operations runtime-orca marks with `aio:<commandId>` (same guard).
+    if (MARKED.has(operation)) assertMarkerCommandId(correlation.commandId);
     this.before(operation);
     const signature = canonical({ operation, args });
     const previous = this.commands.get(correlation.commandId);
@@ -602,7 +684,7 @@ export class FakeRuntime implements RuntimePort {
           operation === 'openSession'
             ? { session: result }
             : operation === 'spawnAgent'
-              ? { agent: result }
+              ? this.spawnResult(result as AgentRef)
               : {},
       } as CommandResult);
     }
@@ -613,6 +695,13 @@ export class FakeRuntime implements RuntimePort {
     });
     this.after(operation);
     return result;
+  }
+  /** M5 §4.2: a `new-worktree` spawn also reports the worktree it created. */
+  private spawnResult(ref: AgentRef): { agent: AgentRef; workspace?: string } {
+    const agent = this.agents.get(ref);
+    return agent?.request.workspace.kind === 'new-worktree'
+      ? { agent: ref, workspace: agent.workspace }
+      : { agent: ref };
   }
   private agent(ref: AgentRef): Agent {
     const agent = this.agents.get(ref);
@@ -628,6 +717,12 @@ export class FakeRuntime implements RuntimePort {
     if (['released', 'stopped', 'lost'].includes(agent.state))
       throw fail('agent_not_live');
   }
+  private readonly wakeListeners = new Set<(session: SessionRef) => void>();
+  /** Like runtime-orca's long poll: news for a session is observed at once. */
+  onWake(listener: (session: SessionRef) => void): () => void {
+    this.wakeListeners.add(listener);
+    return () => void this.wakeListeners.delete(listener);
+  }
   private emit(session: SessionRef, body: EventBody, at = this.now()): void {
     const event = {
       ...structuredClone(body),
@@ -637,7 +732,10 @@ export class FakeRuntime implements RuntimePort {
     const pending =
       'agent' in body ? this.pendingSpawns.get(body.agent) : undefined;
     if (pending) pending.events.push(event);
-    else this.session(session).push(event);
+    else {
+      this.session(session).push(event);
+      for (const listener of this.wakeListeners) listener(session);
+    }
   }
   private trigger(
     agent: Agent,
@@ -1115,28 +1213,69 @@ export class FakeRuntime implements RuntimePort {
   async runDue(): Promise<void> {
     if (this.pumping) return;
     this.pumping = true;
+    const inflight = new Set<Promise<void>>();
+    let failure: { error: unknown } | undefined;
     try {
-      const due = this.lagging.filter((l) => l.at <= this.now());
-      this.lagging = this.lagging.filter((l) => l.at > this.now());
-      for (const { resolve } of due) resolve();
       while (true) {
+        const due = this.lagging.filter((l) => l.at <= this.now());
+        this.lagging = this.lagging.filter((l) => l.at > this.now());
+        for (const { resolve } of due) resolve();
         this.scheduled.sort((a, b) => a.at - b.at || a.order - b.order);
-        const job = this.scheduled[0];
-        if (!job || job.at > this.now()) return;
-        this.scheduled.shift();
-        if (
-          job.generation !== job.agent.generation ||
-          ['released', 'lost', 'stopped'].includes(job.agent.state)
-        )
+        // The earliest due step of an agent that is not mid-submission.
+        const index = this.scheduled.findIndex(
+          (job) => job.at <= this.now() && !this.submitting.has(job.agent),
+        );
+        const job = index < 0 ? undefined : this.scheduled[index];
+        if (job) {
+          this.scheduled.splice(index, 1);
+          if (
+            job.generation !== job.agent.generation ||
+            ['released', 'lost', 'stopped'].includes(job.agent.state)
+          )
+            continue;
+          if (job.action.type === 'submit' || job.action.type === 'push') {
+            // Runs alongside the other agents; its own later steps wait.
+            this.submitting.set(job.agent, job);
+            const done = this.execute(job)
+              .catch((error: unknown) => {
+                failure ??= { error };
+              })
+              .finally(() => {
+                this.submitting.delete(job.agent);
+                inflight.delete(done);
+              });
+            inflight.add(done);
+            continue;
+          }
+          this.executing = job;
+          try {
+            await this.execute(job);
+          } finally {
+            this.executing = undefined;
+          }
           continue;
-        this.executing = job;
-        try {
-          await this.execute(job);
-        } finally {
-          this.executing = undefined;
         }
+        if (failure) throw failure.error;
+        if (inflight.size === 0) return;
+        // Wait for a submission to settle, or for another agent's next step
+        // to come due (real time; an injected clock only moves via the test).
+        const next = this.scheduled.find((j) => !this.submitting.has(j.agent));
+        await Promise.race([
+          ...inflight,
+          ...(next
+            ? [
+                new Promise<void>((resolve) =>
+                  setTimeout(
+                    resolve,
+                    Math.min(25, Math.max(0, next.at - this.now())),
+                  ),
+                ),
+              ]
+            : []),
+        ]);
       }
     } finally {
+      if (inflight.size) await Promise.allSettled([...inflight]);
       this.pumping = false;
     }
   }
@@ -1148,6 +1287,10 @@ export class FakeRuntime implements RuntimePort {
     source,
   }: Scheduled): Promise<void> {
     const emit = (body: EventBody) => this.emit(a.session, body, at);
+    const output = (body: EventBody) => {
+      (a.transcript ??= []).push({ body: structuredClone(body), at });
+      emit(body);
+    };
     switch (action.type) {
       case 'submit': {
         const tokens = [
@@ -1258,6 +1401,15 @@ export class FakeRuntime implements RuntimePort {
             ? {}
             : { filesModified: action.filesModified }),
         });
+        if (action.staleWorkingAfterMs !== undefined)
+          this.scheduled.push({
+            at: at + action.staleWorkingAfterMs,
+            order: ++this.sequence,
+            agent: a,
+            generation: a.generation,
+            action: { type: 'stale-working' },
+            source: 'script',
+          });
         if (action.idleAfterMs !== undefined)
           this.scheduled.push({
             at: at + action.idleAfterMs,
@@ -1282,6 +1434,10 @@ export class FakeRuntime implements RuntimePort {
         break;
       case 'idle':
         emit({ type: 'agent.status', agent: a.ref, state: 'idle' });
+        break;
+      case 'stale-working':
+        // A reading only: the agent itself stays done (no new turn).
+        emit({ type: 'agent.status', agent: a.ref, state: 'working' });
         break;
       case 'rate-limited':
         emit({
@@ -1309,7 +1465,7 @@ export class FakeRuntime implements RuntimePort {
         });
         break;
       case 'output':
-        emit({
+        output({
           type: 'agent.output',
           agent: a.ref,
           messageId: this.id('message'),
@@ -1317,8 +1473,14 @@ export class FakeRuntime implements RuntimePort {
           blocks: action.blocks,
         });
         break;
+      case 'replay-transcript':
+        // Same messages and times, new external keys (Orca: a new dispatch
+        // on the same transcript re-reads it).
+        for (const entry of a.transcript ?? [])
+          this.emit(a.session, entry.body, entry.at);
+        break;
       case 'policy':
-        emit({
+        output({
           type: 'agent.output',
           agent: a.ref,
           messageId: this.id('message'),

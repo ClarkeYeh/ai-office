@@ -17,6 +17,7 @@ import {
 import type {
   Attempt,
   BudgetLevel,
+  CommandResult,
   Gate,
   GateDecided,
   OnDemand,
@@ -637,6 +638,11 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
         {
           ...omit(attempt, 'waitingSince'),
           state: p.state,
+          ...(p.state === 'done' ? { doneTurn: attempt.turns ?? 0 } : {}),
+          ...(event.source === 'runtime' &&
+          (p.state === 'working' || p.state === 'waiting_input')
+            ? { turnSeen: attempt.turns ?? 0 }
+            : {}),
           ...(p.state === 'waiting_input'
             ? {
                 waitingSince:
@@ -1159,8 +1165,26 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     const p = event.payload;
     if (has(state.commands, p.commandId))
       return skip('duplicate_command', `Command ${p.commandId} exists`);
+    // A send or answer is a new turn for its attempt (T12 `isTurnDone`); an
+    // answer names its question, whose attempt asked it.
+    const turnedId =
+      p.kind === 'runtime.send'
+        ? event.attemptId
+        : p.kind === 'runtime.answer'
+          ? (event.attemptId ?? state.questions[p.args.question]?.attemptId)
+          : undefined;
+    const turned =
+      turnedId === undefined ? undefined : state.attempts[turnedId];
     return {
       ...state,
+      ...(turned
+        ? {
+            attempts: put(state.attempts, turned.attemptId, {
+              ...turned,
+              turns: (turned.turns ?? 0) + 1,
+            }),
+          }
+        : {}),
       commands: put(state.commands, p.commandId, {
         id: p.commandId,
         issued: p,
@@ -1176,7 +1200,7 @@ const HANDLERS: { [T in EventType]: Handler<T> } = {
     const command = state.commands[p.commandId];
     if (command === undefined || command.issued.kind !== p.kind)
       return skip('unknown_command', `No ${p.kind} command ${p.commandId}`);
-    const result = omit(p, 'commandId');
+    const result = omit(p, 'commandId') as CommandResult;
     let next: WorkflowState = {
       ...state,
       commands: put(state.commands, p.commandId, {

@@ -115,7 +115,25 @@ export function ingestRuntime(
         // right after worker_done. Idle never downgrades done; only a new turn
         // (working / waiting_input) or exit/lost does, so the engine's `done`
         // checks (meeting rounds, conclusion, planning, items) stay true.
-        if (event.state === 'idle' && attempt.state === 'done') break;
+        // T12: and only a turn the backend gave (a send or answer issued after
+        // the done, §7.1): Orca can still show the finished turn's `working`
+        // stage after worker_done (pm: done → working → idle).
+        if (
+          attempt.state === 'done' &&
+          (event.state === 'idle' ||
+            ((event.state === 'working' || event.state === 'waiting_input') &&
+              attempt.doneTurn === (attempt.turns ?? 0)))
+        )
+          break;
+        // A new turn the backend issued is not yet shown working by the
+        // runtime: an `idle` now is a reading of the turn before (the
+        // idle-after-done flake: the finished turn's idle landed right after
+        // the engine's next send).
+        if (
+          event.state === 'idle' &&
+          (attempt.turns ?? 0) > (attempt.turnSeen ?? 0)
+        )
+          break;
         batch.add(
           'seat.status',
           {
@@ -132,18 +150,26 @@ export function ingestRuntime(
         break;
       case 'agent.output': {
         const { activity, policyHits } = redactor.toActivity(event);
+        // FX-ACTIVITY-DUP (T12): one transcript message is one fact per
+        // attempt. Orca keys output by dispatch, and a keep-open seat gets a
+        // new dispatch per turn on the same transcript, so earlier messages
+        // came back under new keys; key them like turns, by message id.
+        const message = {
+          ...event,
+          externalKey: `tx:${attemptId}:${event.messageId}`,
+        };
         if (activity.length)
           batch.add(
             'seat.activity',
             { attemptId, activity },
-            event,
+            message,
             'runtime',
             attempt,
           );
         if (policyHits.length)
           batch.anomaly(
             { kind: 'policy-hits', attemptId, hits: policyHits },
-            event,
+            message,
             'runtime',
           );
         if (event.role === 'assistant')

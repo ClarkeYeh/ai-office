@@ -63,6 +63,7 @@ runtimePortContract(async () => {
       f.clock.advance(ms);
       f.runtime.finishPendingSpawns();
     },
+    detachWorkspace: (ws, shape) => f.runtime.detachWorkspace(ws, shape),
     identity: (a) => f.runtime.identity(a),
     stimulus: async (a, action) => {
       if (action === 'identity-lost') f.runtime.loseIdentity();
@@ -176,6 +177,131 @@ describe('FakeRuntime scenarios and faults', () => {
     });
     expect(JSON.stringify(events)).not.toContain('aio_seat_');
   });
+  it('a slow submission blocks only its own agent, not the others (M5-T11 nf.latency)', async () => {
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const f = await fixture({
+      // A merge-request waits for the merge: model a 5 s+ SCM call.
+      submitter: (r) =>
+        r.submission.kind === 'merge-request' ? slow : undefined,
+      scenario: {
+        roles: {
+          reviewer: {
+            spawn: [
+              {
+                type: 'submit',
+                afterMs: 10,
+                submission: {
+                  kind: 'merge-request',
+                  payload: { pr: 7, expectedHeadSha: 'a'.repeat(40) },
+                },
+              },
+              { type: 'done', afterMs: 30 },
+            ],
+          },
+          worker: { spawn: [{ type: 'done', afterMs: 20 }] },
+        },
+      },
+    });
+    const reviewer = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      title: 'reviewer',
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'r',
+        commandId: 'spawn-r',
+      },
+    });
+    const worker = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'w',
+        commandId: 'spawn-w',
+      },
+    });
+    f.clock.advance(10);
+    const pump = f.runtime.runDue(); // the reviewer's submit is now in flight
+    f.clock.advance(10);
+    await new Promise((r) => setTimeout(r, 60));
+    const during = await f.runtime.observe(f.session, null);
+    // The worker finished on time although the reviewer is still submitting.
+    expect(
+      during.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([worker]);
+    expect(during.events.find((e) => e.type === 'agent.done')?.occurredAt).toBe(
+      '2026-01-01T00:00:00.020Z',
+    );
+    // The reviewer's own next step waits for its submission.
+    f.clock.advance(30);
+    await new Promise((r) => setTimeout(r, 60));
+    const stillWaiting = await f.runtime.observe(f.session, during.cursor);
+    expect(stillWaiting.events.some((e) => e.type === 'agent.done')).toBe(
+      false,
+    );
+    release();
+    await pump;
+    await f.runtime.runDue();
+    const after = await f.runtime.observe(f.session, stillWaiting.cursor);
+    expect(
+      after.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([reviewer]);
+  });
+  it('a slow push blocks only its own agent, not the others (M5-FX-LATENCY)', async () => {
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const f = await fixture({
+      // T11: the push goes through the SCM bridge to real GitHub (seconds).
+      onPush: () => slow,
+      scenario: {
+        roles: {
+          pusher: {
+            spawn: [
+              { type: 'push', afterMs: 10, branch: 'work', headSha: 'abcdef0' },
+              { type: 'done', afterMs: 30 },
+            ],
+          },
+          worker: { spawn: [{ type: 'done', afterMs: 20 }] },
+        },
+      },
+    });
+    const pusher = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      title: 'pusher',
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'p',
+        commandId: 'spawn-p',
+      },
+    });
+    const worker = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      correlation: {
+        ...f.spawnRequest.correlation,
+        attemptId: 'w',
+        commandId: 'spawn-w',
+      },
+    });
+    f.clock.advance(10);
+    const pump = f.runtime.runDue(); // the push is now in flight
+    f.clock.advance(10);
+    await new Promise((r) => setTimeout(r, 60));
+    const during = await f.runtime.observe(f.session, null);
+    expect(
+      during.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([worker]);
+    f.clock.advance(30);
+    await new Promise((r) => setTimeout(r, 60));
+    const waiting = await f.runtime.observe(f.session, during.cursor);
+    expect(waiting.events.some((e) => e.type === 'agent.done')).toBe(false);
+    release();
+    await pump;
+    await f.runtime.runDue();
+    const after = await f.runtime.observe(f.session, waiting.cursor);
+    expect(
+      after.events.filter((e) => e.type === 'agent.done').map((e) => e.agent),
+    ).toEqual([pusher]);
+  });
   it.each(['lost', 'degraded', 'duplicate', 'unmanaged', 'policy'] as const)(
     'injects %s using valid port events',
     async (fault) => {
@@ -222,6 +348,31 @@ describe('FakeRuntime scenarios and faults', () => {
         });
     },
   );
+  it('wakes its observer when a session has news, until unsubscribed (FX-STATUS-LATENCY)', async () => {
+    const f = await fixture();
+    const woke: string[] = [];
+    const stop = f.runtime.onWake((session) => woke.push(session));
+    await f.runtime.spawnAgent(f.spawnRequest);
+    const { events } = await f.runtime.observe(f.session, null);
+    expect(events.length).toBeGreaterThan(0);
+    expect(woke.length).toBeGreaterThan(0);
+    expect(new Set(woke)).toEqual(new Set([f.session]));
+    stop();
+    woke.length = 0;
+    f.runtime.setConnected(true);
+    await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      title: 'second',
+      workspace: {
+        kind: 'new-worktree',
+        baseBranch: 'integration',
+        name: 'w2',
+        branch: 'w2',
+      },
+      correlation: { workflowId: 'wf', attemptId: 'a2', commandId: 'spawn-2' },
+    });
+    expect(woke).toEqual([]);
+  });
   it('disconnect is transient with no side effect and health tracks availability', async () => {
     const f = await fixture();
     f.runtime.setConnected(false);
@@ -829,5 +980,90 @@ describe('injected agent and Git behavior', () => {
     expect(batch.events.at(-1)).toMatchObject({ state: 'lost' });
     // The script's own later step is still held behind the retry.
     expect(types).not.toContain('agent.output');
+  });
+});
+
+it.each(['integrator', 'worker', 'unpushed'] as const)(
+  'retains independent detached workspace and branch state across restore: %s',
+  async (shape) => {
+    const f = await fixture();
+    const baseSha = 'a'.repeat(40);
+    f.runtime.setRemoteBranch(f.repo, 'main', baseSha);
+    const p = await f.runtime.prepareWorkspace({
+      session: f.session,
+      repo: f.repo,
+      baseBranch: baseSha,
+      baseSha,
+      fetchBranch: 'main',
+      branch: 'ai-office/wf/merge-1',
+      name: 'merge-1',
+      correlation: { workflowId: 'wf', commandId: 'prepare-detached' },
+    });
+    const agent = await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      workspace: {
+        kind: 'existing-worktree',
+        workspace: p.workspace,
+        readOnly: false,
+      },
+    });
+    f.runtime.detachWorkspace(p.workspace, shape);
+    const runtime = new FakeRuntime({ clock: f.clock });
+    runtime.restore(f.runtime.snapshot());
+    expect(runtime.workspaceBranch(p.workspace)).toBeNull();
+    await runtime.stop(agent);
+    if (shape === 'unpushed') {
+      await expect(
+        runtime.release(agent, { removeWorkspace: true }),
+      ).rejects.toMatchObject({
+        category: 'guard',
+        code: 'workspace_unpushed',
+      });
+      expect(runtime.snapshot().localBranches[0]![1]).toContainEqual([
+        'ai-office/wf/merge-1',
+        baseSha,
+      ]);
+      expect(await runtime.inspectWorkspace(p.workspace)).toEqual({
+        clean: true,
+        changedFiles: [],
+      });
+    } else {
+      await runtime.release(agent, { removeWorkspace: true });
+      expect(runtime.snapshot().localBranches[0]![1]).toEqual([]);
+      expect(await runtime.inspectWorkspace(p.workspace)).toEqual({
+        clean: false,
+        changedFiles: [],
+      });
+    }
+  },
+);
+
+describe('spawned worktree (M5 §4.2)', () => {
+  it('reports what a new-worktree spawn created, in its marker too, and survives a restore', async () => {
+    const f = await fixture();
+    await f.runtime.spawnAgent(f.spawnRequest);
+    const created = f.runtime.spawnedWorkspace('spawn');
+    expect(created).toEqual(expect.any(String));
+    expect(f.runtime.workspaceBranch(created!)).toBe('work');
+    expect(await f.runtime.findCommandByMarker('spawn')).toMatchObject({
+      kind: 'runtime.spawnAgent',
+      result: { workspace: created },
+    });
+    // An existing worktree belongs to whoever prepared it.
+    await f.runtime.spawnAgent({
+      ...f.spawnRequest,
+      workspace: {
+        kind: 'existing-worktree',
+        workspace: created!,
+        readOnly: true,
+      },
+      correlation: { ...f.spawnRequest.correlation, commandId: 'reviewer' },
+    });
+    expect(f.runtime.spawnedWorkspace('reviewer')).toBeUndefined();
+    expect(f.runtime.spawnedWorkspace('open')).toBeUndefined();
+    expect(f.runtime.spawnedWorkspace('missing')).toBeUndefined();
+    const restored = new FakeRuntime({ clock: f.clock });
+    restored.restore(f.runtime.snapshot());
+    expect(restored.spawnedWorkspace('spawn')).toBe(created);
   });
 });

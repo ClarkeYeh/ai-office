@@ -9,6 +9,7 @@ import type {
   RuntimeCursor,
 } from './refs.js';
 import type { RuntimeEvent } from './runtime-events.js';
+import { PortError } from './errors.js';
 export type RuntimeWarning =
   | 'codex_env_filtered'
   | 'shim_folder_fallback'
@@ -22,6 +23,8 @@ export type RuntimeHealth = {
   supportedRange?: string;
   shimLocation?: string;
   cliCallsPerMinute?: number;
+  /** Per Orca subcommand over the last minute (FX-STATUS-CADENCE probe). */
+  cliCommands?: Record<string, { calls: number; p50Ms: number; p95Ms: number }>;
   cpuSecondsPerMinute?: number;
   warnings?: RuntimeWarning[];
   available: boolean;
@@ -36,6 +39,20 @@ export type Correlation = {
   attemptId?: string;
   commandId: string;
 }; // commandId 會寫入外部標記 aio:<commandId>
+
+/**
+ * The external-marker rule every runtime enforces before a marked mutation
+ * (Orca writes `aio:<tag>` into whitespace-split text): no empty id and no
+ * whitespace. The fake applies it too, so CI catches ids Orca would refuse.
+ */
+export function assertMarkerCommandId(commandId: string): void {
+  if (!commandId || /\s/.test(commandId))
+    throw new PortError(
+      'guard',
+      'invalid_command_marker',
+      'Runtime safety check failed',
+    );
+}
 
 export type WorkspaceReq =
   | { kind: 'new-worktree'; baseBranch: string; name: string; branch: string } // Orca：worktree create --branch，再 worker-start --worktree path:
@@ -57,6 +74,12 @@ export interface RuntimePort {
     | { status: 'pending' | 'absent' }
     | { status: 'completed'; result: CommandResult }
   >;
+  /**
+   * Optional (FX-STATUS-LATENCY): the runtime signals that a session has
+   * news, e.g. mail arrived on its long poll, so the caller observes it now
+   * instead of at the next tick. Returns an unsubscribe.
+   */
+  onWake?(listener: (session: SessionRef) => void): () => void;
   /** Search durable aio: markers even after request receipts were pruned. */
   findCommandByMarker(commandId: string): Promise<CommandResult | null>;
   /** Find by deterministic name; reject a mismatching aio: comment. */
@@ -102,6 +125,13 @@ export interface RuntimePort {
     correlation: Correlation;
     keepOpen: boolean; // 多回合角色為 true（§7.1）；Orca：worker-start --keep-open
   }): Promise<AgentRef>;
+  /**
+   * M5 §4.2: the worktree a `new-worktree` spawn created, read from adapter
+   * state after `spawnAgent` resolved (sync, no runtime call). Optional so
+   * older adapters and test doubles need no change; `AgentRef` is a branded
+   * string, so the spawn result itself cannot carry it.
+   */
+  spawnedWorkspace?(commandId: string): WorkspaceRef | undefined;
   send(
     agent: AgentRef,
     msg: { subject: string; body: string; correlation: Correlation },
@@ -144,3 +174,24 @@ export type RuntimeCapabilities = {
   callerChosenRequestId: boolean; // Orca：true（--retry-request 第一次即可帶自產 UUID）
 };
 // SessionRef / AgentRef / WorkspaceRef / QuestionRef / RuntimeCursor 皆為 opaque（branded string 或 JSON），application 不解讀
+
+/** Smallest gap between runtime passes, so a slow pass never spins. */
+export const RUNTIME_MIN_GAP_MS = 250;
+/**
+ * The runtime pass cadence (FX-STATUS-LATENCY), shared with the live latency
+ * probe: at once after a wake, else a fixed rate from the previous pass's
+ * start, never closer than the minimum gap.
+ */
+export function runtimeDelayMs(pass: {
+  woken: boolean;
+  intervalMs: number;
+  startedAt: number | undefined;
+  now: number;
+}): number {
+  if (pass.woken) return 0;
+  if (pass.startedAt === undefined) return pass.intervalMs;
+  return Math.max(
+    RUNTIME_MIN_GAP_MS,
+    pass.intervalMs - (pass.now - pass.startedAt),
+  );
+}

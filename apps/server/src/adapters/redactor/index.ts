@@ -124,13 +124,25 @@ export function createRedactor(options: RedactorOptions): Redactor {
             ? { durationMs: Math.floor(result.durationMs) }
             : {}),
         });
+        if (
+          ['read', 'read_file'].includes(tool) &&
+          block.input &&
+          typeof block.input === 'object' &&
+          Object.entries(block.input).some(
+            ([key, value]) =>
+              /^(path|file_path|filePath)$/.test(key) &&
+              typeof value === 'string' &&
+              /\/data\/control\.token$/.test(value),
+          )
+        )
+          rules.add('aio-open');
         for (const source of commandInputs(block.input))
           for (const rule of policyRules(
             source,
             options.defaultBranch,
             options.currentBranch,
           ))
-            rules.add(rule);
+            if (rule !== 'aio-open' || category === 'shell') rules.add(rule);
       }
       output.blocks.forEach((block, index) => {
         if (block.type === 'tool_use' || paired.has(index)) return;

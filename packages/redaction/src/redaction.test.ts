@@ -159,3 +159,7 @@ describe('replay fidelity', () => {
     expect(maskText(sanitized)).toBe(sanitized);
   });
 });
+
+it('masks control tokens even with low entropy', () => {
+  expect(maskText('aio_ctl_' + 'f'.repeat(64))).toBe('<redacted>');
+});

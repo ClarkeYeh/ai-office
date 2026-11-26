@@ -92,6 +92,7 @@ export class Workspaces {
         throw guard('workspace_base_mismatch');
       this.c.options.state.write(`orca:prepared:${found.workspace}`, {
         commandId: req.correlation.commandId,
+        branch: req.branch,
       });
       return found;
     }
@@ -184,6 +185,7 @@ export class Workspaces {
     const result = { ...prepared(w), baseSha: sha };
     this.c.options.state.write(`orca:prepared:${result.workspace}`, {
       commandId: req.correlation.commandId,
+      branch: req.branch,
     });
     this.c.save(req.correlation.commandId, {
       kind: 'runtime.prepareWorkspace',
@@ -199,19 +201,27 @@ export class Workspaces {
       (await this.c.options.git.status(w.path)).length
     )
       throw guard('unpushed_commits');
-    await this.c.call(
-      ['worktree', 'rm', '--worktree', `id:${w.id}`, '--delete-branch'],
-      object,
-    );
-    if (branch(w))
-      await this.c.options.git.deleteCreatedBranch(repo, branch(w), sha);
+    const name = branch(w);
+    const branchSha = name
+      ? await this.c.options.git.localBranch(repo, name)
+      : null;
+    if (branchSha && branchSha !== sha) throw guard('unpushed_commits');
+    await this.c.call(['worktree', 'rm', '--worktree', `id:${w.id}`], object);
+    if (name)
+      await this.c.options.git.deleteCreatedBranch(
+        repo,
+        name,
+        branchSha ?? sha,
+      );
   }
-  async preparedHere(id: string): Promise<boolean> {
+  /** `shown`: the row the caller just read, so no second `worktree show`. */
+  async preparedHere(id: string, shown?: Worktree | null): Promise<boolean> {
     const proof = z
       .object({ commandId: text })
       .safeParse(this.c.options.state.read(`orca:prepared:${id}`));
     if (!proof.success) return false;
-    const w = await this.show(id);
+    const w =
+      shown !== undefined && shown?.id === id ? shown : await this.show(id);
     return w !== null && hasMarker(w.comment ?? '', proof.data.commandId);
   }
   async dispose(id: WorkspaceRef) {
@@ -221,26 +231,33 @@ export class Workspaces {
       throw guard('workspace_not_managed');
     const git = this.c.options.git;
     if ((await git.status(w.path)).length) throw guard('workspace_dirty');
+    const proof = z
+      .object({ commandId: text, branch: text.optional() })
+      .safeParse(this.c.options.state.read(`orca:prepared:${id}`));
     const name =
-      (await git.worktrees(w.path))
-        .find((t) => t.path === w.path)
-        ?.branch?.replace(/^refs\/heads\//, '') ?? branch(w);
+      proof.success && hasMarker(w.comment ?? '', proof.data.commandId)
+        ? (proof.data.branch ?? branch(w))
+        : branch(w);
     const tip = await git.revParse(w.path, 'HEAD');
-    if (tip !== base(w)) {
-      await git.fetch(w.path, name);
-      if (!(await git.isAncestor(w.path, tip, `refs/remotes/origin/${name}`)))
-        throw guard('unpushed_commits');
-    }
     const repo = Object.values(this.c.sessions()).find(
       (r) => r.orcaRepoId === w.repoId,
     )?.localPath;
     if (!repo) throw guard('workspace_repo_unknown');
-    await this.c.call(
-      ['worktree', 'rm', '--worktree', `id:${id}`, '--delete-branch'],
-      object,
-    );
-    if (name) await git.deleteCreatedBranch(repo, name, tip);
+    const branchSha = name ? await git.localBranch(repo, name) : null;
+    if (tip !== base(w) || (branchSha && branchSha !== base(w)))
+      await git.fetch(repo);
+    if (tip !== base(w) && !(await git.originContains(repo, tip)))
+      throw guard('workspace_unpushed');
+    if (
+      branchSha &&
+      branchSha !== base(w) &&
+      !(await git.originContains(repo, branchSha))
+    )
+      throw guard('workspace_unpushed');
+    await this.c.call(['worktree', 'rm', '--worktree', `id:${id}`], object);
+    if (name && branchSha) await git.deleteCreatedBranch(repo, name, branchSha);
   }
+
   async inspect(id: WorkspaceRef) {
     const w = await this.show(id);
     if (!w) return { clean: false, changedFiles: [] };

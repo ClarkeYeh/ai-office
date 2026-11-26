@@ -1,3 +1,4 @@
+import { registerLocal } from './api/local/index.js';
 import {
   demoScenario,
   parallelScenario,
@@ -51,6 +52,7 @@ import { SUBMISSION_HEADER_NAMES } from '@ai-office/contracts/agent-submission';
 import { PROJECTION_VERSION } from '@ai-office/projection';
 import type { ReadModel } from '@ai-office/projection';
 import { githubMainlineScenario } from './adapters/runtime-fake/scenarios/github-mainline.js';
+import { m5MainlineScenario } from './adapters/runtime-fake/scenarios/m5-mainline.js';
 import type { FakeRuntimeOptions } from './adapters/runtime-fake/index.js';
 import { mainlineScenario } from './adapters/runtime-fake/mainline.js';
 import { createFakeRuntime } from './adapters/runtime-fake/index.js';
@@ -143,6 +145,7 @@ export const FAKE_SCENARIOS: Readonly<
 > = {
   mainline: mainlineScenario,
   'github-mainline': githubMainlineScenario,
+  'm5-mainline': m5MainlineScenario,
   demo: demoScenario,
   parallel: parallelScenario,
   trouble: troubleScenario,
@@ -178,7 +181,15 @@ export interface StartOptions {
       github: RepoScmRef;
     };
     shortId?: string;
+    /**
+     * M5-T11: checkpoint and restore the fake world even with an injected
+     * `scm` (the rehearsal kills a fake-runtime backend that talks to real
+     * GitHub). Default false: the M3 mixed acceptances keep no checkpoint.
+     */
+    persistFakeWorld?: boolean;
     onShimCreated?: (handle: string) => void | Promise<void>;
+    /** FX-STATUS-LATENCY probe: the composed Orca runtime, for direct turns. */
+    onRuntime?: (runtime: RuntimePort) => void;
   };
   /** Dev hybrid only: an existing, owner-approved Orca folder workspace. */
   orcaHome?: string;
@@ -210,6 +221,11 @@ export interface RunningServer {
   readonly runtimeMode: 'fake' | 'orca';
   readonly runners: WorkflowRunners;
   readonly fakeWorld?: FakeWorld;
+  /**
+   * Fake mode with a checkpoint: writes it now, synchronously (M5-T11 flushes
+   * at an exact pause point before its `kill -9`).
+   */
+  readonly checkpointFakeWorld?: () => void;
   close(): Promise<void>;
 }
 
@@ -270,7 +286,8 @@ export function checkStartOptions(options: StartOptions): void {
   if (
     (options.testOnly?.fakeRuntime ||
       options.testOnly?.fakeRepo ||
-      options.testOnly?.shortId) &&
+      options.testOnly?.shortId ||
+      options.testOnly?.persistFakeWorld !== undefined) &&
     options.fake === undefined
   )
     throw new StartupError('Fake world hooks require --dev --fake');
@@ -715,6 +732,7 @@ async function composeOrca(
       observe: (
         ...args: Parameters<RuntimePort['observe']>
       ): ReturnType<RuntimePort['observe']> => sleepRuntime.observe(...args),
+      expectChange: () => sleepRuntime.expectChange(),
     },
     version,
     metrics,
@@ -1098,6 +1116,7 @@ async function compose(
   cleanup: (() => void | Promise<void>)[],
   unwind: () => Promise<void>,
 ): Promise<RunningServer> {
+  const verifyControlToken = lock.rotateControlToken();
   const settings: Settings = readSettings(dataDir);
   createDataDirectories(dataDir);
   const fake = options.fake !== undefined;
@@ -1128,6 +1147,7 @@ async function compose(
     options.cliPath ?? resolve(import.meta.dirname, '../../cli/dist/main.js');
 
   let world: FakeWorld | undefined;
+  let checkpointFakeWorld: (() => void) | undefined;
   let finalCheckpointError: unknown;
   let runtime: RuntimePort;
   let scm: ScmPort;
@@ -1152,10 +1172,12 @@ async function compose(
       });
     if (world.scenario !== options.fake)
       throw new StartupError('The surviving fake world runs another scenario');
-    const saveFakeWorld = options.testOnly?.scm
-      ? () => {}
-      : persistFakeWorld(world, dataDir, options.fakeWorld === undefined);
+    const saveFakeWorld =
+      options.testOnly?.scm && options.testOnly.persistFakeWorld !== true
+        ? () => {}
+        : persistFakeWorld(world, dataDir, options.fakeWorld === undefined);
     saveFakeWorld();
+    checkpointFakeWorld = saveFakeWorld;
     // Sampling all three adapters also covers scenario/test mutations outside ports.
     // Compare before writing: changes are coalesced to at most one checkpoint/second.
     const checkpoint = setInterval(() => {
@@ -1191,6 +1213,7 @@ async function compose(
       options,
     );
     runtime = orca.runtime;
+    options.testOnly?.onRuntime?.(runtime);
     if (options.dev !== true)
       github = await composeGithub(
         settings,
@@ -1425,6 +1448,7 @@ async function compose(
       globalAgents: settings.limits.globalAgents,
       spawnStallMs: settings.engine.spawnStallMs,
       budgetEnforcement: settings.budget.enforcement,
+      workerBranchRetention: settings.retention.workerBranches,
     },
   });
   if (github) {
@@ -1543,6 +1567,15 @@ async function compose(
         : {}
       : { devOrigin: options.devOrigin }),
   };
+  await registerLocal(app, {
+    get port() {
+      return port;
+    },
+    verifyControlToken,
+    sessions: stores.sessions,
+    now: () => clock.now(),
+    issued: () => logger.info({}, 'issued'),
+  });
   await registerApi(app, apiDeps);
   const fakeWorld = world;
   if (options.dev === true && fakeWorld && !options.testOnly?.scm)
@@ -1571,7 +1604,8 @@ async function compose(
     app.setNotFoundHandler((request, reply) =>
       request.method === 'GET' &&
       !request.url.startsWith('/api/') &&
-      !request.url.startsWith('/agent/')
+      !request.url.startsWith('/agent/') &&
+      !request.url.startsWith('/local/')
         ? reply.type('text/html; charset=utf-8').send(index)
         : reply.code(404).send({ error: 'not_found' }),
     );
@@ -1632,6 +1666,7 @@ async function compose(
     runtimeMode,
     runners,
     ...(world ? { fakeWorld: world } : {}),
+    ...(checkpointFakeWorld ? { checkpointFakeWorld } : {}),
     close: () => {
       observation.stop();
       submissions.close();

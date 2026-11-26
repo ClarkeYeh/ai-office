@@ -23,9 +23,13 @@ type ScenarioAction =
       filesModified?: number;
       /** M2-T17 (D5): optional, additive; absent keeps the M1 behavior. */
       idleAfterMs?: number;
+      /** M5-T12: optional, additive; a stale post-done `working` reading. */
+      staleWorkingAfterMs?: number;
     }
   | { type: 'push'; branch: string; headSha: string }
   | { type: 'output'; blocks: RawBlock[] }
+  /** M5-T12 (FX-ACTIVITY-DUP): optional, additive. */
+  | { type: 'replay-transcript' }
   | { type: 'lost' }
   | {
       type: 'rate-limited';

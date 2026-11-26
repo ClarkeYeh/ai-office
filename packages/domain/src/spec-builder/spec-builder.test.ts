@@ -17,6 +17,10 @@ import {
 } from './index.js';
 import type { AgentSpec, SpecParams, SpecRequest } from './index.js';
 import { renderConclusion } from './inputs.js';
+import {
+  ORCA_NOTICE_IS_NOT_AN_ANSWER,
+  WAIT_FOR_THE_ANSWER,
+} from './purposes.js';
 import { fenced, shellQuote } from './markdown.js';
 
 const SEAT_TOKEN = 'aio_seat_' + 'Zx9'.repeat(14);
@@ -245,6 +249,29 @@ describe('buildSpec snapshots', () => {
   });
 });
 
+describe("Orca's automatic notice is not an answer (M5-FX-QSPEC)", () => {
+  const asking = ['participant', 'worker', 'worker-retry', 'worker-rework'];
+  test.each(Object.entries(REQUESTS))('%s', (name, request) => {
+    const text = ok(stateFor(name), request).text;
+    const present = WAIT_FOR_THE_ANSWER.every((line) => text.includes(line));
+    // Only the purposes that may `ask` get the notice and the wait rule.
+    expect(present).toBe(asking.includes(name));
+    expect(text.includes(ORCA_NOTICE_IS_NOT_AN_ANSWER)).toBe(
+      asking.includes(name),
+    );
+  });
+  test('names the aio: reply and defers to the engine timeout, never a self-made deadline', () => {
+    const rule = WAIT_FOR_THE_ANSWER.join(' ');
+    expect(rule).toMatch(/not an answer/);
+    expect(rule).toMatch(/first line starts with `aio:`/);
+    expect(rule).toMatch(/do not finalize anything that does/);
+    expect(rule).toMatch(/Set no deadline of your own/);
+    expect(rule).toMatch(
+      /question timeout \(a reminder, then escalation to a human\)/,
+    );
+  });
+});
+
 describe('every spec', () => {
   const specs = Object.entries(REQUESTS).map(
     ([name, request]) => [name, ok(stateFor(name), request)] as const,
@@ -396,6 +423,42 @@ describe('inputs', () => {
 });
 
 describe('variants', () => {
+  test('planner lists distinct template agents and recommends selective overrides', async () => {
+    const state = richState();
+    const text = ok(state, REQUESTS['planner']!).text;
+    expect(text).toContain(
+      'Available agent kinds in this template: `claude-code`, `codex`.',
+    );
+    expect(text).toContain(
+      'Fill optional `agent` only when an item clearly fits',
+    );
+    expect(text).toContain("otherwise omit it to use the role's default agent");
+    const template = structuredClone(state.workflow!.template);
+    for (const role of Object.values(template.roles)) role.agent = 'codex';
+    const single = ok(
+      { ...state, workflow: { ...state.workflow!, template } },
+      REQUESTS['planner']!,
+    ).text;
+    expect(single).toContain(
+      'Available agent kinds in this template: `codex`.',
+    );
+    await expect(single).toMatchFileSnapshot(
+      '__snapshots__/planner-single-agent.txt',
+    );
+  });
+
+  test.each([
+    'facilitator',
+    'participant',
+    'planner',
+    'oncall',
+    'merge-queue',
+    'integrator',
+  ])('%s retries an unreachable backend for about five minutes', (name) => {
+    expect(ok(stateFor(name), REQUESTS[name]!).text).toContain(
+      'Wait 30 seconds and run the same command again, at most 10 times (about 5 minutes).',
+    );
+  });
   test('reruns carry the feedback; tech decisions can be optional', () => {
     const state = richState();
     const template = structuredClone(state.workflow!.template);

@@ -475,5 +475,53 @@
   {
     "file": "apps/server/src/acceptance/github/process.github.test.ts",
     "rules": ["process-only-in-runtime-config-cli-start"]
+  },
+  {
+    "file": "apps/server/src/test-support/joint/good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/test-support/joint/data-good.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/test-support/joint/adapter-bad.ts",
+    "rules": ["joint-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/test-support/orca/safe.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/test-support/github/safe.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/test-support/joint/bad.ts",
+    "rules": ["joint-allowed-dependencies"]
+  },
+  {
+    "file": "apps/server/src/test-support/joint/ports-main.ts",
+    "rules": []
+  },
+  {
+    "file": "apps/server/src/joint-bad.ts",
+    "rules": ["no-production-to-tests"]
+  },
+  {
+    "file": "apps/cli/src/commands/open/bad.ts",
+    "rules": ["cli-allowed-dependencies"]
+  },
+  {
+    "file": "scripts/budget/bad.mjs",
+    "rules": ["budget-no-server"]
+  },
+  {
+    "file": "scripts/budget/good.mjs",
+    "rules": []
+  },
+  {
+    "file": "apps/cli/src/commands/open/good.ts",
+    "rules": []
   }
 ]

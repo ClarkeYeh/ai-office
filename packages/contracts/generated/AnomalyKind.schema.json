@@ -12,6 +12,7 @@
     "duplicate-object",
     "merge-base-changed",
     "integration-branch-moved",
-    "unmanaged-close"
+    "unmanaged-close",
+    "cleanup-failed"
   ]
 }

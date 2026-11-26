@@ -38,12 +38,29 @@ describe('usage fixture counter exception', () => {
     const value = [claude(), codex()];
     expect(scoped().sanitize(value)).toEqual(value);
     expect(scoped().hasLeaks(value)).toBe(false);
-    for (const name of ['claude', 'codex']) {
+    for (const name of [
+      'claude',
+      'codex',
+      'claude-code-2.1.311',
+      'codex-0.171.0',
+    ]) {
       const contents: unknown = JSON.parse(
         readFileSync(`fixtures/usage/${name}.json`, 'utf8'),
       );
       expect(scoped().hasLeaks(contents)).toBe(false);
     }
+  });
+  it('preserves the codex-cli 0.171.0 cache_write_input_tokens counter', () => {
+    const value = codex();
+    Object.assign(value.payload.info.total_token_usage, {
+      cache_write_input_tokens: 4,
+    });
+    expect(scoped().sanitize(value)).toEqual(value);
+    expect(scoped().hasLeaks(value)).toBe(false);
+    Object.assign(value.payload.info.total_token_usage, {
+      cache_write_input_tokens: '4',
+    });
+    expect(scoped().hasLeaks(value)).toBe(true);
   });
   it.each(['12', -1, 0.5, Number.MAX_SAFE_INTEGER + 1, { value: 12 }])(
     'still flags non-counter values (%j)',

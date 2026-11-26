@@ -1,3 +1,4 @@
+import { acquireOrcaLiveLock } from './lock.js';
 import { mkdtemp, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, isAbsolute } from 'node:path';
@@ -116,6 +117,7 @@ export class OrcaHarness {
   private cleaning: Promise<void> | undefined;
   private controller = new AbortController();
   private interrupted = false;
+  private releaseLiveLock: (() => Promise<void>) | undefined;
   private constructor(
     private readonly options: HarnessOptions,
     dataDir: string,
@@ -136,13 +138,24 @@ export class OrcaHarness {
       throw new Error('Real Orca opt-in required');
     if (!isAbsolute(options.orcaBin))
       throw new Error('Absolute Orca binary required');
-    const dataDir =
-      options.ledger?.dataDir ?? (await mkdtemp(join(tmpdir(), 'aio-test-')));
-    await mkdir(join(dataDir, 'cli-cwd'), { recursive: true, mode: 0o700 });
-    const harness = new OrcaHarness(options, dataDir);
-    await harness.verify();
-    await harness.persist();
-    return harness;
+    if (!env.HOME || !isAbsolute(env.HOME))
+      throw new Error('Absolute HOME required for Orca live lock');
+    const release = await acquireOrcaLiveLock(
+      join(env.HOME, '.ai-office', 'test-state', 'orca-live.lock'),
+    );
+    try {
+      const dataDir =
+        options.ledger?.dataDir ?? (await mkdtemp(join(tmpdir(), 'aio-test-')));
+      await mkdir(join(dataDir, 'cli-cwd'), { recursive: true, mode: 0o700 });
+      const harness = new OrcaHarness(options, dataDir);
+      harness.releaseLiveLock = release;
+      await harness.verify();
+      await harness.persist();
+      return harness;
+    } catch (error) {
+      await release();
+      throw error;
+    }
   }
   private async execute(
     bin: string,
@@ -659,6 +672,12 @@ export class OrcaHarness {
       throw new Error('Ledger resources remain after cleanup');
     await assertScanClean(() => this.scan());
   }
+  /** Release only after the caller has completed its final scan. */
+  async close(): Promise<void> {
+    const release = this.releaseLiveLock;
+    this.releaseLiveLock = undefined;
+    await release?.();
+  }
   async clean(): Promise<void> {
     this.cleaning ??= this.cleanupResources().finally(() => {
       this.cleaning = undefined;
@@ -764,12 +783,23 @@ export class OrcaHarness {
     }
   }
   /** Register with afterAll; SIGINT also attempts cleanup, retaining failed entries for janitor. */
-  installCleanup(afterAll: (fn: () => Promise<void>) => void): void {
+  installCleanup(
+    afterAll: (fn: () => Promise<void>) => void,
+    closeAfterCleanup = true,
+  ): void {
+    const finish = async () => {
+      try {
+        await this.clean();
+        if (closeAfterCleanup) await this.assertClean();
+      } finally {
+        if (closeAfterCleanup) await this.close();
+      }
+    };
     const interrupt = () => {
       this.interrupted = true;
       this.controller.abort();
       this.controller = new AbortController();
-      void this.clean().then(
+      void finish().then(
         () => {
           process.exitCode = 130;
         },
@@ -781,7 +811,7 @@ export class OrcaHarness {
     process.once('SIGINT', interrupt);
     afterAll(async () => {
       try {
-        await this.clean();
+        await finish();
       } finally {
         process.removeListener('SIGINT', interrupt);
       }

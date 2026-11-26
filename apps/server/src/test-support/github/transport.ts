@@ -64,9 +64,10 @@ export function guardedFetch(
     if (path.split('/').includes('..') || path.includes('\\'))
       throw new Error('Unsafe API path');
     const method = request.method;
+    // Reads only; `activity` (push actors) serves T12's identity check.
     if (method === 'GET') {
       if (
-        !/^\/(?:issues(?:\/.*)?|pulls(?:\/.*)?|branches(?:\/.*)?|git\/(?:ref|matching-refs)\/heads\/.*|compare\/.*|commits\/.*|rules\/branches\/.*|labels(?:\/.*)?)$/.test(
+        !/^\/(?:issues(?:\/.*)?|pulls(?:\/.*)?|branches(?:\/.*)?|git\/(?:ref|matching-refs)\/heads\/.*|compare\/.*|commits\/.*|rules\/branches\/.*|labels(?:\/.*)?|activity)$/.test(
           path,
         )
       )

@@ -57,6 +57,7 @@ export interface MixedOffice {
   detail(gate: Json): Promise<Json>;
   decision(gate: Json, body: Json): Promise<{ status: number; body: Json }>;
   liveAgents(): number;
+  sleep(ms: number): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -65,7 +66,10 @@ export interface MixedOffice {
  * "Mixed GitHub scenario assembly"): the shortId is the run ID, so branches,
  * titles and markers land in the T7 test namespace.
  */
-export async function mixedOffice(binding: MixedBinding): Promise<MixedOffice> {
+export async function mixedOffice(
+  binding: MixedBinding,
+  pause: (ms: number) => Promise<void> = sleep,
+): Promise<MixedOffice> {
   const shortId = binding.runId;
   const scm = scopeGithubScm(binding.scm, binding.runId, shortId);
   const bridge = createGithubWorldBridge({
@@ -156,6 +160,7 @@ export async function mixedOffice(binding: MixedBinding): Promise<MixedOffice> {
         body,
       ),
     liveAgents: () => server.fakeWorld?.runtime.activeAgents().length ?? 0,
+    sleep: pause,
     async close() {
       try {
         await server.close();
@@ -185,6 +190,6 @@ export async function waitFor<T>(
       throw new Error(
         `Timed out waiting for ${what}\n${trace(await o.events(workflowId))}`,
       );
-    await sleep(o.binding.mode === 'live' ? 1000 : 25);
+    await o.sleep(o.binding.mode === 'live' ? 1000 : 25);
   }
 }

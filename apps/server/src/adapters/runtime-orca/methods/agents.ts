@@ -6,9 +6,13 @@ import {
   type CommandResult,
 } from '@ai-office/contracts/events';
 import type { RuntimePort, Correlation } from '../../../ports/runtime.js';
-import type { AgentRef, QuestionRef } from '../../../ports/refs.js';
+import type {
+  AgentRef,
+  QuestionRef,
+  WorkspaceRef,
+} from '../../../ports/refs.js';
 import { PortError } from '../../../ports/errors.js';
-import { agentRef } from '../refs.js';
+import { agentRef, workspaceRef } from '../refs.js';
 import { guard } from '../errors.js';
 import {
   Context,
@@ -110,11 +114,23 @@ export class Agents {
   }
   async rebuild(run: string, settleCommand?: string) {
     const workers = await this.workers(run);
-    const tasks = await this.c.call(
-      ['orchestration', 'task-list'],
-      z.looseObject({ tasks: z.array(Task) }).refine(completeTaskList),
-      run,
-    );
+    // FX-CLI-BUDGET: the task list only names dispatches the ledger does not
+    // know yet; when every worker of the run is a started entry and no spawn
+    // is pending, the rebuild needs no task-list (one call per send saved).
+    const ledger = this.c.options.ledger;
+    const known =
+      settleCommand === undefined &&
+      !ledger.all().some((e) => e.run === run && e.state === 'pending') &&
+      workers
+        .filter((w) => w.runId === run)
+        .every((w) => ledger.byDispatch(w.dispatchId)?.state === 'started');
+    const tasks = known
+      ? { tasks: [] }
+      : await this.c.call(
+          ['orchestration', 'task-list'],
+          z.looseObject({ tasks: z.array(Task) }).refine(completeTaskList),
+          run,
+        );
     const visibleTasks = tasks.tasks.filter((task) => {
       const id = markerToken(task.title);
       return (
@@ -168,6 +184,20 @@ export class Agents {
       )
     ).messages;
   }
+  /** M5 §4.2: the worktree a `new-worktree` spawn created, from adapter state. */
+  spawned(commandId: string): WorkspaceRef | undefined {
+    const p = z
+      .object({ id: text, created: z.literal(true) })
+      .safeParse(this.c.options.state.read(`orca:workspace:${commandId}`));
+    return p.success ? workspaceRef(p.data.id) : undefined;
+  }
+  private spawnResult(commandId: string, agent: string): CommandResult {
+    const workspace = this.spawned(commandId);
+    return {
+      kind: 'runtime.spawnAgent',
+      result: workspace === undefined ? { agent } : { agent, workspace },
+    };
+  }
   async find(commandId: string): Promise<CommandResult | null> {
     const cached = this.c.options.state.read(`orca:result:${commandId}`);
     if (cached) return parse(CommandResultSchema, cached);
@@ -185,10 +215,7 @@ export class Agents {
         const command = this.c.options.state.read(`orca:kind:${commandId}`);
         return command === 'runtime.send' || entry.agent !== entry.dispatch
           ? { kind: 'runtime.send', result: {} }
-          : {
-              kind: 'runtime.spawnAgent',
-              result: { agent: entry.agent ?? entry.dispatch },
-            };
+          : this.spawnResult(commandId, entry.agent ?? entry.dispatch);
       }
       for (const message of await this.messages(run.id)) {
         if (
@@ -323,7 +350,8 @@ export class Agents {
       owns = true;
     }
     if (!workspace) throw guard('workspace_missing');
-    owns = owns || (await this.workspaces.preparedHere(workspace.id));
+    owns =
+      owns || (await this.workspaces.preparedHere(workspace.id, workspace));
     if (!isAbsolute(this.c.options.dataDir))
       throw guard('data_dir_must_be_absolute');
     const dir = join(this.c.options.dataDir, 'orca-specs');
@@ -340,7 +368,12 @@ export class Agents {
           'Launch specification changed',
         );
     }
-    state.write(`orca:workspace:${id}`, { id: workspace.id, owns });
+    // M5 §4.2: `created` marks the worktree this spawn made (new-worktree).
+    state.write(`orca:workspace:${id}`, {
+      id: workspace.id,
+      owns,
+      ...(req.workspace.kind === 'new-worktree' ? { created: true } : {}),
+    });
     ledger.pending({
       commandId: id,
       run: req.session,
@@ -383,10 +416,7 @@ export class Agents {
       if (r.mode && r.mode.mode !== 'terminal')
         state.write('orca:chat-worker-degraded', true);
       ledger.started(id, r.dispatchId);
-      this.c.save(id, {
-        kind: 'runtime.spawnAgent',
-        result: { agent: r.dispatchId },
-      });
+      this.c.save(id, this.spawnResult(id, r.dispatchId));
       return agentRef(r.dispatchId);
     } catch (e) {
       if (!(e instanceof PortError)) throw e;
@@ -441,7 +471,7 @@ export class Agents {
     }
     if (e?.state === 'started' && e.dispatch) {
       const agent = agentRef(e.agent ?? e.dispatch);
-      this.c.save(id, { kind: 'runtime.spawnAgent', result: { agent } });
+      this.c.save(id, this.spawnResult(id, agent));
       return agent;
     }
     if (r.status === 'pending') throw transient('outcome_unknown');
@@ -465,10 +495,13 @@ export class Agents {
       : await this.entry(agent);
     this.c.options.state.write(`orca:send-target:${id}`, entry);
     const ledger = this.c.options.ledger;
-    const rows = await this.workers(entry.run);
-    const row = rows.find((w) => w.dispatchId === entry.dispatch);
-    if (!entry.keepOpen && row?.terminalState === 'released')
-      throw guard('dispatch_released');
+    // Only a worker without keep-open can be released under us; a kept-open
+    // one needs no worker-list per send (FX-STATUS-CADENCE).
+    if (!entry.keepOpen) {
+      const rows = await this.workers(entry.run);
+      const row = rows.find((w) => w.dispatchId === entry.dispatch);
+      if (row?.terminalState === 'released') throw guard('dispatch_released');
+    }
     this.c.options.state.write(`orca:kind:${id}`, 'runtime.send');
     ledger.pending({
       commandId: id,

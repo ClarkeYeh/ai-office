@@ -16,6 +16,7 @@ import type { AdapterState } from '../state.js';
 import { decodeCursor, questionRef } from '../refs.js';
 import { CursorPayloadSchema, firstCheckId, nextCheckId } from './cursor.js';
 import { OrcaObserver } from './observer.js';
+import { runtimeDelayMs } from '../../../ports/runtime.js';
 
 const RUN = 'run_3d70ed17e5de';
 const SHIM = 'term_00000000-0000-4000-8000-000000000001';
@@ -35,6 +36,8 @@ type Mail = {
   filesModified?: unknown;
   /** Raw payload override, for malformed shapes. */
   payload?: string;
+  /** Body override (replies: `aio:` marker line; Orca's notices: plain text). */
+  body?: string;
   sequence: number;
   read: boolean;
 };
@@ -45,7 +48,8 @@ type W = {
   terminalState?: string | null;
   verdict?: string;
   activity?: string;
-  observedAt?: number;
+  /** `null`: Orca 1.4.272 leaves `evidence.lastObservedAt` out. */
+  observedAt?: number | null;
   owner?: string | null;
   origin?: string | null;
   parent?: unknown;
@@ -93,7 +97,7 @@ class World {
         m.from ?? (m.dispatch ? `dispatch:${m.dispatch}` : 'run:' + RUN),
       to_handle: m.to,
       subject: 'aio subject',
-      body: m.type === 'question' ? 'raw question body' : 'body',
+      body: m.body ?? (m.type === 'question' ? 'raw question body' : 'body'),
       type: m.type,
       thread_id: m.thread ?? (m.type === 'question' ? m.id : null),
       payload:
@@ -231,11 +235,22 @@ class World {
                 activity: w.activity ?? 'working',
               },
               liveness: { verdict: w.verdict ?? 'live' },
-              evidence: { lastObservedAt: w.observedAt ?? 1 },
+              evidence:
+                w.observedAt === null
+                  ? {}
+                  : { lastObservedAt: w.observedAt ?? 1 },
             },
           })),
         });
       }
+      case 'orchestration run-show':
+        return ok({
+          run: {
+            id: flag(args, '--id'),
+            coordinator_handle: SHIM,
+            consumer_generation: 1,
+          },
+        });
       case 'orchestration worker-show':
         return ok({
           observation: {
@@ -304,7 +319,17 @@ interface Rig {
   }>;
 }
 async function rig(
-  extra: { ownsCommand?: (commandId: string) => boolean } = {},
+  extra: {
+    ownsCommand?: (commandId: string) => boolean;
+    pressured?: () => boolean;
+    onWake?: (session: string) => void;
+    /** Simulated CLI time per `orchestration <command>`. */
+    latencyMs?: Record<string, number>;
+    /** Shared CLI limiter; default: a roomy one. */
+    scheduler?: CliScheduler;
+    /** checkOwnership reads `run-show` through the CLI, as the shim does. */
+    showOwnership?: boolean;
+  } = {},
   world = new World(),
   state = memory(),
 ): Promise<Rig> {
@@ -319,7 +344,7 @@ async function rig(
     bin: '/bin/orca',
     env: { PATH: '/bin', HOME: '/tmp/home' },
     cwdGuard: new CwdGuard(cliCwd, async () => []),
-    scheduler: new CliScheduler(1000, 8),
+    scheduler: extra.scheduler ?? new CliScheduler(1000, 8),
     identity: {
       argsFor: async (kind, run, context) => {
         if (kind === 'mutate') return ['--from', SHIM];
@@ -331,6 +356,7 @@ async function rig(
     exec: {
       run: async (request) => {
         requests.push(request);
+        clock.now += extra.latencyMs?.[request.args.slice(0, 2).join(' ')] ?? 0;
         // Strip the CLI-appended identity/output flags for the world model.
         const stdout = await world.respond(request.args);
         return { stdout, exitCode: 0 };
@@ -344,7 +370,17 @@ async function rig(
       ledger,
       identity: {
         ensure: async () => ({ handle: SHIM, restored: false }),
-        checkOwnership: async () => ownership.value,
+        checkOwnership: async (run) => {
+          if (extra.showOwnership)
+            await cli.run(
+              ['orchestration', 'run-show', '--id', run, '--full'],
+              {
+                kind: 'read',
+                priority: 'identity',
+              },
+            );
+          return ownership.value;
+        },
         drainEvents: () => identityEvents.splice(0),
       },
       logger: {
@@ -357,7 +393,9 @@ async function rig(
       },
       now: () => clock.now,
       observeWaitMs: 30,
-      ...extra,
+      ...(extra.ownsCommand ? { ownsCommand: extra.ownsCommand } : {}),
+      ...(extra.pressured ? { pressured: extra.pressured } : {}),
+      ...(extra.onWake ? { onWake: extra.onWake } : {}),
     });
   const r: Rig = {
     world,
@@ -396,6 +434,17 @@ const ofType = <T extends RuntimeEvent['type']>(
     (e): e is Extract<RuntimeEvent, { type: T }> => e.type === type,
   );
 
+/**
+ * FX-STATUS-LATENCY: a pass that consumed mail returns it at once; the
+ * worker-list (and the statuses it derives) follows in the next pass.
+ */
+async function mailThenList(r: Rig, cursor: RuntimeCursor | null) {
+  const mail = await r.observe(cursor);
+  r.clock.now += 2_000;
+  const list = await r.observe(mail.cursor);
+  return { events: [...mail.events, ...list.events], cursor: list.cursor };
+}
+
 describe('OrcaObserver: batches and cursors', () => {
   let r: Rig;
   beforeEach(async () => {
@@ -426,8 +475,15 @@ describe('OrcaObserver: batches and cursors', () => {
     ]);
     const c = decodeCursor(third.cursor, CursorPayloadSchema);
     expect(c.check.requestId).toBe(nextCheckId(a.check.requestId));
-    // lastSeq comes from the inbox (check messages carry no sequence).
-    expect(c.lastSeq).toBe(r.world.seq);
+    // lastSeq comes from the inbox (check messages carry no sequence), learned
+    // at most every 30 s; the consumed id makes that re-read a no-op.
+    expect(c.consumed).toContain('msg_q1');
+    r.clock.now += 30_000;
+    const fourth = await r.observe(third.cursor);
+    expect(ofType(fourth.events, 'agent.question')).toEqual([]);
+    expect(decodeCursor(fourth.cursor, CursorPayloadSchema).lastSeq).toBe(
+      r.world.seq,
+    );
   });
 
   it('replays the same batch for the same cursor (memo of the last two)', async () => {
@@ -619,7 +675,10 @@ describe('OrcaObserver: mapping', () => {
     let cursor = (await r.observe(null)).cursor;
     r.world.post({ id: 'msg_e1', type: 'escalation', dispatch: 'ctx_a', task });
     r.world.post({ id: 'msg_e2', type: 'escalation', dispatch: 'ctx_a', task });
-    const batch = await r.observe(cursor);
+    // The first long poll returns e1; e2 comes with the next (woken) pass.
+    const first = await r.observe(cursor);
+    const batch = await r.observe(first.cursor);
+    batch.events.unshift(...first.events);
     cursor = batch.cursor;
     expect(batch.events.some((e) => e.type === 'agent.exited')).toBe(false);
     expect(
@@ -1021,18 +1080,84 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     expect(ofType(asked.events, 'agent.status')).toEqual([
       expect.objectContaining({
         state: 'waiting_input',
         waitingSince: '2026-11-18T05:50:51.000Z',
       }),
     ]);
-    // reply → dispatch mailbox, thread_id = question id (fixture reply.question).
+    // reply → dispatch mailbox, thread_id = question id (fixture reply.question);
+    // `runtime.answer` puts the `aio:` command marker on the first line.
     r.world.mail.push({
       id: 'msg_r',
       type: 'status',
       to: 'dispatch:ctx_a',
+      thread: 'msg_q',
+      body: `${marker('cmd-answer')}\nno`,
+      sequence: ++r.world.seq,
+      read: true,
+    });
+    r.clock.now += 10_000;
+    const answered = await r.observe(asked.cursor);
+    expect(ofType(answered.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'working' }),
+    ]);
+  });
+
+  it("keeps waiting_input through Orca 1.4.272's own 'decide it yourself' notice (M5-T11b)", async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const asked = await mailThenList(r, first.cursor);
+    expect(ofType(asked.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'waiting_input' }),
+    ]);
+    // Orca posts its notice into the thread at once: the shim runs no agent.
+    r.world.mail.push({
+      id: 'msg_notice',
+      type: 'status',
+      to: 'dispatch:ctx_a',
+      thread: 'msg_q',
+      body: 'Your coordinator stopped without answering your question and has no worker running for it. Decide it yourself and say what you chose when you report. If an answer comes later, it still reaches you.',
+      sequence: ++r.world.seq,
+      read: true,
+    });
+    r.clock.now += 10_000;
+    const noticed = await r.observe(asked.cursor);
+    expect(ofType(noticed.events, 'agent.status')).toEqual([]);
+    // The agent keeps working on its own meanwhile: still waiting for us.
+    r.world.workers[0]!.activity = 'working';
+    r.clock.now += 10_000;
+    const still = await r.observe(noticed.cursor);
+    expect(ofType(still.events, 'agent.status')).toEqual([]);
+    // AI Office's own reply ends the wait.
+    r.world.mail.push({
+      id: 'msg_r',
+      type: 'status',
+      to: 'dispatch:ctx_a',
+      thread: 'msg_q',
+      body: `${marker('cmd-answer')}\nno`,
+      sequence: ++r.world.seq,
+      read: true,
+    });
+    r.clock.now += 10_000;
+    const answered = await r.observe(still.cursor);
+    expect(ofType(answered.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'working' }),
+    ]);
+  });
+
+  it('counts a reply from any handle but the run as an answer', async () => {
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const asked = await mailThenList(r, first.cursor);
+    r.world.mail.push({
+      id: 'msg_r',
+      type: 'status',
+      to: 'dispatch:ctx_a',
+      from: 'terminal:owner',
       thread: 'msg_q',
       sequence: ++r.world.seq,
       read: true,
@@ -1048,7 +1173,7 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     r.observer.markAnswered(questionRef('msg_q'));
     const working = await r.observe(asked.cursor);
     // Live shape (run inbox seq 954): sent from the worker's terminal handle,
@@ -1071,7 +1196,10 @@ describe('OrcaObserver: mapping', () => {
         filesModified: 1,
       }),
     ]);
-    expect(decodeCursor(done.cursor, CursorPayloadSchema).lastSeq).toBe(
+    r.clock.now += 30_000;
+    const learned = await r.observe(done.cursor);
+    expect(ofType(learned.events, 'agent.done')).toEqual([]);
+    expect(decodeCursor(learned.cursor, CursorPayloadSchema).lastSeq).toBe(
       r.world.seq,
     );
   });
@@ -1101,7 +1229,7 @@ describe('OrcaObserver: mapping', () => {
     const task = spawned(r, 'ctx_a');
     const first = await r.observe(null);
     r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
-    const asked = await r.observe(first.cursor);
+    const asked = await mailThenList(r, first.cursor);
     r.observer.markAnswered(questionRef('msg_q'));
     const next = await r.observe(asked.cursor);
     expect(ofType(next.events, 'agent.status')).toEqual([
@@ -1150,6 +1278,48 @@ describe('OrcaObserver: mapping', () => {
     expect(keys(ofType(next.events, 'agent.output'))).toEqual([
       'orca:tx:ctx_a:m3',
     ]);
+  });
+
+  it('re-reads a long turn every 15 s although its signature never changes (1.4.272, M5-T11b)', async () => {
+    spawned(r, 'ctx_a');
+    r.world.workers[0]!.observedAt = null; // 1.4.272: no lastObservedAt
+    r.world.transcripts.set('ctx_a', [
+      { id: 'm1', role: 'assistant', text: 'start' },
+    ]);
+    let cursor: RuntimeCursor | null = null;
+    const reads = () =>
+      r.world.calls.filter((c) => c[1] === 'worker-read').length;
+    cursor = (await r.observe(cursor)).cursor;
+    expect(reads()).toBe(1);
+    // The agent keeps working; its transcript grows; nothing else changes.
+    const outputs: string[] = [];
+    for (let i = 2; i <= 10; i++) {
+      r.world.transcripts
+        .get('ctx_a')!
+        .push({ id: `m${i}`, role: 'assistant', text: `step ${i}` });
+      const result = await r.observe(cursor); // +2.5 s each
+      cursor = result.cursor;
+      outputs.push(...keys(ofType(result.events, 'agent.output')));
+    }
+    // 22.5 s of working: one periodic re-read (at ≥ 15 s), not one per poll.
+    expect(reads()).toBe(2);
+    expect(outputs.length).toBeGreaterThan(0);
+    expect(outputs[0]).toBe('orca:tx:ctx_a:m2');
+  });
+
+  it('stretches the re-read to 30 s under CLI pressure', async () => {
+    const pressed = await rig({ pressured: () => true });
+    spawned(pressed, 'ctx_a');
+    pressed.world.workers[0]!.observedAt = null;
+    let cursor: RuntimeCursor | null = null;
+    const reads = () =>
+      pressed.world.calls.filter((c) => c[1] === 'worker-read').length;
+    cursor = (await pressed.observe(cursor)).cursor;
+    for (let i = 0; i < 9; i++) cursor = (await pressed.observe(cursor)).cursor;
+    expect(reads()).toBe(1); // 22.5 s < 30 s
+    for (let i = 0; i < 4; i++) cursor = (await pressed.observe(cursor)).cursor;
+    expect(reads()).toBe(2); // ≥ 30 s
+    pressed.observer.close();
   });
 
   it('reports no_transcript_source and transcript_clipped once', async () => {
@@ -1235,6 +1405,46 @@ describe('OrcaObserver: mapping', () => {
   });
 });
 
+describe('OrcaObserver: status latency (M5-FX-LATENCY)', () => {
+  it('runs probes and transcript reads together, so a status waits for one call, not the sum', async () => {
+    const r = await rig();
+    for (const d of ['ctx_a', 'ctx_b', 'ctx_c']) {
+      spawned(r, d);
+      r.world.transcripts.set(d, [
+        { id: `${d}-1`, role: 'assistant', text: 'hi' },
+      ]);
+    }
+    // Every worker-show and worker-read is an Orca process: ~40 ms here.
+    let inFlight = 0;
+    let peak = 0;
+    const respond = r.world.respond.bind(r.world);
+    r.world.respond = async (args) => {
+      const slow = args[1] === 'worker-show' || args[1] === 'worker-read';
+      if (!slow) return respond(args);
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((done) => setTimeout(done, 40));
+      inFlight--;
+      return respond(args);
+    };
+    const started = performance.now();
+    const first = await r.observe(null);
+    const elapsed = performance.now() - started;
+    // Three new agents: three probes and three reads in one batch.
+    expect(r.world.calls.filter((c) => c[1] === 'worker-show')).toHaveLength(3);
+    expect(r.world.calls.filter((c) => c[1] === 'worker-read')).toHaveLength(3);
+    expect(peak).toBeGreaterThanOrEqual(4);
+    // Sequential would be ≥ 3 × 40 (probes) + 40 (reads) = 160 ms.
+    expect(elapsed).toBeLessThan(140);
+    // Statuses still come first, then the transcript output.
+    const types = first.events.map((e) => e.type);
+    expect(types.lastIndexOf('agent.status')).toBeLessThan(
+      types.indexOf('agent.output'),
+    );
+    r.observer.close();
+  });
+});
+
 describe('OrcaObserver: CLI budget (SPEC §6.4)', () => {
   it('stays near 80 calls per minute with 10 active workers', async () => {
     const r = await rig();
@@ -1256,5 +1466,359 @@ describe('OrcaObserver: CLI budget (SPEC §6.4)', () => {
     r.observer.close();
     expect(r.world.count('orchestration worker-list')).toBeLessThanOrEqual(31);
     expect(calls).toBeLessThanOrEqual(90);
+  });
+
+  it('bounds transcript lag at 15 s for 10 long turns without exceeding 120 calls per minute (1.4.272)', async () => {
+    const r = await rig();
+    for (let i = 0; i < 10; i++) spawned(r, `ctx_${i}`);
+    // 1.4.272: no lastObservedAt, so the worker-list signature never changes.
+    for (const w of r.world.workers) w.observedAt = null;
+    let cursor: RuntimeCursor | null = null;
+    const start = r.clock.now;
+    const before = r.world.calls.length;
+    const readTimes = new Map<string, number[]>();
+    while (r.clock.now - start < 60_000) {
+      const tick = r.clock.now - start;
+      if (tick > 0 && tick % 30_000 < 1_000) r.world.timeout();
+      const seen = r.world.calls.length;
+      const result = await r.observer.observe(session, cursor);
+      cursor = result.cursor;
+      for (const call of r.world.calls.slice(seen))
+        if (call[1] === 'worker-read') {
+          const d = flag(call, '--dispatch')!;
+          readTimes.set(d, [...(readTimes.get(d) ?? []), tick]);
+        }
+      r.clock.now += 1_000;
+    }
+    const calls = r.world.calls.length - before;
+    r.observer.close();
+    expect(calls).toBeLessThanOrEqual(120);
+    for (let i = 0; i < 10; i++) {
+      const times = readTimes.get(`ctx_${i}`) ?? [];
+      // Read at start, then at most every 15 s (+1 s poll granularity).
+      expect(times.length).toBeGreaterThanOrEqual(4);
+      for (let k = 1; k < times.length; k++)
+        expect(times[k]! - times[k - 1]!).toBeLessThanOrEqual(16_000);
+    }
+  });
+});
+
+describe('OrcaObserver: identity check under a saturated bulk lane (FX-TAIL)', () => {
+  it('a pass consumes mail at once while bulk reads have used up their minute', async () => {
+    // The limiter's own clock stands still: bulk starts never age out.
+    const scheduler = new CliScheduler(120, 4, () => 0);
+    const r = await rig({ scheduler, showOwnership: true });
+    const task = spawned(r, 'ctx_a');
+    // An idle worker: no list (and so no bulk probe or read) is due next pass.
+    r.world.workers[0]!.activity = 'idle';
+    const first = await r.observe(null);
+    // Bulk uses its whole share (120 − 40 reserved) of the minute; the
+    // rest of these reads queue behind it…
+    let bulkRan = 0;
+    const bulk = Array.from({ length: 90 }, () =>
+      scheduler.schedule('bulk', async () => void bulkRan++).catch(() => {}),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const queued = 90 - bulkRan;
+    expect(queued).toBeGreaterThan(0);
+    // …then a question arrives: the pass's run-show must not wait for bulk.
+    const shows = r.world.count('orchestration run-show');
+    r.world.post({ id: 'msg_q1', type: 'question', dispatch: 'ctx_a', task });
+    const stalled = Symbol('stalled');
+    const result = await Promise.race([
+      r.observe(first.cursor),
+      new Promise<typeof stalled>((resolve) =>
+        setTimeout(() => resolve(stalled), 2_000),
+      ),
+    ]);
+    expect(result).not.toBe(stalled);
+    if (result === stalled) return;
+    expect(r.world.count('orchestration run-show')).toBe(shows + 1);
+    expect(ofType(result.events, 'agent.question')).toEqual([
+      expect.objectContaining({ agent: 'ctx_a', question: 'msg_q1' }),
+    ]);
+    expect(90 - bulkRan).toBe(queued);
+    r.observer.close();
+    scheduler.close();
+    await Promise.all(bulk);
+  });
+});
+
+describe('OrcaObserver: status latency (FX-STATUS-LATENCY)', () => {
+  const lists = (r: Rig, from: number) =>
+    r.requests.slice(from).filter((q) => q.args[1] === 'worker-list').length;
+
+  it('stamps a worker-list status with the list call start, its CLI time included', async () => {
+    const r = await rig({ latencyMs: { 'orchestration worker-list': 1_200 } });
+    spawned(r, 'ctx_a');
+    const before = r.clock.now;
+    const { events } = await r.observe(null);
+    const status = ofType(events, 'agent.status')[0]!;
+    const at = Date.parse(status.occurredAt);
+    // Before the 1.2 s list call returned, not when the batch was assembled.
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(before + 100);
+  });
+
+  it('lists every 2 s despite pass jitter, within the minimum-gap tolerance', async () => {
+    const r = await rig();
+    spawned(r, 'ctx_a');
+    const t0 = r.clock.now;
+    const first = await r.observe(null);
+    // A fixed-rate pass can start a few ms before the 2 s mark.
+    r.clock.now = t0 + 1_990;
+    let from = r.requests.length;
+    const second = await r.observe(first.cursor);
+    expect(lists(r, from)).toBe(1);
+    // Well before the mark it still waits.
+    r.clock.now = t0 + 1_990 + 1_500;
+    from = r.requests.length;
+    await r.observe(second.cursor);
+    expect(lists(r, from)).toBe(0);
+  });
+
+  it('never starves the worker-list under continuous mail', async () => {
+    const r = await rig();
+    const task = spawned(r, 'ctx_a');
+    let { cursor } = await r.observe(null);
+    const from = r.requests.length;
+    for (let i = 0; i < 4; i++) {
+      // Every pass has mail (the rig advances 2.5 s per pass).
+      r.world.post({
+        id: `msg_${i}`,
+        type: 'question',
+        dispatch: 'ctx_a',
+        task,
+      });
+      ({ cursor } = await r.observe(cursor));
+    }
+    // Each pass was due a list: mail went out and the list still ran.
+    expect(lists(r, from)).toBe(4);
+  });
+
+  it('wakes the caller when the long poll returns, and returns mail before the next worker-list', async () => {
+    const woke: string[] = [];
+    const r = await rig({ onWake: (s) => woke.push(s) });
+    const task = spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    // The mail arrives well before the next list is due.
+    r.clock.now -= 2_000;
+    woke.length = 0;
+    r.world.post({ id: 'msg_q', type: 'question', dispatch: 'ctx_a', task });
+    const from = r.requests.length;
+    const mail = await r.observe(first.cursor);
+    // The question goes out now; no worker-list waits in front of it.
+    expect(ofType(mail.events, 'agent.question')).toHaveLength(1);
+    expect(lists(r, from)).toBe(0);
+    // Once from the long poll's return, once for the deferred worker-list.
+    expect(woke.filter((s) => s === session).length).toBeGreaterThanOrEqual(2);
+    // The woken pass lists and derives waiting_input.
+    r.clock.now += 2_000;
+    const next = await r.observe(mail.cursor);
+    expect(lists(r, from)).toBe(1);
+    expect(ofType(next.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'waiting_input' }),
+    ]);
+  });
+});
+
+/**
+ * FX-STATUS-CADENCE CLI budget: N keep-open agents, each given a turn (a
+ * send) every `turnMs`, working for the first ~half of it with a growing
+ * transcript, then worker_done mail. Observed on the production loop policy
+ * (fixed-rate 2 s passes, at once after a wake) for a simulated `minutes`,
+ * Orca 1.4.272 shape (`lastObservedAt` empty) unless `observedAt` moves it.
+ * CLI time: worker-list 700 ms and inbox 400 ms serially; probes and reads
+ * run concurrently, ~900 ms per pass that has any.
+ */
+async function simulateBudget(
+  agents: number,
+  options: {
+    minutes?: number;
+    turnMs?: number;
+    observedAt?: boolean;
+    /** Calls per runtime.send (2 before FX-STATUS-CADENCE: worker-list too). */
+    sendCalls?: number;
+  } = {},
+) {
+  const {
+    minutes = 10,
+    turnMs = 15_000,
+    observedAt = false,
+    sendCalls = 1,
+  } = options;
+  const woke: string[] = [];
+  const r = await rig({
+    onWake: (s) => woke.push(s),
+    latencyMs: {
+      'orchestration worker-list': 700,
+      'orchestration inbox': 400,
+    },
+  });
+  const tasks: string[] = [];
+  for (let i = 0; i < agents; i++) tasks.push(spawned(r, `ctx_${i}`));
+  const start = r.clock.now;
+  const end = start + minutes * 60_000;
+  const workMs = Math.round(turnMs * 0.55);
+  const offset = (i: number) => Math.round((i * turnMs) / agents);
+  let cursor: RuntimeCursor | null = null;
+  let next = start;
+  let lastTimeout = start;
+  let msg = 0;
+  const turns = new Map<number, number>();
+  const current = Array.from({ length: agents }, (_, i) => `ctx_${i}`);
+  let sends = 0;
+  const expect$ = () =>
+    (r.observer as unknown as { expectChange?: () => void }).expectChange?.();
+  const byCommand = new Map<string, number>();
+  const byPass = { tick: 0, wake: 0 };
+  let woken = false;
+  while (next < end) {
+    r.clock.now = Math.max(r.clock.now, next);
+    const t = r.clock.now - start;
+    for (let i = 0; i < agents; i++) {
+      const turn = Math.floor((t + offset(i)) / turnMs);
+      const phase = (t + offset(i)) % turnMs;
+      // A new turn is the backend's send: on a kept-open worker Orca starts a
+      // follow-up dispatch on the same transcript, and the resource moves.
+      if (turns.get(i) !== turn) {
+        if (turns.has(i)) {
+          const prev = current[i]!;
+          const next = `${prev.split('~')[0]}~${turn}`;
+          const cmd = `send-${i}-${turn}`;
+          r.ledger.pending({ commandId: cmd, run: RUN, keepOpen: true });
+          r.ledger.started(cmd, next, prev);
+          for (const row of r.world.workers)
+            if (row.dispatchId.split('~')[0] === next.split('~')[0])
+              row.owner = next;
+          r.world.workers.push({ dispatchId: next, taskId: tasks[i]! });
+          r.world.transcripts.set(next, [
+            ...(r.world.transcripts.get(prev) ?? []),
+          ]);
+          current[i] = next;
+          // runtime.send on a kept-open worker: the send itself.
+          byCommand.set('send', (byCommand.get('send') ?? 0) + sendCalls);
+          sends += sendCalls;
+        }
+        turns.set(i, turn);
+        expect$();
+      }
+      const w = r.world.workers.find((x) => x.dispatchId === current[i])!;
+      const working = phase < workMs;
+      w.activity = working ? 'working' : 'idle';
+      w.observedAt = observedAt && working ? r.clock.now : null;
+      if (working) {
+        const tx = r.world.transcripts.get(w.dispatchId) ?? [];
+        tx.push({ id: `m${++msg}`, role: 'assistant', text: 'ok' });
+        r.world.transcripts.set(w.dispatchId, tx);
+      }
+      const doneId = `done_${i}_${turn}`;
+      if (!working && !r.world.mail.some((m) => m.id === doneId))
+        r.world.post({
+          id: doneId,
+          type: 'worker_done',
+          dispatch: w.dispatchId,
+          task: tasks[i]!,
+          outcome: 'succeeded',
+        });
+    }
+    if (r.clock.now - lastTimeout >= 30_000) {
+      r.world.timeout();
+      lastTimeout = r.clock.now;
+    }
+    const kind = woken ? 'wake' : 'tick';
+    woke.length = 0;
+    const before = r.world.calls.length;
+    const startedAt = r.clock.now;
+    const result = await r.observer.observe(session, cursor);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    cursor = result.cursor;
+    const made = r.world.calls.slice(before);
+    if (made.some((c) => c[1] === 'worker-read' || c[1] === 'worker-show'))
+      r.clock.now += 900;
+    byPass[kind] += made.length;
+    for (const c of made) {
+      const key = c[1]!;
+      byCommand.set(key, (byCommand.get(key) ?? 0) + 1);
+    }
+    woken = woke.length > 0;
+    next =
+      r.clock.now +
+      runtimeDelayMs({
+        woken,
+        intervalMs: 2_000,
+        startedAt,
+        now: r.clock.now,
+      });
+  }
+  r.observer.close();
+  const total = [...byCommand.values()].reduce((a, b) => a + b, 0);
+  const rate = (v: number) => Math.round((v / minutes) * 10) / 10;
+  return {
+    perMinute: rate(total),
+    byCommand: Object.fromEntries([...byCommand].map(([k, v]) => [k, rate(v)])),
+    byPass: {
+      tick: rate(byPass.tick),
+      wake: rate(byPass.wake),
+      send: rate(sends),
+    },
+  };
+}
+
+describe('OrcaObserver: CLI budget on the production cadence (FX-STATUS-CADENCE)', () => {
+  // Calls per minute over a simulated 10 minutes. Before FX-STATUS-CADENCE
+  // the same loads measured 46.6 / 71.7 (60 s turns) and 86.5 / 193.7 (15 s
+  // turns, the live probe's pace) for 2 / 5 agents.
+  it.each([
+    { agents: 2, turnMs: 60_000, max: 50 },
+    { agents: 5, turnMs: 60_000, max: 70 },
+    { agents: 2, turnMs: 15_000, max: 62 },
+    { agents: 5, turnMs: 15_000, max: 122 },
+  ])(
+    '$agents agents taking a turn every $turnMs ms stay under $max calls/min',
+    async ({ agents, turnMs, max }) => {
+      const b = await simulateBudget(agents, { turnMs });
+      expect(b.perMinute, JSON.stringify(b)).toBeLessThanOrEqual(max);
+      // Turns, not passes, drive the rest: no inbox read per mail batch.
+      expect(b.byCommand['inbox'] ?? 0).toBeLessThanOrEqual(2.5);
+    },
+    120_000,
+  );
+
+  it('shows an agent going idle without worker_done at the next 2 s list (SPEC §24)', async () => {
+    const r = await rig();
+    spawned(r, 'ctx_a');
+    const first = await r.observe(null);
+    expect(ofType(first.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'working' }),
+    ]);
+    // No mail: the turn just ends. A working agent keeps the 2 s list, so the
+    // very next pass (the rig steps 2.5 s) shows it.
+    r.world.workers[0]!.activity = 'idle';
+    r.world.workers[0]!.workerState = 'succeeded';
+    const lists = r.world.count('orchestration worker-list');
+    const next = await r.observe(first.cursor);
+    expect(r.world.count('orchestration worker-list')).toBe(lists + 1);
+    expect(ofType(next.events, 'agent.status')).toEqual([
+      expect.objectContaining({ state: 'idle' }),
+    ]);
+  });
+
+  it('lists idle agents every 10 s, and every 2 s for 10 s after the backend acts', async () => {
+    const r = await rig();
+    spawned(r, 'ctx_a');
+    r.world.workers[0]!.activity = 'idle';
+    r.world.workers[0]!.workerState = 'succeeded';
+    let { cursor } = await r.observe(null);
+    const lists = () => r.world.count('orchestration worker-list');
+    const idleStart = lists();
+    // Idle: the rig advances 2.5 s per pass, so 8 passes are 20 s.
+    for (let i = 0; i < 8; i++) ({ cursor } = await r.observe(cursor));
+    expect(lists() - idleStart).toBe(2);
+    // A send: the next passes list every time (2 s cadence) for 10 s.
+    r.observer.expectChange();
+    const expected = lists();
+    for (let i = 0; i < 4; i++) ({ cursor } = await r.observe(cursor));
+    expect(lists() - expected).toBe(4);
   });
 });

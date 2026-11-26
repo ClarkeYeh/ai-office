@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`M5-T3 acceptance: retention on completion > golden: delete-on-complete disposes every worktree and deletes the workflow branches once 1`] = `
+[
+  "runtime.disposeWorkspace /cleanup/workspace/<prepare ai-office/<short>/meeting>",
+  "runtime.disposeWorkspace /cleanup/workspace/<prepare ai-office/<short>/feature>",
+  "runtime.disposeWorkspace /cleanup/workspace/<prepare ai-office/<short>/merge-1>",
+  "runtime.disposeWorkspace /cleanup/workspace/<prepare ai-office/<short>/dependent>",
+  "runtime.disposeWorkspace /cleanup/workspace/<prepare ai-office/<short>-add-dark-mode-toggle>",
+  "runtime.disposeWorkspace /cleanup/workspace/<spawn ai-office/<short>/planning>",
+  "scm.deleteBranch /cleanup/branch/ai-office/<short>/meeting",
+  "scm.deleteBranch /cleanup/branch/ai-office/<short>/feature",
+  "scm.deleteBranch /cleanup/branch/ai-office/<short>/merge-1",
+  "scm.deleteBranch /cleanup/branch/ai-office/<short>/dependent",
+  "scm.deleteBranch /cleanup/branch/ai-office/<short>/planning",
+]
+`;

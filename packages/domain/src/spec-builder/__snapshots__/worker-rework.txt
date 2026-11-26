@@ -77,6 +77,7 @@ Never run any of these commands, directly or through a script or alias. AI Offic
 - `gh issue create`
 - `gh issue comment`
 - `gh label`
+- `ai-office open (including node …/cli/dist/main.js open); never read data/control.token`
 - `git push` to the default branch `main`, including force pushes and pushes through another remote or refspec
 
 AI Office alone starts, stops and releases agents, merges pull requests and writes to GitHub Issues. Do not start helper workers or sub-agents. The only Orca commands you may run are the reporting commands from your Orca dispatch preamble (`worker_done`, and `ask` where this spec allows questions).
@@ -100,7 +101,10 @@ Code: <path>:<start>-<end>
 branch: ai-office/ab12/w2
 ```
 
-Wait for the reply before continuing; the wait does not count toward your time limit.
+Waiting for the answer does not count toward your time limit.
+Orca may at once post an automatic notice telling you to decide it yourself (for example "Your coordinator stopped without answering your question … Decide it yourself …"). That notice is not an answer. AI Office answers you itself, in a reply whose first line starts with `aio:`; wait for that reply.
+While you wait, you may continue parts of your task that do not depend on the answer, but do not finalize anything that does.
+Set no deadline of your own and never decide the question yourself: if no answer comes in time, AI Office follows its question timeout (a reminder, then escalation to a human) and replies once it has the answer.
 
 ## 8. Completion protocol
 

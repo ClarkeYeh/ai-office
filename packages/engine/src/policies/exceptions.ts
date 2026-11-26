@@ -12,6 +12,7 @@ const openException = (
   kind: 'anomaly' | 'hijacked',
   summary: string,
   attemptId?: string,
+  triggerCommandId?: string,
 ): Effect[] => {
   if (
     Object.values(ctx.state.gates).some(
@@ -24,10 +25,18 @@ const openException = (
     return [];
   const stageId =
     (attemptId ? ctx.state.attempts[attemptId]?.stageId : undefined) ??
+    ctx.state.attempts[
+      (triggerCommandId
+        ? ctx.state.commands[triggerCommandId]?.attemptId
+        : undefined) ?? ''
+    ]?.stageId ??
+    ctx.event.stageId ??
     ctx.state.stageOrder.find(
       (id) => ctx.state.stages[id]?.status === 'running',
     ) ??
-    ctx.state.stageOrder.find((id) => ctx.state.stages[id]?.attempt);
+    // Between stages (including an open stage gate), use the latest stage
+    // reached, rather than the first historic attempt (usually the meeting).
+    ctx.state.stageOrder.findLast((id) => ctx.state.stages[id]?.attempt);
   if (!stageId) return [];
   const gateId = commandId(ctx, 'exception', kind, ctx.event.id);
   return [
@@ -303,6 +312,7 @@ export const exceptionsPolicy: Policy = (ctx) => {
       'anomaly',
       event.payload.summary,
       event.payload.attemptId,
+      event.payload.commandId,
     );
   if (
     event.type === 'seat.exited' &&
@@ -357,6 +367,8 @@ export const exceptionsPolicy: Policy = (ctx) => {
       ctx,
       'hijacked',
       'Run reclamation did not succeed. Choose explicitly whether to try again or abort.',
+      undefined,
+      event.payload.commandId,
     );
   if (
     event.type === 'command.succeeded' &&

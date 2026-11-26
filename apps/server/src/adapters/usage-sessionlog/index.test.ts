@@ -39,6 +39,22 @@ async function file(path: string, contents: string, modified = now) {
   await utimes(path, modified / 1000, modified / 1000);
   return path;
 }
+// Provider user-prompt records, the only place a dispatch marker counts.
+const claudePrompt = (text: string, extra: Record<string, unknown> = {}) => ({
+  type: 'user',
+  message: { role: 'user', content: text },
+  ...extra,
+});
+const codexPrompt = (text: string) => ({
+  type: 'response_item',
+  payload: {
+    type: 'message',
+    role: 'user',
+    content: [{ type: 'input_text', text }],
+  },
+});
+const preamble = (dispatch = 'dispatch-1') =>
+  `Orca worker preamble. Finish with --task-id task-1 --dispatch-id ${dispatch}`;
 const adapter = () =>
   createSessionLogUsage({ homeDir: home, clock: { now: () => new Date(now) } });
 const claudePath = (id = 'session-1', root = join(home, '.claude')) =>
@@ -144,6 +160,53 @@ describe('session usage parsing', () => {
       (await adapter().read(ref(path, 'codex'), result.cursor)).samples,
     ).toEqual([]);
   });
+  it('maps codex-cli 0.171.0 cache_write_input_tokens to cacheWrite inside input_tokens', async () => {
+    const rows = (await fixture('codex-0.171.0')) as {
+      timestamp: string;
+      payload: { info: { total_token_usage: Record<string, number> } | null };
+    }[];
+    const path = await file(codexPath(), jsonl(rows));
+    const samples = (await adapter().read(ref(path, 'codex'), null)).samples;
+    expect(samples).toHaveLength(rows.filter((r) => r.payload.info).length);
+    for (const [index, row] of rows.filter((r) => r.payload.info).entries()) {
+      const usage = row.payload.info!.total_token_usage;
+      const sample = samples[index]!;
+      expect(sample.cacheRead).toBe(usage.cached_input_tokens);
+      expect(sample.cacheWrite).toBe(usage.cache_write_input_tokens);
+      expect(sample.inputUncached + sample.cacheRead + sample.cacheWrite).toBe(
+        usage.input_tokens,
+      );
+    }
+    const last = rows.at(-1)!;
+    const written = {
+      ...last,
+      timestamp: '2026-11-24T03:02:49.000Z',
+      payload: {
+        ...last.payload,
+        info: {
+          total_token_usage: {
+            ...last.payload.info!.total_token_usage,
+            cache_write_input_tokens: 1_000,
+          },
+        },
+      },
+    };
+    const writePath = await file(codexPath('thread-2'), jsonl([written]));
+    expect(
+      (await adapter().read(ref(writePath, 'codex'), null)).samples,
+    ).toEqual([
+      {
+        externalKey: 'usage:codex:thread-1:137864',
+        occurredAt: '2026-11-24T03:02:49.000Z',
+        inputUncached: 137_369 - 106_496 - 1_000,
+        output: 495,
+        cacheRead: 106_496,
+        cacheWrite: 1_000,
+        reasoning: 0,
+        cumulative: true,
+      },
+    ]);
+  });
   it('uses byte offsets with UTF-8, waits for partial writes, and never retains transcript content', async () => {
     const rows = await fixture('claude');
     const ignored = { type: 'user', content: 'synthetic 私密 text' };
@@ -217,6 +280,8 @@ describe('session usage parsing', () => {
       { cached_input_tokens: 101 },
       { total_tokens: 121 },
       { reasoning_output_tokens: 21 },
+      // Cache reads plus writes cannot exceed the input they are part of.
+      { cache_write_input_tokens: 41 },
     ]) {
       const path = await file(
         codexPath(),
@@ -272,7 +337,7 @@ describe('session discovery', () => {
     const reported = await file(claudePath('reported'), '', now - 86_400_001);
     await file(
       claudePath(),
-      jsonl([{ type: 'user', dispatch: 'dispatch-1', uuid: 'message-1' }]),
+      jsonl([claudePrompt(preamble(), { uuid: 'message-1' })]),
     );
     expect(
       await adapter().locate(
@@ -286,7 +351,7 @@ describe('session discovery', () => {
   it('prioritizes dispatch matches globally, filters old files, and falls back to exact message ids', async () => {
     await file(
       claudePath('a-old'),
-      jsonl([{ type: 'user', dispatch: 'dispatch-1' }]),
+      jsonl([claudePrompt(preamble())]),
       now - 60_001,
     );
     const message = await file(
@@ -295,7 +360,7 @@ describe('session discovery', () => {
     );
     const dispatch = await file(
       claudePath('z-dispatch'),
-      jsonl([{ type: 'user', content: 'dispatch-1' }]),
+      jsonl([claudePrompt(preamble())]),
     );
     expect(
       await adapter().locate(query({ transcriptMessageIds: ['message-1'] })),
@@ -307,6 +372,119 @@ describe('session discovery', () => {
     expect(
       await adapter().locate(query({ transcriptMessageIds: ['message'] })),
     ).toBeNull();
+  });
+  it('ignores a coordinator transcript that only mentions the dispatch in tool output or replies', async () => {
+    // The coordinator's project directory sorts before the worker's.
+    const coordinator = await file(
+      claudePath('a-coordinator'),
+      jsonl([
+        claudePrompt('Coordinate the workers.'),
+        {
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                input: {
+                  command:
+                    'orca orchestration worker-show --dispatch dispatch-1',
+                },
+              },
+            ],
+          },
+        },
+        {
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [
+              { type: 'tool_result', content: '{"dispatchId":"dispatch-1"}' },
+            ],
+          },
+        },
+        // A subagent asked to look at the dispatch is not the worker either.
+        claudePrompt(`Inspect ${preamble()}`, { isSidechain: true }),
+        claudePrompt(`Hook context ${preamble()}`, { isMeta: true }),
+      ]),
+    );
+    expect(await adapter().locate(query())).toBeNull();
+    const worker = await file(
+      claudePath('z-worker'),
+      jsonl([claudePrompt(preamble())]),
+    );
+    expect(await adapter().locate(query())).toMatchObject({
+      file: worker,
+      sessionId: 'z-worker',
+    });
+    expect((await adapter().locate(query()))?.file).not.toBe(coordinator);
+  });
+  it('prefers the dispatch in a session preamble over a later prompt, and still finds follow-ups', async () => {
+    // A coordinator whose later prompt quotes the dispatch id sorts first.
+    await file(
+      claudePath('a-coordinator'),
+      jsonl([
+        claudePrompt('Coordinate the workers.'),
+        claudePrompt(`Status of ${preamble()}?`),
+      ]),
+    );
+    const worker = await file(
+      claudePath('z-worker'),
+      jsonl([claudePrompt(preamble())]),
+    );
+    expect((await adapter().locate(query()))?.file).toBe(worker);
+    // A kept-open worker receives a follow-up dispatch as a later prompt.
+    const followUp = await file(
+      claudePath('m-follow-up'),
+      jsonl([
+        claudePrompt(preamble('dispatch-0')),
+        {
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'text', text: preamble('dispatch-2') }],
+          },
+        },
+      ]),
+    );
+    expect(
+      (await adapter().locate(query({ dispatchId: 'dispatch-2' })))?.file,
+    ).toBe(followUp);
+  });
+  it('ignores a Codex coordinator that only sees the dispatch in tool output', async () => {
+    await file(
+      codexPath('a-coordinator'),
+      jsonl([
+        { type: 'session_meta', payload: { id: 'coordinator' } },
+        codexPrompt('Coordinate the workers.'),
+        {
+          type: 'response_item',
+          payload: {
+            type: 'function_call_output',
+            output: '{"dispatchId":"dispatch-1"}',
+          },
+        },
+        {
+          type: 'event_msg',
+          payload: { type: 'agent_message', message: 'dispatch-1 finished' },
+        },
+      ]),
+    );
+    expect(await adapter().locate(query({ agent: 'codex' }))).toBeNull();
+    const worker = await file(
+      codexPath('z-worker'),
+      jsonl([
+        { type: 'session_meta', payload: { id: 'worker' } },
+        {
+          type: 'event_msg',
+          payload: { type: 'user_message', message: preamble() },
+        },
+      ]),
+    );
+    expect(await adapter().locate(query({ agent: 'codex' }))).toMatchObject({
+      file: worker,
+      sessionId: 'worker',
+    });
   });
   it('uses configured Claude roots before observed roots before default', async () => {
     const configured = join(home, 'configured');
@@ -368,7 +546,7 @@ describe('session discovery', () => {
       codexPath(),
       jsonl([
         { type: 'session_meta', payload: { id: 'thread-1' } },
-        { type: 'response_item', content: 'dispatch-1' },
+        codexPrompt(preamble()),
       ]),
     );
     expect(await adapter().locate(query({ agent: 'codex' }))).toMatchObject({
@@ -379,7 +557,7 @@ describe('session discovery', () => {
   it('bounds legacy fallback to 24 hours, rejects invalid dates and skips symlinks', async () => {
     const path = await file(
       claudePath(),
-      jsonl([{ type: 'user', content: 'dispatch-1' }]),
+      jsonl([claudePrompt(preamble())]),
       now - 86_400_001,
     );
     const legacy = query();

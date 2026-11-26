@@ -16,7 +16,7 @@ async function fixture(response: unknown) {
     sourceRoot: process.cwd(),
     orcaBin: '/synthetic/orca',
     worktreePaths: async () => [],
-    env: { AIO_REAL_ORCA: '1' },
+    env: { AIO_REAL_ORCA: '1', HOME: repo },
     exec: {
       run: async (r) => ({
         exitCode: r.bin === 'git' ? 0 : 1,
