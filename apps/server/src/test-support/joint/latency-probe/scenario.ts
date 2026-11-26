@@ -88,6 +88,19 @@ export function countOrcaCli(psCommands: string, bin: string): number {
     ).length;
 }
 /**
+ * Done reports each agent had before a turn started. Turn 0 is the spawn
+ * itself, whose done may arrive while the other seats are still spawning:
+ * it counts from 0, never from what was already reported (4-agent probe:
+ * turn 0 waited 190 s for nudges).
+ */
+export function turnBaseline<A>(
+  turn: number,
+  agents: readonly A[],
+  done: ReadonlyMap<A, number>,
+): Map<A, number> {
+  return new Map(agents.map((a) => [a, turn === 0 ? 0 : (done.get(a) ?? 0)]));
+}
+/**
  * The honest bound for a list-derived transition: it was detected within one
  * list interval of the change; the interval follows from worker-list
  * calls per minute (peak, so the shortest observed interval).
@@ -288,7 +301,7 @@ async function probe(
     for (let turn = 0; turn <= TURNS; turn++) {
       const t0 = Date.now();
       // Counted against this turn's start: a nudged agent may report twice.
-      const base = new Map(agents.map((a) => [a, done.get(a) ?? 0]));
+      const base = turnBaseline(turn, agents, done);
       const finished = (a: AgentRef) => (done.get(a) ?? 0) > base.get(a)!;
       if (turn > 0)
         for (const [i, agent] of agents.entries())
