@@ -77,3 +77,35 @@ for (const { name, sources, safe } of [
     }
   });
 }
+
+const anchorDocs = [
+  '[Run](usage.md#4-start-the-backend-and-open-the-office)',
+  '[Step](#step-2-check-the-installed-version-and-commit)',
+  '[Ref][r]\n\n[r]: usage.md#12-run-the-first-workflow-on-the-spike-repo',
+];
+const anchorSecrets = [
+  '[Run](usage.md#a1b2c3d4e5f6a7b8c9d0e1f2-start)',
+  '[Run](usage.md#start-ghp_synthetic1234567890abcd)',
+  'Text #4-start-the-backend aio_ctl_synthetic_secret',
+];
+for (const { name, sources, safe } of [
+  { name: 'long heading anchors with digits pass', sources: anchorDocs, safe: true },
+  { name: 'secrets in anchors still fail', sources: anchorSecrets, safe: false },
+]) {
+  test(`public docs: ${name}`, () => {
+    for (const source of sources) {
+      const root = mkdtempSync(join(tmpdir(), 'aio-docs-'));
+      try {
+        execFileSync('git', ['init', '-q', root]);
+        mkdirSync(join(root, 'guide'));
+        writeFileSync(join(root, 'guide/usage.md'), 'Usage.');
+        writeFileSync(join(root, 'guide/index.md'), source);
+        writeFileSync(join(root, 'README.md'), 'Public.');
+        if (safe) checkDocs(root);
+        else assert.throws(() => checkDocs(root), source);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    }
+  });
+}

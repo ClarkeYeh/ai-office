@@ -87,7 +87,7 @@ const sequence = (drafts: Omit<DomainEvent, 'seq' | 'id'>[]): DomainEvent[] => [
 
 // Node 26.6.0 can confuse escaped quote/backslash keys in JSON.parse after an
 // earlier parse with the same object shape. Repro (no project dependencies):
-// https://github.com/ClarkeYeh/ai-office/blob/ClarkeYeh/m5-fx-flake-evolve/packages/domain/src/test-support/json-parse-repro.mjs
+// test-support/json-parse-repro.mjs
 // Keep the roundtrip oracle on the project's supported runtime (.nvmrc / CI).
 const supportedJsonRuntime = process.versions.node.split('.')[0] === '24';
 
