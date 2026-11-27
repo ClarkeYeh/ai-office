@@ -23,7 +23,7 @@ For production mode you also need Orca, the agent CLIs and `gh`; see
 ```sh
 git clone https://github.com/ClarkeYeh/ai-office
 cd ai-office
-git checkout v0.1.0   # optional: the released version instead of main
+git checkout v0.1.1   # optional: the released version instead of main
 pnpm install --frozen-lockfile
 pnpm build
 ```
@@ -63,7 +63,7 @@ Commands:
 
 To see which version you run, use `ai-office --version`. It prints the version
 and the short commit embedded by `pnpm build`, for example
-`ai-office 0.1.0 (commit 1a2b3c4)`. A build made without git prints
+`ai-office 0.1.1 (commit 1a2b3c4)`. A build made without git prints
 `commit unknown`.
 
 ## Update

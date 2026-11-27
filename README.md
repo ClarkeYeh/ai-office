@@ -20,8 +20,8 @@ Orca, GitHub, Claude Code and Codex at the scale of a small feature with
 several work items. Known problems from those runs and their fixes are in
 [Troubleshooting](guide/troubleshooting.md).
 
-The current release is `v0.1.0`. AI Office is installed from source: clone the
-repository, check out the tag (`git checkout v0.1.0`) and build it
+The current release is `v0.1.1`. AI Office is installed from source: clone the
+repository, check out the tag (`git checkout v0.1.1`) and build it
 ([Install](guide/install.md)). `ai-office --version` prints the version and the
 commit you run.
 
