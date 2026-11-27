@@ -1,0 +1,109 @@
+{
+  "orcaVersion": "1.4.272",
+  "recordedAt": "2026-11-27T01:00:00Z",
+  "argv": ["orca", "repo", "list", "--json"],
+  "exitCode": 0,
+  "stderrLines": [],
+  "note": "v0.1.1-REPO-PICKER: shape of one read-only `orca repo list --json` on 1.4.272. Keys, types and enum-like values (kind, badgeColor, agentWorkspaceTrust, hookSettings policies) are as recorded; every id, path (home as `<home>`, the T8 convention), display name, username, icon and remote URL is synthetic and passed through the T8 sanitizer. The recording had 8 entries (4 folder, 4 git); this keeps one folder and three git entries.",
+  "response": {
+    "id": "00000000-0000-4000-8000-0000000000c1",
+    "ok": true,
+    "result": {
+      "repos": [
+        {
+          "id": "00000000-0000-4000-8000-0000000000f1",
+          "path": "<home>/.ai-office/orca-home",
+          "displayName": "orca-home",
+          "badgeColor": "#737373",
+          "addedAt": 1763600000000,
+          "kind": "folder",
+          "upstream": null,
+          "agentWorkspaceTrust": "pre-trust",
+          "gitUsername": "<redacted>",
+          "hookSettings": {
+            "mode": "auto",
+            "setupRunPolicy": "run-by-default",
+            "setupAgentStartupPolicy": "start-immediately",
+            "scripts": { "setup": "", "archive": "" }
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-0000000000a1",
+          "path": "<home>/workspace/ai-office-spike",
+          "displayName": "ai-office-spike",
+          "badgeColor": "#737373",
+          "addedAt": 1763600001000,
+          "kind": "git",
+          "externalWorktreeVisibilityLegacy": false,
+          "gitUsername": "<redacted>",
+          "hookSettings": {
+            "mode": "auto",
+            "setupRunPolicy": "run-by-default",
+            "setupAgentStartupPolicy": "start-immediately",
+            "scripts": { "setup": "", "archive": "" },
+            "commandSourcePolicy": "local-only"
+          },
+          "repoIcon": {
+            "type": "image",
+            "src": "https://github.com/ClarkeYeh/ai-office-spike",
+            "source": "github",
+            "label": "example-icon"
+          },
+          "upstream": null,
+          "gitRemoteIdentity": {
+            "canonicalKey": "<redacted>/clarkeyeh/ai-office-spike",
+            "remoteName": "origin",
+            "remoteUrl": "https://github.com/ClarkeYeh/ai-office-spike"
+          },
+          "projectHostSetupMethod": "imported-existing-folder",
+          "agentWorkspaceTrust": "pre-trust",
+          "externalWorktreeVisibility": "hide"
+        },
+        {
+          "id": "00000000-0000-4000-8000-0000000000a2",
+          "path": "<home>/workspace/example-app",
+          "displayName": "example-app",
+          "badgeColor": "#737373",
+          "addedAt": 1763600002000,
+          "kind": "git",
+          "externalWorktreeVisibilityLegacy": false,
+          "externalWorktreeVisibility": "hide",
+          "gitUsername": "<redacted>",
+          "folderUpgradeGitRootPath": "<home>/workspace/example-app",
+          "upstream": null,
+          "gitRemoteIdentity": {
+            "canonicalKey": "<redacted>/example-owner/example-app",
+            "remoteName": "origin",
+            "remoteUrl": "<redacted>:example-owner/example-app.git"
+          },
+          "hookSettings": {
+            "mode": "auto",
+            "setupRunPolicy": "run-by-default",
+            "setupAgentStartupPolicy": "start-immediately",
+            "scripts": { "setup": "", "archive": "" }
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-0000000000a3",
+          "path": "<home>/workspace/scratch",
+          "displayName": "scratch",
+          "badgeColor": "#737373",
+          "addedAt": 1763600003000,
+          "kind": "git",
+          "externalWorktreeVisibilityLegacy": false,
+          "gitUsername": "<redacted>",
+          "upstream": null,
+          "hookSettings": {
+            "mode": "auto",
+            "setupRunPolicy": "run-by-default",
+            "setupAgentStartupPolicy": "start-immediately",
+            "scripts": { "setup": "", "archive": "" }
+          },
+          "externalWorktreeVisibility": "hide"
+        }
+      ],
+      "repoIconIds": {}
+    },
+    "_meta": { "runtimeId": "00000000-0000-4000-8000-0000000000e1" }
+  }
+}

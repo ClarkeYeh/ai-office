@@ -8,7 +8,10 @@ import {
   PauseReasonSchema,
   WorkItemStatusSchema,
 } from '@ai-office/contracts/events';
-import { ApiErrorCodeSchema } from '@ai-office/contracts/api';
+import {
+  ApiErrorCodeSchema,
+  REPO_CANDIDATE_PROBLEMS,
+} from '@ai-office/contracts/api';
 import { hasMessage, retainedTerms, t, tCode, zhTW } from './index.js';
 import { officeMessagesZhTW } from './office.js';
 
@@ -25,6 +28,10 @@ describe('zh-TW catalog', () => {
       expect(hasMessage(key), key).toBe(true);
       if (hasMessage(key)) expect(t(key).length).toBeGreaterThan(0);
     }
+  });
+  test('covers every repo candidate problem code (v0.1.1)', () => {
+    for (const code of REPO_CANDIDATE_PROBLEMS)
+      expect(hasMessage(`repos.problem.${code}`), code).toBe(true);
   });
   test('covers every M2 RuntimeWarning string (M2_PLAN §8.4)', () => {
     for (const warning of [

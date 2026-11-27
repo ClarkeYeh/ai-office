@@ -24,6 +24,7 @@ import type {
   PrPatch,
   LabelSpec,
   ReviewComment,
+  ViewerRepo,
 } from '../../../ports/scm.js';
 import type { ScmEvent } from '../../../ports/scm-events.js';
 import { git, TestGitRemote, type GitRemoteOptions } from './git.js';
@@ -634,6 +635,18 @@ export class GitRemoteScm implements ScmPort {
   async findByMarker(repo: RepoScmRef, commandId: string, hint?: MarkerHint) {
     this.check(repo);
     return this.scan(commandId, hint);
+  }
+  /** The one test repository, standing in for the viewer's repo list. */
+  async listViewerRepos(): Promise<ViewerRepo[]> {
+    return [
+      {
+        ...structuredClone(this.repo),
+        visibility: 'public',
+        archived: false,
+        pushedAt: null,
+        defaultBranch: this.defaultBranch,
+      },
+    ];
   }
   async listReviewComments(ref: PrRef): Promise<ReviewComment[]> {
     return structuredClone(this.object(ref, 'pr').reviews);

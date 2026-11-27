@@ -112,6 +112,8 @@ export function createApiClient(options: ClientOptions = {}) {
       request('registerRepo', { ...options, body }),
     getRepo: (id: string, options?: RequestOptions) =>
       request('getRepo', { ...options, id }),
+    listRepoCandidates: (options?: RequestOptions) =>
+      request('listRepoCandidates', options),
     listTemplates: (options?: RequestOptions) =>
       request('listTemplates', options),
     getTemplate: (id: string, options?: RequestOptions) =>

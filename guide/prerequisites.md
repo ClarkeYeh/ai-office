@@ -48,8 +48,9 @@ Never register the data directory itself as an Orca project. The backend runs
 ### Repositories in Orca
 
 Every repository you want to use must be a normal git clone (its main
-worktree) that **you have added to Orca**. Registration in AI Office fails with
-a hint when Orca does not know the repository.
+worktree) that **you have added to Orca**. The Repos page lists the git
+repositories Orca knows; registering a path Orca does not know fails with a
+hint. AI Office never adds repositories to Orca for you.
 
 ## Agents
 

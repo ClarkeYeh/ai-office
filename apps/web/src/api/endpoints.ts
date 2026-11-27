@@ -24,6 +24,7 @@ export const endpoints = {
   listRepos: { method: 'get', path: '/api/v1/repos' },
   registerRepo: { method: 'post', path: '/api/v1/repos' },
   getRepo: { method: 'get', path: '/api/v1/repos/{id}' },
+  listRepoCandidates: { method: 'get', path: '/api/v1/repo-candidates' },
   listTemplates: { method: 'get', path: '/api/v1/templates' },
   getTemplate: { method: 'get', path: '/api/v1/templates/{id}' },
   listWorkflows: { method: 'get', path: '/api/v1/workflows' },

@@ -1,11 +1,17 @@
 import { z } from 'zod';
-import type { RuntimePort, RuntimeHealth } from '../../../ports/runtime.js';
+import type {
+  RuntimePort,
+  RuntimeHealth,
+  LocalRepo,
+} from '../../../ports/runtime.js';
 import type { OrcaObserver } from '../observe/index.js';
 import { sessionRef, agentRef } from '../refs.js';
 import { Context, type MethodOptions, marker, text } from './context.js';
 import { Workspaces } from './workspaces.js';
 import { Agents } from './agents.js';
 export type { MethodOptions } from './context.js';
+/** Opening the repo page repeatedly reuses one `repo list` for this long. */
+export const LOCAL_REPOS_TTL_MS = 30_000;
 export interface OrcaRuntimeOptions extends MethodOptions {
   /**
    * T6/T10 supplies observe; methods share the same ledger and identity.
@@ -53,6 +59,7 @@ export function createOrcaRuntime(options: OrcaRuntimeOptions): RuntimePort {
     return pending;
   };
   let health: { at: number; value: RuntimeHealth } | undefined;
+  let localRepos: { at: number; value: Promise<LocalRepo[]> } | undefined;
   return {
     capabilities: () => ({
       sharedWorkspace: true,
@@ -149,6 +156,18 @@ export function createOrcaRuntime(options: OrcaRuntimeOptions): RuntimePort {
     findWorkspace: (req) => ws.find(req),
     inspectWorkspace: (workspace) => ws.inspect(workspace),
     inspectLocalRepo: (path) => ws.inspectRepo(path),
+    async listLocalRepos() {
+      const now = options.now?.() ?? Date.now();
+      // Concurrent callers share the call in flight; a failure is not cached.
+      if (!localRepos || now - localRepos.at >= LOCAL_REPOS_TTL_MS) {
+        const value = ws.listRepos();
+        localRepos = { at: now, value };
+        value.catch(() => {
+          if (localRepos?.value === value) localRepos = undefined;
+        });
+      }
+      return structuredClone(await localRepos.value);
+    },
     async spawnAgent(req) {
       c.check(req.correlation.commandId, req);
       return expecting(

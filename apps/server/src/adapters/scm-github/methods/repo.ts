@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { PortError } from '../../../ports/errors.js';
-import type { ScmPort } from '../../../ports/scm.js';
+import { VIEWER_REPOS_LIMIT, type ScmPort } from '../../../ports/scm.js';
 import { rateLimitSchema } from '../schemas/common.js';
 import { repoParams, type ScmGithubDeps } from './deps.js';
 const repoSchema = z.looseObject({
@@ -11,6 +11,17 @@ const repoSchema = z.looseObject({
   permissions: z.looseObject({ push: z.boolean() }),
 });
 const branchSchema = z.looseObject({ protected: z.boolean() });
+const viewerReposSchema = z.array(
+  z.looseObject({
+    name: z.string().min(1),
+    owner: z.looseObject({ login: z.string().min(1) }),
+    private: z.boolean(),
+    visibility: z.string().optional(),
+    archived: z.boolean(),
+    pushed_at: z.string().nullable(),
+    default_branch: z.string(),
+  }),
+);
 const rulesSchema = z.array(
   z.looseObject({
     type: z.string(),
@@ -33,7 +44,7 @@ const unavailableDetails = (error: unknown) =>
   ['not_found', 'github_forbidden'].includes(error.code);
 export function createRepoMethods(
   deps: ScmGithubDeps,
-): Pick<ScmPort, 'health' | 'inspectRepo'> {
+): Pick<ScmPort, 'health' | 'inspectRepo' | 'listViewerRepos'> {
   return {
     async health() {
       const viewerLogin = await deps.viewerLogin();
@@ -53,6 +64,30 @@ export function createRepoMethods(
           ? { warnings: ['rate_limit_low'] }
           : {}),
       };
+    },
+    async listViewerRepos() {
+      const { data } = await deps.http.request(
+        'user.repos',
+        {
+          query: {
+            affiliation: 'owner',
+            sort: 'pushed',
+            per_page: VIEWER_REPOS_LIMIT,
+          },
+        },
+        { schema: viewerReposSchema, conditional: true },
+      );
+      return data.slice(0, VIEWER_REPOS_LIMIT).map((repo) => ({
+        owner: repo.owner.login,
+        name: repo.name,
+        visibility:
+          repo.private || repo.visibility === 'private'
+            ? ('private' as const)
+            : ('public' as const),
+        archived: repo.archived,
+        pushedAt: repo.pushed_at,
+        defaultBranch: repo.default_branch,
+      }));
     },
     async inspectRepo(repo) {
       return deps.repoAllowlist.inspect(repo, async () => {

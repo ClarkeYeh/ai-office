@@ -20,6 +20,7 @@ import type { Clock, IdGen, Redactor } from '../../ports/services.js';
 import type { EventStore, IdempotencyStore } from '../../ports/stores.js';
 import type { TemplateRepository } from '../../ports/template.js';
 import type { RuntimePort } from '../../ports/runtime.js';
+import { parseGithubOrigin } from '../../ports/refs.js';
 import type { ReviewComment, ScmPort } from '../../ports/scm.js';
 import type { WorkflowRunners } from '../runner/runners.js';
 import {
@@ -488,12 +489,8 @@ export class CommandUseCases {
       const local = await this.deps.runtime.inspectLocalRepo(input.localPath);
       if (!local.isGitMainWorktree) fail(422, 'repo_not_main_worktree');
       if (!local.runtimeRepoId) fail(422, 'repo_not_in_orca');
-      const match =
-        /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
-          local.originUrl ?? '',
-        );
-      if (!match) fail(422, 'invalid_github_origin');
-      const github = { owner: match[1]!, name: match[2]! };
+      const github = parseGithubOrigin(local.originUrl);
+      if (!github) fail(422, 'invalid_github_origin');
       const info = await this.deps.scm.inspectRepo(github);
       const repo: RepoSnapshot = {
         repoId: this.deps.ids.ulid(),

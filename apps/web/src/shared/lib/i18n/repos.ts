@@ -1,5 +1,6 @@
 export const reposMessagesZhTW = {
-  'repos.intro': '註冊已加入 Orca 的本機 Git 主工作目錄。',
+  'repos.intro':
+    '從 Orca 的 Repo 清單選一個註冊；不在清單上的 Git 主工作目錄可在下方貼上本機路徑。',
   'repos.path': '本機路徑',
   'repos.register': '註冊 Repo',
   'repos.refresh': '重新載入 Repo',
@@ -25,4 +26,34 @@ export const reposMessagesZhTW = {
     '請使用 Git 主工作目錄，不能使用子 worktree。',
   'repos.repo_not_in_orca': '此 Repo 尚未加入 Orca。請先在 Orca 加入。',
   'repos.invalid_github_origin': 'origin 必須指向有效的 GitHub Repo。',
+  // v0.1.1 repo picker
+  'repos.localTitle': '本機 Repo（來自 Orca）',
+  'repos.remoteTitle': 'GitHub 上的 Repo（{login}）',
+  'repos.remoteTitleNoLogin': 'GitHub 上的 Repo',
+  'repos.manualTitle': '不在清單？貼上本機路徑',
+  'repos.registeredTitle': '已註冊的 Repo',
+  'repos.candidatesRefresh': '重新整理',
+  'repos.candidatesRefreshAria': '重新整理 Repo 清單',
+  'repos.candidatesLoading': '正在讀取 Orca 與 GitHub 的 Repo…',
+  'repos.candidatesFailed': '無法讀取 Repo 清單，請稍後重新整理。',
+  'repos.orcaUnavailable': '目前無法從 Orca 讀取 Repo 清單。',
+  'repos.githubUnavailable': '目前無法從 GitHub 讀取 Repo 清單。',
+  'repos.localEmpty': 'Orca 中沒有 Git Repo。',
+  'repos.remoteEmpty': 'GitHub 上沒有你擁有的 Repo。',
+  'repos.candidateRegister': '註冊',
+  'repos.candidateRegisterAria': '註冊 {name}',
+  'repos.candidateRegistered': '✓ 已註冊',
+  'repos.noGithub': '沒有 GitHub origin',
+  'repos.problem.invalid_github_origin':
+    '沒有 GitHub origin，無法註冊。請把 origin 設為 GitHub Repo。',
+  'repos.problemUnknown': '無法註冊（{code}）',
+  'repos.archived': '已封存',
+  'repos.inOrca': '已在 Orca：{name}',
+  'repos.notInOrca': '尚未加入 Orca',
+  'repos.cloneHint':
+    '複製下列指令自行執行：clone 之後在 Orca 加入該資料夾（AI Office 不會替你執行）。',
+  'repos.copy': '複製指令',
+  'repos.copyAria': '複製指令：{name}',
+  'repos.copied': '已複製',
+  'repos.copiedAria': '已複製：{name}',
 } as const;

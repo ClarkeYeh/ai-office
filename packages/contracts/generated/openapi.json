@@ -199,6 +199,39 @@
         }
       }
     },
+    "/api/v1/repo-candidates": {
+      "get": {
+        "operationId": "listRepoCandidates",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoCandidatesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/templates": {
       "get": {
         "operationId": "listTemplates",
@@ -12382,6 +12415,155 @@
         },
         "required": [
           "localPath"
+        ]
+      },
+      "RepoCandidatesResponse": {
+        "type": "object",
+        "properties": {
+          "local": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "displayName": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "github": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "owner": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "owner",
+                        "name"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "registered": {
+                  "type": "boolean"
+                },
+                "problem": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "path",
+                "displayName",
+                "github",
+                "registered"
+              ]
+            }
+          },
+          "remote": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "owner": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "pushedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "local": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "path"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "registered": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "owner",
+                "name",
+                "visibility",
+                "archived",
+                "pushedAt",
+                "local",
+                "registered"
+              ]
+            }
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "orca": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unavailable"
+                ]
+              },
+              "github": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "orca",
+              "github"
+            ]
+          }
+        },
+        "required": [
+          "local",
+          "remote",
+          "sources"
         ]
       },
       "RepoRuntimeRef": {

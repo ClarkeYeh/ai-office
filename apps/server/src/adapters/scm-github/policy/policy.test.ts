@@ -108,3 +108,73 @@ describe('GitHub policy negative matrix', () => {
     }
   });
 });
+
+describe('account-scoped endpoints (v0.1.1 repo picker)', () => {
+  const viewerRepos = { affiliation: 'owner', sort: 'pushed', per_page: 100 };
+  const refused = expect.objectContaining({
+    category: 'guard',
+    code: 'account_request_not_allowed',
+  });
+  it('lists exactly three endpoints outside /repos/{owner}/{repo}, all GET', () => {
+    expect(
+      Object.entries(endpoints)
+        .filter(([, e]) => !e.path.startsWith('/repos/{owner}/{repo}'))
+        .map(([id, e]) => `${id} ${e.method} ${e.path}`)
+        .sort(),
+    ).toEqual([
+      'rateLimit.get GET /rate_limit',
+      'user.get GET /user',
+      'user.repos GET /user/repos',
+    ]);
+  });
+  it('allows one page of the viewer’s own repos without the repo allowlist', () => {
+    const { url, write } = prepareRequest(
+      'user.repos',
+      { query: viewerRepos },
+      {},
+      new RepoAllowlist(),
+    );
+    expect(write).toBe(false);
+    expect(url.toString()).toBe(
+      'https://api.github.com/user/repos?affiliation=owner&per_page=100&sort=pushed',
+    );
+  });
+  it.each([
+    ['another affiliation', { ...viewerRepos, affiliation: 'all' }],
+    ['a second page', { ...viewerRepos, page: 2 }],
+    ['an extra filter', { ...viewerRepos, visibility: 'private' }],
+    ['a smaller page', { ...viewerRepos, per_page: 50 }],
+    ['a missing parameter', { affiliation: 'owner', per_page: 100 }],
+    ['no query', undefined],
+  ])('refuses /user/repos with %s', (_, query) => {
+    expect(() =>
+      prepareRequest(
+        'user.repos',
+        query ? { query } : {},
+        {},
+        new RepoAllowlist(),
+      ),
+    ).toThrowError(refused);
+  });
+  it('still refuses other unscoped calls', () => {
+    // Identity and rate limit stay query-free.
+    for (const id of ['user.get', 'rateLimit.get'] as const)
+      expect(() =>
+        prepareRequest(id, { query: viewerRepos }, {}, new RepoAllowlist()),
+      ).toThrowError(refused);
+    // Ids outside the table never reach the transport.
+    for (const id of ['user.orgs', 'search.repos', 'repos.forUser'])
+      expect(() =>
+        prepareRequest(id as EndpointId, {}, {}, new RepoAllowlist()),
+      ).toThrowError(expect.objectContaining({ code: 'endpoint_not_allowed' }));
+    // A body on the account read is refused like any GET body.
+    expect(() =>
+      prepareRequest(
+        'user.repos',
+        { query: viewerRepos, body: {} },
+        {},
+        new RepoAllowlist(),
+      ),
+    ).toThrowError(expect.objectContaining({ code: 'invalid_request_body' }));
+  });
+});

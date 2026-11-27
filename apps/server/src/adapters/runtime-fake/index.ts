@@ -115,6 +115,7 @@ type Operation =
   | 'findByCorrelation'
   | 'resolveCaller'
   | 'inspectLocalRepo'
+  | 'listLocalRepos'
   | 'inspectWorkspace';
 /** Stable request comparison, independent of object property insertion order. */
 function canonical(value: unknown): string {
@@ -1117,6 +1118,25 @@ export class FakeRuntime implements RuntimePort {
         originUrl: null,
         runtimeRepoId: null,
       },
+    );
+  }
+  /** The `localRepos` the runtime knows (runtime repo id set), in insertion order. */
+  async listLocalRepos(): ReturnType<RuntimePort['listLocalRepos']> {
+    this.before('listLocalRepos');
+    this.after('listLocalRepos');
+    return Object.entries(this.options.localRepos ?? {}).flatMap(
+      ([path, repo]) =>
+        repo.runtimeRepoId === null
+          ? []
+          : [
+              {
+                path,
+                displayName: path.split('/').filter(Boolean).at(-1) ?? path,
+                runtimeRepoId: repo.runtimeRepoId,
+                isGitMainWorktree: repo.isGitMainWorktree,
+                originUrl: repo.originUrl,
+              },
+            ],
     );
   }
   setWorkspaceInspection(

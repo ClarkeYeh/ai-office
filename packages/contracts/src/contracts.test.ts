@@ -336,8 +336,8 @@ test('API start request round-trips and requires input', () => {
     requirement: 'Build',
   });
   expect(StartWorkflowRequestSchema.safeParse({}).success).toBe(false);
-  expect(apiEndpoints).toHaveLength(22);
-  expect(new Set(apiEndpoints.map((e) => e.operationId)).size).toBe(22);
+  expect(apiEndpoints).toHaveLength(23);
+  expect(new Set(apiEndpoints.map((e) => e.operationId)).size).toBe(23);
 });
 test('SSE data, resync, and comment frames round-trip', () => {
   for (const value of [

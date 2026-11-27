@@ -188,6 +188,39 @@ export const WorkflowsResponseSchema = z.object({
 });
 export const ReposResponseSchema = z.object({ repos: z.array(RepoViewSchema) });
 export const RegisterRepoRequestSchema = z.object({ localPath: id });
+const sourceStatus = z.enum(['ok', 'unavailable']);
+/** Known `problem` codes of a local repo candidate (open string, like error codes). */
+export const REPO_CANDIDATE_PROBLEMS = ['invalid_github_origin'] as const;
+/**
+ * v0.1.1 repo picker, a request-time read model (nothing persisted, no
+ * events): the runtime's git main worktrees and one page of the viewer's own
+ * GitHub repos, matched by owner/name ignoring case. A failed source is
+ * reported in `sources` and its list is empty; the other still answers.
+ */
+export const RepoCandidatesResponseSchema = z.object({
+  local: z.array(
+    z.object({
+      path: id,
+      displayName: id,
+      github: z.object({ owner: id, name: id }).nullable(),
+      registered: z.boolean(),
+      /** Why it cannot be registered, an `ApiErrorCode` (e.g. `invalid_github_origin`). */
+      problem: id.optional(),
+    }),
+  ),
+  remote: z.array(
+    z.object({
+      owner: id,
+      name: id,
+      visibility: z.enum(['public', 'private']),
+      archived: z.boolean(),
+      pushedAt: z.string().nullable(),
+      local: z.object({ path: id }).nullable(),
+      registered: z.boolean(),
+    }),
+  ),
+  sources: z.object({ orca: sourceStatus, github: sourceStatus }),
+});
 export const GatesResponseSchema = z.object({ gates: z.array(GateViewSchema) });
 export const QuestionsResponseSchema = z.object({
   questions: z.array(QuestionViewSchema),
@@ -275,6 +308,12 @@ export const apiEndpoints = [
     operationId: 'getRepo',
     params,
     response: RepoViewSchema,
+  },
+  {
+    method: 'get',
+    path: '/api/v1/repo-candidates',
+    operationId: 'listRepoCandidates',
+    response: RepoCandidatesResponseSchema,
   },
   {
     method: 'get',
@@ -407,6 +446,9 @@ export const apiEndpoints = [
 export type StartWorkflowRequest = z.infer<typeof StartWorkflowRequestSchema>;
 export type GateDecisionRequest = z.infer<typeof GateDecisionRequestSchema>;
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+export type RepoCandidatesResponse = z.infer<
+  typeof RepoCandidatesResponseSchema
+>;
 export type WorkflowSnapshotResponse = z.infer<
   typeof WorkflowSnapshotResponseSchema
 >;

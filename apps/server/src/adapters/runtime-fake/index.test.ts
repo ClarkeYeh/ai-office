@@ -1067,3 +1067,34 @@ describe('spawned worktree (M5 §4.2)', () => {
     expect(restored.spawnedWorkspace('spawn')).toBe(created);
   });
 });
+it('lists the local repos the runtime knows and honors a disconnect fault (v0.1.1)', async () => {
+  const runtime = new FakeRuntime({
+    clock: new FakeClock(),
+    localRepos: {
+      '/fake/repos/demo': {
+        isGitMainWorktree: true,
+        originUrl: 'https://github.com/ai-office-fake/demo.git',
+        runtimeRepoId: 'fake-repo-demo',
+      },
+      '/fake/repos/not-in-orca': {
+        isGitMainWorktree: true,
+        originUrl: null,
+        runtimeRepoId: null,
+      },
+    },
+  });
+  expect(await runtime.listLocalRepos()).toEqual([
+    {
+      path: '/fake/repos/demo',
+      displayName: 'demo',
+      runtimeRepoId: 'fake-repo-demo',
+      isGitMainWorktree: true,
+      originUrl: 'https://github.com/ai-office-fake/demo.git',
+    },
+  ]);
+  runtime.injectFault('listLocalRepos', 'disconnect');
+  await expect(runtime.listLocalRepos()).rejects.toMatchObject({
+    code: 'runtime_unavailable',
+  });
+  expect(await runtime.listLocalRepos()).toHaveLength(1);
+});

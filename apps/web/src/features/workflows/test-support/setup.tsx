@@ -46,6 +46,7 @@ type MockApi = ApiClient & {
       | 'listRepos'
       | 'getRepo'
       | 'registerRepo'
+      | 'listRepoCandidates'
       | 'listWorkflows'
       | 'startWorkflow'
       | 'cancelWorkflow'
@@ -70,6 +71,11 @@ export function setup(): {
     listRepos: vi.fn().mockResolvedValue({ repos: [repo] }),
     getRepo: vi.fn().mockResolvedValue(repo),
     registerRepo: vi.fn().mockResolvedValue(repo),
+    listRepoCandidates: vi.fn().mockResolvedValue({
+      local: [],
+      remote: [],
+      sources: { orca: 'ok', github: 'ok' },
+    }),
     listWorkflows: vi.fn().mockResolvedValue({ workflows: [] }),
     startWorkflow: vi.fn().mockResolvedValue({ workflowId: 'new-workflow' }),
     cancelWorkflow: vi.fn().mockResolvedValue({ accepted: true }),
