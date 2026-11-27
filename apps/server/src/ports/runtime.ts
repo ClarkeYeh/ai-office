@@ -58,6 +58,15 @@ export type WorkspaceReq =
   | { kind: 'new-worktree'; baseBranch: string; name: string; branch: string } // Orca：worktree create --branch，再 worker-start --worktree path:
   | { kind: 'existing-worktree'; workspace: WorkspaceRef; readOnly: boolean }; // 會議共用；Orca 不強制唯讀
 
+/** One `kind: git` Orca repo with the cheap parts of `inspectLocalRepo`. */
+export type LocalRepo = {
+  path: string;
+  displayName: string;
+  runtimeRepoId: string;
+  isGitMainWorktree: boolean;
+  originUrl: string | null;
+};
+
 export type PreparedWorkspace = {
   workspace: WorkspaceRef;
   path: string;
@@ -161,6 +170,12 @@ export interface RuntimePort {
     originUrl: string | null;
     runtimeRepoId: string | null;
   }>; // Repo 註冊（§17.3）
+  /**
+   * v0.1.1 repo picker, read-only: the runtime's git repos (folder
+   * workspaces excluded). Adapters may cache briefly; `fresh` skips that
+   * cache (the page's refresh button). Nothing is persisted.
+   */
+  listLocalRepos(options?: { fresh?: boolean }): Promise<LocalRepo[]>;
   inspectWorkspace(
     ws: WorkspaceRef,
   ): Promise<{ clean: boolean; changedFiles: string[] }>; // 會議結束的乾淨檢查（§7.2），只回檔名

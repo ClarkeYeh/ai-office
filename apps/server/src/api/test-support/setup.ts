@@ -11,6 +11,7 @@ import { SessionService } from '../../application/auth/session.js';
 import {
   QueryService,
   ProjectionService,
+  RepoCandidateQueries,
 } from '../../application/queries/index.js';
 import { TemplateQueries } from '../../application/queries/templates.js';
 import { StreamService } from '../../application/stream/index.js';
@@ -89,6 +90,11 @@ export async function setup(
     commands,
     queries,
     templates: new TemplateQueries(repository),
+    candidates: new RepoCandidateQueries({
+      runtime: h.world.runtime,
+      scm: h.world.scm,
+      registered: () => queries.listRepos().repos,
+    }),
     sessions,
     stream: new StreamService(h.store),
     port: 4319,

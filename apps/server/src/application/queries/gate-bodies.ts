@@ -53,7 +53,10 @@ function conclusionIssue(events: EventStore, gate: GateView) {
   }
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([

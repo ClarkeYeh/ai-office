@@ -21,6 +21,8 @@ const endpoint = (
 export const endpoints = {
   'user.get': endpoint('GET', '/user'),
   'rateLimit.get': endpoint('GET', '/rate_limit'),
+  // v0.1.1 repo picker; account-scoped, see `accountScoped` below.
+  'user.repos': endpoint('GET', '/user/repos'),
   'repos.get': endpoint('GET', root),
   'branches.get': endpoint('GET', `${root}/branches/{branch}`),
   'branches.protection': endpoint(
@@ -105,6 +107,16 @@ export const endpoints = {
   'commits.status': endpoint('GET', `${root}/commits/{sha}/status`),
 } as const;
 export type EndpointId = keyof typeof endpoints;
+/**
+ * The only endpoints outside `/repos/{owner}/{repo}`, so outside the repo
+ * allowlist, each with the exact query it may send. `user.repos` is pinned to
+ * one page of the viewer's own repos, most recently pushed first.
+ */
+const accountScoped: Partial<Record<EndpointId, Record<string, string>>> = {
+  'user.get': {},
+  'rateLimit.get': {},
+  'user.repos': { affiliation: 'owner', per_page: '100', sort: 'pushed' },
+};
 export function guard(code: string): never {
   throw new PortError('guard', code, code);
 }
@@ -140,6 +152,23 @@ export function prepareRequest(
   });
   if (spec.path.startsWith(root))
     repos.assert({ owner: params.owner!, name: params.repo! }, write);
+  else {
+    const allowed = accountScoped[id];
+    const query = Object.entries(params.query ?? {})
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${key}=${String(value)}`)
+      .sort();
+    if (
+      !allowed ||
+      write ||
+      query.join('&') !==
+        Object.entries(allowed)
+          .map(([key, value]) => `${key}=${value}`)
+          .sort()
+          .join('&')
+    )
+      guard('account_request_not_allowed');
+  }
   const safety = options.safety;
   if (
     id === 'refs.delete' &&

@@ -50,7 +50,7 @@ test.each(['--version', '-v'])(
     expect(await runCli([arg])).toEqual({
       exitCode: 0,
       message: expect.stringMatching(
-        /^ai-office 0\.1\.0 \(commit (?:[0-9a-f]{4,40}|unknown)\)$/,
+        /^ai-office 0\.1\.1 \(commit (?:[0-9a-f]{4,40}|unknown)\)$/,
       ),
     });
   },

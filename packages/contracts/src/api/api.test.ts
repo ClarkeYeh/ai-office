@@ -373,6 +373,44 @@ const responses: Record<(typeof apiEndpoints)[number]['operationId'], unknown> =
     listRepos: { repos: [repoView] },
     registerRepo: repoView,
     getRepo: { ...repoView, status: 'invalid', issues: ['not in Orca'] },
+    listRepoCandidates: {
+      local: [
+        {
+          path: '/Users/example/app',
+          displayName: 'app',
+          github: { owner: 'octo', name: 'app' },
+          registered: true,
+        },
+        {
+          path: '/Users/example/notes',
+          displayName: 'notes',
+          github: null,
+          registered: false,
+          problem: 'invalid_github_origin',
+        },
+      ],
+      remote: [
+        {
+          owner: 'octo',
+          name: 'app',
+          visibility: 'public',
+          archived: false,
+          pushedAt: at,
+          local: { path: '/Users/example/app' },
+          registered: true,
+        },
+        {
+          owner: 'octo',
+          name: 'empty',
+          visibility: 'private',
+          archived: true,
+          pushedAt: null,
+          local: null,
+          registered: false,
+        },
+      ],
+      sources: { orca: 'ok', github: 'unavailable' },
+    },
     listTemplates: { valid: [template], invalid: [] },
     getTemplate: {
       valid: [],

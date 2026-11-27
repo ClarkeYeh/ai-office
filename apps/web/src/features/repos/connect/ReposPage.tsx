@@ -5,11 +5,23 @@ import {
   type ApiClient,
 } from '../../../api/index.js';
 import type { MessageKey } from '../../../shared/lib/i18n/index.js';
-import { RepoList } from '../ui/RepoList.js';
+import { RepoCandidates } from '../ui/RepoCandidates.js';
+import { RepoList, RepoPageLayout } from '../ui/RepoList.js';
 
 type RepoView = ApiResponse<'getRepo'>;
+type Candidates = ApiResponse<'listRepoCandidates'>;
 
-export function ReposPage({ api }: { api: ApiClient }) {
+const copyText = async (text: string) => {
+  await globalThis.navigator.clipboard.writeText(text);
+};
+
+export function ReposPage({
+  api,
+  copy = copyText,
+}: {
+  api: ApiClient;
+  copy?: (text: string) => Promise<void>;
+}) {
   const [repos, setRepos] = useState<RepoView[]>([]);
   const [nonce, setNonce] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -17,6 +29,12 @@ export function ReposPage({ api }: { api: ApiClient }) {
   const submitting = useRef(false);
   const [message, setMessage] = useState<MessageKey | null>(null);
   const [error, setError] = useState(false);
+  const [candidates, setCandidates] = useState<Candidates | null>(null);
+  const [candidatesNonce, setCandidatesNonce] = useState(0);
+  const [candidatesLoading, setCandidatesLoading] = useState(true);
+  const [candidatesFailed, setCandidatesFailed] = useState(false);
+  // The refresh button re-reads Orca; opening the page may use its cache.
+  const refreshCandidates = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -37,6 +55,28 @@ export function ReposPage({ api }: { api: ApiClient }) {
     );
     return () => controller.abort();
   }, [api, nonce]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setCandidatesLoading(true);
+    setCandidatesFailed(false);
+    const query = refreshCandidates.current ? { refresh: '1' as const } : {};
+    refreshCandidates.current = false;
+    void api.listRepoCandidates(query, { signal: controller.signal }).then(
+      (result) => {
+        if (!controller.signal.aborted) {
+          setCandidates(result);
+          setCandidatesLoading(false);
+        }
+      },
+      () => {
+        if (!controller.signal.aborted) {
+          setCandidatesFailed(true);
+          setCandidatesLoading(false);
+        }
+      },
+    );
+    return () => controller.abort();
+  }, [api, candidatesNonce]);
   async function mutate(action: () => Promise<RepoView>, registered: boolean) {
     if (submitting.current) return;
     submitting.current = true;
@@ -50,6 +90,8 @@ export function ReposPage({ api }: { api: ApiClient }) {
         repo,
       ]);
       setMessage(registered ? 'repos.success' : 'repos.checks');
+      // The server marks the newly registered candidate ✓.
+      if (registered) setCandidatesNonce((value) => value + 1);
     } catch (cause) {
       setError(true);
       const code = cause instanceof ApiError ? cause.code : '';
@@ -65,23 +107,38 @@ export function ReposPage({ api }: { api: ApiClient }) {
       setPending(false);
     }
   }
+  const register = (localPath: string) => {
+    void mutate(() => api.registerRepo({ localPath }), true);
+  };
   return (
-    <RepoList
-      repos={repos}
-      pending={pending || loading}
-      loading={loading}
-      message={message}
-      error={error}
-      onRegister={(localPath) => {
-        void mutate(() => api.registerRepo({ localPath }), true);
-      }}
-      onRefresh={() => {
-        setMessage(null);
-        setNonce((value) => value + 1);
-      }}
-      onDetail={(id) => {
-        void mutate(() => api.getRepo(id), false);
-      }}
-    />
+    <RepoPageLayout>
+      <RepoCandidates
+        candidates={candidates}
+        loading={candidatesLoading}
+        failed={candidatesFailed}
+        pending={pending || loading}
+        onRegister={register}
+        onRefresh={() => {
+          refreshCandidates.current = true;
+          setCandidatesNonce((value) => value + 1);
+        }}
+        onCopy={copy}
+      />
+      <RepoList
+        repos={repos}
+        pending={pending || loading}
+        loading={loading}
+        message={message}
+        error={error}
+        onRegister={register}
+        onRefresh={() => {
+          setMessage(null);
+          setNonce((value) => value + 1);
+        }}
+        onDetail={(id) => {
+          void mutate(() => api.getRepo(id), false);
+        }}
+      />
+    </RepoPageLayout>
   );
 }

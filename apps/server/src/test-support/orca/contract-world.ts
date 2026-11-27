@@ -87,6 +87,10 @@ export class ContractWorld implements Exec {
     read: boolean;
   }[] = [];
   private templates = new Map<string, Recording>();
+  /** `repo list` result: the 1.4.272 recording with `<home>` made absolute. */
+  repoList: unknown = { repos: [] };
+  /** `git remote get-url origin` per path; absent → no origin (exit 2). */
+  readonly origins = new Map<string, string>();
   private seq = 0;
   private normalizer = new Normalizer();
   readonly recordings: Recording[] = [];
@@ -152,6 +156,15 @@ export class ContractWorld implements Exec {
         key,
         JSON.parse(await readFile(new URL(file, root), 'utf8')) as Recording,
       );
+    const repoList = await readFile(
+      new URL('../1.4.272/repo-list.ok.json', root),
+      'utf8',
+    );
+    world.repoList = (
+      JSON.parse(repoList.replaceAll('<home>', '/synthetic/home')) as {
+        response: { result: unknown };
+      }
+    ).response.result;
     return world;
   }
   armSpawn() {
@@ -247,6 +260,8 @@ export class ContractWorld implements Exec {
     if (basename(request.bin) === 'git') {
       const [verb, arg] = a.slice(2);
       if (verb === 'fetch' || verb === 'merge-base') text = '';
+      else if (verb === 'rev-parse' && a.includes('--show-toplevel'))
+        text = `.git\n${a[1]}\n`;
       else if (verb === 'rev-parse') {
         const ref = a.at(-1)!;
         if (a.includes('--quiet')) {
@@ -259,6 +274,9 @@ export class ContractWorld implements Exec {
               : /^[ab]{40}$/.test(ref)
                 ? ref
                 : SHA;
+      } else if (verb === 'remote') {
+        text = this.origins.get(a[1]!) ?? '';
+        exitCode = text ? 0 : 2;
       } else if (verb === 'for-each-ref') {
         const tip = a.find((v) => v.startsWith('--contains='))!.slice(11);
         text = this.originTips.has(tip)
@@ -310,6 +328,9 @@ export class ContractWorld implements Exec {
               consumer_generation: ++this.generation,
             },
           };
+          break;
+        case 'repo list':
+          result = this.repoList;
           break;
         case 'orchestration run-list':
           result = { runs: [{ id: RUN, objective: 'aio:open' }] };

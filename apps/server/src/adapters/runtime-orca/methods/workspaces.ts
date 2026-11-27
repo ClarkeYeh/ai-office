@@ -1,7 +1,11 @@
 import { stat } from 'node:fs/promises';
-import { isAbsolute, resolve, dirname } from 'node:path';
+import { basename, isAbsolute, resolve, dirname } from 'node:path';
 import { z } from 'zod';
-import type { RuntimePort, PreparedWorkspace } from '../../../ports/runtime.js';
+import type {
+  RuntimePort,
+  PreparedWorkspace,
+  LocalRepo,
+} from '../../../ports/runtime.js';
 import type { WorkspaceRef } from '../../../ports/refs.js';
 import { PortError } from '../../../ports/errors.js';
 import { workspaceRef } from '../refs.js';
@@ -19,6 +23,17 @@ export const Worktree = z.looseObject({
   isMainWorktree: z.boolean().optional(),
 });
 export type Worktree = z.infer<typeof Worktree>;
+/** `orca repo list`; 1.4.272 adds `kind` (`git` | `folder`) and `displayName`. */
+const RepoList = z.looseObject({
+  repos: z.array(
+    z.looseObject({
+      id: text,
+      path: text,
+      kind: z.string().nullish(),
+      displayName: z.string().nullish(),
+    }),
+  ),
+});
 const branch = (w: Worktree) => w.branch?.replace(/^refs\/heads\//, '') ?? '';
 const base = (w: Worktree) =>
   /(?:^|\s)base:([a-f0-9]{40})(?:\s|$)/.exec(w.comment ?? '')?.[1];
@@ -276,22 +291,23 @@ export class Workspaces {
       throw error;
     }
   }
-  async inspectRepo(path: string) {
-    const { repos } = await this.c.call(
-      ['repo', 'list'],
-      z.looseObject({
-        repos: z.array(z.looseObject({ id: text, path: text })),
-      }),
-    );
+  /** Main-worktree check and origin URL: git only, no Orca call. */
+  private async inspectGit(path: string) {
     const git = this.c.options.git;
+    const d = await git.directories(path);
+    const originUrl = await git.originUrl(path).catch(() => null);
+    return {
+      isGitMainWorktree:
+        resolve(d.topLevel) === resolve(path) &&
+        dirname(resolve(path, d.commonDir)) === resolve(path),
+      originUrl,
+    };
+  }
+  async inspectRepo(path: string) {
+    const { repos } = await this.c.call(['repo', 'list'], RepoList);
     try {
-      const d = await git.directories(path);
-      const originUrl = await git.originUrl(path).catch(() => null);
       return {
-        isGitMainWorktree:
-          resolve(d.topLevel) === resolve(path) &&
-          dirname(resolve(path, d.commonDir)) === resolve(path),
-        originUrl,
+        ...(await this.inspectGit(path)),
         runtimeRepoId:
           repos.find((r) => resolve(r.path) === resolve(path))?.id ?? null,
       };
@@ -299,5 +315,35 @@ export class Workspaces {
       if (!(e instanceof PortError) || e.code !== 'git_command_failed') throw e;
       return { isGitMainWorktree: false, originUrl: null, runtimeRepoId: null };
     }
+  }
+  /**
+   * The repo picker's local candidates: one bulk-lane `repo list`, then git
+   * per repo, serially. Folder workspaces (`kind: folder`) are skipped; a
+   * repo git cannot read is listed as not a main worktree.
+   */
+  async listRepos(): Promise<LocalRepo[]> {
+    const { repos } = await this.c.call(['repo', 'list'], RepoList);
+    const result: LocalRepo[] = [];
+    for (const repo of repos) {
+      if (repo.kind && repo.kind !== 'git') continue;
+      let git: { isGitMainWorktree: boolean; originUrl: string | null };
+      try {
+        git = await this.inspectGit(repo.path);
+      } catch (e) {
+        if (
+          !(e instanceof PortError) ||
+          (e.code !== 'git_command_failed' && e.category !== 'guard')
+        )
+          throw e;
+        git = { isGitMainWorktree: false, originUrl: null };
+      }
+      result.push({
+        path: repo.path,
+        displayName: repo.displayName?.trim() || basename(repo.path),
+        runtimeRepoId: repo.id,
+        ...git,
+      });
+    }
+    return result;
   }
 }

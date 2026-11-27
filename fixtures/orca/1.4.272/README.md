@@ -70,3 +70,11 @@ M5-T11b): 2 files, 4 tests passed in 257 s; every ledger 0, `janitor --scan` 0.
 - `recheck` compares types and key sets. Additions to string arrays (such as
   `capabilities`) and new enum values are invisible to it; the list above was
   found by hand.
+
+## `repo-list.ok.json` (v0.1.1 repo picker)
+
+The shape of one read-only `orca repo list --json` on 1.4.272, captured on
+2026-11-27 for `listLocalRepos`. Keys, types and enum-like values are as
+recorded; ids, paths (home as `<home>`), names, usernames, icons and remote URLs
+are synthetic and sanitized. The raw capture was not kept. Replayed by
+`runtime-orca/contract.test.ts` and `methods/methods.test.ts`.

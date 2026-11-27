@@ -59,10 +59,29 @@ skip the browser. `--home` selects another data directory; the default is
 
 ## Register a repository
 
-Open **Repos** (`http://127.0.0.1:4319/repos`) and enter the absolute local path of the
-repository's main worktree. The repository must already be added to Orca
-([Prerequisites](prerequisites.md#repositories-in-orca)). The backend works out
-the GitHub `owner/name` from `origin` and checks the repository settings.
+Open **Repos** (`http://127.0.0.1:4319/repos`). The page lists two things,
+read each time you open it or press **重新整理** (refresh):
+
+- **本機 Repo（來自 Orca）**: the git repositories you have added to Orca
+  ([Prerequisites](prerequisites.md#repositories-in-orca)); folder workspaces
+  are left out. Press **註冊** (register) on a row. A registered row shows
+  **✓ 已註冊**. A row whose `origin` is not a GitHub repository shows the reason
+  and cannot be registered.
+- **GitHub 上的 Repo**: up to 100 of your own GitHub repositories, most
+  recently pushed first; archived ones are dimmed. A repository that is
+  already in Orca links to its row above. One that is not shows
+  **尚未加入 Orca** and a command to copy: `git clone` it, then add the folder
+  in Orca (or `orca repo add --path <dir>`). AI Office only shows these
+  commands; it never runs them.
+
+If Orca or GitHub cannot be read, the page says so and still lists the other.
+Opening the page may reuse the Orca list for up to 30 seconds; press
+**重新整理** to show a repository you have just added to Orca right away.
+
+A repository that is not listed can still be registered: paste the absolute
+local path of its main worktree under **不在清單？貼上本機路徑**. Either way the
+backend works out the GitHub `owner/name` from `origin` and checks the
+repository settings.
 
 Warnings appear on the repository; see
 [Prerequisites](prerequisites.md#repository-settings) for what each means. A
@@ -191,7 +210,8 @@ AI_OFFICE_HOME=~/aio-fake ai-office start --dev --fake mainline --port 0
 
 `pnpm dev:office` scenarios: `demo` (default), `mainline`, `parallel`,
 `trouble`, `load-10`, `stall`. A simulated repository is registered
-automatically; start a workflow as usual. `demo` merges the simulated final PR by itself
+automatically; start a workflow as usual. The Repos page also lists a few
+simulated Orca and GitHub repositories to try the picker with. `demo` merges the simulated final PR by itself
 after 8 seconds; `--auto-merge-final <seconds>` sets that delay (`0` waits for
 you). The backend also knows `github-mainline`.
 

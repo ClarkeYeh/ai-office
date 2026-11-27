@@ -9,7 +9,10 @@ import {
 } from '@ai-office/contracts/api';
 import type { FastifyRequest } from 'fastify';
 import type { ApplicationFacade } from '../../application/facade.js';
-import type { QueryService } from '../../application/queries/index.js';
+import type {
+  QueryService,
+  RepoCandidateQueries,
+} from '../../application/queries/index.js';
 import type { TemplateQueries } from '../../application/queries/templates.js';
 import { ApiError } from '../errors.js';
 
@@ -29,6 +32,7 @@ export interface RouteDependencies {
     | 'getSeat'
   >;
   templates: Pick<TemplateQueries, 'listTemplates' | 'getTemplate'>;
+  candidates: Pick<RepoCandidateQueries, 'listRepoCandidates'>;
 }
 type Operation = Exclude<
   (typeof apiEndpoints)[number]['operationId'],
@@ -59,7 +63,7 @@ const found = <T>(value: T | null): T => {
 export function routeHandlers(
   deps: RouteDependencies,
 ): Record<Operation, (request: FastifyRequest) => unknown> {
-  const { commands, queries, templates } = deps;
+  const { commands, queries, templates, candidates } = deps;
   const id = (r: FastifyRequest) => (r.params as { id: string }).id;
   const seatId = (r: FastifyRequest) => (r.params as { seatId: string }).seatId;
   const key = (r: FastifyRequest) => r.headers['idempotency-key'] as string;
@@ -67,6 +71,10 @@ export function routeHandlers(
     getHealth: () => queries.getHealth(),
     listRepos: () => queries.listRepos(),
     getRepo: (r) => found(queries.getRepo(id(r))),
+    listRepoCandidates: (r) =>
+      candidates.listRepoCandidates({
+        refresh: (r.query as { refresh?: '1' }).refresh === '1',
+      }),
     registerRepo: async (r) => {
       const repo = await commands.registerRepo(
         RegisterRepoRequestSchema.parse(r.body),

@@ -38,6 +38,11 @@ const cases: {
   },
   { operation: 'listRepos', call: (a) => a.listRepos(), path: '/api/v1/repos' },
   {
+    operation: 'listRepoCandidates',
+    call: (a) => a.listRepoCandidates(),
+    path: '/api/v1/repo-candidates',
+  },
+  {
     operation: 'registerRepo',
     call: (a) => a.registerRepo({ localPath: '/test/repo' }),
     path: '/api/v1/repos',

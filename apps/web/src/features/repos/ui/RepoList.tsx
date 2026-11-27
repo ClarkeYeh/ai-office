@@ -1,8 +1,18 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { RepoView } from '@ai-office/contracts/api';
 import { t, tCode, type MessageKey } from '../../../shared/lib/i18n/index.js';
 import { Banner, Button, Field, PixelFrame } from '../../../shared/ui/index.js';
 import styles from './repos.module.css';
+
+/** The Repo page: intro, then the picker, the manual field and the registered list. */
+export function RepoPageLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className={styles.page}>
+      <p className={styles.intro}>{t('repos.intro')}</p>
+      {children}
+    </div>
+  );
+}
 
 export function RepoList({
   repos,
@@ -25,9 +35,9 @@ export function RepoList({
 }) {
   const [path, setPath] = useState('');
   return (
-    <div className={styles.page}>
-      <p className={styles.intro}>{t('repos.intro')}</p>
+    <>
       <PixelFrame>
+        <h2 className={styles.formTitle}>{t('repos.manualTitle')}</h2>
         <form
           className={styles.form}
           onSubmit={(event) => {
@@ -59,7 +69,8 @@ export function RepoList({
           {t(message)}
         </Banner>
       )}
-      <div>
+      <div className={styles.sectionHead}>
+        <h2>{t('repos.registeredTitle')}</h2>
         <Button
           data-testid="repos-refresh"
           aria-label={t('repos.refresh')}
@@ -75,9 +86,9 @@ export function RepoList({
         {repos.map((repo) => (
           <li key={repo.repoId}>
             <PixelFrame>
-              <h2>
+              <h3>
                 {repo.github.owner}/{repo.github.name}
-              </h2>
+              </h3>
               <p>
                 {t(
                   repo.status === 'registered'
@@ -112,7 +123,7 @@ export function RepoList({
                   data-testid={`repo-warnings-${repo.repoId}`}
                   aria-label={t('repos.warnings')}
                 >
-                  <h3>{t('repos.warnings')}</h3>
+                  <h4>{t('repos.warnings')}</h4>
                   <ul>
                     {repo.warnings.map((warning, index) => (
                       <li key={index}>{tCode('repoWarning', warning)}</li>
@@ -122,7 +133,7 @@ export function RepoList({
               )}
               {!!repo.issues.length && (
                 <Banner tone="error">
-                  <h3>{t('repos.checks')}</h3>
+                  <h4>{t('repos.checks')}</h4>
                   <ul>
                     {repo.issues.map((issue, index) => (
                       <li key={index}>{issue}</li>
@@ -142,6 +153,6 @@ export function RepoList({
           </li>
         ))}
       </ul>
-    </div>
+    </>
   );
 }

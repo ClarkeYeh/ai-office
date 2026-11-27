@@ -1231,3 +1231,99 @@ it('surfaces a separate branch deletion failure after removing a detached worksp
     '--delete-branch',
   );
 });
+it('lists git repos from the recorded 1.4.272 repo list, bulk lane, cached 30 s (v0.1.1)', async () => {
+  const f = await fixture();
+  const recorded = JSON.parse(
+    await readFile(
+      new URL(
+        '../../../../../../fixtures/orca/1.4.272/repo-list.ok.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as { argv: string[]; response: { result: unknown } };
+  expect(recorded.argv).toEqual(['orca', 'repo', 'list', '--json']);
+  f.setCustom(async (r) =>
+    command(r, 'repo list') ? { result: recorded.response.result } : undefined,
+  );
+  let now = 1_000_000;
+  (f.options as { now?: () => number }).now = () => now;
+  const run = vi.spyOn(f.options.cli, 'run');
+  vi.mocked(f.git.directories).mockImplementation(async (path) => {
+    if (path.endsWith('/scratch'))
+      throw new PortError('permanent', 'git_command_failed', 'git failed');
+    return { commonDir: '.git', topLevel: path };
+  });
+  vi.mocked(f.git.originUrl).mockImplementation(async (path) => {
+    if (path.endsWith('/example-app'))
+      return 'git@github.com:example-owner/example-app.git';
+    throw new PortError('permanent', 'git_command_failed', 'no origin');
+  });
+  const expected = [
+    {
+      path: '<home>/workspace/ai-office-spike',
+      displayName: 'ai-office-spike',
+      runtimeRepoId: '00000000-0000-4000-8000-0000000000a1',
+      isGitMainWorktree: true,
+      originUrl: null,
+    },
+    {
+      path: '<home>/workspace/example-app',
+      displayName: 'example-app',
+      runtimeRepoId: '00000000-0000-4000-8000-0000000000a2',
+      isGitMainWorktree: true,
+      originUrl: 'git@github.com:example-owner/example-app.git',
+    },
+    {
+      path: '<home>/workspace/scratch',
+      displayName: 'scratch',
+      runtimeRepoId: '00000000-0000-4000-8000-0000000000a3',
+      isGitMainWorktree: false,
+      originUrl: null,
+    },
+  ];
+  // Concurrent page loads share one call; the folder workspace is skipped.
+  const [first, second] = await Promise.all([
+    f.runtime.listLocalRepos(),
+    f.runtime.listLocalRepos(),
+  ]);
+  expect(first).toEqual(expected);
+  expect(second).toEqual(expected);
+  const repoLists = () =>
+    run.mock.calls.filter(([args]) => args.join(' ') === 'repo list');
+  expect(repoLists()).toHaveLength(1);
+  expect(repoLists()[0]![1]).toMatchObject({ kind: 'read', priority: 'bulk' });
+  expect(f.git.directories).not.toHaveBeenCalledWith(
+    '<home>/.ai-office/orca-home',
+  );
+  now += 29_999;
+  await f.runtime.listLocalRepos();
+  expect(repoLists()).toHaveLength(1);
+  now += 1;
+  await f.runtime.listLocalRepos();
+  expect(repoLists()).toHaveLength(2);
+  // The page's refresh button skips the cache, then later loads reuse that read.
+  await f.runtime.listLocalRepos({ fresh: true });
+  expect(repoLists()).toHaveLength(3);
+  now += 29_999;
+  await f.runtime.listLocalRepos();
+  expect(repoLists()).toHaveLength(3);
+});
+it('does not cache a failed repo list', async () => {
+  const f = await fixture();
+  let fail = true;
+  f.setCustom(async (r) =>
+    command(r, 'repo list') && fail ? { error: 'runtime_down' } : undefined,
+  );
+  await expect(f.runtime.listLocalRepos()).rejects.toBeInstanceOf(PortError);
+  fail = false;
+  expect(await f.runtime.listLocalRepos()).toEqual([
+    {
+      path: '/repo',
+      displayName: 'repo',
+      runtimeRepoId: 'repo',
+      isGitMainWorktree: true,
+      originUrl: 'https://example.test/repo',
+    },
+  ]);
+});
