@@ -108,7 +108,7 @@ it('replays the recorded 1.4.272 repo list through the CLI: git repos only, one 
   try {
     f.world.origins.set(
       '/synthetic/home/workspace/ai-office-spike',
-      'https://github.com/example-owner/ai-office-spike.git',
+      'https://github.com/ClarkeYeh/ai-office-spike.git',
     );
     f.world.calls.splice(0);
     const repos = await f.runtime.listLocalRepos();
@@ -118,7 +118,7 @@ it('replays the recorded 1.4.272 repo list through the CLI: git repos only, one 
         displayName: 'ai-office-spike',
         runtimeRepoId: '00000000-0000-4000-8000-0000000000a1',
         isGitMainWorktree: true,
-        originUrl: 'https://github.com/example-owner/ai-office-spike.git',
+        originUrl: 'https://github.com/ClarkeYeh/ai-office-spike.git',
       },
       {
         path: '/synthetic/home/workspace/example-app',

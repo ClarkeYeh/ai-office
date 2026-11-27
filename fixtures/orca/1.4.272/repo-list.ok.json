@@ -45,15 +45,15 @@
           },
           "repoIcon": {
             "type": "image",
-            "src": "https://github.com/example-owner/ai-office-spike",
+            "src": "https://github.com/ClarkeYeh/ai-office-spike",
             "source": "github",
             "label": "example-icon"
           },
           "upstream": null,
           "gitRemoteIdentity": {
-            "canonicalKey": "<redacted>/example-owner/ai-office-spike",
+            "canonicalKey": "<redacted>/clarkeyeh/ai-office-spike",
             "remoteName": "origin",
-            "remoteUrl": "https://github.com/example-owner/ai-office-spike"
+            "remoteUrl": "https://github.com/ClarkeYeh/ai-office-spike"
           },
           "projectHostSetupMethod": "imported-existing-folder",
           "agentWorkspaceTrust": "pre-trust",
