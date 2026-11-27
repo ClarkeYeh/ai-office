@@ -29,3 +29,17 @@ export type PrRef = z.infer<typeof PrRefSchema>;
 export type AgentKind = z.infer<
   typeof import('@ai-office/contracts/template').AgentKindSchema
 >;
+
+/**
+ * §17.3: the GitHub owner/name of an `origin` URL (HTTPS, scp-like or ssh://),
+ * or null for anything else. Registration and the repo candidates share it.
+ */
+export function parseGithubOrigin(
+  originUrl: string | null | undefined,
+): RepoScmRef | null {
+  const match =
+    /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
+      originUrl ?? '',
+    );
+  return match ? { owner: match[1]!, name: match[2]! } : null;
+}

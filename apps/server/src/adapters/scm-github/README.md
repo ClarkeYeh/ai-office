@@ -14,6 +14,12 @@ and `sleep(ms)` for deterministic scheduling, `tokenProvider({refresh})`, and
 scopes temporary read access to registration; call `register(repo)` only after
 registration succeeds. All reads and writes recheck access when dequeued.
 
+Only three endpoints sit outside `/repos/{owner}/{repo}` and so outside the
+allowlist: `GET /user`, `GET /rate_limit` (both without a query) and, for the
+v0.1.1 repo picker, `GET /user/repos` pinned to
+`affiliation=owner&sort=pushed&per_page=100` (one page, `listViewerRepos`).
+Any other query or unscoped endpoint is `guard{account_request_not_allowed}`.
+
 `http.request(endpointId, params, {schema, conditional?, safety?})` returns
 `{data, status, notModified, etag?, next?}`. Endpoint IDs and write schemas live
 in `policy/endpoints.ts`; arbitrary URLs and redirects are rejected. `params`

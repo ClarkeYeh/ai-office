@@ -532,3 +532,78 @@ describe('REST contracts and use-case forwarding', () => {
     expect(open).toHaveBeenCalledWith({ afterSeq: 0 });
   });
 });
+
+describe('GET /api/v1/repo-candidates (v0.1.1)', () => {
+  it('needs the session and returns the contract shape with registered flags', async () => {
+    const h = await server();
+    error(
+      await h.app.inject({
+        url: '/api/v1/repo-candidates',
+        headers: { host: h.headers.host },
+      }),
+      401,
+      'unauthorized',
+    );
+    h.world.runtime.listLocalRepos = vi.fn(async () => [
+      {
+        path: '/repos/demo',
+        displayName: 'demo',
+        runtimeRepoId: 'orca-repo-1',
+        isGitMainWorktree: true,
+        originUrl: 'git@github.com:octo/demo.git',
+      },
+      {
+        path: '/repos/tools',
+        displayName: 'tools',
+        runtimeRepoId: 'orca-repo-2',
+        isGitMainWorktree: true,
+        originUrl: 'https://github.com/Octo/Tools.git',
+      },
+    ]);
+    h.world.scm.listViewerRepos = vi.fn(async () => {
+      throw new Error('GitHub down');
+    });
+    const before = h.store.lastSeq();
+    const response = await h.app.inject({
+      url: '/api/v1/repo-candidates',
+      headers: h.headers,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.json()).toEqual({
+      local: [
+        {
+          path: '/repos/demo',
+          displayName: 'demo',
+          github: { owner: 'octo', name: 'demo' },
+          registered: true,
+        },
+        {
+          path: '/repos/tools',
+          displayName: 'tools',
+          github: { owner: 'Octo', name: 'Tools' },
+          registered: false,
+        },
+      ],
+      remote: [],
+      sources: { orca: 'ok', github: 'unavailable' },
+    });
+    // A read model: nothing is appended.
+    expect(h.store.lastSeq()).toBe(before);
+    // Opening the page may use the runtime's cache; refresh=1 skips it.
+    expect(h.world.runtime.listLocalRepos).toHaveBeenLastCalledWith({});
+    const refreshed = await h.app.inject({
+      url: '/api/v1/repo-candidates?refresh=1',
+      headers: h.headers,
+    });
+    expect(refreshed.statusCode).toBe(200);
+    expect(h.world.runtime.listLocalRepos).toHaveBeenLastCalledWith({
+      fresh: true,
+    });
+    const invalid = await h.app.inject({
+      url: '/api/v1/repo-candidates?refresh=yes',
+      headers: h.headers,
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+});

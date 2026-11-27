@@ -397,3 +397,27 @@ describe('FakeScm M3 ports (PP1, PP2, PP7)', () => {
     });
   });
 });
+it('lists only the viewer’s own repos, newest first, archived flagged (v0.1.1)', async () => {
+  const scm = new FakeScm({ clock: new FakeClock() });
+  scm.addRepo({ owner: 'me', name: 'first' });
+  scm.addRepo({ owner: 'someone-else', name: 'theirs' }, { viewerLogin: 'me' });
+  scm.addRepo({ owner: 'Me', name: 'old' }, { archived: true });
+  expect(await scm.listViewerRepos()).toEqual([
+    {
+      owner: 'Me',
+      name: 'old',
+      visibility: 'public',
+      archived: true,
+      pushedAt: null,
+      defaultBranch: 'main',
+    },
+    {
+      owner: 'me',
+      name: 'first',
+      visibility: 'public',
+      archived: false,
+      pushedAt: null,
+      defaultBranch: 'main',
+    },
+  ]);
+});

@@ -4,6 +4,11 @@ import { withGateBodies, type GateBodyDeps } from './gate-bodies.js';
 import type { ProjectionService } from './projection-service.js';
 export { ProjectionService } from './projection-service.js';
 export type { WorkflowSnapshot } from './projection-service.js';
+export {
+  RepoCandidateQueries,
+  matchRepoCandidates,
+} from './repo-candidates.js';
+export type { RepoCandidates } from './repo-candidates.js';
 
 /** Transport-neutral read use cases; missing entities return null for the API to map to 404. */
 export class QueryService {

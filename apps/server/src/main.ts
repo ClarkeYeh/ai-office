@@ -108,6 +108,7 @@ import {
 import {
   ProjectionService,
   QueryService,
+  RepoCandidateQueries,
 } from './application/queries/index.js';
 import { TemplateQueries } from './application/queries/templates.js';
 import { Reconciler } from './application/reconciler/reconciler.js';
@@ -126,6 +127,7 @@ import {
 import type { Settings } from './config/index.js';
 import { PortError } from './ports/errors.js';
 import type { RepoRuntimeRef, RepoScmRef } from './ports/refs.js';
+import { parseGithubOrigin } from './ports/refs.js';
 import type { RuntimePort } from './ports/runtime.js';
 import type { ScmPort } from './ports/scm.js';
 import type { Logger, Redactor, ScheduledTimer } from './ports/services.js';
@@ -163,6 +165,30 @@ export const FAKE_REPO = {
   runtime: RepoRuntimeRef;
   github: RepoScmRef;
 };
+
+/**
+ * v0.1.1 repo picker in the default fake world: one more registrable Orca
+ * repo, one without a GitHub origin, and two GitHub-only repos (one archived).
+ */
+export const FAKE_CANDIDATES = {
+  local: [
+    {
+      localPath: '/fake/repos/tools',
+      runtimeRepoId: 'fake-repo-tools',
+      originUrl: 'git@github.com:ai-office-fake/tools.git',
+    },
+    {
+      localPath: '/fake/repos/notes',
+      runtimeRepoId: 'fake-repo-notes',
+      originUrl: null,
+    },
+  ],
+  remote: [
+    { owner: 'ai-office-fake', name: 'tools' },
+    { owner: 'ai-office-fake', name: 'website', visibility: 'private' },
+    { owner: 'ai-office-fake', name: 'legacy', archived: true },
+  ],
+} as const;
 
 export interface StartOptions {
   dev?: boolean;
@@ -342,6 +368,9 @@ function composeFakeWorld(
   });
   const repo = options.fakeRepo ?? FAKE_REPO;
   scm.addRepo(repo.github);
+  const candidates = options.fakeRepo ? undefined : FAKE_CANDIDATES;
+  for (const { owner, name, ...info } of candidates?.remote ?? [])
+    scm.addRepo({ owner, name }, info);
   const selected = FAKE_SCENARIOS[scenario]!;
   const remote = options.scm ?? scm;
   const backendDown = (): never => {
@@ -361,6 +390,12 @@ function composeFakeWorld(
           originUrl: `https://github.com/${repo.github.owner}/${repo.github.name}.git`,
           runtimeRepoId: repo.runtime.orcaRepoId,
         },
+        ...Object.fromEntries(
+          (candidates?.local ?? []).map(({ localPath, ...local }) => [
+            localPath,
+            { isGitMainWorktree: true, ...local },
+          ]),
+        ),
       },
       readSpec: options.readSpec,
       remoteHead: async (ref) =>
@@ -1231,12 +1266,9 @@ async function compose(
       const inspect = runtime.inspectLocalRepo.bind(runtime);
       runtime.inspectLocalRepo = async (path) => {
         const local = await inspect(path);
-        const match =
-          /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
-            local.originUrl ?? '',
-          );
-        if (local.isGitMainWorktree && local.runtimeRepoId && match)
-          fakeScm.addRepo({ owner: match[1]!, name: match[2]! });
+        const github = parseGithubOrigin(local.originUrl);
+        if (local.isGitMainWorktree && local.runtimeRepoId && github)
+          fakeScm.addRepo(github);
         return local;
       };
       // The simulated remote must also know repos restored from the event store.
@@ -1486,75 +1518,82 @@ async function compose(
     port: () => port,
     logger: logger.child({ component: 'agent-gateway' }),
   });
+  const queries = new (class extends QueryService {
+    override getHealth() {
+      const view = super.getHealth();
+      const snapshot = health.snapshot();
+      const capabilities = usage.capabilities();
+      return {
+        ...view,
+        ...snapshot,
+        runtime: {
+          ...view.runtime,
+          ...snapshot.runtime,
+          version: runtimeMetadata.version,
+          verified: runtimeMetadata.verified,
+          shim: {
+            status:
+              runtimeMetadata.shim === 'ready'
+                ? ('ok' as const)
+                : ('missing' as const),
+            ...(runtimeMetadata.shimLocation
+              ? { location: runtimeMetadata.shimLocation }
+              : {}),
+          },
+          // Once an ownership event exists (hijacked, restored, reclaimed)
+          // the projection decides; before that the adapter probe does, and
+          // `none` (no run yet) is not a takeover.
+          runOwned:
+            view.runtime.runOwned ?? runtimeMetadata.ownership !== 'hijacked',
+          ...(runtimeMetadata.binPath
+            ? { binPath: runtimeMetadata.binPath }
+            : {}),
+          ...(runtimeMetadata.supportedRange
+            ? { supportedRange: runtimeMetadata.supportedRange }
+            : {}),
+          warnings: [
+            ...new Set([
+              ...(snapshot.runtime.warnings ?? []),
+              ...(runtimeMetadata.warnings ?? []),
+            ]),
+          ],
+          ...(runtimeMetadata.cliCallsPerMinute !== undefined
+            ? { cliCallsPerMinute: runtimeMetadata.cliCallsPerMinute }
+            : {}),
+          ...(runtimeMetadata.cpuSecondsPerMinute !== undefined
+            ? { cpuSecondsPerMinute: runtimeMetadata.cpuSecondsPerMinute }
+            : {}),
+        },
+        scm: {
+          ...view.scm,
+          ...snapshot.scm,
+          ...(runtimeConfig ? { ghBinPath: runtimeConfig.ghBinPath } : {}),
+        },
+        usage: {
+          ...snapshot.usage,
+          sources: capabilities.agents.map((agent) => ({
+            agent,
+            source: capabilities.source,
+            available: capabilities.source !== 'none',
+            formatVerified: capabilities.formatVerified,
+          })),
+        },
+      };
+    }
+  })(stores.events, projections, runtimeMode, {
+    scm: observedScm,
+    logger,
+  });
   const apiDeps = {
     commands,
-    queries: new (class extends QueryService {
-      override getHealth() {
-        const view = super.getHealth();
-        const snapshot = health.snapshot();
-        const capabilities = usage.capabilities();
-        return {
-          ...view,
-          ...snapshot,
-          runtime: {
-            ...view.runtime,
-            ...snapshot.runtime,
-            version: runtimeMetadata.version,
-            verified: runtimeMetadata.verified,
-            shim: {
-              status:
-                runtimeMetadata.shim === 'ready'
-                  ? ('ok' as const)
-                  : ('missing' as const),
-              ...(runtimeMetadata.shimLocation
-                ? { location: runtimeMetadata.shimLocation }
-                : {}),
-            },
-            // Once an ownership event exists (hijacked, restored, reclaimed)
-            // the projection decides; before that the adapter probe does, and
-            // `none` (no run yet) is not a takeover.
-            runOwned:
-              view.runtime.runOwned ?? runtimeMetadata.ownership !== 'hijacked',
-            ...(runtimeMetadata.binPath
-              ? { binPath: runtimeMetadata.binPath }
-              : {}),
-            ...(runtimeMetadata.supportedRange
-              ? { supportedRange: runtimeMetadata.supportedRange }
-              : {}),
-            warnings: [
-              ...new Set([
-                ...(snapshot.runtime.warnings ?? []),
-                ...(runtimeMetadata.warnings ?? []),
-              ]),
-            ],
-            ...(runtimeMetadata.cliCallsPerMinute !== undefined
-              ? { cliCallsPerMinute: runtimeMetadata.cliCallsPerMinute }
-              : {}),
-            ...(runtimeMetadata.cpuSecondsPerMinute !== undefined
-              ? { cpuSecondsPerMinute: runtimeMetadata.cpuSecondsPerMinute }
-              : {}),
-          },
-          scm: {
-            ...view.scm,
-            ...snapshot.scm,
-            ...(runtimeConfig ? { ghBinPath: runtimeConfig.ghBinPath } : {}),
-          },
-          usage: {
-            ...snapshot.usage,
-            sources: capabilities.agents.map((agent) => ({
-              agent,
-              source: capabilities.source,
-              available: capabilities.source !== 'none',
-              formatVerified: capabilities.formatVerified,
-            })),
-          },
-        };
-      }
-    })(stores.events, projections, runtimeMode, {
+    queries,
+    templates: new TemplateQueries(templates),
+    candidates: new RepoCandidateQueries({
+      runtime: observedRuntime,
       scm: observedScm,
+      registered: () => queries.listRepos().repos,
       logger,
     }),
-    templates: new TemplateQueries(templates),
     sessions: new SessionService(stores.sessions),
     stream: new StreamService(stores.events),
     get port() {

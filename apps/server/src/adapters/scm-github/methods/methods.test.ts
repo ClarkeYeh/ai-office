@@ -321,6 +321,75 @@ describe('GitHub T4 methods through the HTTP boundary (offline)', () => {
     await f.scm.health();
     f.done();
   });
+  it('lists one page of the viewer’s own repos outside the repo allowlist (v0.1.1)', async () => {
+    const row = (name: string, extra: Record<string, unknown> = {}) => ({
+      id: 1,
+      name,
+      full_name: `example-owner/${name}`,
+      owner: { login: 'example-owner', id: 1 },
+      private: false,
+      visibility: 'public',
+      archived: false,
+      pushed_at: '2026-11-20T00:00:00Z',
+      default_branch: 'main',
+      ...extra,
+    });
+    const f = setup(
+      [
+        {
+          path: '/user/repos',
+          data: [
+            row('alpha'),
+            row('secret', { private: true, visibility: 'private' }),
+            row('old', { archived: true, pushed_at: null }),
+          ],
+          check: (url) =>
+            expect(Object.fromEntries(url.searchParams)).toEqual({
+              affiliation: 'owner',
+              per_page: '100',
+              sort: 'pushed',
+            }),
+        },
+      ],
+      false,
+    );
+    expect(await f.scm.listViewerRepos()).toEqual([
+      {
+        owner: 'example-owner',
+        name: 'alpha',
+        visibility: 'public',
+        archived: false,
+        pushedAt: '2026-11-20T00:00:00Z',
+        defaultBranch: 'main',
+      },
+      {
+        owner: 'example-owner',
+        name: 'secret',
+        visibility: 'private',
+        archived: false,
+        pushedAt: '2026-11-20T00:00:00Z',
+        defaultBranch: 'main',
+      },
+      {
+        owner: 'example-owner',
+        name: 'old',
+        visibility: 'public',
+        archived: true,
+        pushedAt: null,
+        defaultBranch: 'main',
+      },
+    ]);
+    f.done();
+  });
+  it('fails the viewer repo list on a malformed row instead of dropping it', async () => {
+    const f = setup(
+      [{ path: '/user/repos', data: [{ name: 'alpha', owner: null }] }],
+      false,
+    );
+    await expect(f.scm.listViewerRepos()).rejects.toMatchObject({
+      category: 'contract_mismatch',
+    });
+  });
   it('creates only missing labels and never edits existing ones', async () => {
     const f = setup([
       { path: `${base}/labels`, data: [{ name: 'Existing' }] },

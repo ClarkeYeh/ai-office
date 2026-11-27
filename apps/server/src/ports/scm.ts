@@ -50,6 +50,17 @@ export const MARKER_SCAN_SLACK_MS = 10 * 60_000;
 export const CREATE_PENDING_WINDOW_MS = 60_000;
 /** The `retryAfterMs` of `create_outcome_unknown` (M3_PLAN §4.2). */
 export const CREATE_RETRY_AFTER_MS = 15_000;
+/** v0.1.1 repo picker: one repository the viewer owns (account-scoped read). */
+export type ViewerRepo = {
+  owner: string;
+  name: string;
+  visibility: 'public' | 'private';
+  archived: boolean;
+  pushedAt: string | null;
+  defaultBranch: string;
+};
+/** `listViewerRepos` reads one page; the viewer's other repos are not listed. */
+export const VIEWER_REPOS_LIMIT = 100;
 export interface ScmPort {
   getPR(ref: PrRef): Promise<{
     state: 'open' | 'closed' | 'merged';
@@ -133,6 +144,11 @@ export interface ScmPort {
     hint?: MarkerHint,
   ): Promise<MarkerMatch | null>;
   listReviewComments(pr: PrRef): Promise<ReviewComment[]>;
+  /**
+   * Account-scoped and read-only (not repo-scoped, so outside the repo
+   * allowlist): the viewer's own repos, most recently pushed first, one page.
+   */
+  listViewerRepos(): Promise<ViewerRepo[]>;
   poll(
     repo: RepoScmRef,
     cursor: ScmCursor | null,

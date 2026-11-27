@@ -102,3 +102,52 @@ it('rejects drift inside a replay segment and unconsumed calls', async () => {
     await f.dispose?.();
   }
 });
+
+it('replays the recorded 1.4.272 repo list through the CLI: git repos only, one bulk call (v0.1.1)', async () => {
+  const f = await orcaReplayFixture();
+  try {
+    f.world.origins.set(
+      '/synthetic/home/workspace/ai-office-spike',
+      'https://github.com/ClarkeYeh/ai-office-spike.git',
+    );
+    f.world.calls.splice(0);
+    const repos = await f.runtime.listLocalRepos();
+    expect(repos).toEqual([
+      {
+        path: '/synthetic/home/workspace/ai-office-spike',
+        displayName: 'ai-office-spike',
+        runtimeRepoId: '00000000-0000-4000-8000-0000000000a1',
+        isGitMainWorktree: true,
+        originUrl: 'https://github.com/ClarkeYeh/ai-office-spike.git',
+      },
+      {
+        path: '/synthetic/home/workspace/example-app',
+        displayName: 'example-app',
+        runtimeRepoId: '00000000-0000-4000-8000-0000000000a2',
+        isGitMainWorktree: true,
+        originUrl: null,
+      },
+      {
+        path: '/synthetic/home/workspace/scratch',
+        displayName: 'scratch',
+        runtimeRepoId: '00000000-0000-4000-8000-0000000000a3',
+        isGitMainWorktree: true,
+        originUrl: null,
+      },
+    ]);
+    // Cached: a second page load within 30 s makes no Orca or git call.
+    const before = f.world.calls.length;
+    await f.runtime.listLocalRepos();
+    expect(f.world.calls.length).toBe(before);
+    const orca = f.world.calls.filter((c) => c.argv[0] === 'orca');
+    expect(orca.map((c) => c.argv.slice(1))).toEqual([
+      ['repo', 'list', '--json'],
+    ]);
+    // The folder workspace never reaches git.
+    expect(
+      f.world.calls.some((c) => c.argv.some((a) => a.includes('orca-home'))),
+    ).toBe(false);
+  } finally {
+    await f.dispose?.();
+  }
+});

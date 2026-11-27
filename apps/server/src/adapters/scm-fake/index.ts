@@ -25,7 +25,9 @@ import type {
   PrPatch,
   ReviewComment,
   ScmPort,
+  ViewerRepo,
 } from '../../ports/scm.js';
+import { VIEWER_REPOS_LIMIT } from '../../ports/scm.js';
 
 type RepoInfo = Awaited<ReturnType<ScmPort['inspectRepo']>>;
 type StoredComment = {
@@ -341,6 +343,28 @@ export class FakeScm implements ScmPort {
       rateLimitRemaining: 5000,
       rateLimitResetAt: this.now(),
     };
+  }
+  /** The viewer's own repos, most recently added first; the fake keeps no push times. */
+  async listViewerRepos(): Promise<ViewerRepo[]> {
+    const viewer = (await this.health()).viewerLogin.toLowerCase();
+    return [...this.repos]
+      .reverse()
+      .flatMap(([id, repo]) => {
+        const [owner, name] = JSON.parse(id) as [string, string];
+        return owner.toLowerCase() === viewer
+          ? [
+              {
+                owner,
+                name,
+                visibility: repo.info.visibility,
+                archived: repo.info.archived ?? false,
+                pushedAt: null,
+                defaultBranch: repo.info.defaultBranch,
+              },
+            ]
+          : [];
+      })
+      .slice(0, VIEWER_REPOS_LIMIT);
   }
   async inspectRepo(ref: RepoScmRef) {
     return structuredClone(this.repo(ref).info);
