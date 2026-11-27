@@ -157,4 +157,7 @@ test('a failed source is explained while the other still lists; refresh refetche
     (await screen.findByTestId('repo-candidates-failed')).textContent,
   ).toBe(t('repos.candidatesFailed'));
   expect(api.listRepoCandidates).toHaveBeenCalledTimes(2);
+  // Opening the page may use Orca's cache; the refresh button bypasses it.
+  expect(api.listRepoCandidates.mock.calls[0]![0]).toEqual({});
+  expect(api.listRepoCandidates.mock.calls[1]![0]).toEqual({ refresh: '1' });
 });

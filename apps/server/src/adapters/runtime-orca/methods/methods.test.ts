@@ -1302,6 +1302,12 @@ it('lists git repos from the recorded 1.4.272 repo list, bulk lane, cached 30 s 
   now += 1;
   await f.runtime.listLocalRepos();
   expect(repoLists()).toHaveLength(2);
+  // The page's refresh button skips the cache, then later loads reuse that read.
+  await f.runtime.listLocalRepos({ fresh: true });
+  expect(repoLists()).toHaveLength(3);
+  now += 29_999;
+  await f.runtime.listLocalRepos();
+  expect(repoLists()).toHaveLength(3);
 });
 it('does not cache a failed repo list', async () => {
   const f = await fixture();

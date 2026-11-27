@@ -71,7 +71,10 @@ export function routeHandlers(
     getHealth: () => queries.getHealth(),
     listRepos: () => queries.listRepos(),
     getRepo: (r) => found(queries.getRepo(id(r))),
-    listRepoCandidates: () => candidates.listRepoCandidates(),
+    listRepoCandidates: (r) =>
+      candidates.listRepoCandidates({
+        refresh: (r.query as { refresh?: '1' }).refresh === '1',
+      }),
     registerRepo: async (r) => {
       const repo = await commands.registerRepo(
         RegisterRepoRequestSchema.parse(r.body),

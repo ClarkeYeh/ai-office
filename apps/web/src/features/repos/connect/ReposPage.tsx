@@ -33,6 +33,8 @@ export function ReposPage({
   const [candidatesNonce, setCandidatesNonce] = useState(0);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
   const [candidatesFailed, setCandidatesFailed] = useState(false);
+  // The refresh button re-reads Orca; opening the page may use its cache.
+  const refreshCandidates = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -57,7 +59,9 @@ export function ReposPage({
     const controller = new AbortController();
     setCandidatesLoading(true);
     setCandidatesFailed(false);
-    void api.listRepoCandidates({ signal: controller.signal }).then(
+    const query = refreshCandidates.current ? { refresh: '1' as const } : {};
+    refreshCandidates.current = false;
+    void api.listRepoCandidates(query, { signal: controller.signal }).then(
       (result) => {
         if (!controller.signal.aborted) {
           setCandidates(result);
@@ -114,7 +118,10 @@ export function ReposPage({
         failed={candidatesFailed}
         pending={pending || loading}
         onRegister={register}
-        onRefresh={() => setCandidatesNonce((value) => value + 1)}
+        onRefresh={() => {
+          refreshCandidates.current = true;
+          setCandidatesNonce((value) => value + 1);
+        }}
         onCopy={copy}
       />
       <RepoList

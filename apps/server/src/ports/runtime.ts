@@ -172,9 +172,10 @@ export interface RuntimePort {
   }>; // Repo 註冊（§17.3）
   /**
    * v0.1.1 repo picker, read-only: the runtime's git repos (folder
-   * workspaces excluded). Adapters may cache briefly; nothing is persisted.
+   * workspaces excluded). Adapters may cache briefly; `fresh` skips that
+   * cache (the page's refresh button). Nothing is persisted.
    */
-  listLocalRepos(): Promise<LocalRepo[]>;
+  listLocalRepos(options?: { fresh?: boolean }): Promise<LocalRepo[]>;
   inspectWorkspace(
     ws: WorkspaceRef,
   ): Promise<{ clean: boolean; changedFiles: string[] }>; // 會議結束的乾淨檢查（§7.2），只回檔名

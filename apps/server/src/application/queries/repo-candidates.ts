@@ -98,7 +98,10 @@ export function matchRepoCandidates(input: {
 /** v0.1.1 repo picker: a request-time read model; nothing is persisted. */
 export class RepoCandidateQueries {
   constructor(private readonly deps: RepoCandidateDeps) {}
-  async listRepoCandidates(): Promise<RepoCandidates> {
+  /** `refresh` skips the runtime's short repo-list cache. */
+  async listRepoCandidates(
+    request: { refresh?: boolean } = {},
+  ): Promise<RepoCandidates> {
     const timeoutMs = this.deps.timeoutMs ?? 10_000;
     const settle = async <T>(
       source: 'orca' | 'github',
@@ -115,7 +118,11 @@ export class RepoCandidateQueries {
       }
     };
     const [local, remote] = await Promise.all([
-      settle('orca', () => this.deps.runtime.listLocalRepos()),
+      settle('orca', () =>
+        this.deps.runtime.listLocalRepos(
+          request.refresh ? { fresh: true } : {},
+        ),
+      ),
       settle('github', () => this.deps.scm.listViewerRepos()),
     ]);
     return matchRepoCandidates({

@@ -313,6 +313,8 @@ export const apiEndpoints = [
     method: 'get',
     path: '/api/v1/repo-candidates',
     operationId: 'listRepoCandidates',
+    // `refresh=1` re-reads the runtime's repo list instead of its short cache.
+    query: z.object({ refresh: z.literal('1').optional() }),
     response: RepoCandidatesResponseSchema,
   },
   {

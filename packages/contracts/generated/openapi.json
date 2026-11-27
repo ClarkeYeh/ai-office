@@ -207,7 +207,17 @@
             "session": []
           }
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",

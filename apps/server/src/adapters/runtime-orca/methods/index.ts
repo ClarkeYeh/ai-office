@@ -156,10 +156,14 @@ export function createOrcaRuntime(options: OrcaRuntimeOptions): RuntimePort {
     findWorkspace: (req) => ws.find(req),
     inspectWorkspace: (workspace) => ws.inspect(workspace),
     inspectLocalRepo: (path) => ws.inspectRepo(path),
-    async listLocalRepos() {
+    async listLocalRepos(request) {
       const now = options.now?.() ?? Date.now();
       // Concurrent callers share the call in flight; a failure is not cached.
-      if (!localRepos || now - localRepos.at >= LOCAL_REPOS_TTL_MS) {
+      if (
+        request?.fresh ||
+        !localRepos ||
+        now - localRepos.at >= LOCAL_REPOS_TTL_MS
+      ) {
         const value = ws.listRepos();
         localRepos = { at: now, value };
         value.catch(() => {

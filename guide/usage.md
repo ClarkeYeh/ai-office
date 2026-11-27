@@ -59,8 +59,8 @@ skip the browser. `--home` selects another data directory; the default is
 
 ## Register a repository
 
-Open **Repos** (`http://127.0.0.1:4319/repos`). The page lists two things, read
-fresh each time you open it or press **重新整理** (refresh):
+Open **Repos** (`http://127.0.0.1:4319/repos`). The page lists two things,
+read each time you open it or press **重新整理** (refresh):
 
 - **本機 Repo（來自 Orca）**: the git repositories you have added to Orca
   ([Prerequisites](prerequisites.md#repositories-in-orca)); folder workspaces
@@ -75,8 +75,8 @@ fresh each time you open it or press **重新整理** (refresh):
   commands; it never runs them.
 
 If Orca or GitHub cannot be read, the page says so and still lists the other.
-The Orca list is reused for up to 30 seconds, so a repository you have just
-added to Orca can take that long to appear.
+Opening the page may reuse the Orca list for up to 30 seconds; press
+**重新整理** to show a repository you have just added to Orca right away.
 
 A repository that is not listed can still be registered: paste the absolute
 local path of its main worktree under **不在清單？貼上本機路徑**. Either way the

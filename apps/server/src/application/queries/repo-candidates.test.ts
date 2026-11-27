@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { REPO_CANDIDATE_PROBLEMS } from '@ai-office/contracts/api';
 import { PortError } from '../../ports/errors.js';
 import { parseGithubOrigin } from '../../ports/refs.js';
-import type { LocalRepo } from '../../ports/runtime.js';
+import type { LocalRepo, RuntimePort } from '../../ports/runtime.js';
 import type { ViewerRepo } from '../../ports/scm.js';
 import {
   matchRepoCandidates,
@@ -170,7 +170,7 @@ describe('matchRepoCandidates', () => {
 
 describe('RepoCandidateQueries', () => {
   const ports = (
-    listLocalRepos: () => Promise<LocalRepo[]>,
+    listLocalRepos: RuntimePort['listLocalRepos'],
     listViewerRepos: () => Promise<ViewerRepo[]>,
     timeoutMs?: number,
   ) => {
@@ -215,6 +215,14 @@ describe('RepoCandidateQueries', () => {
       remote: [],
       sources: { orca: 'ok', github: 'unavailable' },
     });
+  });
+  it('asks the runtime for a fresh list only on refresh', async () => {
+    const listLocalRepos = vi.fn(async () => [] as LocalRepo[]);
+    const { queries } = ports(listLocalRepos, async () => []);
+    await queries.listRepoCandidates();
+    expect(listLocalRepos).toHaveBeenLastCalledWith({});
+    await queries.listRepoCandidates({ refresh: true });
+    expect(listLocalRepos).toHaveBeenLastCalledWith({ fresh: true });
   });
   it('reports a source slower than the timeout as unavailable', async () => {
     vi.useFakeTimers();

@@ -590,5 +590,20 @@ describe('GET /api/v1/repo-candidates (v0.1.1)', () => {
     });
     // A read model: nothing is appended.
     expect(h.store.lastSeq()).toBe(before);
+    // Opening the page may use the runtime's cache; refresh=1 skips it.
+    expect(h.world.runtime.listLocalRepos).toHaveBeenLastCalledWith({});
+    const refreshed = await h.app.inject({
+      url: '/api/v1/repo-candidates?refresh=1',
+      headers: h.headers,
+    });
+    expect(refreshed.statusCode).toBe(200);
+    expect(h.world.runtime.listLocalRepos).toHaveBeenLastCalledWith({
+      fresh: true,
+    });
+    const invalid = await h.app.inject({
+      url: '/api/v1/repo-candidates?refresh=yes',
+      headers: h.headers,
+    });
+    expect(invalid.statusCode).toBe(400);
   });
 });
